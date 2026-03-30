@@ -1,0 +1,304 @@
+// DEXManager.swift
+// MTRX Blockchain - Components - DEX (C21)
+//
+// Zero-fee trading via Uniswap v3/v4 on Base, platform absorbs LP fees,
+// all prices sourced from C11 oracle.
+
+import Foundation
+import Combine
+
+// MARK: - Protocols
+
+protocol DEXDelegate: AnyObject {
+    func dex(_ manager: DEXManager, swapCompleted swap: DEXSwap)
+    func dex(_ manager: DEXManager, liquidityProvided event: LiquidityProvision)
+    func dex(_ manager: DEXManager, priceUpdated pair: String, price: Double)
+}
+
+// MARK: - Data Models
+
+enum UniswapVersion: String, Codable {
+    case v3, v4
+}
+
+struct DEXPool: Identifiable, Codable {
+    let id: String
+    let token0: String
+    let token1: String
+    let contractAddress: String
+    let uniswapVersion: UniswapVersion
+    var reserve0: Double
+    var reserve1: Double
+    var totalLiquidity: Double
+    let lpFeeRate: Double          // e.g. 0.003 — absorbed by platform
+    var volume24h: Double
+    var currentPrice: Double       // from C11 oracle
+}
+
+struct DEXSwap: Identifiable, Codable {
+    let id: String
+    let poolId: String
+    let userAddress: String
+    let tokenIn: String
+    let tokenOut: String
+    let amountIn: Double
+    let amountOut: Double
+    let userFee: Double            // always 0 — zero-fee to user
+    let platformAbsorbedFee: Double // platform pays LP fee
+    let oraclePrice: Double
+    let executedAt: Date
+    let txHash: String?
+}
+
+struct LiquidityProvision: Identifiable, Codable {
+    let id: String
+    let poolId: String
+    let providerAddress: String
+    let amount0: Double
+    let amount1: Double
+    let lpTokensMinted: Double
+    let timestamp: Date
+    let isRemoval: Bool
+}
+
+enum DEXError: Error, LocalizedError {
+    case poolNotFound(String)
+    case insufficientLiquidity
+    case oraclePriceUnavailable(String)
+    case slippageExceeded
+    case swapFailed(String)
+    case invalidAmount
+
+    var errorDescription: String? {
+        switch self {
+        case .poolNotFound(let id): return "Pool not found: \(id)"
+        case .insufficientLiquidity: return "Insufficient liquidity in pool."
+        case .oraclePriceUnavailable(let pair): return "Oracle price unavailable for \(pair)."
+        case .slippageExceeded: return "Price slippage exceeds tolerance."
+        case .swapFailed(let r): return "Swap failed: \(r)"
+        case .invalidAmount: return "Amount must be greater than zero."
+        }
+    }
+}
+
+// MARK: - DEXManager
+
+final class DEXManager: ObservableObject {
+
+    static let shared = DEXManager()
+
+    /// User pays zero fees. Platform absorbs LP fees.
+    static let userFeeRate: Double = 0.0
+    static let chain = "Base"
+
+    weak var delegate: DEXDelegate?
+
+    @Published private(set) var pools: [DEXPool] = []
+    @Published private(set) var swaps: [DEXSwap] = []
+    @Published private(set) var isLoading = false
+
+    private var poolStore: [String: DEXPool] = [:]
+    /// Oracle price cache — must be populated from C11 OracleComponent.
+    private var oraclePrices: [String: Double] = [:]   // "ETH/USDC" -> price
+
+    // MARK: - Oracle Integration (C11)
+
+    /// Set oracle price for a pair. Must be called by C11 or its adapter.
+    func setOraclePrice(pair: String, price: Double) {
+        oraclePrices[pair] = price
+    }
+
+    func getOraclePrice(pair: String) -> Double? {
+        oraclePrices[pair]
+    }
+
+    // MARK: - Pool Management
+
+    func createPool(token0: String, token1: String, contractAddress: String, version: UniswapVersion, lpFeeRate: Double = 0.003) async throws -> DEXPool {
+        let pair = "\(token0)/\(token1)"
+        guard let price = oraclePrices[pair] else {
+            throw DEXError.oraclePriceUnavailable(pair)
+        }
+
+        let pool = DEXPool(
+            id: UUID().uuidString,
+            token0: token0,
+            token1: token1,
+            contractAddress: contractAddress,
+            uniswapVersion: version,
+            reserve0: 0,
+            reserve1: 0,
+            totalLiquidity: 0,
+            lpFeeRate: lpFeeRate,
+            volume24h: 0,
+            currentPrice: price
+        )
+
+        poolStore[pool.id] = pool
+        await MainActor.run { pools.append(pool) }
+        return pool
+    }
+
+    // MARK: - Zero-Fee Swaps
+
+    /// Execute a swap. User pays zero fees; platform absorbs LP cost.
+    func swap(poolId: String, userAddress: String, tokenIn: String, amountIn: Double, minAmountOut: Double) async throws -> DEXSwap {
+        guard amountIn > 0 else { throw DEXError.invalidAmount }
+        guard var pool = poolStore[poolId] else { throw DEXError.poolNotFound(poolId) }
+
+        let pair = "\(pool.token0)/\(pool.token1)"
+        guard let oraclePrice = oraclePrices[pair] else {
+            throw DEXError.oraclePriceUnavailable(pair)
+        }
+
+        // Constant-product AMM calculation
+        let (amountOut, platformFee) = try calculateSwapOutput(
+            pool: pool, tokenIn: tokenIn, amountIn: amountIn
+        )
+
+        guard amountOut >= minAmountOut else {
+            throw DEXError.slippageExceeded
+        }
+
+        // Update reserves
+        if tokenIn == pool.token0 {
+            pool.reserve0 += amountIn
+            pool.reserve1 -= amountOut
+        } else {
+            pool.reserve1 += amountIn
+            pool.reserve0 -= amountOut
+        }
+        pool.volume24h += amountIn
+        pool.currentPrice = oraclePrice
+        poolStore[poolId] = pool
+
+        let swap = DEXSwap(
+            id: UUID().uuidString,
+            poolId: poolId,
+            userAddress: userAddress,
+            tokenIn: tokenIn,
+            tokenOut: tokenIn == pool.token0 ? pool.token1 : pool.token0,
+            amountIn: amountIn,
+            amountOut: amountOut,
+            userFee: 0,                  // zero fee to user
+            platformAbsorbedFee: platformFee,
+            oraclePrice: oraclePrice,
+            executedAt: Date(),
+            txHash: nil
+        )
+
+        await MainActor.run { swaps.append(swap) }
+        await updatePoolInPublished(pool)
+        delegate?.dex(self, swapCompleted: swap)
+        return swap
+    }
+
+    /// Constant-product AMM with LP fee absorbed by platform.
+    private func calculateSwapOutput(pool: DEXPool, tokenIn: String, amountIn: Double) throws -> (amountOut: Double, platformFee: Double) {
+        let (reserveIn, reserveOut): (Double, Double) = tokenIn == pool.token0
+            ? (pool.reserve0, pool.reserve1)
+            : (pool.reserve1, pool.reserve0)
+
+        guard reserveIn > 0 && reserveOut > 0 else {
+            throw DEXError.insufficientLiquidity
+        }
+
+        // LP fee is deducted from input but paid by platform
+        let effectiveInput = amountIn * (1.0 - pool.lpFeeRate)
+        let platformFee = amountIn * pool.lpFeeRate
+
+        let numerator = effectiveInput * reserveOut
+        let denominator = reserveIn + effectiveInput
+        let amountOut = numerator / denominator
+
+        guard amountOut < reserveOut else {
+            throw DEXError.insufficientLiquidity
+        }
+
+        return (amountOut, platformFee)
+    }
+
+    // MARK: - Liquidity
+
+    func addLiquidity(poolId: String, provider: String, amount0: Double, amount1: Double) async throws -> LiquidityProvision {
+        guard var pool = poolStore[poolId] else { throw DEXError.poolNotFound(poolId) }
+
+        let lpTokens = sqrt(amount0 * amount1)
+        pool.reserve0 += amount0
+        pool.reserve1 += amount1
+        pool.totalLiquidity += lpTokens
+        poolStore[poolId] = pool
+
+        let event = LiquidityProvision(
+            id: UUID().uuidString,
+            poolId: poolId,
+            providerAddress: provider,
+            amount0: amount0,
+            amount1: amount1,
+            lpTokensMinted: lpTokens,
+            timestamp: Date(),
+            isRemoval: false
+        )
+
+        await updatePoolInPublished(pool)
+        delegate?.dex(self, liquidityProvided: event)
+        return event
+    }
+
+    func removeLiquidity(poolId: String, provider: String, lpTokens: Double) async throws -> LiquidityProvision {
+        guard var pool = poolStore[poolId] else { throw DEXError.poolNotFound(poolId) }
+        guard pool.totalLiquidity > 0 else { throw DEXError.insufficientLiquidity }
+
+        let share = lpTokens / pool.totalLiquidity
+        let amount0 = pool.reserve0 * share
+        let amount1 = pool.reserve1 * share
+
+        pool.reserve0 -= amount0
+        pool.reserve1 -= amount1
+        pool.totalLiquidity -= lpTokens
+        poolStore[poolId] = pool
+
+        let event = LiquidityProvision(
+            id: UUID().uuidString,
+            poolId: poolId,
+            providerAddress: provider,
+            amount0: amount0,
+            amount1: amount1,
+            lpTokensMinted: lpTokens,
+            timestamp: Date(),
+            isRemoval: true
+        )
+
+        await updatePoolInPublished(pool)
+        delegate?.dex(self, liquidityProvided: event)
+        return event
+    }
+
+    // MARK: - Queries
+
+    func getPool(id: String) -> DEXPool? { poolStore[id] }
+
+    func getPoolByPair(token0: String, token1: String) -> DEXPool? {
+        poolStore.values.first {
+            ($0.token0 == token0 && $0.token1 == token1) ||
+            ($0.token0 == token1 && $0.token1 == token0)
+        }
+    }
+
+    func getSwaps(userAddress: String) -> [DEXSwap] {
+        swaps.filter { $0.userAddress == userAddress }
+    }
+
+    func totalPlatformAbsorbedFees() -> Double {
+        swaps.reduce(0) { $0 + $1.platformAbsorbedFee }
+    }
+
+    // MARK: - Private
+
+    @MainActor
+    private func updatePoolInPublished(_ pool: DEXPool) {
+        if let idx = pools.firstIndex(where: { $0.id == pool.id }) {
+            pools[idx] = pool
+        }
+    }
+}

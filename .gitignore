@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+artifacts/
+cache/
+
+# Environment
+.env
+.DS_Store
+
+# IDE
+.vscode/
+*.xcworkspace/
+*.xcodeproj/xcuserdata/
+
+# OS
+Thumbs.db
