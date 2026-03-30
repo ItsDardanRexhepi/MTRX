@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>MTRX</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.opnmatrx.mtrx</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+		<string>nfc</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>MTRX uses your camera to scan QR codes, documents, and contracts for blockchain verification.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MTRX uses your microphone for voice commands with Trinity, Morpheus, and Oracle.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>MTRX uses your location to show nearby properties, merchants, and supply chain assets on the map.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>MTRX uses your location for property monitoring geofences and supply chain tracking.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>MTRX accesses your contacts to suggest wallet addresses for easy transfers.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>MTRX adds contract deadlines and payment reminders to your calendar.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>MTRX accesses your photos to scan documents and contracts for blockchain registration.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>MTRX reads your health data so Trinity can provide context-aware financial guidance.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>MTRX uses Bluetooth to connect to hardware wallets and IoT sensors for property monitoring.</string>
+	<key>NFCReaderUsageDescription</key>
+	<string>MTRX uses NFC to scan asset tags for supply chain verification and property identification.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>MTRX uses Face ID to securely authorize transactions and access your wallet.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>MTRX uses speech recognition for voice commands with Trinity.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>MTRX uses local network for peer-to-peer contract signing and MultipeerConnectivity.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_mtrx._tcp</string>
+	</array>
+</dict>
+</plist>
