@@ -20,6 +20,8 @@ struct MTRXApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var walletManager = WalletManager()
     @StateObject private var trinityEngine = TrinityEngine()
+    @ObservedObject private var agentAccessControl = AgentAccessControl.shared
+    @ObservedObject private var morpheusInterventions = MorpheusInterventions.shared
 
     // MARK: - Body
 
@@ -100,7 +102,7 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            HomeView()
+            AgentConversationView(userID: appState.currentUserID)
                 .tabItem {
                     Label("Home", systemImage: Symbols.home)
                 }
@@ -160,6 +162,7 @@ enum AppTab: Int, CaseIterable {
 class AppState: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var currentDestination: NavigationDestination?
+    @Published var currentUserID: String = ""
 
     func navigate(to destination: NavigationDestination) {
         currentDestination = destination
