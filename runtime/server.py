@@ -1,4 +1,4 @@
-"""MTRX Runtime API Server — exposes all 30 blockchain component services."""
+"""MTRX Runtime API Server — exposes 30 blockchain components + 8 Phase 3 subsystems."""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -10,8 +10,8 @@ import uvicorn
 
 app = FastAPI(
     title="MTRX Runtime API",
-    description="API for all 30 MTRX blockchain component services",
-    version="1.0.0",
+    description="API for 30 blockchain components + 8 intelligent subsystems + 6 OpenClaw-parity features",
+    version="3.0.0",
 )
 
 app.add_middleware(
@@ -55,6 +55,24 @@ from runtime.routers import (
     privacy,
     disputes,
 )
+from runtime.routers import (
+    memory as memory_router,
+    goals as goals_router,
+    documents as documents_router,
+    automation as automation_router,
+    execution as execution_router,
+    checkins as checkins_router,
+    models as models_router,
+    migration as migration_router,
+)
+from runtime.routers import (
+    tasks as tasks_router,
+    channels as channels_router,
+    mcp_servers as mcp_router,
+    approvals as approvals_router,
+    skills as skills_router,
+    doctor as doctor_router,
+)
 
 # Register all routers with prefixes
 app.include_router(contract_conversion.router, prefix="/api/v1/contracts", tags=["C1 - Contract Conversion"])
@@ -88,6 +106,24 @@ app.include_router(social.router, prefix="/api/v1/social", tags=["C28 - Social"]
 app.include_router(privacy.router, prefix="/api/v1/privacy", tags=["C29 - Privacy"])
 app.include_router(disputes.router, prefix="/api/v1/disputes", tags=["C30 - Disputes"])
 
+# Phase 3 — Intelligent Subsystems
+app.include_router(memory_router.router, prefix="/api/v1/memory", tags=["P3 - User Memory"])
+app.include_router(goals_router.router, prefix="/api/v1/goals", tags=["P3 - Goals Engine"])
+app.include_router(documents_router.router, prefix="/api/v1/documents", tags=["P3 - Document RAG"])
+app.include_router(automation_router.router, prefix="/api/v1/automation", tags=["P3 - Automation Triggers"])
+app.include_router(execution_router.router, prefix="/api/v1/execution", tags=["P3 - Code Execution"])
+app.include_router(checkins_router.router, prefix="/api/v1/checkins", tags=["P3 - Proactive Check-Ins"])
+app.include_router(models_router.router, prefix="/api/v1/models", tags=["P3 - Model Marketplace"])
+app.include_router(migration_router.router, prefix="/api/v1/migration", tags=["P3 - Migration Importers"])
+
+# OpenClaw Parity Features
+app.include_router(tasks_router.router, prefix="/api/v1/tasks", tags=["OC - Task Control Plane"])
+app.include_router(channels_router.router, prefix="/api/v1/channels", tags=["OC - Multi-Channel"])
+app.include_router(mcp_router.router, prefix="/api/v1/mcp", tags=["OC - MCP Servers"])
+app.include_router(approvals_router.router, prefix="/api/v1/approvals", tags=["OC - Exec Approvals"])
+app.include_router(skills_router.router, prefix="/api/v1/skills", tags=["OC - Skills Marketplace"])
+app.include_router(doctor_router.router, prefix="/api/v1/doctor", tags=["OC - Health Diagnostics"])
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -111,7 +147,7 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 </style></head>
 <body><div class="container">
 <h1>MTRX</h1>
-<p class="sub">Runtime API — 30 blockchain components on Base &middot; <a href="/docs">Swagger Docs</a> &middot; <a href="/health">Health</a></p>
+<p class="sub">Runtime API — 30 blockchain + 8 intelligent + 6 platform features on Base &middot; <a href="/docs">Swagger Docs</a> &middot; <a href="/health">Health</a> &middot; <a href="/api/v1/doctor/check">Doctor</a></p>
 <div class="card"><h3>Components</h3>
 <div class="row"><span>C1 Contract Conversion</span><a href="/api/v1/contracts">/api/v1/contracts</a></div>
 <div class="row"><span>C2 DeFi Lending</span><a href="/api/v1/defi">/api/v1/defi</a></div>
@@ -144,6 +180,24 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 <div class="row"><span>C29 Privacy</span><a href="/api/v1/privacy">/api/v1/privacy</a></div>
 <div class="row"><span>C30 Disputes</span><a href="/api/v1/disputes">/api/v1/disputes</a></div>
 </div>
+<div class="card"><h3>Phase 3 — Intelligent Subsystems</h3>
+<div class="row"><span>User Memory</span><a href="/api/v1/memory">/api/v1/memory</a></div>
+<div class="row"><span>Goals Engine</span><a href="/api/v1/goals">/api/v1/goals</a></div>
+<div class="row"><span>Document RAG</span><a href="/api/v1/documents">/api/v1/documents</a></div>
+<div class="row"><span>Automation Triggers</span><a href="/api/v1/automation">/api/v1/automation</a></div>
+<div class="row"><span>Code Execution</span><a href="/api/v1/execution">/api/v1/execution</a></div>
+<div class="row"><span>Proactive Check-Ins</span><a href="/api/v1/checkins">/api/v1/checkins</a></div>
+<div class="row"><span>Model Marketplace</span><a href="/api/v1/models">/api/v1/models</a></div>
+<div class="row"><span>Migration Importers</span><a href="/api/v1/migration">/api/v1/migration</a></div>
+</div>
+<div class="card"><h3>OpenClaw Parity Features</h3>
+<div class="row"><span>Task Control Plane</span><a href="/api/v1/tasks">/api/v1/tasks</a></div>
+<div class="row"><span>Multi-Channel</span><a href="/api/v1/channels">/api/v1/channels</a></div>
+<div class="row"><span>MCP Servers</span><a href="/api/v1/mcp">/api/v1/mcp</a></div>
+<div class="row"><span>Exec Approvals</span><a href="/api/v1/approvals">/api/v1/approvals</a></div>
+<div class="row"><span>Skills Marketplace</span><a href="/api/v1/skills">/api/v1/skills</a></div>
+<div class="row"><span>Health Doctor</span><a href="/api/v1/doctor/check">/api/v1/doctor</a></div>
+</div>
 <div class="card"><h3>Status</h3>
 <div class="row"><span>Network</span><span class="tag">Base (8453)</span></div>
 <div class="row"><span>NeoSafe</span><span style="font-family:monospace;font-size:0.8rem">0x46fF...8Ec5</span></div>
@@ -154,7 +208,13 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "components": 30, "network": "base"}
+    return {
+        "status": "healthy",
+        "blockchain_components": 30,
+        "phase3_subsystems": 8,
+        "openclaw_parity_features": 6,
+        "network": "base",
+    }
 
 
 if __name__ == "__main__":
