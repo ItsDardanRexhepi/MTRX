@@ -186,9 +186,4 @@ class TrinityEngine: ObservableObject {
 }
 
 // MARK: - Placeholder Views
-
-struct OnboardingView: View {
-    var body: some View {
-        Text("Onboarding")
-    }
-}
+// OnboardingView is defined in UI/Views/Onboarding/OnboardingView.swift

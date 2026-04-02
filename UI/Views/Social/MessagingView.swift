@@ -79,6 +79,7 @@ final class MessagingViewModel: ObservableObject {
 
     static let maxGroupSize = 10
 
+    private let api = MTRXAPIClient.shared
     private var cancellables = Set<AnyCancellable>()
 
     var filteredConversations: [Conversation] {
@@ -90,10 +91,11 @@ final class MessagingViewModel: ObservableObject {
 
     func loadConversations() async {
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
         do {
-            // Production: fetch from XMTP client
-            try await Task.sleep(nanoseconds: 100_000_000)
+            let response: [String: AnyCodableValue] = try await api.get(path: "/api/v1/messaging/conversations")
+            conversations = parseConversations(response)
         } catch {
             errorMessage = "Failed to load conversations: \(error.localizedDescription)"
         }
@@ -102,11 +104,13 @@ final class MessagingViewModel: ObservableObject {
     func loadMessages(for conversation: Conversation) async {
         selectedConversation = conversation
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
         do {
-            // Production: fetch decrypted messages from XMTP
-            try await Task.sleep(nanoseconds: 100_000_000)
-            messages = []
+            let response: [String: AnyCodableValue] = try await api.get(
+                path: "/api/v1/messaging/conversations/\(conversation.id)/messages"
+            )
+            messages = parseMessages(response)
         } catch {
             errorMessage = "Failed to load messages: \(error.localizedDescription)"
         }
@@ -114,15 +118,51 @@ final class MessagingViewModel: ObservableObject {
 
     func sendMessage() async {
         let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty, let convoId = selectedConversation?.id else { return }
         isSending = true
         defer { isSending = false }
 
+        let pendingMessage = Message(
+            id: UUID().uuidString,
+            senderAddress: "self",
+            senderDisplayName: "You",
+            content: .text(text),
+            timestamp: Date(),
+            isFromCurrentUser: true,
+            deliveryStatus: .sending
+        )
+        messages.append(pendingMessage)
+        let pendingId = pendingMessage.id
+        messageText = ""
+
         do {
-            // Production: encrypt and send via XMTP protocol
-            try await Task.sleep(nanoseconds: 300_000_000)
-            messageText = ""
+            let _: [String: AnyCodableValue] = try await api.postRaw(
+                path: "/api/v1/messaging/conversations/\(convoId)/messages",
+                body: ["content": text, "content_type": "text"]
+            )
+            if let idx = messages.firstIndex(where: { $0.id == pendingId }) {
+                messages[idx] = Message(
+                    id: pendingMessage.id,
+                    senderAddress: pendingMessage.senderAddress,
+                    senderDisplayName: pendingMessage.senderDisplayName,
+                    content: pendingMessage.content,
+                    timestamp: pendingMessage.timestamp,
+                    isFromCurrentUser: true,
+                    deliveryStatus: .sent
+                )
+            }
         } catch {
+            if let idx = messages.firstIndex(where: { $0.id == pendingId }) {
+                messages[idx] = Message(
+                    id: pendingMessage.id,
+                    senderAddress: pendingMessage.senderAddress,
+                    senderDisplayName: pendingMessage.senderDisplayName,
+                    content: pendingMessage.content,
+                    timestamp: pendingMessage.timestamp,
+                    isFromCurrentUser: true,
+                    deliveryStatus: .failed
+                )
+            }
             errorMessage = "Failed to send message: \(error.localizedDescription)"
         }
     }
@@ -133,12 +173,13 @@ final class MessagingViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            // Production: create XMTP conversation
-            try await Task.sleep(nanoseconds: 300_000_000)
+            let _: [String: AnyCodableValue] = try await api.postRaw(
+                path: "/api/v1/messaging/conversations",
+                body: ["recipient": newRecipientAddress, "is_group": false]
+            )
             showNewConversation = false
             newRecipientAddress = ""
-            groupParticipants = []
-            groupName = ""
+            await loadConversations()
         } catch {
             errorMessage = "Failed to create conversation: \(error.localizedDescription)"
         }
@@ -154,12 +195,19 @@ final class MessagingViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            // Production: create XMTP group conversation
-            try await Task.sleep(nanoseconds: 500_000_000)
+            let _: [String: AnyCodableValue] = try await api.postRaw(
+                path: "/api/v1/messaging/conversations",
+                body: [
+                    "participants": groupParticipants.joined(separator: ","),
+                    "is_group": "true",
+                    "group_name": groupName,
+                ]
+            )
             showNewConversation = false
             groupParticipants = []
             groupName = ""
             isGroupChat = false
+            await loadConversations()
         } catch {
             errorMessage = "Failed to create group: \(error.localizedDescription)"
         }
@@ -177,6 +225,94 @@ final class MessagingViewModel: ObservableObject {
     func removeGroupParticipant(_ address: String) {
         groupParticipants.removeAll { $0 == address }
     }
+
+    // MARK: - Parsing
+
+    private func parseConversations(_ response: [String: AnyCodableValue]) -> [Conversation] {
+        guard case .array(let items) = response["conversations"] ?? response["data"] ?? .null else {
+            return []
+        }
+        return items.compactMap { item -> Conversation? in
+            guard case .dictionary(let dict) = item else { return nil }
+            let id = dict["id"]?.stringValue ?? UUID().uuidString
+            let isGroup = dict["is_group"]?.boolValue ?? false
+            let gName = dict["group_name"]?.stringValue
+            let unread = dict["unread_count"]?.intValue ?? 0
+            let encrypted = dict["is_encrypted"]?.boolValue ?? true
+
+            var participants: [Conversation.Participant] = []
+            if case .array(let pList) = dict["participants"] {
+                participants = pList.compactMap { p -> Conversation.Participant? in
+                    guard case .dictionary(let pd) = p else { return nil }
+                    return Conversation.Participant(
+                        id: pd["id"]?.stringValue ?? UUID().uuidString,
+                        walletAddress: pd["wallet_address"]?.stringValue ?? "",
+                        displayName: pd["display_name"]?.stringValue ?? pd["wallet_address"]?.stringValue ?? "",
+                        isCurrentUser: pd["is_current_user"]?.boolValue ?? false,
+                        ensName: pd["ens_name"]?.stringValue
+                    )
+                }
+            }
+
+            return Conversation(
+                id: id,
+                participants: participants,
+                isGroup: isGroup,
+                groupName: gName,
+                lastMessage: nil,
+                unreadCount: unread,
+                createdAt: Date(),
+                isEncrypted: encrypted
+            )
+        }
+    }
+
+    private func parseMessages(_ response: [String: AnyCodableValue]) -> [Message] {
+        guard case .array(let items) = response["messages"] ?? response["data"] ?? .null else {
+            return []
+        }
+        return items.compactMap { item -> Message? in
+            guard case .dictionary(let dict) = item else { return nil }
+            let id = dict["id"]?.stringValue ?? UUID().uuidString
+            let sender = dict["sender_address"]?.stringValue ?? ""
+            let senderName = dict["sender_display_name"]?.stringValue ?? sender
+            let contentText = dict["content"]?.stringValue ?? ""
+            let isFromSelf = dict["is_from_current_user"]?.boolValue ?? false
+            let contentType = dict["content_type"]?.stringValue ?? "text"
+
+            let content: Message.MessageContent
+            switch contentType {
+            case "transaction":
+                content = .transaction(
+                    txHash: dict["tx_hash"]?.stringValue ?? "",
+                    amount: dict["amount"]?.stringValue ?? "0",
+                    token: dict["token"]?.stringValue ?? "ETH"
+                )
+            case "proof_link":
+                content = .proofLink(
+                    url: URL(string: dict["url"]?.stringValue ?? "https://basescan.org") ?? URL(string: "https://basescan.org")!,
+                    title: dict["title"]?.stringValue ?? "Proof"
+                )
+            case "governance_vote":
+                content = .governanceVote(
+                    proposalId: dict["proposal_id"]?.stringValue ?? "",
+                    vote: dict["vote"]?.stringValue ?? ""
+                )
+            default:
+                content = .text(contentText)
+            }
+
+            return Message(
+                id: id,
+                senderAddress: sender,
+                senderDisplayName: senderName,
+                content: content,
+                timestamp: Date(),
+                isFromCurrentUser: isFromSelf,
+                deliveryStatus: .delivered
+            )
+        }
+    }
 }
 
 // MARK: - Main View
@@ -185,97 +321,122 @@ struct MessagingView: View {
     @StateObject private var viewModel = MessagingViewModel()
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.selectedConversation != nil {
-                    chatView
-                } else {
-                    conversationListView
-                }
+        Group {
+            if viewModel.selectedConversation != nil {
+                chatView
+            } else {
+                conversationListView
             }
-            .navigationTitle(viewModel.selectedConversation?.displayName ?? "Messages")
-            .navigationBarTitleDisplayMode(viewModel.selectedConversation != nil ? .inline : .large)
-            .toolbar {
-                if viewModel.selectedConversation != nil {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button {
-                            viewModel.selectedConversation = nil
-                            viewModel.messages = []
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "chevron.left")
-                                Text("Back")
-                            }
+        }
+        .navigationTitle(viewModel.selectedConversation?.displayName ?? "Messages")
+        .navigationBarTitleDisplayMode(viewModel.selectedConversation != nil ? .inline : .large)
+        .toolbar {
+            if viewModel.selectedConversation != nil {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        viewModel.selectedConversation = nil
+                        viewModel.messages = []
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: Symbols.back)
+                            Text("Back")
                         }
-                    }
-                    ToolbarItem(placement: .principal) {
-                        VStack(spacing: 1) {
-                            Text(viewModel.selectedConversation?.displayName ?? "")
-                                .font(.subheadline.weight(.semibold))
-                            HStack(spacing: 4) {
-                                Image(systemName: "lock.fill")
-                                    .font(.caption2)
-                                Text("End-to-End Encrypted")
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(.green)
-                        }
-                    }
-                } else {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            viewModel.showNewConversation = true
-                        } label: {
-                            Image(systemName: "square.and.pencil")
-                        }
-                        .accessibilityLabel("New conversation")
                     }
                 }
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 1) {
+                        Text(viewModel.selectedConversation?.displayName ?? "")
+                            .font(.subheadline.weight(.semibold))
+                        HStack(spacing: 4) {
+                            Image(systemName: Symbols.lock)
+                                .font(.caption2)
+                            Text("End-to-End Encrypted")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.statusSuccess)
+                    }
+                }
+            } else {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        viewModel.showNewConversation = true
+                    } label: {
+                        Image(systemName: Symbols.post)
+                    }
+                    .accessibilityLabel("New conversation")
+                }
             }
-            .sheet(isPresented: $viewModel.showNewConversation) {
-                newConversationSheet
-            }
-            .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
-                Button("OK") { viewModel.errorMessage = nil }
-            } message: {
-                Text(viewModel.errorMessage ?? "")
-            }
-            .task {
-                await viewModel.loadConversations()
-            }
+        }
+        .sheet(isPresented: $viewModel.showNewConversation) {
+            newConversationSheet
+        }
+        .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
+            Button("OK") { viewModel.errorMessage = nil }
+        } message: {
+            Text(viewModel.errorMessage ?? "")
+        }
+        .task {
+            await viewModel.loadConversations()
         }
     }
 
     // MARK: - Conversation List
 
     private var conversationListView: some View {
-        List {
+        Group {
             if viewModel.isLoading && viewModel.conversations.isEmpty {
-                ForEach(0..<5, id: \.self) { _ in
-                    ConversationSkeletonRow()
+                List {
+                    ForEach(0..<5, id: \.self) { _ in
+                        ConversationSkeletonRow()
+                    }
                 }
-            } else if viewModel.filteredConversations.isEmpty {
-                emptyConversationsView
+                .listStyle(.plain)
+            } else if let error = viewModel.errorMessage, viewModel.conversations.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: Symbols.alertWarning)
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                    Text("Could Not Load Messages")
+                        .font(.title3.weight(.semibold))
+                    Text(error)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button {
+                        Task { await viewModel.loadConversations() }
+                    } label: {
+                        Label("Retry", systemImage: Symbols.refresh)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ForEach(viewModel.filteredConversations) { conversation in
-                    ConversationRow(conversation: conversation)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            Task { await viewModel.loadMessages(for: conversation) }
+                List {
+                    if viewModel.filteredConversations.isEmpty {
+                        emptyConversationsView
+                    } else {
+                        ForEach(viewModel.filteredConversations) { conversation in
+                            ConversationRow(conversation: conversation)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    Task { await viewModel.loadMessages(for: conversation) }
+                                }
                         }
+                    }
+                }
+                .listStyle(.plain)
+                .searchable(text: $viewModel.searchText, prompt: "Search conversations")
+                .refreshable {
+                    await viewModel.loadConversations()
                 }
             }
-        }
-        .listStyle(.plain)
-        .searchable(text: $viewModel.searchText, prompt: "Search conversations")
-        .refreshable {
-            await viewModel.loadConversations()
         }
     }
 
     private var emptyConversationsView: some View {
         VStack(spacing: 16) {
-            Image(systemName: "lock.shield")
+            Image(systemName: Symbols.encrypted)
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
             Text("No Conversations")
@@ -303,6 +464,11 @@ struct MessagingView: View {
                     LazyVStack(spacing: 4) {
                         encryptionBanner
 
+                        if viewModel.isLoading {
+                            ProgressView("Loading messages...")
+                                .padding()
+                        }
+
                         ForEach(viewModel.messages) { message in
                             MessageBubble(message: message)
                                 .id(message.id)
@@ -326,15 +492,15 @@ struct MessagingView: View {
 
     private var encryptionBanner: some View {
         HStack(spacing: 6) {
-            Image(systemName: "lock.fill")
+            Image(systemName: Symbols.lock)
                 .font(.caption2)
             Text("Messages are end-to-end encrypted via XMTP. Only participants can read them.")
                 .font(.caption2)
         }
-        .foregroundStyle(.green)
+        .foregroundStyle(.statusSuccess)
         .padding(10)
         .frame(maxWidth: .infinity)
-        .background(Color.green.opacity(0.08))
+        .background(Color.statusSuccess.opacity(0.08))
         .cornerRadius(12)
         .padding(.bottom, 8)
     }
@@ -346,7 +512,7 @@ struct MessagingView: View {
                 .lineLimit(1...5)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(.systemGray6))
+                .background(Color.backgroundSecondary)
                 .cornerRadius(20)
                 .accessibilityLabel("Message input")
 
@@ -372,7 +538,7 @@ struct MessagingView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(Color(.systemBackground))
+        .background(Color.backgroundPrimary)
     }
 
     // MARK: - New Conversation Sheet
@@ -423,8 +589,8 @@ struct MessagingView: View {
 
                 Section {
                     HStack(spacing: 6) {
-                        Image(systemName: "lock.fill")
-                            .foregroundStyle(.green)
+                        Image(systemName: Symbols.lock)
+                            .foregroundStyle(.statusSuccess)
                         Text("All messages are end-to-end encrypted via XMTP protocol.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -475,7 +641,7 @@ struct ConversationRow: View {
                     .fill(Color(.systemGray4))
                     .frame(width: 48, height: 48)
                 if conversation.isGroup {
-                    Image(systemName: "person.3.fill")
+                    Image(systemName: Symbols.backers)
                         .foregroundStyle(.secondary)
                 } else {
                     Text(String(conversation.displayName.prefix(1)).uppercased())
@@ -491,9 +657,9 @@ struct ConversationRow: View {
                         .lineLimit(1)
 
                     if conversation.isEncrypted {
-                        Image(systemName: "lock.fill")
+                        Image(systemName: Symbols.lock)
                             .font(.caption2)
-                            .foregroundStyle(.green)
+                            .foregroundStyle(.statusSuccess)
                     }
 
                     Spacer()
@@ -514,15 +680,15 @@ struct ConversationRow: View {
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         case .transaction(_, let amount, let token):
-                            Label("\(amount) \(token)", systemImage: "arrow.left.arrow.right")
+                            Label("\(amount) \(token)", systemImage: Symbols.transaction)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         case .proofLink(_, let title):
-                            Label(title, systemImage: "link")
+                            Label(title, systemImage: Symbols.link)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         case .governanceVote(let proposalId, _):
-                            Label("Vote on #\(proposalId)", systemImage: "building.columns")
+                            Label("Vote on #\(proposalId)", systemImage: Symbols.dao)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -595,7 +761,7 @@ struct MessageBubble: View {
 
         case .transaction(let txHash, let amount, let token):
             VStack(alignment: .leading, spacing: 6) {
-                Label("Transaction", systemImage: "arrow.left.arrow.right")
+                Label("Transaction", systemImage: Symbols.transaction)
                     .font(.caption.weight(.semibold))
                 Text("\(amount) \(token)")
                     .font(.title3.weight(.bold))
@@ -617,7 +783,7 @@ struct MessageBubble: View {
 
         case .governanceVote(let proposalId, let vote):
             VStack(alignment: .leading, spacing: 4) {
-                Label("Governance Vote", systemImage: "building.columns")
+                Label("Governance Vote", systemImage: Symbols.dao)
                     .font(.caption.weight(.semibold))
                 Text("Proposal #\(proposalId)")
                     .font(.subheadline)
@@ -632,23 +798,23 @@ struct MessageBubble: View {
     private var deliveryIcon: some View {
         switch message.deliveryStatus {
         case .sending:
-            Image(systemName: "clock")
+            Image(systemName: Symbols.clock)
                 .font(.caption2)
         case .sent:
-            Image(systemName: "checkmark")
+            Image(systemName: Symbols.complete)
                 .font(.caption2)
         case .delivered:
-            Image(systemName: "checkmark")
+            Image(systemName: Symbols.complete)
                 .font(.caption2)
                 .overlay(
-                    Image(systemName: "checkmark")
+                    Image(systemName: Symbols.complete)
                         .font(.caption2)
                         .offset(x: 4)
                 )
         case .failed:
-            Image(systemName: "exclamationmark.circle")
+            Image(systemName: Symbols.failed)
                 .font(.caption2)
-                .foregroundStyle(.red)
+                .foregroundStyle(.statusError)
         }
     }
 }
@@ -694,5 +860,7 @@ struct RoundedCornerShape: Shape {
 }
 
 #Preview("Messaging") {
-    MessagingView()
+    NavigationStack {
+        MessagingView()
+    }
 }

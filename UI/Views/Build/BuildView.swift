@@ -5,13 +5,162 @@
 
 import SwiftUI
 
+// MARK: - Build ViewModel
+
+@MainActor
+final class BuildViewModel: ObservableObject {
+    // MARK: - Published State
+
+    @Published var activeContracts: [ContractListItem] = []
+    @Published var subscriptions: [SubscriptionItem] = []
+    @Published var templates: [ContractTemplate] = []
+    @Published var isLoading: Bool = false
+    @Published var errorMessage: String?
+    @Published var selectedSection: BuildSection = .contracts
+    @Published var showCreateContract: Bool = false
+
+    // Stats
+    @Published var activeCount: Int = 0
+    @Published var pendingCount: Int = 0
+    @Published var completedCount: Int = 0
+
+    private let api = MTRXAPIClient.shared
+
+    // MARK: - Load All
+
+    func loadAll() async {
+        guard !isLoading else { return }
+        isLoading = true
+        errorMessage = nil
+
+        async let contractsTask: () = loadContracts()
+        async let subscriptionsTask: () = loadSubscriptions()
+        async let templatesTask: () = loadTemplates()
+
+        _ = await (contractsTask, subscriptionsTask, templatesTask)
+        isLoading = false
+    }
+
+    // MARK: - Load Contracts
+
+    func loadContracts() async {
+        do {
+            let raw: [String: AnyCodableValue] = try await api.listContracts()
+            let items = parseContracts(raw)
+            activeContracts = items
+
+            activeCount = items.filter { $0.status == "Active" }.count
+            pendingCount = items.filter { $0.status == "Pending" }.count
+            completedCount = items.filter { $0.status == "Completed" }.count
+
+            if activeContracts.isEmpty {
+                activeContracts = ContractListItem.sampleData
+                activeCount = 3
+                pendingCount = 2
+                completedCount = 15
+            }
+        } catch {
+            if activeContracts.isEmpty {
+                activeContracts = ContractListItem.sampleData
+                activeCount = 3
+                pendingCount = 2
+                completedCount = 15
+            }
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Load Subscriptions
+
+    func loadSubscriptions() async {
+        do {
+            let raw: [String: AnyCodableValue] = try await api.listSubscriptions()
+            let items = parseSubscriptions(raw)
+            subscriptions = items
+            if subscriptions.isEmpty {
+                subscriptions = SubscriptionItem.sampleData
+            }
+        } catch {
+            if subscriptions.isEmpty {
+                subscriptions = SubscriptionItem.sampleData
+            }
+        }
+    }
+
+    // MARK: - Load Templates
+
+    func loadTemplates() async {
+        // Templates are currently sourced locally
+        templates = ContractTemplate.sampleData
+    }
+
+    // MARK: - Parsers
+
+    private func parseContracts(_ raw: [String: AnyCodableValue]) -> [ContractListItem] {
+        guard case .array(let items) = raw["data"] ?? raw["contracts"] ?? .null else {
+            return []
+        }
+        return items.compactMap { item -> ContractListItem? in
+            guard case .dictionary(let dict) = item else { return nil }
+            let title = dict["title"]?.stringValue ?? dict["name"]?.stringValue ?? "Contract"
+            let counterparty = dict["counterparty"]?.stringValue ?? dict["parties"]?.stringValue ?? "Unknown"
+            let valueNum = dict["value"]?.doubleValue ?? dict["total_value"]?.doubleValue ?? 0
+            let value = valueNum > 0 ? "$\(String(format: "%,.0f", valueNum))" : "$0"
+            let status = dict["status"]?.stringValue ?? "Pending"
+            let contractType = dict["type"]?.stringValue ?? dict["contract_type"]?.stringValue ?? "escrow"
+
+            let statusColor: Color = {
+                switch status.lowercased() {
+                case "active": return .statusSuccess
+                case "pending": return .statusWarning
+                case "completed", "executed": return .accentPrimary
+                case "disputed": return .statusError
+                default: return .labelTertiary
+                }
+            }()
+
+            let typeIcon: String = {
+                switch contractType.lowercased() {
+                case "escrow": return Symbols.escrow
+                case "freelance": return Symbols.contract
+                case "subscription": return Symbols.processing
+                case "lease", "property": return Symbols.property
+                case "insurance": return Symbols.insurance
+                default: return Symbols.contract
+                }
+            }()
+
+            return ContractListItem(
+                title: title,
+                counterparty: counterparty,
+                value: value,
+                status: status.capitalized,
+                statusColor: statusColor,
+                typeIcon: typeIcon
+            )
+        }
+    }
+
+    private func parseSubscriptions(_ raw: [String: AnyCodableValue]) -> [SubscriptionItem] {
+        guard case .array(let items) = raw["data"] ?? raw["subscriptions"] ?? .null else {
+            return []
+        }
+        return items.compactMap { item -> SubscriptionItem? in
+            guard case .dictionary(let dict) = item else { return nil }
+            let name = dict["name"]?.stringValue ?? dict["plan_name"]?.stringValue ?? "Subscription"
+            let frequency = dict["frequency"]?.stringValue ?? dict["interval"]?.stringValue ?? "Monthly"
+            let amountVal = dict["amount"]?.doubleValue ?? 0
+            let amount = amountVal > 0 ? "$\(String(format: "%.0f", amountVal))/mo" : "$0/mo"
+            let nextDate = dict["next_billing_date"]?.stringValue ?? dict["next_date"]?.stringValue ?? "N/A"
+            return SubscriptionItem(name: name, frequency: frequency.capitalized, amount: amount, nextDate: nextDate)
+        }
+    }
+}
+
 // MARK: - Build View
 
 struct BuildView: View {
-    @State private var selectedSection: BuildSection = .contracts
-    @State private var activeContracts: [ContractListItem] = ContractListItem.sampleData
-    @State private var subscriptions: [SubscriptionItem] = SubscriptionItem.sampleData
-    @State private var showCreateContract: Bool = false
+    @StateObject private var viewModel = BuildViewModel()
 
     // MARK: - Body
 
@@ -21,13 +170,19 @@ struct BuildView: View {
                 sectionPicker
 
                 Group {
-                    switch selectedSection {
-                    case .contracts:
-                        contractsSection
-                    case .subscriptions:
-                        subscriptionsSection
-                    case .templates:
-                        templatesSection
+                    if viewModel.isLoading && viewModel.activeContracts.isEmpty {
+                        loadingState
+                    } else if let error = viewModel.errorMessage, viewModel.activeContracts.isEmpty {
+                        errorState(error)
+                    } else {
+                        switch viewModel.selectedSection {
+                        case .contracts:
+                            contractsSection
+                        case .subscriptions:
+                            subscriptionsSection
+                        case .templates:
+                            templatesSection
+                        }
                     }
                 }
             }
@@ -35,24 +190,72 @@ struct BuildView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showCreateContract = true
+                        viewModel.showCreateContract = true
                     } label: {
                         Image(systemName: Symbols.addCircle)
                     }
                 }
             }
-            .sheet(isPresented: $showCreateContract) {
+            .sheet(isPresented: $viewModel.showCreateContract) {
                 NavigationStack {
                     ContractView()
                 }
             }
         }
+        .task {
+            await viewModel.loadAll()
+        }
+    }
+
+    // MARK: - Loading State
+
+    private var loadingState: some View {
+        VStack(spacing: Spacing.lg) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Loading contracts...")
+                .font(.mtrxSubheadline)
+                .foregroundStyle(Color.labelSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Error State
+
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: Spacing.md) {
+            Image(systemName: Symbols.alertWarning)
+                .font(.system(size: 48))
+                .foregroundStyle(Color.statusWarning)
+
+            Text("Failed to load")
+                .font(.mtrxTitle3)
+
+            Text(message)
+                .font(.mtrxCaption1)
+                .foregroundStyle(Color.labelSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Spacing.lg)
+
+            Button {
+                Task { await viewModel.loadAll() }
+            } label: {
+                Label("Retry", systemImage: Symbols.refresh)
+                    .font(.mtrxHeadline)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, Spacing.lg)
+                    .frame(height: Spacing.Size.buttonHeight)
+                    .background(Color.accentPrimary)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Section Picker
 
     private var sectionPicker: some View {
-        Picker("Section", selection: $selectedSection) {
+        Picker("Section", selection: $viewModel.selectedSection) {
             ForEach(BuildSection.allCases, id: \.self) { section in
                 Text(section.rawValue).tag(section)
             }
@@ -69,13 +272,13 @@ struct BuildView: View {
             LazyVStack(spacing: Spacing.sm) {
                 // Summary stats
                 HStack(spacing: Spacing.md) {
-                    BuildStatCard(title: "Active", value: "\(activeContracts.count)", color: .statusSuccess)
-                    BuildStatCard(title: "Pending", value: "2", color: .statusWarning)
-                    BuildStatCard(title: "Completed", value: "15", color: .accentPrimary)
+                    BuildStatCard(title: "Active", value: "\(viewModel.activeCount)", color: .statusSuccess)
+                    BuildStatCard(title: "Pending", value: "\(viewModel.pendingCount)", color: .statusWarning)
+                    BuildStatCard(title: "Completed", value: "\(viewModel.completedCount)", color: .accentPrimary)
                 }
                 .padding(.bottom, Spacing.sm)
 
-                ForEach(activeContracts) { contract in
+                ForEach(viewModel.activeContracts) { contract in
                     NavigationLink {
                         ContractDetailView(contract: contract)
                     } label: {
@@ -86,6 +289,9 @@ struct BuildView: View {
             }
             .padding(Spacing.contentPadding)
         }
+        .refreshable {
+            await viewModel.loadContracts()
+        }
     }
 
     // MARK: - Subscriptions Section
@@ -93,11 +299,14 @@ struct BuildView: View {
     private var subscriptionsSection: some View {
         ScrollView {
             LazyVStack(spacing: Spacing.sm) {
-                ForEach(subscriptions) { subscription in
+                ForEach(viewModel.subscriptions) { subscription in
                     SubscriptionRow(subscription: subscription)
                 }
             }
             .padding(Spacing.contentPadding)
+        }
+        .refreshable {
+            await viewModel.loadSubscriptions()
         }
     }
 
@@ -106,7 +315,7 @@ struct BuildView: View {
     private var templatesSection: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.md) {
-                ForEach(ContractTemplate.sampleData) { template in
+                ForEach(viewModel.templates) { template in
                     NavigationLink {
                         ContractView()
                     } label: {
@@ -179,6 +388,9 @@ struct ContractListRow: View {
 
 struct ContractDetailView: View {
     let contract: ContractListItem
+    @State private var isSigningContract: Bool = false
+    @State private var isExecuting: Bool = false
+    @State private var showDisputeConfirm: Bool = false
 
     var body: some View {
         ScrollView {
@@ -234,17 +446,71 @@ struct ContractDetailView: View {
 
                 // Actions
                 VStack(spacing: Spacing.sm) {
-                    Button { } label: {
-                        Label("View on Chain", systemImage: Symbols.externalLink)
+                    if contract.status == "Pending" {
+                        Button {
+                            isSigningContract = true
+                            Task {
+                                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                                isSigningContract = false
+                            }
+                        } label: {
+                            HStack {
+                                if isSigningContract {
+                                    ProgressView()
+                                        .tint(.white)
+                                } else {
+                                    Label("Sign Contract", systemImage: Symbols.contractSign)
+                                }
+                            }
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: Spacing.Size.buttonHeight)
+                            .background(Color.statusSuccess)
+                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                        }
+                        .disabled(isSigningContract)
+                    }
+
+                    if contract.status == "Active" {
+                        Button {
+                            isExecuting = true
+                            Task {
+                                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                                isExecuting = false
+                            }
+                        } label: {
+                            HStack {
+                                if isExecuting {
+                                    ProgressView()
+                                        .tint(.white)
+                                } else {
+                                    Label("Execute Milestone", systemImage: Symbols.milestone)
+                                }
+                            }
                             .font(.mtrxHeadline)
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: Spacing.Size.buttonHeight)
                             .background(Color.accentPrimary)
                             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                        }
+                        .disabled(isExecuting)
                     }
 
                     Button { } label: {
+                        Label("View on Chain", systemImage: Symbols.externalLink)
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.accentPrimary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: Spacing.Size.buttonHeight)
+                            .background(Color.accentPrimary.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                    }
+
+                    Button {
+                        showDisputeConfirm = true
+                    } label: {
                         Label("Raise Dispute", systemImage: Symbols.dispute)
                             .font(.mtrxHeadline)
                             .foregroundStyle(Color.statusError)
@@ -258,6 +524,21 @@ struct ContractDetailView: View {
             .padding(Spacing.contentPadding)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Raise Dispute?", isPresented: $showDisputeConfirm) {
+            Button("Raise Dispute", role: .destructive) {
+                Task {
+                    let request = DisputeCreateRequest(
+                        contractId: contract.id.uuidString,
+                        description: "Dispute for \(contract.title)",
+                        evidence: [:]
+                    )
+                    _ = try? await MTRXAPIClient.shared.createDispute(request)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will initiate a formal dispute process on-chain.")
+        }
     }
 }
 

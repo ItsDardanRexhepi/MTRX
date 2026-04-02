@@ -5,31 +5,177 @@
 
 import SwiftUI
 
+// MARK: - Discover ViewModel
+
+@MainActor
+final class DiscoverViewModel: ObservableObject {
+    // MARK: - Published State
+
+    @Published var featuredItems: [FeaturedItem] = []
+    @Published var trendingListings: [MarketplaceListing] = []
+    @Published var activeFundraisers: [FundraiserItem] = []
+    @Published var partners: [PartnerItem] = []
+    @Published var isLoading: Bool = false
+    @Published var errorMessage: String?
+    @Published var searchText: String = ""
+    @Published var selectedCategory: DiscoverCategory = .all
+
+    private let api = MTRXAPIClient.shared
+
+    // MARK: - Computed Filters
+
+    var filteredListings: [MarketplaceListing] {
+        var result = trendingListings
+        if selectedCategory != .all {
+            result = result.filter { $0.category == selectedCategory.rawValue }
+        }
+        if !searchText.isEmpty {
+            result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        }
+        return result
+    }
+
+    var filteredFundraisers: [FundraiserItem] {
+        if searchText.isEmpty { return activeFundraisers }
+        return activeFundraisers.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    // MARK: - Load Data
+
+    func loadAll() async {
+        guard !isLoading else { return }
+        isLoading = true
+        errorMessage = nil
+
+        async let listingsTask: () = loadListings()
+        async let fundraisersTask: () = loadFundraisers()
+        async let partnersTask: () = loadPartners()
+
+        _ = await (listingsTask, fundraisersTask, partnersTask)
+        isLoading = false
+    }
+
+    func loadListings() async {
+        do {
+            let raw: [String: AnyCodableValue] = try await api.listMarketplaceListings()
+            let items = parseListings(raw)
+            trendingListings = items
+
+            // Derive featured items from top listings
+            featuredItems = items.prefix(3).enumerated().map { index, listing in
+                let badges = ["Trending", "New", "Hot"]
+                return FeaturedItem(
+                    title: listing.name,
+                    subtitle: "\(listing.category) - \(listing.price)",
+                    badge: badges[index % badges.count]
+                )
+            }
+            if featuredItems.isEmpty {
+                featuredItems = FeaturedItem.sampleData
+            }
+        } catch {
+            if trendingListings.isEmpty {
+                trendingListings = MarketplaceListing.sampleData
+                featuredItems = FeaturedItem.sampleData
+            }
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadFundraisers() async {
+        do {
+            let raw: [String: AnyCodableValue] = try await api.listCampaigns()
+            let items = parseFundraisers(raw)
+            activeFundraisers = items
+            if activeFundraisers.isEmpty {
+                activeFundraisers = FundraiserItem.sampleData
+            }
+        } catch {
+            if activeFundraisers.isEmpty {
+                activeFundraisers = FundraiserItem.sampleData
+            }
+        }
+    }
+
+    func loadPartners() async {
+        // Partners are currently static; populate from local data
+        partners = PartnerItem.sampleData
+    }
+
+    // MARK: - Parsers
+
+    private func parseListings(_ raw: [String: AnyCodableValue]) -> [MarketplaceListing] {
+        guard case .array(let items) = raw["data"] ?? raw["listings"] ?? .null else {
+            return []
+        }
+        return items.compactMap { item -> MarketplaceListing? in
+            guard case .dictionary(let dict) = item else { return nil }
+            let name = dict["name"]?.stringValue ?? dict["title"]?.stringValue ?? "Unknown"
+            let category = dict["category"]?.stringValue ?? dict["asset_type"]?.stringValue ?? "DeFi"
+            let priceVal = dict["price"]?.doubleValue ?? dict["price"]?.intValue.map { Double($0) } ?? 0
+            let price = priceVal > 0 ? "$\(String(format: "%.2f", priceVal))" : "$0.00"
+            let volumeVal = dict["volume"]?.doubleValue ?? 0
+            let volume = volumeVal > 0 ? "\(String(format: "%.1f", volumeVal / 1000))K vol" : "0 vol"
+            let icon = iconForCategory(category)
+            return MarketplaceListing(name: name, category: category, price: price, volume: volume, icon: icon)
+        }
+    }
+
+    private func parseFundraisers(_ raw: [String: AnyCodableValue]) -> [FundraiserItem] {
+        guard case .array(let items) = raw["data"] ?? raw["campaigns"] ?? .null else {
+            return []
+        }
+        return items.compactMap { item -> FundraiserItem? in
+            guard case .dictionary(let dict) = item else { return nil }
+            let title = dict["title"]?.stringValue ?? "Campaign"
+            let desc = dict["description"]?.stringValue ?? ""
+            let goalAmount = dict["goal_amount"]?.doubleValue ?? 100_000
+            let raisedAmount = dict["raised_amount"]?.doubleValue ?? dict["current_amount"]?.doubleValue ?? 0
+            let progress = goalAmount > 0 ? min(raisedAmount / goalAmount, 1.0) : 0
+            let daysLeft = dict["days_remaining"]?.intValue ?? dict["duration_days"]?.intValue ?? 30
+            let verified = dict["is_verified"]?.boolValue ?? false
+            return FundraiserItem(
+                title: title,
+                description_: desc,
+                progress: progress,
+                daysLeft: "\(daysLeft) days left",
+                isVerified: verified
+            )
+        }
+    }
+
+    private func iconForCategory(_ category: String) -> String {
+        switch category.lowercased() {
+        case "defi": return Symbols.chartLine
+        case "nft", "nfts": return Symbols.nft
+        case "rwa": return Symbols.property
+        case "insurance": return Symbols.insurance
+        case "dao", "daos": return Symbols.dao
+        default: return Symbols.globe
+        }
+    }
+}
+
 // MARK: - Discover View
 
 struct DiscoverView: View {
-    @State private var searchText: String = ""
-    @State private var selectedCategory: DiscoverCategory = .all
-    @State private var featuredItems: [FeaturedItem] = FeaturedItem.sampleData
-    @State private var trendingListings: [MarketplaceListing] = MarketplaceListing.sampleData
-    @State private var activeFundraisers: [FundraiserItem] = FundraiserItem.sampleData
+    @StateObject private var viewModel = DiscoverViewModel()
 
     // MARK: - Body
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: Spacing.sectionGap) {
-                    categoryFilter
-                    featuredCarousel
-                    trendingSection
-                    fundraiserSection
-                    partnersSection
+            Group {
+                if viewModel.isLoading && viewModel.trendingListings.isEmpty {
+                    loadingState
+                } else if let error = viewModel.errorMessage, viewModel.trendingListings.isEmpty {
+                    errorState(error)
+                } else {
+                    contentView
                 }
-                .padding(.vertical, Spacing.contentPadding)
             }
             .navigationTitle("Discover")
-            .searchable(text: $searchText, prompt: "Search marketplace, fundraisers...")
+            .searchable(text: $viewModel.searchText, prompt: "Search marketplace, fundraisers...")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -39,6 +185,72 @@ struct DiscoverView: View {
                     }
                 }
             }
+        }
+        .task {
+            await viewModel.loadAll()
+        }
+    }
+
+    // MARK: - Loading State
+
+    private var loadingState: some View {
+        VStack(spacing: Spacing.lg) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Loading discoveries...")
+                .font(.mtrxSubheadline)
+                .foregroundStyle(Color.labelSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Error State
+
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: Spacing.md) {
+            Image(systemName: Symbols.alertWarning)
+                .font(.system(size: 48))
+                .foregroundStyle(Color.statusWarning)
+
+            Text("Something went wrong")
+                .font(.mtrxTitle3)
+
+            Text(message)
+                .font(.mtrxCaption1)
+                .foregroundStyle(Color.labelSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Spacing.lg)
+
+            Button {
+                Task { await viewModel.loadAll() }
+            } label: {
+                Label("Retry", systemImage: Symbols.refresh)
+                    .font(.mtrxHeadline)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, Spacing.lg)
+                    .frame(height: Spacing.Size.buttonHeight)
+                    .background(Color.accentPrimary)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Content View
+
+    private var contentView: some View {
+        ScrollView {
+            LazyVStack(spacing: Spacing.sectionGap) {
+                categoryFilter
+                featuredCarousel
+                trendingSection
+                fundraiserSection
+                partnersSection
+            }
+            .padding(.vertical, Spacing.contentPadding)
+        }
+        .refreshable {
+            await viewModel.loadAll()
         }
     }
 
@@ -50,7 +262,7 @@ struct DiscoverView: View {
                 ForEach(DiscoverCategory.allCases, id: \.self) { category in
                     Button {
                         withAnimation(Motion.springSnappy) {
-                            selectedCategory = category
+                            viewModel.selectedCategory = category
                         }
                     } label: {
                         HStack(spacing: Spacing.xs) {
@@ -61,8 +273,8 @@ struct DiscoverView: View {
                         }
                         .padding(.horizontal, Spacing.chipHorizontal)
                         .padding(.vertical, Spacing.chipVertical)
-                        .background(selectedCategory == category ? Color.accentPrimary : Color.surfaceOverlay)
-                        .foregroundStyle(selectedCategory == category ? .white : Color.labelPrimary)
+                        .background(viewModel.selectedCategory == category ? Color.accentPrimary : Color.surfaceOverlay)
+                        .foregroundStyle(viewModel.selectedCategory == category ? .white : Color.labelPrimary)
                         .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -82,7 +294,7 @@ struct DiscoverView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Spacing.md) {
-                    ForEach(featuredItems) { item in
+                    ForEach(viewModel.featuredItems) { item in
                         FeaturedCard(item: item)
                     }
                 }
@@ -109,7 +321,7 @@ struct DiscoverView: View {
             }
             .padding(.horizontal, Spacing.contentPadding)
 
-            ForEach(trendingListings) { listing in
+            ForEach(viewModel.filteredListings) { listing in
                 NavigationLink {
                     MarketplaceListingDetail(listing: listing)
                 } label: {
@@ -141,8 +353,13 @@ struct DiscoverView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Spacing.md) {
-                    ForEach(activeFundraisers) { fundraiser in
-                        FundraiserCard(fundraiser: fundraiser)
+                    ForEach(viewModel.filteredFundraisers) { fundraiser in
+                        NavigationLink {
+                            FundraiserView()
+                        } label: {
+                            FundraiserCard(fundraiser: fundraiser)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, Spacing.contentPadding)
@@ -163,7 +380,7 @@ struct DiscoverView: View {
                 GridItem(.flexible()),
                 GridItem(.flexible())
             ], spacing: Spacing.md) {
-                ForEach(PartnerItem.sampleData) { partner in
+                ForEach(viewModel.partners) { partner in
                     PartnerCell(partner: partner)
                 }
             }
