@@ -1,51 +1,141 @@
 """C26 - Brand Rewards: brand-specific reward campaigns and token incentives."""
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from typing import Optional
+
+from runtime.blockchain.services.brand_rewards.campaign_manager import (
+    BrandCampaignManager, CampaignStatus, EligibilityMode,
+)
 
 router = APIRouter()
+
+_manager = BrandCampaignManager()
 
 
 class CampaignRequest(BaseModel):
     brand: str
-    name: str
     reward_token: str
-    total_budget: float
-    reward_per_action: float
-    eligible_actions: list[str]
+    reward_per_user_wei: int
+    max_claims: int
+    start_time: float
+    end_time: float
+    eligibility_mode: str = "open"  # open, allowlist, zkp
+    zkp_verifier: str = ""
+    terms_uri: str = ""
+    metadata_uri: str = ""
+    initial_funding_wei: int = 0
 
 
-class RewardClaimRequest(BaseModel):
-    campaign_id: str
-    user_address: str
-    action: str
-    proof: dict
+class FundRequest(BaseModel):
+    caller: str
+    amount_wei: int
+
+
+class AllowlistRequest(BaseModel):
+    caller: str
+    users: list[str]
+    eligible: list[bool]
+
+
+class ClaimRequest(BaseModel):
+    user: str
 
 
 @router.post("/campaign/create")
 async def create_campaign(request: CampaignRequest):
     """Create a brand reward campaign."""
-    return {"campaign_id": "", "brand": request.brand, "name": request.name, "status": "active"}
+    try:
+        c = _manager.create_campaign(
+            brand=request.brand, reward_token=request.reward_token,
+            reward_per_user_wei=request.reward_per_user_wei, max_claims=request.max_claims,
+            start_time=request.start_time, end_time=request.end_time,
+            eligibility_mode=EligibilityMode(request.eligibility_mode),
+            zkp_verifier=request.zkp_verifier, terms_uri=request.terms_uri,
+            metadata_uri=request.metadata_uri, initial_funding_wei=request.initial_funding_wei,
+        )
+        return {
+            "campaign_id": c.campaign_id, "brand": c.brand,
+            "reward_per_user_wei": c.reward_per_user_wei, "status": c.status.value,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/campaign/{campaign_id}/fund")
+async def fund_campaign(campaign_id: str, request: FundRequest):
+    """Add funds to a campaign."""
+    try:
+        c = _manager.fund_campaign(campaign_id, request.caller, request.amount_wei)
+        return {"campaign_id": c.campaign_id, "total_budget_wei": c.total_budget_wei}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/campaign/{campaign_id}/allowlist")
+async def update_allowlist(campaign_id: str, request: AllowlistRequest):
+    """Update the campaign allowlist."""
+    try:
+        _manager.update_allowlist(campaign_id, request.caller, request.users, request.eligible)
+        return {"campaign_id": campaign_id, "status": "updated"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/campaign/{campaign_id}/claim")
+async def claim_reward(campaign_id: str, request: ClaimRequest):
+    """Claim a brand reward."""
+    try:
+        amount = _manager.claim_reward(campaign_id, request.user)
+        return {"campaign_id": campaign_id, "user": request.user, "reward_wei": amount}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/campaign/{campaign_id}/pause")
+async def pause_campaign(campaign_id: str, caller: str):
+    """Pause a campaign."""
+    try:
+        c = _manager.pause_campaign(campaign_id, caller)
+        return {"campaign_id": c.campaign_id, "status": c.status.value}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/campaign/{campaign_id}/resume")
+async def resume_campaign(campaign_id: str, caller: str):
+    """Resume a paused campaign."""
+    try:
+        c = _manager.resume_campaign(campaign_id, caller)
+        return {"campaign_id": c.campaign_id, "status": c.status.value}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/campaign/{campaign_id}/cancel")
+async def cancel_campaign(campaign_id: str, caller: str):
+    """Cancel a campaign."""
+    try:
+        c = _manager.cancel_campaign(campaign_id, caller)
+        return {"campaign_id": c.campaign_id, "status": c.status.value}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/campaign/{campaign_id}")
 async def get_campaign(campaign_id: str):
     """Get campaign details and distribution stats."""
-    return {"campaign_id": campaign_id, "distributed": 0, "remaining_budget": 0, "participants": 0}
+    c = _manager.get_campaign(campaign_id)
+    if c is None:
+        raise HTTPException(status_code=404, detail="Campaign not found.")
+    return {
+        "campaign_id": c.campaign_id, "brand": c.brand,
+        "total_budget_wei": c.total_budget_wei, "distributed_wei": c.distributed_wei,
+        "total_claims": c.total_claims, "max_claims": c.max_claims,
+        "status": c.status.value, "eligibility_mode": c.eligibility_mode.value,
+    }
 
 
-@router.post("/claim")
-async def claim_reward(request: RewardClaimRequest):
-    """Claim a brand reward for completing an action."""
-    return {"claim_id": "", "campaign_id": request.campaign_id, "reward_amount": 0, "status": "pending"}
-
-
-@router.get("/user/{address}/rewards")
-async def get_user_rewards(address: str):
-    """Get all brand rewards earned by a user."""
-    return {"address": address, "rewards": [], "total_value": 0}
-
-
-@router.get("/campaigns")
-async def list_campaigns(brand: str | None = None):
-    """List active brand reward campaigns."""
-    return {"campaigns": [], "total": 0}
+@router.get("/campaign/{campaign_id}/eligible/{user}")
+async def check_eligibility(campaign_id: str, user: str):
+    """Check if a user is eligible for a campaign."""
+    return {"campaign_id": campaign_id, "user": user, "eligible": _manager.is_eligible(campaign_id, user)}
