@@ -36,13 +36,13 @@ struct GovernanceProposal: Identifiable, Codable, Equatable {
 
         var color: Color {
             switch self {
-            case .draft: return .gray
-            case .active: return .blue
-            case .succeeded: return .green
-            case .defeated: return .red
-            case .queued: return .orange
-            case .executed: return .green
-            case .cancelled: return .gray
+            case .draft: return .labelTertiary
+            case .active: return .statusInfo
+            case .succeeded: return .statusSuccess
+            case .defeated: return .statusError
+            case .queued: return .statusWarning
+            case .executed: return .statusSuccess
+            case .cancelled: return .labelTertiary
             }
         }
 
@@ -50,11 +50,11 @@ struct GovernanceProposal: Identifiable, Codable, Equatable {
             switch self {
             case .draft: return "doc"
             case .active: return "bolt.fill"
-            case .succeeded: return "checkmark.circle.fill"
-            case .defeated: return "xmark.circle.fill"
-            case .queued: return "clock.fill"
-            case .executed: return "checkmark.seal.fill"
-            case .cancelled: return "minus.circle.fill"
+            case .succeeded: return Symbols.complete
+            case .defeated: return Symbols.failed
+            case .queued: return Symbols.pending
+            case .executed: return Symbols.verified
+            case .cancelled: return Symbols.voteAbstain
             }
         }
     }
@@ -73,6 +73,7 @@ struct GovernanceProposal: Identifiable, Codable, Equatable {
     var againstPercentage: Double { totalVotes > 0 ? Double(againstVotes) / Double(totalVotes) : 0 }
     var abstainPercentage: Double { totalVotes > 0 ? Double(abstainVotes) / Double(totalVotes) : 0 }
     var quorumReached: Bool { totalVotes >= quorumRequired }
+    var quorumProgress: Double { quorumRequired > 0 ? min(Double(totalVotes) / Double(quorumRequired), 1.0) : 0 }
     var isVotingActive: Bool { status == .active && Date() < votingEndsAt && Date() >= votingStartsAt }
 
     var timeRemaining: String {
@@ -92,19 +93,29 @@ enum VoteChoice: String, CaseIterable {
 
     var color: Color {
         switch self {
-        case .forVote: return .green
-        case .against: return .red
-        case .abstain: return .gray
+        case .forVote: return .voteFor
+        case .against: return .voteAgainst
+        case .abstain: return .voteAbstain
         }
     }
 
     var icon: String {
         switch self {
-        case .forVote: return "hand.thumbsup.fill"
-        case .against: return "hand.thumbsdown.fill"
-        case .abstain: return "minus.circle.fill"
+        case .forVote: return Symbols.voteYes
+        case .against: return Symbols.voteNo
+        case .abstain: return Symbols.voteAbstain
         }
     }
+}
+
+// MARK: - Delegation Model
+
+struct DelegationInfo: Identifiable, Equatable {
+    let id: String
+    let delegateAddress: String
+    let delegateName: String
+    let votingPower: String
+    let delegatedAt: Date
 }
 
 // MARK: - ViewModel
@@ -122,12 +133,18 @@ final class GovernanceViewModel: ObservableObject {
     @Published var hasVoted = false
     @Published var showCreateProposal = false
     @Published var searchText = ""
+    @Published var showDelegation = false
+    @Published var delegations: [DelegationInfo] = []
+    @Published var delegateAddress = ""
+    @Published var isDelegating = false
 
     // Create proposal fields
     @Published var newTitle = ""
     @Published var newDescription = ""
     @Published var newCategory: GovernanceProposal.ProposalCategory = .protocol_
     @Published var votingDurationDays: Int = 7
+
+    private let api = MTRXAPIClient.shared
 
     var filteredProposals: [GovernanceProposal] {
         var result = proposals
@@ -157,8 +174,8 @@ final class GovernanceViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            // Production: query Component 19 governance contract on Base
-            try await Task.sleep(nanoseconds: 100_000_000)
+            let response: [String: AnyCodableValue] = try await api.listProposals()
+            proposals = parseProposals(response)
         } catch {
             errorMessage = "Failed to load proposals: \(error.localizedDescription)"
         }
@@ -170,10 +187,15 @@ final class GovernanceViewModel: ObservableObject {
         defer { isVoting = false }
 
         do {
-            // Production: sign and submit vote transaction to Component 19
-            try await Task.sleep(nanoseconds: 500_000_000)
+            let request = VoteRequest(
+                proposalId: proposal.id,
+                support: choice == .forVote,
+                reason: choice == .abstain ? "abstain" : nil
+            )
+            let _: [String: AnyCodableValue] = try await api.vote(request)
             userVote = choice
             hasVoted = true
+            await loadProposals()
         } catch {
             errorMessage = "Failed to cast vote: \(error.localizedDescription)"
         }
@@ -185,14 +207,107 @@ final class GovernanceViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            // Production: submit proposal transaction to Component 19
-            try await Task.sleep(nanoseconds: 500_000_000)
+            let request = ProposalCreateRequest(
+                title: newTitle,
+                description: newDescription,
+                actions: nil,
+                votingDurationHours: votingDurationDays * 24
+            )
+            let _: [String: AnyCodableValue] = try await api.createProposal(request)
             showCreateProposal = false
             newTitle = ""
             newDescription = ""
             await loadProposals()
         } catch {
             errorMessage = "Failed to create proposal: \(error.localizedDescription)"
+        }
+    }
+
+    func loadDelegations() async {
+        do {
+            let response: [String: AnyCodableValue] = try await api.get(path: "/api/v1/governance/delegations")
+            delegations = parseDelegations(response)
+        } catch {
+            errorMessage = "Failed to load delegations: \(error.localizedDescription)"
+        }
+    }
+
+    func delegateVotingPower() async {
+        guard !delegateAddress.isEmpty else { return }
+        isDelegating = true
+        defer { isDelegating = false }
+
+        do {
+            let _: [String: AnyCodableValue] = try await api.postRaw(
+                path: "/api/v1/governance/delegate",
+                body: ["delegate_to": delegateAddress]
+            )
+            delegateAddress = ""
+            await loadDelegations()
+        } catch {
+            errorMessage = "Failed to delegate: \(error.localizedDescription)"
+        }
+    }
+
+    func revokeDelegation(_ delegationId: String) async {
+        do {
+            let _: [String: AnyCodableValue] = try await api.postRaw(
+                path: "/api/v1/governance/delegate/revoke",
+                body: ["delegation_id": delegationId]
+            )
+            await loadDelegations()
+        } catch {
+            errorMessage = "Failed to revoke delegation: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: - Parsing
+
+    private func parseProposals(_ response: [String: AnyCodableValue]) -> [GovernanceProposal] {
+        guard case .array(let items) = response["proposals"] ?? response["data"] ?? .null else {
+            return []
+        }
+        return items.compactMap { item -> GovernanceProposal? in
+            guard case .dictionary(let d) = item else { return nil }
+            let statusRaw = d["status"]?.stringValue ?? "Draft"
+            let categoryRaw = d["category"]?.stringValue ?? "Protocol"
+            let status = GovernanceProposal.ProposalStatus(rawValue: statusRaw) ?? .draft
+            let category = GovernanceProposal.ProposalCategory(rawValue: categoryRaw) ?? .protocol_
+
+            return GovernanceProposal(
+                id: d["id"]?.stringValue ?? UUID().uuidString,
+                title: d["title"]?.stringValue ?? "",
+                description: d["description"]?.stringValue ?? "",
+                proposerAddress: d["proposer_address"]?.stringValue ?? "",
+                proposerName: d["proposer_name"]?.stringValue ?? "Unknown",
+                status: status,
+                category: category,
+                createdAt: Date(),
+                votingStartsAt: Date(),
+                votingEndsAt: Date().addingTimeInterval(86400 * 7),
+                forVotes: d["for_votes"]?.intValue ?? 0,
+                againstVotes: d["against_votes"]?.intValue ?? 0,
+                abstainVotes: d["abstain_votes"]?.intValue ?? 0,
+                quorumRequired: d["quorum_required"]?.intValue ?? 100,
+                executionTransactionHash: d["execution_tx_hash"]?.stringValue,
+                componentReference: d["component_reference"]?.intValue
+            )
+        }
+    }
+
+    private func parseDelegations(_ response: [String: AnyCodableValue]) -> [DelegationInfo] {
+        guard case .array(let items) = response["delegations"] ?? response["data"] ?? .null else {
+            return []
+        }
+        return items.compactMap { item -> DelegationInfo? in
+            guard case .dictionary(let d) = item else { return nil }
+            return DelegationInfo(
+                id: d["id"]?.stringValue ?? UUID().uuidString,
+                delegateAddress: d["delegate_address"]?.stringValue ?? "",
+                delegateName: d["delegate_name"]?.stringValue ?? "",
+                votingPower: d["voting_power"]?.stringValue ?? "0",
+                delegatedAt: Date()
+            )
         }
     }
 }
@@ -203,39 +318,93 @@ struct GovernanceView: View {
     @StateObject private var viewModel = GovernanceViewModel()
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
+            if viewModel.isLoading && viewModel.proposals.isEmpty {
+                loadingView
+            } else if let error = viewModel.errorMessage, viewModel.proposals.isEmpty {
+                errorView(error)
+            } else {
                 statsBar
                 filterSection
                 proposalsList
             }
-            .navigationTitle("Governance")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+        }
+        .navigationTitle("Governance")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                HStack(spacing: 12) {
+                    Button {
+                        viewModel.showDelegation = true
+                    } label: {
+                        Image(systemName: Symbols.delegate)
+                    }
+                    .accessibilityLabel("Manage delegation")
+
                     Button {
                         viewModel.showCreateProposal = true
                     } label: {
-                        Image(systemName: "plus.circle")
+                        Image(systemName: Symbols.addCircle)
                     }
                     .accessibilityLabel("Create proposal")
                 }
             }
-            .searchable(text: $viewModel.searchText, prompt: "Search proposals")
-            .sheet(item: $viewModel.selectedProposal) { proposal in
-                ProposalDetailSheet(proposal: proposal, viewModel: viewModel)
-            }
-            .sheet(isPresented: $viewModel.showCreateProposal) {
-                createProposalSheet
-            }
-            .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
-                Button("OK") { viewModel.errorMessage = nil }
-            } message: {
-                Text(viewModel.errorMessage ?? "")
-            }
-            .task {
-                await viewModel.loadProposals()
-            }
         }
+        .searchable(text: $viewModel.searchText, prompt: "Search proposals")
+        .sheet(item: $viewModel.selectedProposal) { proposal in
+            ProposalDetailSheet(proposal: proposal, viewModel: viewModel)
+        }
+        .sheet(isPresented: $viewModel.showCreateProposal) {
+            createProposalSheet
+        }
+        .sheet(isPresented: $viewModel.showDelegation) {
+            delegationSheet
+        }
+        .alert("Error", isPresented: .constant(viewModel.errorMessage != nil && !viewModel.proposals.isEmpty)) {
+            Button("OK") { viewModel.errorMessage = nil }
+        } message: {
+            Text(viewModel.errorMessage ?? "")
+        }
+        .task {
+            await viewModel.loadProposals()
+        }
+    }
+
+    // MARK: - Loading
+
+    private var loadingView: some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(0..<3, id: \.self) { _ in
+                    ProposalSkeletonCard()
+                }
+            }
+            .padding()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Error
+
+    private func errorView(_ message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: Symbols.alertWarning)
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("Could Not Load Proposals")
+                .font(.title3.weight(.semibold))
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                Task { await viewModel.loadProposals() }
+            } label: {
+                Label("Retry", systemImage: Symbols.refresh)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Stats Bar
@@ -243,9 +412,9 @@ struct GovernanceView: View {
     private var statsBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 16) {
-                GovernanceStatCard(title: "Active", value: "\(viewModel.activeProposalsCount)", icon: "bolt.fill", color: .blue)
-                GovernanceStatCard(title: "Total", value: "\(viewModel.proposals.count)", icon: "doc.text", color: .secondary)
-                GovernanceStatCard(title: "Executed", value: "\(viewModel.proposals.filter { $0.status == .executed }.count)", icon: "checkmark.seal.fill", color: .green)
+                GovernanceStatCard(title: "Active", value: "\(viewModel.activeProposalsCount)", icon: "bolt.fill", color: .statusInfo)
+                GovernanceStatCard(title: "Total", value: "\(viewModel.proposals.count)", icon: "doc.text", color: .labelSecondary)
+                GovernanceStatCard(title: "Executed", value: "\(viewModel.proposals.filter { $0.status == .executed }.count)", icon: Symbols.verified, color: .statusSuccess)
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
@@ -295,12 +464,7 @@ struct GovernanceView: View {
 
     private var proposalsList: some View {
         List {
-            if viewModel.isLoading && viewModel.proposals.isEmpty {
-                ForEach(0..<3, id: \.self) { _ in
-                    ProposalSkeletonCard()
-                        .listRowSeparator(.hidden)
-                }
-            } else if viewModel.filteredProposals.isEmpty {
+            if viewModel.filteredProposals.isEmpty {
                 emptyState
                     .listRowSeparator(.hidden)
             } else {
@@ -309,6 +473,8 @@ struct GovernanceView: View {
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                         .onTapGesture {
+                            viewModel.hasVoted = false
+                            viewModel.userVote = nil
                             viewModel.selectedProposal = proposal
                         }
                 }
@@ -322,7 +488,7 @@ struct GovernanceView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "building.columns")
+            Image(systemName: Symbols.dao)
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
             Text("No Proposals")
@@ -359,7 +525,7 @@ struct GovernanceView: View {
 
                 Section {
                     HStack(spacing: 6) {
-                        Image(systemName: "info.circle")
+                        Image(systemName: Symbols.info)
                         Text("Creating a proposal requires signing an on-chain transaction. Gas fees will be estimated before submission.")
                             .font(.caption)
                     }
@@ -378,6 +544,75 @@ struct GovernanceView: View {
                     }
                     .disabled(viewModel.newTitle.isEmpty || viewModel.newDescription.isEmpty)
                 }
+            }
+        }
+    }
+
+    // MARK: - Delegation Sheet
+
+    private var delegationSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Delegate Voting Power") {
+                    TextField("Delegate wallet address or ENS", text: $viewModel.delegateAddress)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.asciiCapable)
+
+                    Button {
+                        Task { await viewModel.delegateVotingPower() }
+                    } label: {
+                        if viewModel.isDelegating {
+                            ProgressView()
+                        } else {
+                            Text("Delegate")
+                        }
+                    }
+                    .disabled(viewModel.delegateAddress.isEmpty || viewModel.isDelegating)
+                }
+
+                Section("Current Delegations") {
+                    if viewModel.delegations.isEmpty {
+                        Text("No active delegations")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(viewModel.delegations) { delegation in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(delegation.delegateName.isEmpty ? delegation.delegateAddress : delegation.delegateName)
+                                        .font(.subheadline.weight(.medium))
+                                    Text("Voting power: \(delegation.votingPower)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button("Revoke") {
+                                    Task { await viewModel.revokeDelegation(delegation.id) }
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.statusError)
+                            }
+                        }
+                    }
+                }
+
+                Section {
+                    HStack(spacing: 6) {
+                        Image(systemName: Symbols.info)
+                        Text("Delegation transfers your voting power to another address. You can revoke at any time.")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Delegation")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { viewModel.showDelegation = false }
+                }
+            }
+            .task {
+                await viewModel.loadDelegations()
             }
         }
     }
@@ -403,7 +638,7 @@ struct ProposalCard: View {
                     .font(.caption2.weight(.medium))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(Color(.systemGray6))
+                    .background(Color.backgroundSecondary)
                     .cornerRadius(6)
             }
 
@@ -419,8 +654,8 @@ struct ProposalCard: View {
             // Vote progress
             VStack(spacing: 6) {
                 HStack {
-                    VoteBar(label: "For", percentage: proposal.forPercentage, color: .green)
-                    VoteBar(label: "Against", percentage: proposal.againstPercentage, color: .red)
+                    VoteBar(label: "For", percentage: proposal.forPercentage, color: .voteFor)
+                    VoteBar(label: "Against", percentage: proposal.againstPercentage, color: .voteAgainst)
                 }
 
                 HStack {
@@ -431,23 +666,36 @@ struct ProposalCard: View {
                     if proposal.isVotingActive {
                         Text(proposal.timeRemaining)
                             .font(.caption2.weight(.medium))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(.statusInfo)
                     }
                 }
             }
 
-            if !proposal.quorumReached {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle")
+            // Quorum progress
+            VStack(spacing: 4) {
+                HStack {
+                    Text("Quorum")
                         .font(.caption2)
-                    Text("Quorum not reached (\(proposal.totalVotes)/\(proposal.quorumRequired))")
-                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(proposal.totalVotes)/\(proposal.quorumRequired)")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(proposal.quorumReached ? .quorumMet : .statusWarning)
                 }
-                .foregroundStyle(.orange)
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color(.systemGray5))
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(proposal.quorumReached ? Color.quorumMet : Color.statusWarning)
+                            .frame(width: geo.size.width * proposal.quorumProgress)
+                    }
+                }
+                .frame(height: 4)
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.backgroundPrimary)
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
         .accessibilityElement(children: .combine)
@@ -511,7 +759,7 @@ struct ProposalDetailSheet: View {
                             .font(.caption.weight(.medium))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
-                            .background(Color(.systemGray6))
+                            .background(Color.backgroundSecondary)
                             .cornerRadius(6)
                     }
 
@@ -543,9 +791,9 @@ struct ProposalDetailSheet: View {
                             Text("References Component \(componentRef)")
                         }
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(.statusInfo)
                         .padding(8)
-                        .background(Color.blue.opacity(0.08))
+                        .background(Color.statusInfo.opacity(0.08))
                         .cornerRadius(8)
                     }
 
@@ -556,17 +804,35 @@ struct ProposalDetailSheet: View {
                         Text("Voting Results")
                             .font(.headline)
 
-                        VoteResultRow(label: "For", count: proposal.forVotes, percentage: proposal.forPercentage, color: .green)
-                        VoteResultRow(label: "Against", count: proposal.againstVotes, percentage: proposal.againstPercentage, color: .red)
-                        VoteResultRow(label: "Abstain", count: proposal.abstainVotes, percentage: proposal.abstainPercentage, color: .gray)
+                        VoteResultRow(label: "For", count: proposal.forVotes, percentage: proposal.forPercentage, color: .voteFor)
+                        VoteResultRow(label: "Against", count: proposal.againstVotes, percentage: proposal.againstPercentage, color: .voteAgainst)
+                        VoteResultRow(label: "Abstain", count: proposal.abstainVotes, percentage: proposal.abstainPercentage, color: .voteAbstain)
 
-                        HStack {
-                            Text("Quorum: \(proposal.totalVotes)/\(proposal.quorumRequired)")
+                        // Quorum progress
+                        VStack(spacing: 6) {
+                            HStack {
+                                Text("Quorum Progress")
+                                    .font(.subheadline.weight(.medium))
+                                Spacer()
+                                Text(proposal.quorumReached ? "Reached" : "Not Reached")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(proposal.quorumReached ? .statusSuccess : .statusWarning)
+                            }
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color(.systemGray5))
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(proposal.quorumReached ? Color.quorumMet : Color.statusWarning)
+                                        .frame(width: geo.size.width * proposal.quorumProgress)
+                                        .animation(.easeInOut(duration: 0.5), value: proposal.quorumProgress)
+                                }
+                            }
+                            .frame(height: 8)
+
+                            Text("\(proposal.totalVotes) of \(proposal.quorumRequired) votes needed")
                                 .font(.caption)
-                            Spacer()
-                            Text(proposal.quorumReached ? "Quorum Reached" : "Quorum Not Reached")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(proposal.quorumReached ? .green : .orange)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
@@ -600,29 +866,34 @@ struct ProposalDetailSheet: View {
                                     .disabled(viewModel.isVoting)
                                 }
                             }
+
+                            if viewModel.isVoting {
+                                ProgressView("Submitting vote...")
+                                    .padding(.top, 4)
+                            }
                         }
                     }
 
                     if viewModel.hasVoted, let vote = viewModel.userVote {
                         HStack(spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
+                            Image(systemName: Symbols.complete)
+                                .foregroundStyle(.statusSuccess)
                             Text("You voted: \(vote.rawValue)")
                                 .font(.subheadline.weight(.semibold))
                         }
                         .padding()
                         .frame(maxWidth: .infinity)
-                        .background(Color.green.opacity(0.08))
+                        .background(Color.statusSuccess.opacity(0.08))
                         .cornerRadius(12)
                     }
 
                     if let txHash = proposal.executionTransactionHash {
                         HStack(spacing: 4) {
-                            Image(systemName: "link")
+                            Image(systemName: Symbols.link)
                             Text("Tx: \(txHash.prefix(20))...")
                                 .font(.caption.monospaced())
                         }
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(.statusInfo)
                     }
                 }
                 .padding()
@@ -684,7 +955,7 @@ struct GovernanceStatCard: View {
         }
         .frame(width: 80)
         .padding(.vertical, 12)
-        .background(Color(.systemGray6))
+        .background(Color.backgroundSecondary)
         .cornerRadius(12)
     }
 }
@@ -701,7 +972,7 @@ struct StatusFilterChip: View {
                 .font(.caption.weight(isSelected ? .semibold : .regular))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 5)
-                .background(isSelected ? color.opacity(0.15) : Color(.systemGray6))
+                .background(isSelected ? color.opacity(0.15) : Color.backgroundSecondary)
                 .foregroundStyle(isSelected ? color : .primary)
                 .cornerRadius(16)
         }
@@ -732,5 +1003,7 @@ struct ProposalSkeletonCard: View {
 }
 
 #Preview("Governance") {
-    GovernanceView()
+    NavigationStack {
+        GovernanceView()
+    }
 }

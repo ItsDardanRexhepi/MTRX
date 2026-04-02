@@ -5,20 +5,93 @@
 
 import SwiftUI
 
+// MARK: - Contract Creation ViewModel
+
+@MainActor
+final class ContractCreationViewModel: ObservableObject {
+    @Published var currentStep: ContractWizardStep = .template
+    @Published var selectedTemplate: ContractTemplateType?
+    @Published var contractName: String = ""
+    @Published var counterpartyAddress: String = ""
+    @Published var totalValue: String = ""
+    @Published var selectedToken: String = "USDC"
+    @Published var milestones: [MilestoneInput] = [MilestoneInput()]
+    @Published var disputeResolution: DisputeResolutionType = .arbitration
+    @Published var expirationDays: Int = 30
+    @Published var isDeploying: Bool = false
+    @Published var deployError: String?
+    @Published var deploySuccess: Bool = false
+    @Published var showConfirmation: Bool = false
+
+    private let api = MTRXAPIClient.shared
+
+    // MARK: - Validation
+
+    var canProceed: Bool {
+        switch currentStep {
+        case .template: return selectedTemplate != nil
+        case .details: return !contractName.isEmpty && !counterpartyAddress.isEmpty
+        case .milestones: return !milestones.isEmpty
+        case .terms: return true
+        case .review: return true
+        }
+    }
+
+    // MARK: - Navigation
+
+    func goNext() {
+        if currentStep == .review {
+            showConfirmation = true
+        } else {
+            currentStep = currentStep.next
+        }
+    }
+
+    func goBack() {
+        currentStep = currentStep.previous
+    }
+
+    // MARK: - Deploy
+
+    func deployContract() async {
+        isDeploying = true
+        deployError = nil
+
+        do {
+            // Build milestones payload
+            let milestonesPayload: [AnyCodableValue] = milestones.map { ms in
+                .dictionary([
+                    "description": .string(ms.description_),
+                    "amount": .string(ms.amount),
+                ])
+            }
+
+            let body: [String: AnyCodableValue] = [
+                "name": .string(contractName),
+                "template": .string(selectedTemplate?.rawValue ?? "escrow"),
+                "counterparty": .string(counterpartyAddress),
+                "value": .string(totalValue),
+                "token": .string(selectedToken),
+                "milestones": .array(milestonesPayload),
+                "dispute_resolution": .string(disputeResolution.rawValue.lowercased()),
+                "expiration_days": .int(expirationDays),
+            ]
+
+            _ = try await api.postRaw(path: "/api/v1/contracts/deploy", body: body)
+            deploySuccess = true
+        } catch {
+            deployError = error.localizedDescription
+        }
+
+        isDeploying = false
+    }
+}
+
 // MARK: - Contract View (Creation Wizard)
 
 struct ContractView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var currentStep: ContractWizardStep = .template
-    @State private var selectedTemplate: ContractTemplateType?
-    @State private var contractName: String = ""
-    @State private var counterpartyAddress: String = ""
-    @State private var totalValue: String = ""
-    @State private var selectedToken: String = "USDC"
-    @State private var milestones: [MilestoneInput] = [MilestoneInput()]
-    @State private var disputeResolution: DisputeResolutionType = .arbitration
-    @State private var expirationDays: Int = 30
-    @State private var showConfirmation: Bool = false
+    @StateObject private var viewModel = ContractCreationViewModel()
 
     // MARK: - Body
 
@@ -35,11 +108,44 @@ struct ContractView: View {
                 Button("Cancel") { dismiss() }
             }
         }
-        .alert("Deploy Contract?", isPresented: $showConfirmation) {
-            Button("Deploy", role: .none) { deployContract() }
+        .alert("Deploy Contract?", isPresented: $viewModel.showConfirmation) {
+            Button("Deploy", role: .none) {
+                Task {
+                    await viewModel.deployContract()
+                    if viewModel.deploySuccess {
+                        dismiss()
+                    }
+                }
+            }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This will deploy the contract to the blockchain. Gas fees will apply.")
+        }
+        .alert("Deployment Failed", isPresented: .init(
+            get: { viewModel.deployError != nil },
+            set: { if !$0 { viewModel.deployError = nil } }
+        )) {
+            Button("OK") { viewModel.deployError = nil }
+        } message: {
+            Text(viewModel.deployError ?? "")
+        }
+        .overlay {
+            if viewModel.isDeploying {
+                ZStack {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                    VStack(spacing: Spacing.md) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text("Deploying contract...")
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(.white)
+                    }
+                    .padding(Spacing.lg)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md))
+                }
+            }
         }
     }
 
@@ -49,7 +155,7 @@ struct ContractView: View {
         HStack(spacing: Spacing.xs) {
             ForEach(ContractWizardStep.allCases, id: \.self) { step in
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(step.rawValue <= currentStep.rawValue ? Color.accentPrimary : Color.surfaceOverlay)
+                    .fill(step.rawValue <= viewModel.currentStep.rawValue ? Color.accentPrimary : Color.surfaceOverlay)
                     .frame(height: 4)
             }
         }
@@ -63,7 +169,7 @@ struct ContractView: View {
     private var stepContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.lg) {
-                switch currentStep {
+                switch viewModel.currentStep {
                 case .template:
                     templateSelectionStep
                 case .details:
@@ -94,7 +200,7 @@ struct ContractView: View {
             ForEach(ContractTemplateType.allCases, id: \.self) { template in
                 Button {
                     withAnimation(Motion.springSnappy) {
-                        selectedTemplate = template
+                        viewModel.selectedTemplate = template
                     }
                 } label: {
                     HStack(spacing: Spacing.md) {
@@ -116,7 +222,7 @@ struct ContractView: View {
 
                         Spacer()
 
-                        if selectedTemplate == template {
+                        if viewModel.selectedTemplate == template {
                             Image(systemName: Symbols.complete)
                                 .foregroundStyle(Color.accentPrimary)
                         }
@@ -124,7 +230,7 @@ struct ContractView: View {
                     .padding(Spacing.sm)
                     .background(
                         RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous)
-                            .stroke(selectedTemplate == template ? Color.accentPrimary : Color.separatorStandard, lineWidth: selectedTemplate == template ? 2 : 1)
+                            .stroke(viewModel.selectedTemplate == template ? Color.accentPrimary : Color.separatorStandard, lineWidth: viewModel.selectedTemplate == template ? 2 : 1)
                     )
                 }
                 .buttonStyle(.plain)
@@ -143,7 +249,7 @@ struct ContractView: View {
                 Text("Contract Name")
                     .font(.mtrxCaptionBold)
                     .foregroundStyle(Color.labelSecondary)
-                TextField("e.g., Website Development", text: $contractName)
+                TextField("e.g., Website Development", text: $viewModel.contractName)
                     .textFieldStyle(.roundedBorder)
             }
 
@@ -152,7 +258,7 @@ struct ContractView: View {
                     .font(.mtrxCaptionBold)
                     .foregroundStyle(Color.labelSecondary)
                 HStack {
-                    TextField("0x... or ENS name", text: $counterpartyAddress)
+                    TextField("0x... or ENS name", text: $viewModel.counterpartyAddress)
                         .font(.mtrxMono)
                         .textFieldStyle(.roundedBorder)
                     Button {
@@ -168,11 +274,11 @@ struct ContractView: View {
                     .font(.mtrxCaptionBold)
                     .foregroundStyle(Color.labelSecondary)
                 HStack {
-                    TextField("0.00", text: $totalValue)
+                    TextField("0.00", text: $viewModel.totalValue)
                         .keyboardType(.decimalPad)
                         .textFieldStyle(.roundedBorder)
 
-                    Picker("Token", selection: $selectedToken) {
+                    Picker("Token", selection: $viewModel.selectedToken) {
                         Text("USDC").tag("USDC")
                         Text("ETH").tag("ETH")
                         Text("DAI").tag("DAI")
@@ -195,15 +301,15 @@ struct ContractView: View {
                 .font(.mtrxBody)
                 .foregroundStyle(Color.labelSecondary)
 
-            ForEach($milestones) { $milestone in
+            ForEach($viewModel.milestones) { $milestone in
                 VStack(spacing: Spacing.sm) {
                     HStack {
-                        Text("Milestone \(milestones.firstIndex(where: { $0.id == milestone.id }).map { $0 + 1 } ?? 0)")
+                        Text("Milestone \(viewModel.milestones.firstIndex(where: { $0.id == milestone.id }).map { $0 + 1 } ?? 0)")
                             .font(.mtrxCaptionBold)
                         Spacer()
-                        if milestones.count > 1 {
+                        if viewModel.milestones.count > 1 {
                             Button {
-                                milestones.removeAll { $0.id == milestone.id }
+                                viewModel.milestones.removeAll { $0.id == milestone.id }
                             } label: {
                                 Image(systemName: Symbols.remove)
                                     .foregroundStyle(Color.statusError)
@@ -218,7 +324,7 @@ struct ContractView: View {
                         TextField("Amount", text: $milestone.amount)
                             .keyboardType(.decimalPad)
                             .textFieldStyle(.roundedBorder)
-                        Text(selectedToken)
+                        Text(viewModel.selectedToken)
                             .font(.mtrxCaptionBold)
                             .foregroundStyle(Color.labelSecondary)
                     }
@@ -229,7 +335,7 @@ struct ContractView: View {
             }
 
             Button {
-                milestones.append(MilestoneInput())
+                viewModel.milestones.append(MilestoneInput())
             } label: {
                 Label("Add Milestone", systemImage: Symbols.add)
                     .font(.mtrxBodyBold)
@@ -254,7 +360,7 @@ struct ContractView: View {
                     .font(.mtrxCaptionBold)
                     .foregroundStyle(Color.labelSecondary)
 
-                Picker("Resolution", selection: $disputeResolution) {
+                Picker("Resolution", selection: $viewModel.disputeResolution) {
                     ForEach(DisputeResolutionType.allCases, id: \.self) { type in
                         Text(type.rawValue).tag(type)
                     }
@@ -267,7 +373,7 @@ struct ContractView: View {
                     .font(.mtrxCaptionBold)
                     .foregroundStyle(Color.labelSecondary)
 
-                Stepper("\(expirationDays) days", value: $expirationDays, in: 7...365, step: 7)
+                Stepper("\(viewModel.expirationDays) days", value: $viewModel.expirationDays, in: 7...365, step: 7)
             }
         }
     }
@@ -279,13 +385,13 @@ struct ContractView: View {
             Text("Review Contract")
                 .font(.mtrxTitle2)
 
-            ReviewRow(label: "Template", value: selectedTemplate?.title ?? "None")
-            ReviewRow(label: "Name", value: contractName)
-            ReviewRow(label: "Counterparty", value: counterpartyAddress.isEmpty ? "Not set" : counterpartyAddress)
-            ReviewRow(label: "Value", value: "\(totalValue) \(selectedToken)")
-            ReviewRow(label: "Milestones", value: "\(milestones.count)")
-            ReviewRow(label: "Dispute", value: disputeResolution.rawValue)
-            ReviewRow(label: "Expiration", value: "\(expirationDays) days")
+            ReviewRow(label: "Template", value: viewModel.selectedTemplate?.title ?? "None")
+            ReviewRow(label: "Name", value: viewModel.contractName)
+            ReviewRow(label: "Counterparty", value: viewModel.counterpartyAddress.isEmpty ? "Not set" : viewModel.counterpartyAddress)
+            ReviewRow(label: "Value", value: "\(viewModel.totalValue) \(viewModel.selectedToken)")
+            ReviewRow(label: "Milestones", value: "\(viewModel.milestones.count)")
+            ReviewRow(label: "Dispute", value: viewModel.disputeResolution.rawValue)
+            ReviewRow(label: "Expiration", value: "\(viewModel.expirationDays) days")
 
             Text("Estimated gas: ~0.003 ETH")
                 .font(.mtrxCaption1)
@@ -298,10 +404,10 @@ struct ContractView: View {
 
     private var navigationButtons: some View {
         HStack(spacing: Spacing.md) {
-            if currentStep != .template {
+            if viewModel.currentStep != .template {
                 Button {
                     withAnimation(Motion.springDefault) {
-                        currentStep = currentStep.previous
+                        viewModel.goBack()
                     }
                 } label: {
                     Text("Back")
@@ -315,44 +421,22 @@ struct ContractView: View {
             }
 
             Button {
-                if currentStep == .review {
-                    showConfirmation = true
-                } else {
-                    withAnimation(Motion.springDefault) {
-                        currentStep = currentStep.next
-                    }
+                withAnimation(Motion.springDefault) {
+                    viewModel.goNext()
                 }
             } label: {
-                Text(currentStep == .review ? "Deploy" : "Next")
+                Text(viewModel.currentStep == .review ? "Deploy" : "Next")
                     .font(.mtrxHeadline)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: Spacing.Size.buttonHeight)
-                    .background(canProceed ? Color.accentPrimary : Color.labelTertiary)
+                    .background(viewModel.canProceed ? Color.accentPrimary : Color.labelTertiary)
                     .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
             }
-            .disabled(!canProceed)
+            .disabled(!viewModel.canProceed)
         }
         .padding(Spacing.contentPadding)
         .background(.ultraThinMaterial)
-    }
-
-    // MARK: - Validation
-
-    private var canProceed: Bool {
-        switch currentStep {
-        case .template: return selectedTemplate != nil
-        case .details: return !contractName.isEmpty && !counterpartyAddress.isEmpty
-        case .milestones: return !milestones.isEmpty
-        case .terms: return true
-        case .review: return true
-        }
-    }
-
-    // MARK: - Actions
-
-    private func deployContract() {
-        dismiss()
     }
 }
 

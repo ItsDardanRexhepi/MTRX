@@ -14,17 +14,17 @@ enum PostVerificationStatus: String, Codable, CaseIterable {
 
     var icon: String {
         switch self {
-        case .verified: return "checkmark.seal.fill"
-        case .unverified: return "exclamationmark.triangle"
-        case .pending: return "clock"
+        case .verified: return Symbols.verified
+        case .unverified: return Symbols.alertWarning
+        case .pending: return Symbols.pending
         }
     }
 
     var color: Color {
         switch self {
-        case .verified: return .green
-        case .unverified: return .orange
-        case .pending: return .gray
+        case .verified: return .statusSuccess
+        case .unverified: return .statusWarning
+        case .pending: return .labelTertiary
         }
     }
 
@@ -51,6 +51,10 @@ struct SocialPost: Identifiable, Codable, Equatable {
     let reactions: [Reaction]
     let replyCount: Int
     let chainId: Int
+    var likeCount: Int
+    var repostCount: Int
+    var hasLiked: Bool
+    var hasReposted: Bool
 
     struct ProofLink: Codable, Equatable, Identifiable {
         let id: String
@@ -63,6 +67,26 @@ struct SocialPost: Identifiable, Codable, Equatable {
         let emoji: String
         let count: Int
         let hasReacted: Bool
+    }
+
+    init(id: String, authorAddress: String, authorDisplayName: String, authorAvatarURL: URL? = nil, content: String, timestamp: Date, verificationStatus: PostVerificationStatus, transactionHash: String? = nil, proofLinks: [ProofLink] = [], governanceProposalId: String? = nil, reactions: [Reaction] = [], replyCount: Int = 0, chainId: Int = 8453, likeCount: Int = 0, repostCount: Int = 0, hasLiked: Bool = false, hasReposted: Bool = false) {
+        self.id = id
+        self.authorAddress = authorAddress
+        self.authorDisplayName = authorDisplayName
+        self.authorAvatarURL = authorAvatarURL
+        self.content = content
+        self.timestamp = timestamp
+        self.verificationStatus = verificationStatus
+        self.transactionHash = transactionHash
+        self.proofLinks = proofLinks
+        self.governanceProposalId = governanceProposalId
+        self.reactions = reactions
+        self.replyCount = replyCount
+        self.chainId = chainId
+        self.likeCount = likeCount
+        self.repostCount = repostCount
+        self.hasLiked = hasLiked
+        self.hasReposted = hasReposted
     }
 }
 
@@ -90,6 +114,7 @@ final class SocialViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private let currentWalletAddress: String
+    private let api = MTRXAPIClient.shared
 
     init(walletAddress: String = "") {
         self.currentWalletAddress = walletAddress
@@ -122,9 +147,8 @@ final class SocialViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            try await Task.sleep(nanoseconds: 100_000_000)
-            // Production: fetch from on-chain indexer + IPFS
-            posts = []
+            let response: [String: AnyCodableValue] = try await api.listFeed()
+            posts = parseFeedResponse(response)
         } catch {
             errorMessage = "Failed to load posts: \(error.localizedDescription)"
         }
@@ -137,13 +161,19 @@ final class SocialViewModel: ObservableObject {
     }
 
     func publishPost() async {
-        guard !composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let trimmed = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         isPublishing = true
         defer { isPublishing = false }
 
         do {
-            // Production: sign message with wallet, post to chain, pin to IPFS
-            try await Task.sleep(nanoseconds: 500_000_000)
+            let attachments = proofLinksToAttach.map { $0.url.absoluteString }
+            let request = PostCreateRequest(
+                content: trimmed,
+                attachments: attachments.isEmpty ? nil : attachments,
+                visibility: "public"
+            )
+            let _: [String: AnyCodableValue] = try await api.createPost(request)
             composerText = ""
             proofLinksToAttach = []
             isComposerPresented = false
@@ -153,8 +183,50 @@ final class SocialViewModel: ObservableObject {
         }
     }
 
+    func likePost(_ postId: String) async {
+        guard let idx = posts.firstIndex(where: { $0.id == postId }) else { return }
+        let wasLiked = posts[idx].hasLiked
+        posts[idx].hasLiked = !wasLiked
+        posts[idx].likeCount += wasLiked ? -1 : 1
+
+        do {
+            let _: [String: AnyCodableValue] = try await api.postRaw(
+                path: "/api/v1/social/posts/\(postId)/like",
+                body: ["action": wasLiked ? "unlike" : "like"]
+            )
+        } catch {
+            posts[idx].hasLiked = wasLiked
+            posts[idx].likeCount += wasLiked ? 1 : -1
+        }
+    }
+
+    func repostPost(_ postId: String) async {
+        guard let idx = posts.firstIndex(where: { $0.id == postId }) else { return }
+        let wasReposted = posts[idx].hasReposted
+        posts[idx].hasReposted = !wasReposted
+        posts[idx].repostCount += wasReposted ? -1 : 1
+
+        do {
+            let _: [String: AnyCodableValue] = try await api.postRaw(
+                path: "/api/v1/social/posts/\(postId)/repost",
+                body: ["action": wasReposted ? "unrepost" : "repost"]
+            )
+        } catch {
+            posts[idx].hasReposted = wasReposted
+            posts[idx].repostCount += wasReposted ? 1 : -1
+        }
+    }
+
     func reactToPost(_ postId: String, emoji: String) async {
-        // Production: submit on-chain reaction
+        do {
+            let _: [String: AnyCodableValue] = try await api.postRaw(
+                path: "/api/v1/social/posts/\(postId)/react",
+                body: ["emoji": emoji]
+            )
+            await loadPosts()
+        } catch {
+            errorMessage = "Failed to react: \(error.localizedDescription)"
+        }
     }
 
     func shareProofLink(for post: SocialPost) -> URL? {
@@ -170,6 +242,53 @@ final class SocialViewModel: ObservableObject {
             chainExplorerURL: nil
         )
         proofLinksToAttach.append(link)
+    }
+
+    // MARK: - Response Parsing
+
+    private func parseFeedResponse(_ response: [String: AnyCodableValue]) -> [SocialPost] {
+        guard case .array(let items) = response["posts"] ?? response["data"] ?? .null else {
+            return []
+        }
+        return items.compactMap { item -> SocialPost? in
+            guard case .dictionary(let dict) = item else { return nil }
+            let id = dict["id"]?.stringValue ?? UUID().uuidString
+            let content = dict["content"]?.stringValue ?? ""
+            let authorAddress = dict["author_address"]?.stringValue ?? dict["author"]?.stringValue ?? ""
+            let authorName = dict["author_display_name"]?.stringValue ?? dict["author_name"]?.stringValue ?? truncatedAddress(authorAddress)
+            let statusRaw = dict["verification_status"]?.stringValue ?? "unverified"
+            let status = PostVerificationStatus(rawValue: statusRaw) ?? .unverified
+            let txHash = dict["transaction_hash"]?.stringValue ?? dict["tx_hash"]?.stringValue
+            let proposalId = dict["governance_proposal_id"]?.stringValue
+            let replyCount = dict["reply_count"]?.intValue ?? 0
+            let likeCount = dict["like_count"]?.intValue ?? 0
+            let repostCount = dict["repost_count"]?.intValue ?? 0
+            let hasLiked = dict["has_liked"]?.boolValue ?? false
+            let hasReposted = dict["has_reposted"]?.boolValue ?? false
+            let chainId = dict["chain_id"]?.intValue ?? 8453
+
+            return SocialPost(
+                id: id,
+                authorAddress: authorAddress,
+                authorDisplayName: authorName,
+                content: content,
+                timestamp: Date(),
+                verificationStatus: status,
+                transactionHash: txHash,
+                governanceProposalId: proposalId,
+                replyCount: replyCount,
+                chainId: chainId,
+                likeCount: likeCount,
+                repostCount: repostCount,
+                hasLiked: hasLiked,
+                hasReposted: hasReposted
+            )
+        }
+    }
+
+    private func truncatedAddress(_ address: String) -> String {
+        guard address.count > 10 else { return address }
+        return "\(address.prefix(6))...\(address.suffix(4))"
     }
 }
 
@@ -191,17 +310,39 @@ struct SocialView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 filterBar
-                postsList
+                if viewModel.isLoading && viewModel.posts.isEmpty {
+                    loadingView
+                } else if let error = viewModel.errorMessage, viewModel.posts.isEmpty {
+                    errorView(error)
+                } else {
+                    postsList
+                }
             }
             .navigationTitle("Social")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        viewModel.isComposerPresented = true
-                    } label: {
-                        Image(systemName: "square.and.pencil")
+                    HStack(spacing: 12) {
+                        NavigationLink {
+                            MessagingView()
+                        } label: {
+                            Image(systemName: Symbols.message)
+                        }
+                        .accessibilityLabel("Messages")
+
+                        NavigationLink {
+                            GovernanceView()
+                        } label: {
+                            Image(systemName: Symbols.dao)
+                        }
+                        .accessibilityLabel("Governance")
+
+                        Button {
+                            viewModel.isComposerPresented = true
+                        } label: {
+                            Image(systemName: Symbols.post)
+                        }
+                        .accessibilityLabel("Create new post")
                     }
-                    .accessibilityLabel("Create new post")
                 }
             }
             .sheet(isPresented: $viewModel.isComposerPresented) {
@@ -212,15 +353,47 @@ struct SocialView: View {
                     ShareProofView(url: url)
                 }
             }
-            .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
-                Button("OK") { viewModel.errorMessage = nil }
-            } message: {
-                Text(viewModel.errorMessage ?? "")
-            }
             .task {
                 await viewModel.loadPosts()
             }
         }
+    }
+
+    // MARK: - Loading View
+
+    private var loadingView: some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(0..<5, id: \.self) { _ in
+                    PostSkeletonView()
+                }
+            }
+            .padding()
+        }
+    }
+
+    // MARK: - Error View
+
+    private func errorView(_ message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: Symbols.alertWarning)
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("Something Went Wrong")
+                .font(.title3.weight(.semibold))
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                Task { await viewModel.loadPosts() }
+            } label: {
+                Label("Retry", systemImage: Symbols.refresh)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Filter Bar
@@ -242,25 +415,29 @@ struct SocialView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
-        .background(Color(.systemBackground))
+        .background(Color.backgroundPrimary)
     }
 
     // MARK: - Posts List
 
     private var postsList: some View {
         List {
-            if viewModel.isLoading && viewModel.posts.isEmpty {
-                ForEach(0..<5, id: \.self) { _ in
-                    PostSkeletonView()
-                        .listRowSeparator(.hidden)
-                }
-            } else if viewModel.filteredPosts.isEmpty {
+            if viewModel.filteredPosts.isEmpty {
                 emptyStateView
                     .listRowSeparator(.hidden)
             } else {
                 ForEach(viewModel.filteredPosts) { post in
                     PostCardView(
                         post: post,
+                        onLike: {
+                            Task { await viewModel.likePost(post.id) }
+                        },
+                        onRepost: {
+                            Task { await viewModel.repostPost(post.id) }
+                        },
+                        onComment: {
+                            // Future: open comment thread
+                        },
                         onReact: { emoji in
                             Task { await viewModel.reactToPost(post.id, emoji: emoji) }
                         },
@@ -284,7 +461,7 @@ struct SocialView: View {
 
     private var emptyStateView: some View {
         VStack(spacing: 16) {
-            Image(systemName: "bubble.left.and.bubble.right")
+            Image(systemName: Symbols.social)
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
             Text("No Posts Yet")
@@ -311,7 +488,7 @@ struct SocialView: View {
                 TextEditor(text: $viewModel.composerText)
                     .frame(minHeight: 120)
                     .padding(8)
-                    .background(Color(.systemGray6))
+                    .background(Color.backgroundSecondary)
                     .cornerRadius(12)
                     .accessibilityLabel("Post content")
 
@@ -322,7 +499,7 @@ struct SocialView: View {
                             .foregroundStyle(.secondary)
                         ForEach(viewModel.proofLinksToAttach) { link in
                             HStack {
-                                Image(systemName: "link")
+                                Image(systemName: Symbols.link)
                                 Text(link.title)
                                     .font(.caption)
                                 Spacer()
@@ -334,7 +511,7 @@ struct SocialView: View {
                                 }
                             }
                             .padding(8)
-                            .background(Color(.systemGray6))
+                            .background(Color.backgroundSecondary)
                             .cornerRadius(8)
                         }
                     }
@@ -418,6 +595,9 @@ struct SocialView: View {
 
 struct PostCardView: View {
     let post: SocialPost
+    var onLike: () -> Void = {}
+    var onRepost: () -> Void = {}
+    var onComment: () -> Void = {}
     let onReact: (String) -> Void
     let onShareProof: () -> Void
 
@@ -438,9 +618,11 @@ struct PostCardView: View {
                     HStack(spacing: 4) {
                         Text(post.authorDisplayName)
                             .font(.subheadline.weight(.semibold))
-                        Image(systemName: post.verificationStatus.icon)
-                            .foregroundStyle(post.verificationStatus.color)
-                            .font(.caption)
+                        if post.verificationStatus == .verified {
+                            Image(systemName: post.verificationStatus.icon)
+                                .foregroundStyle(post.verificationStatus.color)
+                                .font(.caption)
+                        }
                     }
                     Text(truncatedAddress(post.authorAddress))
                         .font(.caption)
@@ -474,14 +656,14 @@ struct PostCardView: View {
             // Governance tag
             if let proposalId = post.governanceProposalId {
                 HStack(spacing: 4) {
-                    Image(systemName: "building.columns")
+                    Image(systemName: Symbols.dao)
                     Text("Proposal #\(proposalId)")
                 }
                 .font(.caption.weight(.medium))
-                .foregroundStyle(.blue)
+                .foregroundStyle(.statusInfo)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color.blue.opacity(0.1))
+                .background(Color.statusInfo.opacity(0.1))
                 .cornerRadius(6)
             }
 
@@ -490,31 +672,49 @@ struct PostCardView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(post.proofLinks) { link in
                         HStack(spacing: 4) {
-                            Image(systemName: "link")
+                            Image(systemName: Symbols.link)
                                 .font(.caption2)
                             Text(link.title)
                                 .font(.caption)
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(.statusInfo)
                         }
                     }
                 }
             }
 
-            // Actions
-            HStack(spacing: 20) {
-                ForEach(post.reactions, id: \.emoji) { reaction in
-                    Button {
-                        onReact(reaction.emoji)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(reaction.emoji)
-                            Text("\(reaction.count)")
-                                .font(.caption)
-                                .foregroundStyle(reaction.hasReacted ? .blue : .secondary)
-                        }
+            // Actions: Like, Comment, Repost, Reactions, Proof
+            HStack(spacing: 16) {
+                Button(action: onLike) {
+                    HStack(spacing: 4) {
+                        Image(systemName: post.hasLiked ? Symbols.like : "heart")
+                            .foregroundStyle(post.hasLiked ? .statusError : .secondary)
+                        Text("\(post.likeCount)")
+                            .font(.caption)
+                            .foregroundStyle(post.hasLiked ? .statusError : .secondary)
                     }
-                    .buttonStyle(.plain)
                 }
+                .buttonStyle(.plain)
+
+                Button(action: onComment) {
+                    HStack(spacing: 4) {
+                        Image(systemName: Symbols.comment)
+                        Text("\(post.replyCount)")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onRepost) {
+                    HStack(spacing: 4) {
+                        Image(systemName: Symbols.repost)
+                            .foregroundStyle(post.hasReposted ? .statusSuccess : .secondary)
+                        Text("\(post.repostCount)")
+                            .font(.caption)
+                            .foregroundStyle(post.hasReposted ? .statusSuccess : .secondary)
+                    }
+                }
+                .buttonStyle(.plain)
 
                 Spacer()
 
@@ -528,17 +728,10 @@ struct PostCardView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
                 }
-
-                HStack(spacing: 4) {
-                    Image(systemName: "bubble.right")
-                    Text("\(post.replyCount)")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.backgroundPrimary)
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
         .accessibilityElement(children: .combine)
@@ -564,7 +757,7 @@ struct FilterChip: View {
                 .font(.subheadline.weight(isSelected ? .semibold : .regular))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
-                .background(isSelected ? Color.accentColor : Color(.systemGray6))
+                .background(isSelected ? Color.accentColor : Color.backgroundSecondary)
                 .foregroundStyle(isSelected ? .white : .primary)
                 .cornerRadius(20)
         }
@@ -605,7 +798,7 @@ struct ShareProofView: View {
             VStack(spacing: 24) {
                 Image(systemName: "checkmark.shield.fill")
                     .font(.system(size: 48))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(.statusSuccess)
 
                 Text("On-Chain Proof")
                     .font(.title2.weight(.bold))
@@ -619,13 +812,13 @@ struct ShareProofView: View {
                     Text(url.absoluteString)
                         .font(.caption.monospaced())
                         .padding()
-                        .background(Color(.systemGray6))
+                        .background(Color.backgroundSecondary)
                         .cornerRadius(8)
 
                     Button {
                         UIPasteboard.general.url = url
                     } label: {
-                        Label("Copy Link", systemImage: "doc.on.doc")
+                        Label("Copy Link", systemImage: Symbols.copy)
                     }
                     .buttonStyle(.borderedProminent)
                 }

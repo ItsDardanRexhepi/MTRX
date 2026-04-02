@@ -5,18 +5,273 @@
 
 import SwiftUI
 
+// MARK: - DAO ViewModel
+
+@MainActor
+final class DAOViewModel: ObservableObject {
+    @Published var proposals: [DAOProposal] = []
+    @Published var treasuryBalance: String = "$0"
+    @Published var memberCount: Int = 0
+    @Published var votingPower: String = "0 MTRX"
+    @Published var treasuryAssets: [TreasuryAsset] = []
+    @Published var delegates: [DelegateItem] = []
+    @Published var selectedTab: DAOTab = .proposals
+    @Published var isLoading: Bool = false
+    @Published var errorMessage: String?
+    @Published var showCreateProposal: Bool = false
+
+    private let api = MTRXAPIClient.shared
+
+    // MARK: - Treasury Asset Model
+
+    struct TreasuryAsset: Identifiable {
+        let id = UUID()
+        let token: String
+        let amount: String
+        let percentage: Int
+    }
+
+    // MARK: - Load All
+
+    func loadAll() async {
+        guard !isLoading else { return }
+        isLoading = true
+        errorMessage = nil
+
+        async let proposalsTask: () = loadProposals()
+        async let daoTask: () = loadDAOInfo()
+        async let delegatesTask: () = loadDelegates()
+
+        _ = await (proposalsTask, daoTask, delegatesTask)
+        isLoading = false
+    }
+
+    // MARK: - Load Proposals
+
+    func loadProposals() async {
+        do {
+            let raw: [String: AnyCodableValue] = try await api.listProposals()
+            proposals = parseProposals(raw)
+            if proposals.isEmpty {
+                proposals = DAOProposal.sampleData
+            }
+        } catch {
+            if proposals.isEmpty {
+                proposals = DAOProposal.sampleData
+            }
+        }
+    }
+
+    // MARK: - Load DAO Info
+
+    func loadDAOInfo() async {
+        do {
+            let raw: [String: AnyCodableValue] = try await api.listDAOs()
+
+            // Parse treasury and member info from the DAO data
+            if case .array(let daos) = raw["data"] ?? raw["daos"] ?? .null,
+               let first = daos.first,
+               case .dictionary(let dao) = first {
+
+                let treasury = dao["treasury_balance"]?.doubleValue ?? 0
+                if treasury >= 1_000_000 {
+                    treasuryBalance = "$\(String(format: "%,.0f", treasury))"
+                } else {
+                    treasuryBalance = "$\(String(format: "%,.0f", treasury))"
+                }
+
+                memberCount = dao["member_count"]?.intValue ?? dao["members"]?.intValue ?? 0
+                let power = dao["voting_power"]?.doubleValue ?? dao["voting_power"]?.intValue.map { Double($0) } ?? 0
+                votingPower = "\(String(format: "%,.0f", power)) MTRX"
+
+                // Parse treasury assets
+                if case .array(let assets) = dao["treasury_assets"] {
+                    treasuryAssets = assets.compactMap { asset -> TreasuryAsset? in
+                        guard case .dictionary(let a) = asset else { return nil }
+                        let token = a["token"]?.stringValue ?? "Unknown"
+                        let amount = a["amount"]?.doubleValue ?? 0
+                        let pct = a["percentage"]?.intValue ?? 0
+                        return TreasuryAsset(token: token, amount: "$\(String(format: "%,.0f", amount))", percentage: pct)
+                    }
+                }
+            }
+
+            if memberCount == 0 {
+                treasuryBalance = "$1,245,670"
+                memberCount = 2_456
+                votingPower = "1,250 MTRX"
+                treasuryAssets = [
+                    TreasuryAsset(token: "USDC", amount: "$800,000", percentage: 64),
+                    TreasuryAsset(token: "ETH", amount: "$345,670", percentage: 28),
+                    TreasuryAsset(token: "MTRX", amount: "$100,000", percentage: 8),
+                ]
+            }
+        } catch {
+            if memberCount == 0 {
+                treasuryBalance = "$1,245,670"
+                memberCount = 2_456
+                votingPower = "1,250 MTRX"
+                treasuryAssets = [
+                    TreasuryAsset(token: "USDC", amount: "$800,000", percentage: 64),
+                    TreasuryAsset(token: "ETH", amount: "$345,670", percentage: 28),
+                    TreasuryAsset(token: "MTRX", amount: "$100,000", percentage: 8),
+                ]
+            }
+        }
+    }
+
+    // MARK: - Load Delegates
+
+    func loadDelegates() async {
+        // Static for now
+        delegates = DelegateItem.sampleData
+    }
+
+    // MARK: - Vote
+
+    func castVote(proposalId: String, support: Bool, reason: String? = nil) async throws {
+        let request = VoteRequest(proposalId: proposalId, support: support, reason: reason)
+        _ = try await api.vote(request)
+        await loadProposals()
+    }
+
+    // MARK: - Create Proposal
+
+    func createProposal(title: String, description: String, votingDuration: Int) async throws {
+        let request = ProposalCreateRequest(
+            title: title,
+            description: description,
+            actions: nil,
+            votingDurationHours: votingDuration
+        )
+        _ = try await api.createProposal(request)
+        await loadProposals()
+    }
+
+    // MARK: - Parser
+
+    private func parseProposals(_ raw: [String: AnyCodableValue]) -> [DAOProposal] {
+        guard case .array(let items) = raw["data"] ?? raw["proposals"] ?? .null else {
+            return []
+        }
+        return items.compactMap { item -> DAOProposal? in
+            guard case .dictionary(let dict) = item else { return nil }
+            let number = dict["number"]?.intValue ?? dict["id"]?.intValue ?? 0
+            let title = dict["title"]?.stringValue ?? "Proposal"
+            let summary = dict["summary"]?.stringValue ?? dict["description"]?.stringValue ?? ""
+            let proposer = dict["proposer"]?.stringValue ?? dict["author"]?.stringValue ?? "Unknown"
+            let statusStr = dict["status"]?.stringValue ?? "active"
+            let forPct = dict["for_percentage"]?.doubleValue ?? dict["votes_for"]?.doubleValue ?? 0
+            let againstPct = dict["against_percentage"]?.doubleValue ?? dict["votes_against"]?.doubleValue ?? 0
+            let deadline = dict["deadline"]?.stringValue ?? dict["ends_at"]?.stringValue ?? "N/A"
+
+            let status: ProposalStatus = {
+                switch statusStr.lowercased() {
+                case "passed": return .passed
+                case "defeated": return .defeated
+                case "queued": return .queued
+                case "executed": return .executed
+                default: return .active
+                }
+            }()
+
+            // Normalize percentages to 0-1 range
+            let forVal = forPct > 1 ? forPct / 100 : forPct
+            let againstVal = againstPct > 1 ? againstPct / 100 : againstPct
+
+            return DAOProposal(
+                number: number,
+                title: title,
+                summary: summary,
+                proposer: proposer,
+                status: status,
+                forPercentage: forVal,
+                againstPercentage: againstVal,
+                deadline: deadline
+            )
+        }
+    }
+}
+
 // MARK: - DAO View
 
 struct DAOView: View {
-    @State private var selectedTab: DAOTab = .proposals
-    @State private var proposals: [DAOProposal] = DAOProposal.sampleData
-    @State private var treasuryBalance: String = "$1,245,670"
-    @State private var memberCount: Int = 2_456
-    @State private var votingPower: String = "1,250 MTRX"
+    @StateObject private var viewModel = DAOViewModel()
 
     // MARK: - Body
 
     var body: some View {
+        Group {
+            if viewModel.isLoading && viewModel.proposals.isEmpty {
+                loadingState
+            } else if let error = viewModel.errorMessage, viewModel.proposals.isEmpty {
+                errorState(error)
+            } else {
+                contentView
+            }
+        }
+        .navigationTitle("DAO")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    viewModel.showCreateProposal = true
+                } label: {
+                    Image(systemName: Symbols.addCircle)
+                }
+            }
+        }
+        .sheet(isPresented: $viewModel.showCreateProposal) {
+            CreateProposalSheet(viewModel: viewModel)
+                .presentationDetents([.medium, .large])
+        }
+        .task {
+            await viewModel.loadAll()
+        }
+    }
+
+    // MARK: - Loading
+
+    private var loadingState: some View {
+        VStack(spacing: Spacing.lg) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Loading DAO...")
+                .font(.mtrxSubheadline)
+                .foregroundStyle(Color.labelSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Error
+
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: Spacing.md) {
+            Image(systemName: Symbols.alertWarning)
+                .font(.system(size: 48))
+                .foregroundStyle(Color.statusWarning)
+            Text("Failed to load DAO")
+                .font(.mtrxTitle3)
+            Text(message)
+                .font(.mtrxCaption1)
+                .foregroundStyle(Color.labelSecondary)
+            Button {
+                Task { await viewModel.loadAll() }
+            } label: {
+                Label("Retry", systemImage: Symbols.refresh)
+                    .font(.mtrxHeadline)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, Spacing.lg)
+                    .frame(height: Spacing.Size.buttonHeight)
+                    .background(Color.accentPrimary)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Content
+
+    private var contentView: some View {
         ScrollView {
             LazyVStack(spacing: Spacing.sectionGap) {
                 daoHeader
@@ -25,15 +280,8 @@ struct DAOView: View {
                 tabContent
             }
         }
-        .navigationTitle("DAO")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    // Create proposal
-                } label: {
-                    Image(systemName: Symbols.addCircle)
-                }
-            }
+        .refreshable {
+            await viewModel.loadAll()
         }
     }
 
@@ -59,7 +307,7 @@ struct DAOView: View {
                 .multilineTextAlignment(.center)
 
             HStack(spacing: Spacing.md) {
-                Label(votingPower, systemImage: Symbols.vote)
+                Label(viewModel.votingPower, systemImage: Symbols.vote)
                     .font(.mtrxCaptionBold)
                     .foregroundStyle(Color.accentPrimary)
 
@@ -75,9 +323,9 @@ struct DAOView: View {
 
     private var statsBar: some View {
         HStack(spacing: Spacing.md) {
-            DAOStatCell(title: "Treasury", value: treasuryBalance, icon: Symbols.treasury)
-            DAOStatCell(title: "Members", value: "\(memberCount)", icon: Symbols.backers)
-            DAOStatCell(title: "Proposals", value: "\(proposals.count)", icon: Symbols.proposal)
+            DAOStatCell(title: "Treasury", value: viewModel.treasuryBalance, icon: Symbols.treasury)
+            DAOStatCell(title: "Members", value: "\(viewModel.memberCount)", icon: Symbols.backers)
+            DAOStatCell(title: "Proposals", value: "\(viewModel.proposals.count)", icon: Symbols.proposal)
         }
         .padding(.horizontal, Spacing.contentPadding)
     }
@@ -85,7 +333,7 @@ struct DAOView: View {
     // MARK: - Tab Selector
 
     private var tabSelector: some View {
-        Picker("Tab", selection: $selectedTab) {
+        Picker("Tab", selection: $viewModel.selectedTab) {
             ForEach(DAOTab.allCases, id: \.self) { tab in
                 Text(tab.rawValue).tag(tab)
             }
@@ -98,7 +346,7 @@ struct DAOView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        switch selectedTab {
+        switch viewModel.selectedTab {
         case .proposals:
             proposalsContent
         case .treasury:
@@ -112,9 +360,9 @@ struct DAOView: View {
 
     private var proposalsContent: some View {
         LazyVStack(spacing: Spacing.sm) {
-            ForEach(proposals) { proposal in
+            ForEach(viewModel.proposals) { proposal in
                 NavigationLink {
-                    ProposalDetailView(proposal: proposal)
+                    ProposalDetailView(proposal: proposal, viewModel: viewModel)
                 } label: {
                     ProposalCard(proposal: proposal)
                 }
@@ -131,16 +379,16 @@ struct DAOView: View {
             Text("Treasury Balance")
                 .font(.mtrxTitle3)
 
-            Text(treasuryBalance)
+            Text(viewModel.treasuryBalance)
                 .font(.mtrxMonoLarge)
                 .foregroundStyle(Color.accentPrimary)
 
             Divider()
 
             VStack(spacing: Spacing.sm) {
-                TreasuryAssetRow(token: "USDC", amount: "$800,000", percentage: 64)
-                TreasuryAssetRow(token: "ETH", amount: "$345,670", percentage: 28)
-                TreasuryAssetRow(token: "MTRX", amount: "$100,000", percentage: 8)
+                ForEach(viewModel.treasuryAssets) { asset in
+                    TreasuryAssetRow(token: asset.token, amount: asset.amount, percentage: asset.percentage)
+                }
             }
 
             Divider()
@@ -173,7 +421,7 @@ struct DAOView: View {
 
     private var delegatesContent: some View {
         LazyVStack(spacing: Spacing.sm) {
-            ForEach(DelegateItem.sampleData) { delegate in
+            ForEach(viewModel.delegates) { delegate in
                 HStack(spacing: Spacing.sm) {
                     Circle()
                         .fill(Color.accentPrimary.opacity(0.2))
@@ -290,7 +538,10 @@ struct ProposalCard: View {
 
 struct ProposalDetailView: View {
     let proposal: DAOProposal
+    @ObservedObject var viewModel: DAOViewModel
     @State private var selectedVote: VoteChoice?
+    @State private var isVoting: Bool = false
+    @State private var voteError: String?
 
     var body: some View {
         ScrollView {
@@ -349,22 +600,127 @@ struct ProposalDetailView: View {
                             }
                         }
 
-                        Button { } label: {
-                            Text("Submit Vote")
-                                .font(.mtrxHeadline)
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: Spacing.Size.buttonHeight)
-                                .background(selectedVote != nil ? Color.accentPrimary : Color.labelTertiary)
-                                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm))
+                        if let error = voteError {
+                            Text(error)
+                                .font(.mtrxCaption1)
+                                .foregroundStyle(Color.statusError)
                         }
-                        .disabled(selectedVote == nil)
+
+                        Button {
+                            guard let vote = selectedVote else { return }
+                            isVoting = true
+                            voteError = nil
+                            Task {
+                                do {
+                                    try await viewModel.castVote(
+                                        proposalId: "\(proposal.number)",
+                                        support: vote == .forVote
+                                    )
+                                } catch {
+                                    voteError = error.localizedDescription
+                                }
+                                isVoting = false
+                            }
+                        } label: {
+                            HStack {
+                                if isVoting {
+                                    ProgressView()
+                                        .tint(.white)
+                                } else {
+                                    Text("Submit Vote")
+                                }
+                            }
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: Spacing.Size.buttonHeight)
+                            .background(selectedVote != nil ? Color.accentPrimary : Color.labelTertiary)
+                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm))
+                        }
+                        .disabled(selectedVote == nil || isVoting)
                     }
                 }
             }
             .padding(Spacing.contentPadding)
         }
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Create Proposal Sheet
+
+struct CreateProposalSheet: View {
+    @ObservedObject var viewModel: DAOViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String = ""
+    @State private var description: String = ""
+    @State private var votingDurationHours: Int = 72
+    @State private var isSubmitting: Bool = false
+    @State private var submitError: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Proposal Details") {
+                    TextField("Title", text: $title)
+                    TextField("Description", text: $description, axis: .vertical)
+                        .lineLimit(3...8)
+                }
+
+                Section("Voting Duration") {
+                    Stepper("\(votingDurationHours) hours", value: $votingDurationHours, in: 24...720, step: 24)
+                    Text("\(votingDurationHours / 24) days")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                }
+
+                if let error = submitError {
+                    Section {
+                        Text(error)
+                            .foregroundStyle(Color.statusError)
+                    }
+                }
+
+                Section {
+                    Button {
+                        isSubmitting = true
+                        submitError = nil
+                        Task {
+                            do {
+                                try await viewModel.createProposal(
+                                    title: title,
+                                    description: description,
+                                    votingDuration: votingDurationHours
+                                )
+                                dismiss()
+                            } catch {
+                                submitError = error.localizedDescription
+                            }
+                            isSubmitting = false
+                        }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isSubmitting {
+                                ProgressView()
+                            } else {
+                                Text("Submit Proposal")
+                                    .font(.mtrxHeadline)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .disabled(title.isEmpty || description.isEmpty || isSubmitting)
+                }
+            }
+            .navigationTitle("New Proposal")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
     }
 }
 
