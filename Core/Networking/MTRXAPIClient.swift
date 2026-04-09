@@ -1586,6 +1586,38 @@ final class MTRXAPIClient: @unchecked Sendable {
         return data
     }
 
+    // MARK: - Component Registry
+
+    /// Get full component registry with UI schemas
+    func bridgeGetComponents() async throws -> [BridgeComponent] {
+        let result: BridgeResponse<BridgeComponentsData> = try await get(
+            path: "/bridge/v1/components", authenticated: false
+        )
+        return result.data?.components ?? []
+    }
+
+    /// Get a single component by ID
+    func bridgeGetComponent(id: String) async throws -> BridgeComponent {
+        let result: BridgeResponse<BridgeComponent> = try await get(
+            path: "/bridge/v1/components/\(id)", authenticated: false
+        )
+        guard let data = result.data else {
+            throw MTRXAPIError.decodingFailed("Component not found: \(id)")
+        }
+        return data
+    }
+
+    /// Get component manifest (lightweight version check)
+    func bridgeGetComponentManifest() async throws -> BridgeManifestData {
+        let result: BridgeResponse<BridgeManifestData> = try await get(
+            path: "/bridge/v1/components/manifest", authenticated: false
+        )
+        guard let data = result.data else {
+            throw MTRXAPIError.decodingFailed("No manifest data")
+        }
+        return data
+    }
+
     /// Register for push notifications
     func bridgeRegisterPush(token: String) async throws {
         let body: [String: String] = [
@@ -1667,6 +1699,66 @@ struct BridgeDashboardData: Decodable {
 
 struct BridgePushData: Decodable {
     let registered: Bool
+}
+
+// MARK: - Component Registry Models
+
+struct BridgeComponentField: Decodable {
+    let name: String
+    let type: String
+    let label: String
+    let required: Bool
+    let placeholder: String?
+    let options: [String]?
+}
+
+struct BridgeComponentScreen: Decodable {
+    let id: String
+    let title: String
+    let fields: [BridgeComponentField]
+}
+
+struct BridgeUIFlow: Decodable {
+    let screens: [BridgeComponentScreen]
+}
+
+struct BridgeComponent: Decodable {
+    let id: String
+    let name: String
+    let icon: String
+    let description: String
+    let category: String
+    let actions: [String]
+    let version: String
+    let capabilities: [String]
+    let minAppVersion: String
+    let uiFlow: BridgeUIFlow?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, icon, description, category, actions, version, capabilities
+        case minAppVersion = "min_app_version"
+        case uiFlow = "ui_flow"
+    }
+}
+
+struct BridgeComponentsData: Decodable {
+    let components: [BridgeComponent]
+}
+
+struct BridgeManifestEntry: Decodable {
+    let id: String
+    let version: String
+    let checksum: String
+}
+
+struct BridgeManifestData: Decodable {
+    let manifest: [BridgeManifestEntry]
+    let manifestVersion: String
+
+    enum CodingKeys: String, CodingKey {
+        case manifest
+        case manifestVersion = "manifest_version"
+    }
 }
 
 // MARK: - AnyEncodable (type-erased Encodable wrapper)
