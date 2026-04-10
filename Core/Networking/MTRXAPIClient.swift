@@ -395,6 +395,11 @@ final class MTRXAPIClient: @unchecked Sendable {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
+    /// Exposes the underlying URLSession so tests (and diagnostic tools) can
+    /// observe the real session being used. Production code should stick to
+    /// the convenience verbs above rather than reaching into the session.
+    var urlSession: URLSession { session }
+
     private let lock = NSLock()
     private var _authToken: String?
     private var _networkStatus: NetworkStatus = .disconnected
@@ -417,19 +422,27 @@ final class MTRXAPIClient: @unchecked Sendable {
 
     // MARK: - Init
 
-    init(baseURL: String? = nil) {
+    init(baseURL: String? = nil, session: URLSession? = nil) {
         self.baseURL = baseURL
             ?? ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"]
             ?? "http://localhost:8000"
 
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 120
-        config.waitsForConnectivity = true
-        config.httpAdditionalHeaders = [
-            "User-Agent": "MTRX-iOS/1.0",
-        ]
-        self.session = URLSession(configuration: config)
+        if let session {
+            // Tests (and any caller that wants to stub transport) can inject
+            // a pre-configured session — typically one whose
+            // URLSessionConfiguration has MockURLProtocol in its
+            // `protocolClasses` array.
+            self.session = session
+        } else {
+            let config = URLSessionConfiguration.default
+            config.timeoutIntervalForRequest = 30
+            config.timeoutIntervalForResource = 120
+            config.waitsForConnectivity = true
+            config.httpAdditionalHeaders = [
+                "User-Agent": "MTRX-iOS/1.0",
+            ]
+            self.session = URLSession(configuration: config)
+        }
 
         self.decoder = JSONDecoder()
         self.decoder.dateDecodingStrategy = .custom { decoder in

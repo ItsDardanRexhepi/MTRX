@@ -6,12 +6,18 @@ Ensures no private keys, API tokens, personal IDs, or internal security
 files ever ship in a public release.
 
 Usage:
-    python3 -m matrix.cli.prepare_release scan       # Scan for sensitive data
-    python3 -m matrix.cli.prepare_release export      # Create clean export
-    python3 -m matrix.cli.prepare_release manifest    # Generate public/private manifest
+    python3 -m matrix.cli.prepare_release scan                          # Scan this repo
+    python3 -m matrix.cli.prepare_release export                         # Clean export
+    python3 -m matrix.cli.prepare_release manifest                       # Public/private manifest
+    python3 -m matrix.cli.prepare_release scan --workspace ~/0pnMatrx    # Scan another repo
+    python3 -m matrix.cli.prepare_release full --workspace ~/0pnMatrx    # Full pipeline
+
+The ``--workspace`` flag lets the CLI target any checkout on disk, so the
+same release tooling works for both OpenMatrix (iOS) and 0pnMatrx (runtime).
 """
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import shutil
@@ -332,23 +338,52 @@ def cmd_manifest(workspace: Path = WORKSPACE) -> None:
     print()
 
 
-def main() -> int:
-    args = sys.argv[1:]
-    cmd = args[0] if args else "scan"
+def _resolve_workspace(raw: str | None) -> Path:
+    """Resolve the --workspace argument to an absolute, existing directory."""
+    if raw is None:
+        return WORKSPACE
+    path = Path(raw).expanduser().resolve()
+    if not path.is_dir():
+        raise SystemExit(f"error: workspace not found: {path}")
+    return path
 
-    if cmd == "scan":
-        cmd_scan()
-    elif cmd == "export":
-        cmd_scan()
-        cmd_export()
-    elif cmd == "manifest":
-        cmd_manifest()
-    elif cmd == "full":
-        cmd_scan()
-        cmd_export()
-        cmd_manifest()
-    else:
-        print("Usage: prepare_release {scan|export|manifest|full}")
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="prepare_release",
+        description="OpenMatrix release preparation: scan, export, manifest.",
+    )
+    parser.add_argument(
+        "command",
+        nargs="?",
+        default="scan",
+        choices=("scan", "export", "manifest", "full"),
+        help="Which step to run (default: scan)",
+    )
+    parser.add_argument(
+        "--workspace",
+        "-w",
+        default=None,
+        help="Target repository to scan/export. Defaults to the OpenMatrix repo "
+             "that contains this CLI. Useful for pointing at 0pnMatrx or any "
+             "other checkout.",
+    )
+    ns = parser.parse_args()
+
+    workspace = _resolve_workspace(ns.workspace)
+    print(f"  {DIM}Workspace: {workspace}{RESET}")
+
+    if ns.command == "scan":
+        cmd_scan(workspace)
+    elif ns.command == "export":
+        cmd_scan(workspace)
+        cmd_export(workspace)
+    elif ns.command == "manifest":
+        cmd_manifest(workspace)
+    elif ns.command == "full":
+        cmd_scan(workspace)
+        cmd_export(workspace)
+        cmd_manifest(workspace)
     return 0
 
 
