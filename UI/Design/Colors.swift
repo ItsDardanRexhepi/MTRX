@@ -11,7 +11,7 @@ extension Color {
 
     // MARK: - Brand
 
-    /// Primary brand color — vibrant blue
+    /// Primary brand color — terminal cyan
     static let accentPrimary = Color("AccentPrimary", bundle: .main)
 
     /// Secondary brand color — complementary teal
@@ -144,7 +144,7 @@ extension Color {
 // MARK: - Fallback Color Definitions (When Asset Catalog is unavailable)
 
 extension Color {
-    static let fallbackAccentPrimary = Color(red: 0.0, green: 0.478, blue: 1.0)
+    static let fallbackAccentPrimary = Color(red: 0.0, green: 0.675, blue: 0.694)
     static let fallbackAccentSecondary = Color(red: 0.0, green: 0.8, blue: 0.75)
     static let fallbackAccentTertiary = Color(red: 1.0, green: 0.7, blue: 0.0)
     static let fallbackPriceUp = Color(red: 0.2, green: 0.84, blue: 0.42)
