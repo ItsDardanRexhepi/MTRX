@@ -62,15 +62,35 @@ final class TrinityVoice: NSObject, @unchecked Sendable {
 
     // MARK: - Audio Session
 
+    /// Configure AVAudioSession for smooth Trinity speech playback.
+    ///
+    /// We use the ``.playback`` category with the ``.voicePrompt``
+    /// mode so iOS routes the audio to the current output correctly
+    /// whether the user is on speakerphone, Bluetooth, or AirPods, and
+    /// we duck other audio sources (music, podcasts) while Trinity is
+    /// speaking. ``.allowBluetoothA2DP`` and ``.allowAirPlay`` let the
+    /// output follow whatever device the user has connected, and
+    /// ``.mixWithOthers`` is intentionally *not* set — we want music to
+    /// duck, not mix, so Trinity's voice stays intelligible.
     private func configureAudioSession() {
-        // TODO: Configure AVAudioSession for speech playback
-        // Set category to playback, activate session
+        let session = AVAudioSession.sharedInstance()
         do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers])
-            try session.setActive(true)
+            try session.setCategory(
+                .playback,
+                mode: .voicePrompt,
+                options: [.duckOthers, .allowBluetoothA2DP, .allowAirPlay]
+            )
+            try session.setActive(true, options: [.notifyOthersOnDeactivation])
         } catch {
-            print("[TrinityVoice] Audio session configuration failed: \(error)")
+            // Falling back to the most conservative configuration keeps
+            // speech working even if the richer options are rejected
+            // (e.g. during a CallKit session).
+            do {
+                try session.setCategory(.playback, mode: .spokenAudio)
+                try session.setActive(true)
+            } catch {
+                print("[TrinityVoice] Audio session configuration failed: \(error)")
+            }
         }
     }
 

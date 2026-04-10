@@ -7,6 +7,27 @@
 
 import Foundation
 import Combine
+#if canImport(UIKit)
+import UIKit
+#endif
+#if canImport(UserNotifications)
+import UserNotifications
+#endif
+#if canImport(HealthKit)
+import HealthKit
+#endif
+#if canImport(CoreLocation)
+import CoreLocation
+#endif
+#if canImport(AVFoundation)
+import AVFoundation
+#endif
+#if canImport(LocalAuthentication)
+import LocalAuthentication
+#endif
+#if canImport(Intents)
+import Intents
+#endif
 
 // MARK: - Onboarding Step
 
@@ -217,14 +238,6 @@ final class TrinityOnboarding: ObservableObject {
     /// - Parameter permission: The permission to request.
     /// - Returns: The resulting permission status.
     func requestPermission(_ permission: PermissionType) async -> PermissionStatus {
-        // TODO: Implement actual permission requests using system APIs
-        // - Notifications: UNUserNotificationCenter
-        // - HealthKit: HKHealthStore
-        // - Location: CLLocationManager
-        // - Camera/Microphone: AVCaptureDevice
-        // - FaceID: LAContext
-        // - Siri: INPreferences
-
         let status: PermissionStatus
 
         switch permission {
@@ -245,6 +258,8 @@ final class TrinityOnboarding: ObservableObject {
         }
 
         permissionStatuses[permission] = status
+        // Persist so onboarding can resume correctly after a relaunch.
+        defaults.set(status.rawValue, forKey: "trinity.permission.\(permission.rawValue)")
         return status
     }
 
@@ -340,43 +355,164 @@ final class TrinityOnboarding: ObservableObject {
         progress = steps.isEmpty ? 0 : Double(completedCount) / Double(steps.count)
     }
 
-    // MARK: - Permission Request Stubs
+    // MARK: - Permission Request Implementations
+
+    // Each helper wraps the iOS system call in a safe async shim and
+    // maps the SDK-specific status type into our neutral
+    // ``PermissionStatus`` so callers never need to import the system
+    // frameworks. The ``#if canImport`` guards keep this file
+    // compilable on macOS (for unit tests) where some frameworks
+    // aren't available.
 
     private func requestNotificationPermission() async -> PermissionStatus {
-        // TODO: Implement with UNUserNotificationCenter.current().requestAuthorization
+        #if canImport(UserNotifications)
+        do {
+            let granted = try await UNUserNotificationCenter
+                .current()
+                .requestAuthorization(options: [.alert, .badge, .sound])
+            return granted ? .granted : .denied
+        } catch {
+            return .denied
+        }
+        #else
         return .notDetermined
+        #endif
     }
 
     private func requestHealthKitPermission() async -> PermissionStatus {
-        // TODO: Implement with HKHealthStore().requestAuthorization
+        #if canImport(HealthKit)
+        guard HKHealthStore.isHealthDataAvailable() else { return .restricted }
+        let store = HKHealthStore()
+        // Ask only for the read types Trinity context providers use.
+        // Writing health data is not part of the MTRX capability set.
+        let readTypes: Set<HKObjectType> = {
+            var types: Set<HKObjectType> = []
+            if let hrv = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN) {
+                types.insert(hrv)
+            }
+            if let steps = HKObjectType.quantityType(forIdentifier: .stepCount) {
+                types.insert(steps)
+            }
+            if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) {
+                types.insert(sleep)
+            }
+            return types
+        }()
+        return await withCheckedContinuation { (continuation: CheckedContinuation<PermissionStatus, Never>) in
+            store.requestAuthorization(toShare: nil, read: readTypes) { success, _ in
+                continuation.resume(returning: success ? .granted : .denied)
+            }
+        }
+        #else
         return .notDetermined
+        #endif
     }
 
     private func requestLocationPermission() async -> PermissionStatus {
-        // TODO: Implement with CLLocationManager
+        #if canImport(CoreLocation)
+        let delegate = _LocationDelegate()
+        let manager = CLLocationManager()
+        manager.delegate = delegate
+        manager.requestWhenInUseAuthorization()
+        let status = await delegate.waitForResolution()
+        switch status {
+        case .authorizedWhenInUse, .authorizedAlways: return .granted
+        case .denied: return .denied
+        case .restricted: return .restricted
+        case .notDetermined: return .notDetermined
+        @unknown default: return .notDetermined
+        }
+        #else
         return .notDetermined
+        #endif
     }
 
     private func requestCameraPermission() async -> PermissionStatus {
-        // TODO: Implement with AVCaptureDevice.requestAccess(for: .video)
+        #if canImport(AVFoundation)
+        let granted = await AVCaptureDevice.requestAccess(for: .video)
+        return granted ? .granted : .denied
+        #else
         return .notDetermined
+        #endif
     }
 
     private func requestMicrophonePermission() async -> PermissionStatus {
-        // TODO: Implement with AVCaptureDevice.requestAccess(for: .audio)
+        #if canImport(AVFoundation)
+        let granted = await AVCaptureDevice.requestAccess(for: .audio)
+        return granted ? .granted : .denied
+        #else
         return .notDetermined
+        #endif
     }
 
     private func requestFaceIDPermission() async -> PermissionStatus {
-        // TODO: Implement with LAContext().canEvaluatePolicy
+        #if canImport(LocalAuthentication)
+        let context = LAContext()
+        var error: NSError?
+        // ``canEvaluatePolicy`` doesn't trigger the prompt — it just
+        // reports whether the device is capable. The real biometric
+        // prompt happens on the first ``evaluatePolicy`` call during a
+        // signing operation; onboarding's job is only to confirm the
+        // capability is present on this device.
+        let supported = context.canEvaluatePolicy(
+            .deviceOwnerAuthenticationWithBiometrics,
+            error: &error
+        )
+        if supported { return .granted }
+        if let code = error?.code, code == LAError.biometryNotEnrolled.rawValue {
+            return .denied
+        }
+        return .restricted
+        #else
         return .notDetermined
+        #endif
     }
 
     private func requestSiriPermission() async -> PermissionStatus {
-        // TODO: Implement with INPreferences.requestSiriAuthorization
+        #if canImport(Intents)
+        return await withCheckedContinuation { (continuation: CheckedContinuation<PermissionStatus, Never>) in
+            INPreferences.requestSiriAuthorization { status in
+                switch status {
+                case .authorized: continuation.resume(returning: .granted)
+                case .denied: continuation.resume(returning: .denied)
+                case .restricted: continuation.resume(returning: .restricted)
+                case .notDetermined: continuation.resume(returning: .notDetermined)
+                @unknown default: continuation.resume(returning: .notDetermined)
+                }
+            }
+        }
+        #else
         return .notDetermined
+        #endif
     }
 }
+
+// MARK: - Location Permission Delegate
+
+#if canImport(CoreLocation)
+/// Tiny one-shot delegate that bridges ``CLLocationManager``'s
+/// callback-based authorization flow to ``async/await``.
+///
+/// Created, used once, then dropped — there's no reason to hold it on
+/// the onboarding object because the user can only answer the iOS
+/// alert a single time per permission.
+private final class _LocationDelegate: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
+    private var continuation: CheckedContinuation<CLAuthorizationStatus, Never>?
+
+    func waitForResolution() async -> CLAuthorizationStatus {
+        await withCheckedContinuation { cont in
+            self.continuation = cont
+        }
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        guard status != .notDetermined else { return }
+        continuation?.resume(returning: status)
+        continuation = nil
+    }
+}
+#endif
 
 // MARK: - Welcome Message
 

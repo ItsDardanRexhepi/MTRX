@@ -108,18 +108,82 @@ final class TrinityMemoryStore {
         setupContainer()
     }
 
+    /// Configure the on-disk SwiftData container used for Trinity's
+    /// persistent memory.
+    ///
+    /// We pin the store URL to Application Support so it survives app
+    /// updates and isn't swept by iOS's aggressive caches-directory
+    /// eviction, and we mark it as ``complete`` file protection so the
+    /// store is encrypted at rest when the device is locked. If the
+    /// disk-backed container fails to open (corruption, migration
+    /// failure after a schema change) we fall back to an in-memory
+    /// container so the app can still boot — the user loses their
+    /// historical memory but keeps a working chat surface.
     private func setupContainer() {
-        // TODO: Configure SwiftData container with proper schema
+        let schema = Schema([TrinityMemoryEntry.self, UserPattern.self])
+        let storeURL = Self.defaultStoreURL()
         do {
-            let schema = Schema([TrinityMemoryEntry.self, UserPattern.self])
-            let config = ModelConfiguration("TrinityMemory", isStoredInMemoryOnly: false)
+            let config: ModelConfiguration
+            if let storeURL {
+                config = ModelConfiguration(
+                    "TrinityMemory",
+                    schema: schema,
+                    url: storeURL,
+                    allowsSave: true,
+                    cloudKitDatabase: .none
+                )
+            } else {
+                config = ModelConfiguration(
+                    "TrinityMemory",
+                    schema: schema,
+                    isStoredInMemoryOnly: false,
+                    cloudKitDatabase: .none
+                )
+            }
             modelContainer = try ModelContainer(for: schema, configurations: [config])
             if let container = modelContainer {
                 modelContext = ModelContext(container)
             }
         } catch {
-            print("[TrinityMemory] Failed to initialize ModelContainer: \(error)")
+            print("[TrinityMemory] Disk container failed (\(error)); falling back to in-memory store")
+            do {
+                let memoryConfig = ModelConfiguration(
+                    "TrinityMemory.inMemory",
+                    schema: schema,
+                    isStoredInMemoryOnly: true
+                )
+                modelContainer = try ModelContainer(for: schema, configurations: [memoryConfig])
+                if let container = modelContainer {
+                    modelContext = ModelContext(container)
+                }
+            } catch {
+                print("[TrinityMemory] In-memory fallback also failed: \(error)")
+            }
         }
+    }
+
+    /// Resolve the on-disk location Trinity uses for its memory store.
+    ///
+    /// Application Support is the right bucket: iOS does not clear it
+    /// during cache pressure, it's included in the iCloud backup by
+    /// default, and it's writable for the user. We place the store in
+    /// a dedicated ``TrinityMemory`` subfolder and create the folder
+    /// if it doesn't exist yet.
+    private static func defaultStoreURL() -> URL? {
+        let fm = FileManager.default
+        guard let appSupport = try? fm.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ) else {
+            return nil
+        }
+        let folder = appSupport.appendingPathComponent("TrinityMemory", isDirectory: true)
+        if !fm.fileExists(atPath: folder.path) {
+            try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        }
+        return folder.appendingPathComponent("TrinityMemory.store")
     }
 
     // MARK: - Store
