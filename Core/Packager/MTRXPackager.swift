@@ -341,16 +341,32 @@ final class MTRXPackager: @unchecked Sendable {
     }
 
     /// Filtered event publisher for a specific component.
+    ///
+    /// Events that carry an explicit component id (``transactionConfirmed``,
+    /// ``raw``) are filtered by that id. Events that are inherently global —
+    /// price updates, gas updates, social notifications, etc. — are always
+    /// delivered regardless of which component the caller subscribed to,
+    /// since they're not associated with any single component.
     func events(for componentId: Int) -> AnyPublisher<ComponentEvent, Never> {
         eventSubject
             .filter { event in
                 switch event {
-                case .transactionConfirmed(_, let cid), .transactionFailed(_, _):
-                    if case .transactionConfirmed(_, let cid) = event { return cid == componentId }
-                    return true
+                case .transactionConfirmed(_, let cid):
+                    return cid == componentId
                 case .raw(let cid, _, _):
                     return cid == componentId
-                default:
+                // Global events are broadcast to every subscriber since they
+                // aren't tied to a single component.
+                case .transactionFailed,
+                     .priceUpdate,
+                     .proposalUpdate,
+                     .attestationIssued,
+                     .nftTransfer,
+                     .loanHealthUpdate,
+                     .stakingReward,
+                     .socialNotification,
+                     .disputeUpdate,
+                     .gasUpdate:
                     return true
                 }
             }
@@ -1373,6 +1389,270 @@ final class MTRXPackager: @unchecked Sendable {
             subpath: resourceId
         )
     }
+
+    // MARK: - Bridge Routes
+    //
+    // The 0pnMatrx gateway exposes a parallel set of endpoints under
+    // ``/bridge/v1/*`` that the Matrix iOS shell uses for session-level
+    // operations: creating/resuming a chat session, linking a wallet,
+    // sending Trinity an action, and reading the dashboard. These don't
+    // correspond to a single 30-component slot, so they bypass the
+    // component registry and build raw URLs against the gateway base URL.
+    //
+    // Each helper packages a Swift ``Encodable`` body (or an empty body for
+    // GET requests), applies the standard MTRX headers and bearer token,
+    // and returns a ready-to-fire ``URLRequest``.
+
+    /// Available bridge routes exposed by the 0pnMatrx gateway.
+    enum BridgeRoute: String, Sendable {
+        case sessionCreate       = "session/create"
+        case sessionResume       = "session/resume"
+        case chat                = "chat"
+        case action              = "action"
+        case walletLink          = "wallet/link"
+        case walletStatus        = "wallet/status"
+        case config              = "config"
+        case services            = "services"
+        case pushRegister        = "push/register"
+        case dashboard           = "dashboard"
+        case components          = "components"
+        case componentsManifest  = "components/manifest"
+
+        var httpMethod: HTTPMethod {
+            switch self {
+            case .walletStatus, .config, .services, .dashboard, .components, .componentsManifest:
+                return .get
+            case .sessionCreate, .sessionResume, .chat, .action, .walletLink, .pushRegister:
+                return .post
+            }
+        }
+    }
+
+    /// Build a ``/bridge/v1/<route>`` request, optionally with a JSON body
+    /// and query items. Used for everything the Matrix shell needs to do
+    /// that isn't a 30-component call — session lifecycle, chat turns,
+    /// wallet linking, dashboard reads, etc.
+    func packageBridgeRequest<T: Encodable>(
+        route: BridgeRoute,
+        body: T? = Optional<EmptyBody>.none,
+        queryItems: [URLQueryItem]? = nil,
+        idempotencyKey: String? = nil
+    ) throws -> URLRequest {
+        let apiClient = MTRXAPIClient.shared
+        var components = URLComponents(string: apiClient.baseURL + "/bridge/v1/\(route.rawValue)")
+        if components == nil {
+            throw PackagerError.encodingFailed("Invalid bridge URL for route: \(route.rawValue)")
+        }
+        if let queryItems, !queryItems.isEmpty {
+            components?.queryItems = queryItems
+        }
+        guard let url = components?.url else {
+            throw PackagerError.encodingFailed("Cannot construct bridge URL from components")
+        }
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = route.httpMethod.rawValue
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+        urlRequest.setValue("1.0", forHTTPHeaderField: "X-MTRX-API-Version")
+        urlRequest.setValue("ios", forHTTPHeaderField: "X-MTRX-Platform")
+        urlRequest.setValue("bridge", forHTTPHeaderField: "X-MTRX-Component")
+        if let token = apiClient.authToken {
+            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let key = idempotencyKey {
+            urlRequest.setValue(key, forHTTPHeaderField: "Idempotency-Key")
+        }
+
+        if route.httpMethod != .get, let body {
+            do {
+                urlRequest.httpBody = try encoder.encode(body)
+            } catch {
+                throw PackagerError.encodingFailed(error.localizedDescription)
+            }
+        }
+
+        return urlRequest
+    }
+
+    /// Convenience overload for bridge routes that don't need a body.
+    func packageBridgeRequest(
+        route: BridgeRoute,
+        queryItems: [URLQueryItem]? = nil,
+        idempotencyKey: String? = nil
+    ) throws -> URLRequest {
+        return try packageBridgeRequest(
+            route: route,
+            body: Optional<EmptyBody>.none,
+            queryItems: queryItems,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    /// Build the "create a new Trinity/Matrix session" request. This is the
+    /// first call the iOS shell makes after the user opens the app — it
+    /// returns a session id, the initial system prompt, and any server
+    /// feature flags that gate the rest of the UI.
+    func packageBridgeSessionCreate(
+        walletAddress: String?,
+        deviceInfo: PackagedDeviceInfo? = nil
+    ) throws -> URLRequest {
+        struct CreateBody: Encodable {
+            let walletAddress: String?
+            let device: PackagedDeviceInfo?
+        }
+        let body = CreateBody(
+            walletAddress: walletAddress,
+            device: deviceInfo ?? packageDeviceInfo()
+        )
+        return try packageBridgeRequest(route: .sessionCreate, body: body)
+    }
+
+    /// Resume an existing session — used after app relaunch so the user
+    /// doesn't lose their chat thread.
+    func packageBridgeSessionResume(sessionId: String) throws -> URLRequest {
+        struct ResumeBody: Encodable {
+            let sessionId: String
+        }
+        return try packageBridgeRequest(route: .sessionResume, body: ResumeBody(sessionId: sessionId))
+    }
+
+    /// Send a chat turn to Trinity through the bridge. The server streams
+    /// tokens back through the SSE endpoint; this request just initiates
+    /// the generation.
+    func packageBridgeChat(
+        sessionId: String,
+        message: String,
+        attachments: [String]? = nil
+    ) throws -> URLRequest {
+        struct ChatBody: Encodable {
+            let sessionId: String
+            let message: String
+            let attachments: [String]?
+        }
+        let body = ChatBody(sessionId: sessionId, message: message, attachments: attachments)
+        return try packageBridgeRequest(route: .chat, body: body)
+    }
+
+    /// Send a structured action (user tapped one of Trinity's suggested
+    /// buttons) through the bridge. These are the "Confirm / Modify /
+    /// Cancel" replies that keep the conversation flowing.
+    func packageBridgeAction(
+        sessionId: String,
+        action: String,
+        payload: [String: AnyCodableValue]? = nil
+    ) throws -> URLRequest {
+        struct ActionBody: Encodable {
+            let sessionId: String
+            let action: String
+            let payload: [String: AnyCodableValue]?
+        }
+        let body = ActionBody(sessionId: sessionId, action: action, payload: payload)
+        return try packageBridgeRequest(route: .action, body: body)
+    }
+
+    /// Link a wallet to the current session so subsequent actions can sign
+    /// on-chain.
+    func packageBridgeWalletLink(
+        sessionId: String,
+        walletAddress: String,
+        chainId: Int = 8453,
+        signature: String? = nil
+    ) throws -> URLRequest {
+        struct LinkBody: Encodable {
+            let sessionId: String
+            let walletAddress: String
+            let chainId: Int
+            let signature: String?
+        }
+        let body = LinkBody(
+            sessionId: sessionId,
+            walletAddress: walletAddress,
+            chainId: chainId,
+            signature: signature
+        )
+        return try packageBridgeRequest(route: .walletLink, body: body)
+    }
+
+    /// Check the wallet-link status for the current session.
+    func packageBridgeWalletStatus(sessionId: String) throws -> URLRequest {
+        return try packageBridgeRequest(
+            route: .walletStatus,
+            queryItems: [URLQueryItem(name: "session_id", value: sessionId)]
+        )
+    }
+
+    /// Fetch the dashboard snapshot for a session — pulls everything the
+    /// home screen needs in one round-trip.
+    func packageBridgeDashboard(sessionId: String) throws -> URLRequest {
+        return try packageBridgeRequest(
+            route: .dashboard,
+            queryItems: [URLQueryItem(name: "session_id", value: sessionId)]
+        )
+    }
+
+    /// Fetch the list of all 30 components currently served by the
+    /// gateway, along with their health status. Used by the shell on boot
+    /// to gate parts of the UI behind server availability.
+    func packageBridgeComponentsList() throws -> URLRequest {
+        return try packageBridgeRequest(route: .components)
+    }
+
+    /// Fetch the full components manifest — machine-readable descriptions
+    /// of every component, their input schemas, and their response shapes.
+    /// Used during development to auto-generate typed client code and at
+    /// runtime to validate inputs before calling an action.
+    func packageBridgeComponentsManifest() throws -> URLRequest {
+        return try packageBridgeRequest(route: .componentsManifest)
+    }
+
+    /// Fetch a single component's full descriptor.
+    func packageBridgeComponent(id: Int) throws -> URLRequest {
+        let apiClient = MTRXAPIClient.shared
+        guard let url = URL(string: apiClient.baseURL + "/bridge/v1/components/\(id)") else {
+            throw PackagerError.encodingFailed("Invalid bridge URL for component \(id)")
+        }
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = HTTPMethod.get.rawValue
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+        urlRequest.setValue("1.0", forHTTPHeaderField: "X-MTRX-API-Version")
+        urlRequest.setValue("ios", forHTTPHeaderField: "X-MTRX-Platform")
+        urlRequest.setValue("bridge", forHTTPHeaderField: "X-MTRX-Component")
+        if let token = apiClient.authToken {
+            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        return urlRequest
+    }
+
+    /// Register a push-notification token with the bridge so the gateway
+    /// can forward Morpheus alerts as APNs pushes when the app is
+    /// backgrounded.
+    func packageBridgePushRegister(
+        sessionId: String,
+        token: String,
+        environment: String = "production"
+    ) throws -> URLRequest {
+        struct PushBody: Encodable {
+            let sessionId: String
+            let token: String
+            let environment: String
+        }
+        let body = PushBody(sessionId: sessionId, token: token, environment: environment)
+        return try packageBridgeRequest(route: .pushRegister, body: body)
+    }
+
+    /// Fetch the runtime config (feature flags, rate limits, supported
+    /// chains) from the bridge.
+    func packageBridgeConfig() throws -> URLRequest {
+        return try packageBridgeRequest(route: .config)
+    }
+
+    /// Fetch the list of enabled services (sub-features) on the bridge,
+    /// e.g. which oracle providers are online, which DEX routers are
+    /// available.
+    func packageBridgeServices() throws -> URLRequest {
+        return try packageBridgeRequest(route: .services)
+    }
 }
 
 // MARK: - AnyEncodableWrapper
@@ -1394,8 +1674,11 @@ private struct AnyEncodableWrapper: Encodable {
 
 // MARK: - EmptyBody
 
-/// Placeholder body for GET/DELETE requests that still need to pass through the generic pipeline.
-private struct EmptyBody: Encodable {}
+/// Placeholder body for GET/DELETE requests that still need to pass through
+/// the generic pipeline. Not marked `private` so the default-argument
+/// expression on ``MTRXPackager/packageBridgeRequest(route:body:queryItems:idempotencyKey:)``
+/// can reference it from outside this file.
+struct EmptyBody: Encodable {}
 
 // MARK: - AnyCodableValue Extension
 
