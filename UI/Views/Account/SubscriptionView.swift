@@ -1,358 +1,412 @@
-// UI/Views/Account/SubscriptionView.swift
-// MTRX — Subscription & Trial Management Screen
-//
-// Shows the user's current tier, trial status, and upgrade options.
-// Displayed when:
-//   - User navigates to Account > Subscription
-//   - User hits a usage limit (via UpgradePromptView)
-//   - User taps "Upgrade" anywhere in the app
+// SubscriptionView.swift
+// MTRX -- Subscription management and tier comparison
+// Copyright 2026 OPN MATRX. All rights reserved.
 
 import SwiftUI
-import StoreKit
+
+// MARK: - Tier UI Extensions
+
+private extension SubscriptionTier {
+
+    var price: String {
+        switch self {
+        case .free:       return "$0"
+        case .pro:        return "$4.99"
+        case .enterprise: return "$19.99"
+        }
+    }
+
+    var priceSuffix: String { "/month" }
+
+    var badgeStyle: MtrxBadge.BadgeStyle {
+        switch self {
+        case .free:       return .neutral
+        case .pro:        return .accent
+        case .enterprise: return .success
+        }
+    }
+
+    var features: [(String, Bool)] {
+        switch self {
+        case .free:
+            return [
+                ("3 smart contracts", true),
+                ("100 transactions/day", true),
+                ("Basic Trinity AI", true),
+                ("Community support", true),
+                ("DeFi analytics", false),
+                ("Custom gas settings", false),
+            ]
+        case .pro:
+            return [
+                ("Unlimited contracts", true),
+                ("Unlimited transactions", true),
+                ("Advanced Trinity AI", true),
+                ("Priority support", true),
+                ("DeFi analytics", true),
+                ("Custom gas settings", true),
+            ]
+        case .enterprise:
+            return [
+                ("Everything in Pro", true),
+                ("API access", true),
+                ("White-label options", true),
+                ("Dedicated support", true),
+                ("Custom integrations", true),
+                ("SLA guarantee", true),
+            ]
+        }
+    }
+}
 
 // MARK: - Subscription View
 
 struct SubscriptionView: View {
-    @State private var storeKit = StoreKitManager.shared
-    @State private var featureGate = FeatureGate.shared
-    @State private var trialManager = TrialManager.shared
     @State private var selectedTier: SubscriptionTier = .pro
-    @State private var showError = false
-    @State private var errorMessage = ""
     @State private var isPurchasing = false
+    @State private var appeared = false
+
+    private let currentTier: SubscriptionTier = .free
+    private let contractsUsed: Int = 3
+    private let contractsLimit: Int = 3
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Current status banner
-                    currentStatusBanner
+            ZStack {
+                MtrxGradientBackground(style: .primary)
 
-                    // Trial banner (if active)
-                    if trialManager.isInTrial {
+                ScrollView {
+                    VStack(spacing: Spacing.lg) {
+                        currentPlanCard
+                        tierCards
                         trialBanner
+                        legalSection
                     }
-
-                    // Tier cards
-                    tierCards
-
-                    // Usage summary (if subscribed)
-                    if featureGate.currentTier != .free || trialManager.isInTrial {
-                        usageSummarySection
-                    }
-
-                    // Manage / Restore
-                    managementButtons
-
-                    // Legal
-                    legalText
+                    .padding(.horizontal, Spacing.contentPadding)
+                    .padding(.top, Spacing.sm)
+                    .padding(.bottom, Spacing.xxl)
                 }
-                .padding()
             }
             .navigationTitle("Subscription")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button { dismiss() } label: {
+                        Image(systemName: Symbols.close)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.labelSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(Color.surfaceOverlay)
+                            .clipShape(Circle())
+                    }
                 }
             }
-            .task {
-                if !storeKit.isLoaded {
-                    try? await storeKit.loadProducts()
+            .onAppear {
+                withAnimation(Motion.springDefault.delay(0.1)) {
+                    appeared = true
                 }
-            }
-            .alert("Error", isPresented: $showError) {
-                Button("OK") {}
-            } message: {
-                Text(errorMessage)
             }
         }
     }
 
-    // MARK: - Current Status Banner
+    // MARK: - Current Plan Card
 
-    private var currentStatusBanner: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Image(systemName: tierIcon(for: featureGate.currentTier))
-                    .font(.title2)
-                    .foregroundStyle(Color.accentColor)
-                Text(featureGate.currentTier.displayName)
-                    .font(.title2.bold())
-            }
+    private var currentPlanCard: some View {
+        MtrxCard(style: .glass) {
+            VStack(spacing: Spacing.md) {
+                // Badge + icon header
+                HStack {
+                    MtrxBadge(text: currentTier.displayName, style: currentTier.badgeStyle)
+                    Spacer()
+                    Image(systemName: Symbols.verified)
+                        .font(.system(size: 18))
+                        .foregroundStyle(Color.accentPrimary)
+                }
 
-            Text(featureGate.currentTier.tagline)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                // Plan name + subtitle
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text(currentTier.displayName)
+                        .font(.mtrxTitle2)
+                        .foregroundStyle(Color.labelPrimary)
 
-            if let trialStatus = trialManager.status.displayText as String?,
-               trialManager.isInTrial {
-                Text(trialStatus)
-                    .font(.caption.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.accentColor, in: Capsule())
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-    }
+                    Text(currentTier.isPaid ? "Renews May 10, 2026" : "Upgrade for premium features")
+                        .font(.mtrxSubheadline)
+                        .foregroundStyle(currentTier.isPaid ? Color.labelSecondary : Color.accentPrimary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-    // MARK: - Trial Banner
+                MtrxDivider()
 
-    private var trialBanner: some View {
-        HStack {
-            Image(systemName: "clock.badge.checkmark")
-                .font(.title3)
-                .foregroundStyle(Color.accentColor)
+                // Usage row with progress bar
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    HStack {
+                        Text("\(contractsUsed)/\(contractsLimit) contracts used")
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(Color.labelSecondary)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Free Trial Active")
-                    .font(.subheadline.bold())
-                if let countdown = trialManager.countdownText {
-                    Text(countdown)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        Spacer()
+
+                        Text("\(Int(Double(contractsUsed) / Double(contractsLimit) * 100))%")
+                            .font(.mtrxMonoSmall)
+                            .foregroundStyle(contractsUsed >= contractsLimit ? Color.statusWarning : Color.accentPrimary)
+                    }
+
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.surfaceOverlay)
+                                .frame(height: 8)
+
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(contractsUsed >= contractsLimit ? Color.statusWarning : Color.accentPrimary)
+                                .frame(
+                                    width: geo.size.width * min(Double(contractsUsed) / Double(contractsLimit), 1.0),
+                                    height: 8
+                                )
+                        }
+                    }
+                    .frame(height: 8)
                 }
             }
-
-            Spacer()
-
-            if let badge = trialManager.badgeText {
-                Text(badge)
-                    .font(.caption2.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.accentColor, in: Capsule())
-            }
         }
-        .padding()
-        .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+        .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.lg)
+        .mtrxFadeInFromBottom(isVisible: appeared)
     }
 
     // MARK: - Tier Cards
 
     private var tierCards: some View {
-        VStack(spacing: 12) {
-            tierCard(for: .pro)
-            tierCard(for: .enterprise)
+        VStack(spacing: Spacing.md) {
+            ForEach(Array(SubscriptionTier.allCases.enumerated()), id: \.element) { index, tier in
+                tierCardView(for: tier)
+                    .mtrxFadeInFromBottom(
+                        isVisible: appeared,
+                        delay: Motion.staggerDelay(for: index, baseDelay: 0.08)
+                    )
+            }
         }
     }
 
-    private func tierCard(for tier: SubscriptionTier) -> some View {
-        let isCurrentTier = featureGate.currentTier == tier
-        let features = trialManager.featuresList(for: tier)
+    private func tierCardView(for tier: SubscriptionTier) -> some View {
+        let isCurrent = tier == currentTier
 
-        return VStack(alignment: .leading, spacing: 12) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+        return MtrxCard(
+            style: .standard,
+            accentEdge: isCurrent ? .leading : nil
+        ) {
+            VStack(alignment: .leading, spacing: Spacing.ms) {
+                // Header: tier name + price
+                HStack(alignment: .firstTextBaseline) {
                     Text(tier.displayName)
-                        .font(.headline)
-                    Text(tier.priceDisplay)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+                        .font(.mtrxTitle3)
+                        .foregroundStyle(Color.labelPrimary)
 
-                Spacer()
+                    Spacer()
 
-                if isCurrentTier {
-                    Text("Current")
-                        .font(.caption.bold())
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color.accentColor, in: Capsule())
-                }
-            }
-
-            // Features
-            ForEach(features, id: \.self) { feature in
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
-                    Text(feature)
-                        .font(.caption)
-                }
-            }
-
-            // CTA Button
-            if !isCurrentTier {
-                Button {
-                    Task { await purchaseTier(tier) }
-                } label: {
-                    HStack {
-                        if isPurchasing && selectedTier == tier {
-                            ProgressView()
-                                .tint(.white)
-                        }
-                        Text(trialManager.upgradePromptText(for: tier))
-                            .font(.subheadline.bold())
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(tier.price)
+                            .font(.mtrxMono)
+                            .foregroundStyle(Color.labelPrimary)
+                        Text(tier.priceSuffix)
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelTertiary)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isPurchasing)
 
-                Text(trialManager.upgradeSubtitleText(for: tier))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
+                Text(tier.tagline)
+                    .font(.mtrxSubheadline)
+                    .foregroundStyle(Color.labelSecondary)
+
+                MtrxDivider()
+
+                // Feature list
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    ForEach(tier.features, id: \.0) { feature, included in
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: included ? "checkmark.circle.fill" : "xmark.circle")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(included ? Color.statusSuccess : Color.labelTertiary)
+
+                            Text(feature)
+                                .font(.mtrxCallout)
+                                .foregroundStyle(included ? Color.labelPrimary : Color.labelTertiary)
+                        }
+                    }
+                }
+
+                // Action button
+                if isCurrent {
+                    Button {} label: {
+                        Text("Current Plan")
+                    }
+                    .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .regular, fullWidth: true))
+                    .disabled(true)
+                    .opacity(0.5)
+                } else if tier == .enterprise {
+                    Button {
+                        selectedTier = tier
+                        handleSubscribeTap()
+                    } label: {
+                        Text("Upgrade")
+                    }
+                    .buttonStyle(MtrxButtonStyle(
+                        variant: .accent,
+                        size: .regular,
+                        isLoading: isPurchasing && selectedTier == tier,
+                        fullWidth: true
+                    ))
+                    .disabled(isPurchasing)
+                } else {
+                    Button {
+                        selectedTier = tier
+                        handleSubscribeTap()
+                    } label: {
+                        Text("Subscribe")
+                    }
+                    .buttonStyle(MtrxButtonStyle(
+                        variant: .primary,
+                        size: .regular,
+                        isLoading: isPurchasing && selectedTier == tier,
+                        fullWidth: true
+                    ))
+                    .disabled(isPurchasing)
+                }
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(
-                    isCurrentTier ? Color.accentColor : Color.secondary.opacity(0.3),
-                    lineWidth: isCurrentTier ? 2 : 1
+    }
+
+    // MARK: - Trial Banner
+
+    private var trialBanner: some View {
+        MtrxCard(style: .glass) {
+            VStack(spacing: Spacing.ms) {
+                HStack(spacing: Spacing.ms) {
+                    Image(systemName: Symbols.sparkle)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                        .mtrxGlow(color: .accentPrimary, radius: 6)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Try Pro Free for 3 Days")
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.labelPrimary)
+
+                        Text("No charge until trial ends")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+
+                    Spacer()
+                }
+
+                Button {
+                    MtrxHaptics.success()
+                } label: {
+                    Text("Start Free Trial")
+                }
+                .buttonStyle(MtrxButtonStyle(variant: .accent, size: .regular, fullWidth: true))
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.accentPrimary.opacity(0.6),
+                            Color.accentSecondary.opacity(0.3),
+                            Color.accentPrimary.opacity(0.1)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
                 )
         )
+        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.25)
     }
 
-    // MARK: - Usage Summary
+    // MARK: - Legal Section
 
-    private var usageSummarySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Usage This Month")
-                .font(.headline)
+    private var legalSection: some View {
+        VStack(spacing: Spacing.md) {
+            Text("Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. Payment will be charged to your Apple ID account. You can manage and cancel your subscriptions in your App Store account settings.")
+                .font(.mtrxCaption2)
+                .foregroundStyle(Color.labelTertiary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
 
-            let usage = featureGate.usageSummary()
-            ForEach(usage.prefix(8), id: \.feature) { item in
-                HStack {
-                    Text(item.feature.rawValue
-                        .replacingOccurrences(of: "([A-Z])", with: " $1", options: .regularExpression)
-                        .capitalized
-                        .trimmingCharacters(in: .whitespaces))
-                        .font(.caption)
-                    Spacer()
-                    if let limit = item.limit {
-                        Text("\(item.used) / \(limit)")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(
-                                item.used >= limit ? .red : .secondary
-                            )
-                    } else {
-                        Text("\(item.used) / \u{221E}")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-                }
+            Button {
+                MtrxHaptics.impact(.light)
+            } label: {
+                Text("Restore Purchases")
             }
+            .buttonStyle(MtrxButtonStyle(variant: .ghost, size: .compact))
         }
-        .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    // MARK: - Management Buttons
-
-    private var managementButtons: some View {
-        VStack(spacing: 8) {
-            if featureGate.currentTier.isPaid || trialManager.isInTrial {
-                Button("Manage Subscription") {
-                    Task { await storeKit.manageSubscription() }
-                }
-                .font(.subheadline)
-            }
-
-            Button("Restore Purchases") {
-                Task {
-                    do {
-                        try await storeKit.restorePurchases()
-                    } catch {
-                        errorMessage = error.localizedDescription
-                        showError = true
-                    }
-                }
-            }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-        }
-    }
-
-    // MARK: - Legal
-
-    private var legalText: some View {
-        Text("Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. All tiers include automatic on-chain platform fees (Platform Access Contribution, NFT 10%, DAO treasury fees) that route to NeoSafe.")
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal)
+        .padding(.top, Spacing.sm)
     }
 
     // MARK: - Actions
 
-    private func purchaseTier(_ tier: SubscriptionTier) async {
-        selectedTier = tier
+    private func handleSubscribeTap() {
         isPurchasing = true
-        defer { isPurchasing = false }
+        MtrxHaptics.success()
 
-        do {
-            _ = try await storeKit.purchase(tier)
-        } catch {
-            errorMessage = error.localizedDescription
-            showError = true
-        }
-    }
-
-    private func tierIcon(for tier: SubscriptionTier) -> String {
-        switch tier {
-        case .free:       return "person.circle"
-        case .pro:        return "star.circle.fill"
-        case .enterprise: return "building.2.circle.fill"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            withAnimation(Motion.springDefault) {
+                isPurchasing = false
+            }
         }
     }
 }
 
-// MARK: - Upgrade Prompt View (shown when limit is hit)
+// MARK: - Upgrade Prompt View
 
-/// Modal shown when a user hits a usage limit or tries to access a tier-locked feature.
 struct UpgradePromptView: View {
     let feature: Feature
     let gateResult: GateResult
 
-    @State private var trialManager = TrialManager.shared
     @State private var showSubscription = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: Spacing.lg) {
+            Spacer()
+
             Image(systemName: "arrow.up.circle.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.accentColor)
+                .font(.system(size: 52, weight: .light))
+                .foregroundStyle(Color.accentPrimary)
+                .mtrxGlow(color: .accentPrimary, radius: 12)
 
-            Text(titleText)
-                .font(.title3.bold())
-                .multilineTextAlignment(.center)
+            VStack(spacing: Spacing.sm) {
+                Text(titleText)
+                    .font(.mtrxTitle3)
+                    .foregroundStyle(Color.labelPrimary)
+                    .multilineTextAlignment(.center)
 
-            Text(subtitleText)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                Text(subtitleText)
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 280)
+            }
 
             Button {
                 showSubscription = true
             } label: {
-                Text(ctaText)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                Text("View Plans")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(MtrxButtonStyle(variant: .primary, size: .regular))
 
-            Button("Maybe Later") { dismiss() }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            Button { dismiss() } label: {
+                Text("Maybe Later")
+            }
+            .buttonStyle(MtrxButtonStyle(variant: .ghost, size: .compact))
+
+            Spacer()
         }
-        .padding(24)
+        .padding(Spacing.xl)
         .sheet(isPresented: $showSubscription) {
             SubscriptionView()
         }
@@ -379,18 +433,11 @@ struct UpgradePromptView: View {
             return ""
         }
     }
-
-    private var ctaText: String {
-        let suggestedTier: SubscriptionTier
-        switch gateResult {
-        case .limitReached(let tier): suggestedTier = tier
-        case .featureUnavailable(let tier): suggestedTier = tier
-        default: suggestedTier = .pro
-        }
-        return trialManager.upgradePromptText(for: suggestedTier)
-    }
 }
 
-#Preview {
+// MARK: - Preview
+
+#Preview("Subscription") {
     SubscriptionView()
+        .preferredColorScheme(.dark)
 }

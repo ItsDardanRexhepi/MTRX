@@ -1,543 +1,328 @@
 // PrivacyView.swift
-// MTRX - Component 29 privacy controls: zero-knowledge commitments, credential visibility,
-//        social profile, wallet linking, data sharing, commitment history
+// MTRX -- Privacy & security controls
 // Copyright 2026 OPN MATRX. All rights reserved.
 
 import SwiftUI
 
 // MARK: - Models
 
-enum ProfileVisibility: String, CaseIterable {
-    case public_ = "Public"
-    case connections = "Connections Only"
-    case private_ = "Private"
-}
+enum PrivacyLevel: String, CaseIterable, Identifiable {
+    case standard = "standard"
+    case enhanced = "enhanced"
+    case maximum = "maximum"
 
-enum PrivacyLevel: String, CaseIterable {
-    case standard = "Standard"
-    case enhanced = "Enhanced"
-    case maximum = "Maximum"
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .standard: return "Standard"
+        case .enhanced: return "Enhanced"
+        case .maximum: return "Maximum"
+        }
+    }
 
     var description: String {
         switch self {
-        case .standard: return "Basic on-chain privacy. Transactions and balances are visible on the explorer."
-        case .enhanced: return "Zero-knowledge proofs for transaction amounts. Addresses remain visible."
-        case .maximum: return "Full ZK shielding. Transactions, amounts, and addresses are privacy-protected."
+        case .standard:
+            return "Basic on-chain privacy. Transactions and balances are visible on the public explorer."
+        case .enhanced:
+            return "Zero-knowledge proofs shield transaction amounts. Wallet addresses remain visible."
+        case .maximum:
+            return "Full ZK shielding. Transactions, amounts, and addresses are completely private."
         }
     }
 
     var icon: String {
         switch self {
-        case .standard: return Symbols.shield
-        case .enhanced: return Symbols.zeroKnowledge
-        case .maximum: return Symbols.encrypted
+        case .standard: return "shield.fill"
+        case .enhanced: return "eye.slash.fill"
+        case .maximum: return "lock.shield.fill"
         }
     }
 
-    var color: Color {
+    var footerText: String {
         switch self {
-        case .standard: return .statusInfo
-        case .enhanced: return .statusWarning
-        case .maximum: return .statusSuccess
+        case .standard:
+            return "Standard mode uses default on-chain transparency. Suitable for public-facing wallets."
+        case .enhanced:
+            return "Enhanced mode uses zero-knowledge proofs to hide amounts while keeping addresses visible."
+        case .maximum:
+            return "Maximum mode fully shields all transaction data using advanced ZK circuits. May increase gas costs."
         }
     }
 }
 
-struct CredentialEntry: Identifiable, Equatable {
-    let id: String
-    let name: String
-    var isVisible: Bool
-    let issuer: String
-    let issuedAt: String
+enum ProfileVisibility: String, CaseIterable, Identifiable {
+    case publicProfile = "Public"
+    case connectionsOnly = "Connections Only"
+    case privateProfile = "Private"
 
-    init(id: String = UUID().uuidString, name: String, isVisible: Bool, issuer: String = "", issuedAt: String = "") {
-        self.id = id
-        self.name = name
-        self.isVisible = isVisible
-        self.issuer = issuer
-        self.issuedAt = issuedAt
-    }
+    var id: String { rawValue }
 }
 
-struct ZKCommitment: Identifiable, Equatable {
-    let id: String
-    let type: String
-    let description: String
-    let timestamp: String
-    let status: String
-    let proofHash: String
-}
-
-struct DataSharingPreference: Identifiable {
-    let id: String
-    let category: String
-    var isShared: Bool
-    let description: String
-}
-
-// MARK: - ViewModel
-
-@MainActor
-final class PrivacyViewModel: ObservableObject {
-    @Published var credentials: [CredentialEntry] = []
-    @Published var profileVisibility: ProfileVisibility = .connections
-    @Published var showLinkedWallets = false
-    @Published var storeTrinityHistory = true
-    @Published var showDeletionAlert = false
-    @Published var isLoading = false
-    @Published var errorMessage: String?
-    @Published var privacyLevel: PrivacyLevel = .standard
-    @Published var commitments: [ZKCommitment] = []
-    @Published var dataSharingPreferences: [DataSharingPreference] = []
-    @Published var isGeneratingProof = false
-    @Published var isSaving = false
-
-    private let api = MTRXAPIClient.shared
-
-    func loadPrivacySettings() async {
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-
-        do {
-            let response: [String: AnyCodableValue] = try await api.getPrivacySettings()
-            parseSettings(response)
-        } catch {
-            errorMessage = "Failed to load privacy settings: \(error.localizedDescription)"
-        }
-    }
-
-    func saveSettings() async {
-        isSaving = true
-        defer { isSaving = false }
-
-        do {
-            let settings: [String: AnyCodableValue] = [
-                "profile_visibility": .string(profileVisibility.rawValue),
-                "show_linked_wallets": .bool(showLinkedWallets),
-                "store_trinity_history": .bool(storeTrinityHistory),
-                "privacy_level": .string(privacyLevel.rawValue),
-            ]
-            let _: [String: AnyCodableValue] = try await api.updatePrivacySettings(settings: settings)
-        } catch {
-            errorMessage = "Failed to save settings: \(error.localizedDescription)"
-        }
-    }
-
-    func setCredentialVisibility(_ id: String, visible: Bool) {
-        if let idx = credentials.firstIndex(where: { $0.id == id }) {
-            credentials[idx] = CredentialEntry(
-                id: id,
-                name: credentials[idx].name,
-                isVisible: visible,
-                issuer: credentials[idx].issuer,
-                issuedAt: credentials[idx].issuedAt
-            )
-        }
-        Task { await saveSettings() }
-    }
-
-    func generateZKProof(type: String, claims: [String: String]) async {
-        isGeneratingProof = true
-        defer { isGeneratingProof = false }
-
-        do {
-            var claimsDict: [String: AnyCodableValue] = [:]
-            for (k, v) in claims { claimsDict[k] = .string(v) }
-            let request = PrivacyProofRequest(proofType: type, claims: claimsDict)
-            let _: [String: AnyCodableValue] = try await api.generatePrivacyProof(request)
-            await loadCommitments()
-        } catch {
-            errorMessage = "Failed to generate proof: \(error.localizedDescription)"
-        }
-    }
-
-    func loadCommitments() async {
-        do {
-            let response: [String: AnyCodableValue] = try await api.get(path: "/api/v1/privacy/commitments")
-            commitments = parseCommitments(response)
-        } catch {
-            // Non-fatal
-        }
-    }
-
-    func clearHistory() {
-        Task {
-            do {
-                let _: [String: AnyCodableValue] = try await api.postRaw(
-                    path: "/api/v1/privacy/clear-history",
-                    body: ["type": "trinity_conversations"]
-                )
-            } catch {
-                errorMessage = "Failed to clear history: \(error.localizedDescription)"
-            }
-        }
-    }
-
-    func deleteOffChainData() {
-        Task {
-            do {
-                let _: [String: AnyCodableValue] = try await api.postRaw(
-                    path: "/api/v1/privacy/delete-data",
-                    body: ["scope": "off_chain"]
-                )
-            } catch {
-                errorMessage = "Failed to delete data: \(error.localizedDescription)"
-            }
-        }
-    }
-
-    // MARK: - Parsing
-
-    private func parseSettings(_ response: [String: AnyCodableValue]) {
-        if case .dictionary(let d) = response["settings"] ?? response["data"] ?? .dictionary(response) {
-            if let vis = d["profile_visibility"]?.stringValue,
-               let pv = ProfileVisibility.allCases.first(where: { $0.rawValue == vis }) {
-                profileVisibility = pv
-            }
-            showLinkedWallets = d["show_linked_wallets"]?.boolValue ?? false
-            storeTrinityHistory = d["store_trinity_history"]?.boolValue ?? true
-
-            if let level = d["privacy_level"]?.stringValue,
-               let pl = PrivacyLevel.allCases.first(where: { $0.rawValue == level }) {
-                privacyLevel = pl
-            }
-
-            if case .array(let credList) = d["credentials"] {
-                credentials = credList.compactMap { item -> CredentialEntry? in
-                    guard case .dictionary(let c) = item else { return nil }
-                    return CredentialEntry(
-                        id: c["id"]?.stringValue ?? UUID().uuidString,
-                        name: c["name"]?.stringValue ?? "",
-                        isVisible: c["is_visible"]?.boolValue ?? true,
-                        issuer: c["issuer"]?.stringValue ?? "",
-                        issuedAt: c["issued_at"]?.stringValue ?? ""
-                    )
-                }
-            }
-
-            if case .array(let sharingList) = d["data_sharing"] {
-                dataSharingPreferences = sharingList.compactMap { item -> DataSharingPreference? in
-                    guard case .dictionary(let s) = item else { return nil }
-                    return DataSharingPreference(
-                        id: s["id"]?.stringValue ?? UUID().uuidString,
-                        category: s["category"]?.stringValue ?? "",
-                        isShared: s["is_shared"]?.boolValue ?? false,
-                        description: s["description"]?.stringValue ?? ""
-                    )
-                }
-            }
-        }
-    }
-
-    private func parseCommitments(_ response: [String: AnyCodableValue]) -> [ZKCommitment] {
-        guard case .array(let items) = response["commitments"] ?? response["data"] ?? .null else {
-            return []
-        }
-        return items.compactMap { item -> ZKCommitment? in
-            guard case .dictionary(let d) = item else { return nil }
-            return ZKCommitment(
-                id: d["id"]?.stringValue ?? UUID().uuidString,
-                type: d["type"]?.stringValue ?? "",
-                description: d["description"]?.stringValue ?? "",
-                timestamp: d["timestamp"]?.stringValue ?? "",
-                status: d["status"]?.stringValue ?? "verified",
-                proofHash: d["proof_hash"]?.stringValue ?? ""
-            )
-        }
-    }
-}
-
-// MARK: - Main View
+// MARK: - Privacy View
 
 struct PrivacyView: View {
-    @StateObject private var viewModel = PrivacyViewModel()
+
+    // MARK: - App Storage
+
+    @AppStorage("mtrx_privacy_level") private var selectedLevel: String = "standard"
+    @AppStorage("mtrx_profile_visibility") private var profileVisibility: String = "Public"
+    @AppStorage("mtrx_hide_addresses") private var hideAddresses: Bool = false
+    @AppStorage("mtrx_private_tx") private var privateTx: Bool = false
+    @AppStorage("mtrx_show_online") private var showOnline: Bool = true
+    @AppStorage("mtrx_analytics") private var analytics: Bool = true
+    @AppStorage("mtrx_crash_reports") private var crashReports: Bool = true
+    @AppStorage("mtrx_trinity_learning") private var trinityLearning: Bool = true
+
+    // MARK: - State
+
+    @State private var showDeleteConfirmation = false
+
+    // MARK: - Body
 
     var body: some View {
-        Group {
-            if viewModel.isLoading {
-                ProgressView("Loading privacy settings...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let error = viewModel.errorMessage, viewModel.credentials.isEmpty && viewModel.dataSharingPreferences.isEmpty {
-                errorView(error)
-            } else {
-                settingsForm
+        NavigationStack {
+            List {
+                privacyLevelSection
+                profileVisibilitySection
+                dataSection
+                securitySection
+                dangerZoneSection
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("Privacy & Security")
+            .confirmationDialog(
+                "Delete Account",
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete my account permanently", role: .destructive) {
+                    MtrxHaptics.error()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This action is irreversible. All data, tokens, and history associated with your account will be permanently deleted.")
             }
         }
-        .navigationTitle("Privacy")
-        .alert("Delete Off-Chain Data?", isPresented: $viewModel.showDeletionAlert) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) { viewModel.deleteOffChainData() }
-        } message: {
-            Text("This removes all locally stored preferences, Trinity memory, and cloud backups. On-chain records remain permanently.")
-        }
-        .task {
-            await viewModel.loadPrivacySettings()
-            await viewModel.loadCommitments()
-        }
     }
 
-    // MARK: - Settings Form
-
-    private var settingsForm: some View {
-        Form {
-            privacyLevelSection
-            credentialVisibilitySection
-            dataSharingSection
-            socialProfileSection
-            walletLinkingSection
-            agentSection
-            zkCommitmentsSection
-            dataDeletionSection
-        }
-        .refreshable {
-            await viewModel.loadPrivacySettings()
-        }
-    }
-
-    // MARK: - Privacy Level
+    // MARK: - Privacy Level Section
 
     private var privacyLevelSection: some View {
-        Section("Privacy Level") {
-            ForEach(PrivacyLevel.allCases, id: \.self) { level in
-                Button {
-                    viewModel.privacyLevel = level
-                    Task { await viewModel.saveSettings() }
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: level.icon)
-                            .foregroundStyle(level.color)
-                            .frame(width: 24)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(level.rawValue)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.primary)
-                            Text(level.description)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        if viewModel.privacyLevel == level {
-                            Image(systemName: Symbols.complete)
-                                .foregroundStyle(.accentColor)
-                        }
-                    }
-                }
+        Section {
+            ForEach(PrivacyLevel.allCases) { level in
+                privacyLevelRow(level)
+            }
+        } header: {
+            Text("Privacy Level")
+        } footer: {
+            if let current = PrivacyLevel(rawValue: selectedLevel) {
+                Text(current.footerText)
             }
         }
     }
 
-    // MARK: - Credential Visibility
+    private func privacyLevelRow(_ level: PrivacyLevel) -> some View {
+        Button {
+            selectedLevel = level.rawValue
+            MtrxHaptics.selection()
+        } label: {
+            HStack(spacing: Spacing.ms) {
+                Image(systemName: level.icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.accentPrimary)
+                    .frame(width: 28, height: 28)
 
-    private var credentialVisibilitySection: some View {
-        Section("Credential Visibility") {
-            if viewModel.credentials.isEmpty {
-                Text("No credentials found")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(viewModel.credentials) { cred in
-                    Toggle(isOn: Binding(
-                        get: { cred.isVisible },
-                        set: { viewModel.setCredentialVisibility(cred.id, visible: $0) }
-                    )) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(cred.name)
-                            if !cred.issuer.isEmpty {
-                                Text("Issued by \(cred.issuer)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(level.title)
+                        .font(.mtrxBodyBold)
+                        .foregroundStyle(Color.labelPrimary)
+
+                    Text(level.description)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                if selectedLevel == level.rawValue {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
                 }
             }
+            .padding(.vertical, Spacing.xs)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Profile Visibility Section
+
+    private var profileVisibilitySection: some View {
+        Section {
+            Picker("Social Profile", selection: $profileVisibility) {
+                ForEach(ProfileVisibility.allCases) { visibility in
+                    Text(visibility.rawValue).tag(visibility.rawValue)
+                }
+            }
+            .font(.mtrxBody)
+            .tint(Color.accentPrimary)
+            .onChange(of: profileVisibility) { _, _ in
+                MtrxHaptics.selection()
+            }
+
+            Toggle("Hide Wallet Addresses", isOn: $hideAddresses)
+                .font(.mtrxBody)
+                .tint(Color.accentPrimary)
+                .onChange(of: hideAddresses) { _, _ in
+                    MtrxHaptics.selection()
+                }
+
+            Toggle("Private Transactions", isOn: $privateTx)
+                .font(.mtrxBody)
+                .tint(Color.accentPrimary)
+                .onChange(of: privateTx) { _, _ in
+                    MtrxHaptics.selection()
+                }
+
+            Toggle("Show Online Status", isOn: $showOnline)
+                .font(.mtrxBody)
+                .tint(Color.accentPrimary)
+                .onChange(of: showOnline) { _, _ in
+                    MtrxHaptics.selection()
+                }
+        } header: {
+            Text("Profile Visibility")
         }
     }
 
-    // MARK: - Data Sharing
+    // MARK: - Data Section
 
-    private var dataSharingSection: some View {
-        Section("Data Sharing Preferences") {
-            if viewModel.dataSharingPreferences.isEmpty {
-                Text("No configurable data sharing options")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach($viewModel.dataSharingPreferences) { $pref in
-                    Toggle(isOn: $pref.isShared) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(pref.category)
-                            Text(pref.description)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .onChange(of: pref.isShared) { _, _ in
-                        Task { await viewModel.saveSettings() }
-                    }
+    private var dataSection: some View {
+        Section {
+            Toggle("Anonymous Analytics", isOn: $analytics)
+                .font(.mtrxBody)
+                .tint(Color.accentPrimary)
+                .onChange(of: analytics) { _, _ in
+                    MtrxHaptics.selection()
                 }
-            }
+
+            Toggle("Crash Reports", isOn: $crashReports)
+                .font(.mtrxBody)
+                .tint(Color.accentPrimary)
+                .onChange(of: crashReports) { _, _ in
+                    MtrxHaptics.selection()
+                }
+
+            Toggle("Trinity Learning", isOn: $trinityLearning)
+                .font(.mtrxBody)
+                .tint(Color.accentPrimary)
+                .onChange(of: trinityLearning) { _, _ in
+                    MtrxHaptics.selection()
+                }
+        } header: {
+            Text("Data")
+        } footer: {
+            Text("Your data never leaves your device unless you explicitly share it.")
         }
     }
 
-    // MARK: - Social Profile
+    // MARK: - Security Section
 
-    private var socialProfileSection: some View {
-        Section("Social Profile") {
-            Picker("Profile Visibility", selection: $viewModel.profileVisibility) {
-                ForEach(ProfileVisibility.allCases, id: \.self) { vis in
-                    Text(vis.rawValue).tag(vis)
+    private var securitySection: some View {
+        Section {
+            NavigationLink {
+                connectedAppsPlaceholder
+            } label: {
+                HStack {
+                    Text("Connected Apps")
+                        .font(.mtrxBody)
+                        .foregroundStyle(Color.labelPrimary)
+                    Spacer()
+                    Text("3 connected")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
                 }
             }
-            .onChange(of: viewModel.profileVisibility) { _, _ in
-                Task { await viewModel.saveSettings() }
-            }
-        }
-    }
 
-    // MARK: - Wallet Linking
-
-    private var walletLinkingSection: some View {
-        Section("Wallet Address Linking") {
-            Toggle("Show linked wallets on profile", isOn: $viewModel.showLinkedWallets)
-                .onChange(of: viewModel.showLinkedWallets) { _, _ in
-                    Task { await viewModel.saveSettings() }
-                }
-            Text("Others can see which wallets belong to you")
-                .font(.caption).foregroundColor(.secondary)
-        }
-    }
-
-    // MARK: - Agent Conversations
-
-    private var agentSection: some View {
-        Section("Agent Conversations") {
-            Toggle("Store Trinity conversation history", isOn: $viewModel.storeTrinityHistory)
-                .onChange(of: viewModel.storeTrinityHistory) { _, _ in
-                    Task { await viewModel.saveSettings() }
-                }
-            if viewModel.storeTrinityHistory {
-                Button("Clear Conversation History") { viewModel.clearHistory() }
-            }
-        }
-    }
-
-    // MARK: - ZK Commitments
-
-    private var zkCommitmentsSection: some View {
-        Section("Zero-Knowledge Commitments") {
-            if viewModel.commitments.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: Symbols.zeroKnowledge)
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                    Text("No commitments yet")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("ZK commitments allow you to prove facts about your data without revealing the data itself.")
-                        .font(.caption)
-                        .foregroundStyle(.labelTertiary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-            } else {
-                ForEach(viewModel.commitments) { commitment in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(commitment.type)
-                                .font(.subheadline.weight(.medium))
-                            Spacer()
-                            Text(commitment.status)
-                                .font(.caption2.weight(.medium))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(commitment.status == "verified" ? Color.statusSuccess.opacity(0.12) : Color.statusWarning.opacity(0.12))
-                                .foregroundStyle(commitment.status == "verified" ? .statusSuccess : .statusWarning)
-                                .cornerRadius(4)
-                        }
-                        Text(commitment.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        HStack {
-                            Text(commitment.timestamp)
-                                .font(.caption2)
-                                .foregroundStyle(.labelTertiary)
-                            Spacer()
-                            if !commitment.proofHash.isEmpty {
-                                Text(String(commitment.proofHash.prefix(12)) + "...")
-                                    .font(.caption2.monospaced())
-                                    .foregroundStyle(.labelTertiary)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 2)
+            NavigationLink {
+                activeSessionsPlaceholder
+            } label: {
+                HStack {
+                    Text("Active Sessions")
+                        .font(.mtrxBody)
+                        .foregroundStyle(Color.labelPrimary)
+                    Spacer()
+                    Text("1 session")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
                 }
             }
 
             Button {
-                Task {
-                    await viewModel.generateZKProof(
-                        type: "identity_verification",
-                        claims: ["claim": "identity_holder"]
-                    )
-                }
+                MtrxHaptics.impact(.medium)
             } label: {
-                if viewModel.isGeneratingProof {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                } else {
-                    Label("Generate New ZK Proof", systemImage: Symbols.zeroKnowledge)
-                        .frame(maxWidth: .infinity)
-                }
+                Text("Export My Data")
+                    .font(.mtrxCallout)
+                    .foregroundStyle(Color.accentPrimary)
             }
-            .disabled(viewModel.isGeneratingProof)
+        } header: {
+            Text("Security")
         }
     }
 
-    // MARK: - Data Deletion
+    // MARK: - Danger Zone Section
 
-    private var dataDeletionSection: some View {
-        Section("Data Deletion") {
-            Button(role: .destructive) {
-                viewModel.showDeletionAlert = true
-            } label: {
-                Label("Delete Off-Chain Data", systemImage: Symbols.delete)
-            }
-            Text("On-chain records (transactions, attestations, contracts) are permanent and cannot be deleted. This deletes only local and cloud-stored data.")
-                .font(.caption).foregroundColor(.secondary)
-        }
-    }
-
-    // MARK: - Error
-
-    private func errorView(_ message: String) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: Symbols.alertWarning)
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("Could Not Load Settings")
-                .font(.title3.weight(.semibold))
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+    private var dangerZoneSection: some View {
+        Section {
             Button {
-                Task { await viewModel.loadPrivacySettings() }
+                showDeleteConfirmation = true
+                MtrxHaptics.warning()
             } label: {
-                Label("Retry", systemImage: Symbols.refresh)
+                Text("Delete Account")
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.statusError)
             }
-            .buttonStyle(.borderedProminent)
+        } header: {
+            Text("Danger Zone")
+                .foregroundStyle(Color.statusError)
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Placeholder Destinations
+
+    private var connectedAppsPlaceholder: some View {
+        MtrxEmptyState(
+            icon: "app.connected.to.app.below.fill",
+            title: "Connected Apps",
+            message: "Manage applications connected to your MTRX account."
+        )
+        .background(Color.backgroundPrimary)
+        .navigationTitle("Connected Apps")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var activeSessionsPlaceholder: some View {
+        MtrxEmptyState(
+            icon: "desktopcomputer",
+            title: "Active Sessions",
+            message: "View and manage your active login sessions."
+        )
+        .background(Color.backgroundPrimary)
+        .navigationTitle("Active Sessions")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
-#Preview("Privacy") {
-    NavigationStack {
-        PrivacyView()
-    }
+// MARK: - Preview
+
+#Preview("Privacy & Security") {
+    PrivacyView()
+        .preferredColorScheme(.dark)
 }

@@ -1,8 +1,13 @@
+// AgentConversationView.swift
+// MTRX
+//
+// Home tab — Trinity AI conversation interface.
+// Handles Trinity, Morpheus, and Neo interactions with full design system.
+
 import SwiftUI
 
-/// The primary conversation interface that handles Trinity, Morpheus, and Neo interactions.
-/// Public users see Trinity by default. Morpheus appears at pivotal moments.
-/// Neo is never visible to public users.
+// MARK: - Agent Conversation View
+
 struct AgentConversationView: View {
     @StateObject private var viewModel = AgentConversationViewModel()
     @ObservedObject private var accessControl = AgentAccessControl.shared
@@ -11,10 +16,13 @@ struct AgentConversationView: View {
 
     let userID: String
 
+    @State private var isListening = false
+    @State private var appeared = false
+
     var body: some View {
         ZStack {
             // Background
-            Color.mtrxBackground.ignoresSafeArea()
+            MtrxGradientBackground(style: .trinityGlow)
 
             VStack(spacing: 0) {
                 // Agent header
@@ -23,10 +31,13 @@ struct AgentConversationView: View {
                 // Messages
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: 12) {
-                            // First boot message (Trinity only, once per user)
+                        LazyVStack(spacing: Spacing.ms) {
+                            // First boot card
                             if viewModel.showFirstBoot {
                                 firstBootMessage
+                                    .padding(.top, Spacing.xl)
+                                    .padding(.bottom, Spacing.md)
+                                    .transition(.mtrxSlideUp)
                             }
 
                             ForEach(viewModel.messages) { message in
@@ -36,19 +47,25 @@ struct AgentConversationView: View {
 
                             if viewModel.isTyping {
                                 TypingIndicator(agent: viewModel.activeAgent)
+                                    .id("typingIndicator")
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, Spacing.md)
+                        .padding(.vertical, Spacing.sm)
                     }
+                    .scrollDismissesKeyboard(.interactively)
                     .onChange(of: viewModel.messages.count) {
-                        if let last = viewModel.messages.last {
-                            withAnimation {
-                                proxy.scrollTo(last.id, anchor: .bottom)
-                            }
+                        scrollToBottom(proxy: proxy)
+                    }
+                    .onChange(of: viewModel.isTyping) {
+                        if viewModel.isTyping {
+                            scrollToBottom(proxy: proxy, anchor: .bottom)
                         }
                     }
                 }
+
+                // Quick action chips
+                quickActionChips
 
                 // Input bar
                 inputBar
@@ -57,72 +74,95 @@ struct AgentConversationView: View {
             // Morpheus overlay
             if morpheus.isPresenting, let intervention = morpheus.activeIntervention {
                 MorpheusOverlay(intervention: intervention)
+                    .transition(.opacity.animation(Motion.springDefault))
             }
 
             // Scenario 2 ban overlay
             if let ban = accessControl.banEvent {
                 BanOverlay(event: ban)
+                    .transition(.opacity.animation(Motion.springDefault))
             }
 
             // Scenario 2 community alert
             if let alert = accessControl.scenarioTwoAlert {
                 CommunityAlertOverlay(alert: alert)
+                    .transition(.mtrxSlideUp)
             }
         }
         .onAppear {
             viewModel.setup(userID: userID)
+            withAnimation(Motion.springDefault.delay(0.2)) {
+                appeared = true
+            }
+        }
+    }
+
+    // MARK: - Scroll Helper
+
+    private func scrollToBottom(proxy: ScrollViewProxy, anchor: UnitPoint = .bottom) {
+        if let last = viewModel.messages.last {
+            withAnimation(Motion.springSnappy) {
+                proxy.scrollTo(viewModel.isTyping ? "typingIndicator" : last.id, anchor: anchor)
+            }
         }
     }
 
     // MARK: - Agent Header
 
     private var agentHeader: some View {
-        HStack(spacing: 12) {
-            // Agent avatar
-            Circle()
-                .fill(agentColor)
-                .frame(width: 36, height: 36)
-                .overlay(
-                    Text(agentInitial)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
-                )
+        HStack(spacing: Spacing.ms) {
+            // Agent avatar — gradient circle with initial
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: agentGradientColors,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 38, height: 38)
+
+                Text(agentInitial)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+            .mtrxGlow(color: agentGradientColors.first ?? .accentPrimary, radius: 4)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(agentName)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                    .font(.mtrxHeadline)
+                    .foregroundStyle(Color.labelPrimary)
 
-                Text(agentStatus)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack(spacing: Spacing.xs) {
+                    Circle()
+                        .fill(viewModel.isTyping ? Color.accentTertiary : Color.statusSuccess)
+                        .frame(width: 6, height: 6)
+
+                    Text(agentStatus)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                }
             }
 
             Spacer()
 
-            // Temporal context indicator
-            Text(TemporalContext.shared.currentData().isMarketOpen ? "Markets Open" : "Markets Closed")
-                .font(.caption2)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(TemporalContext.shared.currentData().isMarketOpen
-                              ? Color.green.opacity(0.2)
-                              : Color.gray.opacity(0.2))
-                )
-                .foregroundColor(TemporalContext.shared.currentData().isMarketOpen ? .green : .gray)
+            // Market hours badge
+            MtrxBadge(
+                text: TemporalContext.shared.currentData().isMarketOpen ? "Markets Open" : "Markets Closed",
+                style: TemporalContext.shared.currentData().isMarketOpen ? .success : .neutral
+            )
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.ms)
         .background(.ultraThinMaterial)
     }
 
-    private var agentColor: Color {
+    private var agentGradientColors: [Color] {
         switch viewModel.activeAgent {
-        case .trinity: return .blue
-        case .morpheus: return .red
-        case .neo: return .green
+        case .trinity: return [.trinityPrimary, .trinitySecondary]
+        case .morpheus: return [.statusError, .statusError.opacity(0.7)]
+        case .neo: return [.statusSuccess, .accentPrimary]
         }
     }
 
@@ -147,56 +187,125 @@ struct AgentConversationView: View {
         return "online"
     }
 
+    private func agentDotColor(for name: String?) -> Color {
+        switch name {
+        case "Morpheus": return .statusError
+        case "Neo": return .statusSuccess
+        default: return .trinityPrimary
+        }
+    }
+
     // MARK: - First Boot Message
 
     private var firstBootMessage: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Hi, my name is Trinity")
-                .font(.title2)
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
+        MtrxCard(style: .glass) {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                HStack(spacing: Spacing.sm) {
+                    Image(systemName: Symbols.trinityActive)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(Color.trinityPrimary)
 
-            Text("Welcome to the world of MTRX, I'll be by your side the entire time if you need me")
-                .font(.body)
-                .foregroundColor(.secondary)
+                    Spacer()
+                }
+
+                Text("Hi, my name is Trinity")
+                    .font(.mtrxTitle2)
+                    .foregroundStyle(Color.labelPrimary)
+
+                Text("Welcome to the world of MTRX, I'll be by your side the entire time if you need me")
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelSecondary)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.blue.opacity(0.08))
-        )
-        .padding(.top, 40)
-        .padding(.bottom, 20)
-        .transition(.opacity)
+        .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.lg)
+    }
+
+    // MARK: - Quick Action Chips
+
+    private var quickActionChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Spacing.sm) {
+                MtrxChip(label: "Check balance", icon: Symbols.wallet) {
+                    insertQuickAction("Check my balance")
+                }
+
+                MtrxChip(label: "Send", icon: Symbols.send) {
+                    insertQuickAction("Send")
+                }
+
+                MtrxChip(label: "Swap", icon: Symbols.swap) {
+                    insertQuickAction("Swap tokens")
+                }
+
+                MtrxChip(label: "Deploy contract", icon: Symbols.contractCreate) {
+                    insertQuickAction("Deploy a smart contract")
+                }
+
+                MtrxChip(label: "Marketplace", icon: Symbols.marketplace) {
+                    insertQuickAction("Browse the marketplace")
+                }
+
+                MtrxChip(label: "Portfolio", icon: Symbols.portfolio) {
+                    insertQuickAction("View my portfolio")
+                }
+            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+        }
+        .background(Color.surfaceCard.opacity(0.4))
+    }
+
+    private func insertQuickAction(_ text: String) {
+        MtrxHaptics.selection()
+        viewModel.inputText = text
+        isInputFocused = true
     }
 
     // MARK: - Input Bar
 
     private var inputBar: some View {
-        HStack(spacing: 12) {
-            TextField("Message", text: $viewModel.inputText, axis: .vertical)
-                .textFieldStyle(.plain)
+        HStack(spacing: Spacing.sm) {
+            // Microphone button
+            Button {
+                MtrxHaptics.impact(.light)
+                isListening.toggle()
+            } label: {
+                Image(systemName: isListening ? Symbols.microphoneSlash : Symbols.microphone)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(isListening ? Color.statusError : Color.labelTertiary)
+                    .frame(width: 36, height: 36)
+            }
+
+            // Text field
+            TextField("Ask Trinity...", text: $viewModel.inputText, axis: .vertical)
+                .font(.mtrxBody)
                 .lineLimit(1...5)
                 .focused($isInputFocused)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.horizontal, Spacing.ms)
+                .padding(.vertical, Spacing.sm)
                 .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(.systemGray6))
+                    RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous)
+                        .fill(Color.surfaceOverlay)
                 )
 
+            // Send button
             Button {
+                MtrxHaptics.impact(.light)
                 viewModel.sendMessage()
             } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(viewModel.inputText.isEmpty ? .gray : .blue)
+                Image(systemName: Symbols.send)
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(
+                        viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? Color.labelTertiary
+                            : Color.accentPrimary
+                    )
+                    .symbolRenderingMode(.hierarchical)
             }
-            .disabled(viewModel.inputText.isEmpty)
+            .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
         .background(.ultraThinMaterial)
     }
 }
@@ -206,45 +315,66 @@ struct AgentConversationView: View {
 struct MessageBubble: View {
     let message: AgentMessage
 
-    var body: some View {
-        HStack {
-            if message.role == .user { Spacer(minLength: 60) }
+    private var isUser: Bool { message.role == .user }
 
-            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
-                if message.role != .user {
-                    HStack(spacing: 4) {
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            if isUser { Spacer(minLength: 56) }
+
+            VStack(alignment: isUser ? .trailing : .leading, spacing: Spacing.xs) {
+                // Agent name label with colored dot
+                if !isUser {
+                    HStack(spacing: Spacing.xs) {
                         Circle()
-                            .fill(agentColor)
-                            .frame(width: 16, height: 16)
+                            .fill(agentDotColor)
+                            .frame(width: 8, height: 8)
+
                         Text(message.agentName ?? "Trinity")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(agentColor)
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(agentDotColor)
                     }
+                    .padding(.leading, Spacing.xs)
                 }
 
+                // Bubble
                 Text(message.text)
-                    .font(.body)
-                    .foregroundColor(message.role == .user ? .white : .primary)
+                    .font(.mtrxBody)
+                    .foregroundStyle(isUser ? .white : Color.labelPrimary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18)
-                            .fill(message.role == .user
-                                  ? Color.blue
-                                  : Color(.systemGray6))
-                    )
+                    .background(bubbleBackground)
+                    .clipShape(bubbleShape)
+
+                // Timestamp
+                Text(message.timestamp, style: .time)
+                    .font(.mtrxCaption2)
+                    .foregroundStyle(Color.labelQuaternary)
+                    .padding(.horizontal, Spacing.xs)
             }
 
-            if message.role != .user { Spacer(minLength: 60) }
+            if !isUser { Spacer(minLength: 56) }
         }
     }
 
-    private var agentColor: Color {
+    private var bubbleBackground: some View {
+        Group {
+            if isUser {
+                Color.accentPrimary
+            } else {
+                Color.surfaceCard
+            }
+        }
+    }
+
+    private var bubbleShape: some Shape {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+    }
+
+    private var agentDotColor: Color {
         switch message.agentName {
-        case "Morpheus": return .red
-        case "Neo": return .green
-        default: return .blue
+        case "Morpheus": return .statusError
+        case "Neo": return .statusSuccess
+        default: return .trinityPrimary
         }
     }
 }
@@ -253,29 +383,48 @@ struct MessageBubble: View {
 
 struct TypingIndicator: View {
     let agent: AgentAccessControl.ActiveAgent
-    @State private var dotIndex = 0
+
+    @State private var dotPhases: [Bool] = [false, false, false]
+
+    private var dotColor: Color {
+        switch agent {
+        case .trinity: return .trinityPrimary
+        case .morpheus: return .statusError
+        case .neo: return .statusSuccess
+        }
+    }
 
     var body: some View {
         HStack {
-            HStack(spacing: 4) {
-                ForEach(0..<3) { i in
+            HStack(spacing: 5) {
+                ForEach(0..<3, id: \.self) { i in
                     Circle()
-                        .fill(Color.gray.opacity(dotIndex == i ? 1.0 : 0.3))
+                        .fill(dotColor)
                         .frame(width: 8, height: 8)
+                        .scaleEffect(dotPhases[i] ? 1.0 : 0.5)
+                        .opacity(dotPhases[i] ? 1.0 : 0.35)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(Color(.systemGray6))
-            )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color.surfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             Spacer()
         }
         .onAppear {
-            Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
-                dotIndex = (dotIndex + 1) % 3
+            startPulse()
+        }
+    }
+
+    private func startPulse() {
+        for i in 0..<3 {
+            withAnimation(
+                .easeInOut(duration: 0.5)
+                .repeatForever(autoreverses: true)
+                .delay(Double(i) * 0.15)
+            ) {
+                dotPhases[i] = true
             }
         }
     }
@@ -286,65 +435,93 @@ struct TypingIndicator: View {
 struct MorpheusOverlay: View {
     let intervention: MorpheusIntervention
     @ObservedObject private var morpheus = MorpheusInterventions.shared
+    @State private var appeared = false
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.7)
+            Color.black.opacity(0.75)
                 .ignoresSafeArea()
-
-            VStack(spacing: 24) {
-                // Morpheus indicator
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 48, height: 48)
-                    .overlay(
-                        Text("M")
-                            .font(.title2.bold())
-                            .foregroundColor(.white)
-                    )
-
-                Text("Morpheus")
-                    .font(.title3.bold())
-                    .foregroundColor(.white)
-
-                Text(intervention.message)
-                    .font(.body)
-                    .foregroundColor(.white.opacity(0.9))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-
-                if intervention.requiresConfirmation {
-                    HStack(spacing: 16) {
-                        Button("Cancel") {
-                            morpheus.dismiss()
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.gray)
-
-                        Button("I understand. Proceed.") {
-                            _ = morpheus.confirmAction()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.red)
-                    }
-                } else if !intervention.autoDismiss {
-                    Button("Continue") {
+                .onTapGesture {
+                    if !intervention.requiresConfirmation && !intervention.autoDismiss {
                         morpheus.dismiss()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.blue)
+                }
+
+            VStack(spacing: Spacing.lg) {
+                // Morpheus avatar
+                ZStack {
+                    Circle()
+                        .fill(Color.statusError.opacity(0.15))
+                        .frame(width: 64, height: 64)
+
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.statusError, Color.statusError.opacity(0.7)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 52, height: 52)
+
+                    Text("M")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
+                .mtrxGlow(color: .statusError, radius: 10)
+
+                Text("Morpheus")
+                    .font(.mtrxTitle3)
+                    .foregroundStyle(.white)
+
+                Text(intervention.message)
+                    .font(.mtrxBody)
+                    .foregroundStyle(.white.opacity(0.9))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+                    .padding(.horizontal, Spacing.md)
+
+                if intervention.requiresConfirmation {
+                    HStack(spacing: Spacing.md) {
+                        Button("Cancel") {
+                            MtrxHaptics.impact(.light)
+                            morpheus.dismiss()
+                        }
+                        .buttonStyle(MtrxButtonStyle(variant: .ghost))
+
+                        Button("I understand. Proceed.") {
+                            MtrxHaptics.warning()
+                            _ = morpheus.confirmAction()
+                        }
+                        .buttonStyle(MtrxButtonStyle(variant: .destructive))
+                    }
+                    .padding(.top, Spacing.sm)
+                } else if !intervention.autoDismiss {
+                    Button("Continue") {
+                        MtrxHaptics.impact(.light)
+                        morpheus.dismiss()
+                    }
+                    .buttonStyle(MtrxButtonStyle(variant: .primary))
+                    .padding(.top, Spacing.sm)
                 }
             }
-            .padding(32)
+            .padding(Spacing.xl)
             .background(
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(Color(.systemBackground).opacity(0.15))
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                RoundedRectangle(cornerRadius: Spacing.CornerRadius.xxl, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Spacing.CornerRadius.xxl, style: .continuous)
+                            .stroke(Color.statusError.opacity(0.3), lineWidth: 1)
+                    )
             )
-            .padding(24)
+            .padding(Spacing.lg)
+            .mtrxScaleIn(isVisible: appeared)
         }
-        .transition(.opacity)
+        .onAppear {
+            withAnimation(Motion.springDefault) {
+                appeared = true
+            }
+        }
     }
 }
 
@@ -353,26 +530,39 @@ struct MorpheusOverlay: View {
 struct BanOverlay: View {
     let event: BanEvent
     @State private var remainingSeconds: Int = 10
+    @State private var appeared = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            VStack(spacing: 24) {
+            VStack(spacing: Spacing.lg) {
                 Image(systemName: "xmark.shield.fill")
-                    .font(.system(size: 64))
-                    .foregroundColor(.red)
+                    .font(.system(size: 64, weight: .light))
+                    .foregroundStyle(Color.statusError)
+                    .mtrxGlow(color: .statusError, radius: 12)
 
                 Text("Access Permanently Revoked")
-                    .font(.title2.bold())
-                    .foregroundColor(.white)
+                    .font(.mtrxTitle2)
+                    .foregroundStyle(.white)
+
+                Text("Your access to MTRX has been permanently revoked due to unauthorized activity.")
+                    .font(.mtrxBody)
+                    .foregroundStyle(.white.opacity(0.6))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Spacing.xl)
 
                 Text("This message will disappear in \(remainingSeconds) seconds.")
-                    .font(.caption)
-                    .foregroundColor(.gray)
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelTertiary)
+                    .padding(.top, Spacing.sm)
             }
+            .mtrxScaleIn(isVisible: appeared)
         }
         .onAppear {
+            withAnimation(Motion.springDefault) {
+                appeared = true
+            }
             Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
                 remainingSeconds -= 1
                 if remainingSeconds <= 0 { timer.invalidate() }
@@ -385,34 +575,42 @@ struct BanOverlay: View {
 
 struct CommunityAlertOverlay: View {
     let alert: ScenarioTwoAlert
+    @State private var appeared = false
 
     var body: some View {
         VStack {
             Spacer()
-            HStack {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 24, height: 24)
-                    .overlay(Text("M").font(.caption.bold()).foregroundColor(.white))
+
+            HStack(spacing: Spacing.ms) {
+                ZStack {
+                    Circle()
+                        .fill(Color.statusError)
+                        .frame(width: 28, height: 28)
+
+                    Text("M")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
 
                 Text("A user has been permanently removed from MTRX.")
-                    .font(.subheadline)
-                    .foregroundColor(.white)
+                    .font(.mtrxSubheadline)
+                    .foregroundStyle(.white)
+
+                Spacer()
             }
-            .padding(16)
+            .padding(Spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.red.opacity(0.9))
+                RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
+                    .fill(Color.statusError.opacity(0.9))
             )
-            .padding(.horizontal, 16)
+            .padding(.horizontal, Spacing.md)
             .padding(.bottom, 100)
+            .mtrxFadeInFromBottom(isVisible: appeared)
         }
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .onAppear {
+            withAnimation(Motion.springDefault) {
+                appeared = true
+            }
+        }
     }
-}
-
-// MARK: - Extensions
-
-extension Color {
-    static let mtrxBackground = Color(UIColor.systemBackground)
 }

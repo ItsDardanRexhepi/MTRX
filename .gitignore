@@ -22,7 +22,7 @@ node_modules/
 
 # Build artifacts
 artifacts/
-cache/
+/cache/
 
 # Environment & Secrets
 .env
