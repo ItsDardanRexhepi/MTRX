@@ -102,12 +102,6 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            AgentConversationView(userID: appState.currentUserID)
-                .tabItem {
-                    Label("Home", systemImage: Symbols.home)
-                }
-                .tag(AppTab.home)
-
             DiscoverView()
                 .tabItem {
                     Label("Discover", systemImage: Symbols.discover)
@@ -119,6 +113,12 @@ struct MainTabView: View {
                     Label("Build", systemImage: Symbols.build)
                 }
                 .tag(AppTab.build)
+
+            AgentConversationView(userID: appState.currentUserID)
+                .tabItem {
+                    Label("Home", systemImage: Symbols.home)
+                }
+                .tag(AppTab.home)
 
             SocialView()
                 .tabItem {
@@ -132,7 +132,7 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.account)
         }
-        .tint(Color.accentPrimary)
+        .tint(Color.tabSelected)
     }
 }
 
@@ -150,9 +150,9 @@ enum NavigationDestination: Hashable {
 // MARK: - App Tab
 
 enum AppTab: Int, CaseIterable {
-    case home
     case discover
     case build
+    case home
     case social
     case account
 }

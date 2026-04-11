@@ -129,6 +129,14 @@ extension Color {
     /// Quorum met — blue
     static let quorumMet = Color.blue
 
+    // MARK: - Tab Bar
+
+    /// Tab bar selected state — matrix green (#00FF41)
+    static let tabSelected = Color(red: 0, green: 1.0, blue: 0.255)
+
+    /// Tab bar unselected state (#666666)
+    static let tabUnselected = Color(white: 0.4)
+
     // MARK: - Trinity AI
 
     /// Trinity primary glow

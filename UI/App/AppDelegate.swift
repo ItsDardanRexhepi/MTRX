@@ -85,10 +85,36 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     // MARK: - Private Configuration
 
     private func configureAppearance() {
+        // Tab bar — pure black background, #00FF41 selected, #666666 unselected
+        let selectedColor = UIColor(red: 0, green: 1.0, blue: 0.255, alpha: 1)
+        let unselectedColor = UIColor(red: 0.4, green: 0.4, blue: 0.4, alpha: 1)
+
         let tabBarAppearance = UITabBarAppearance()
-        tabBarAppearance.configureWithDefaultBackground()
+        tabBarAppearance.configureWithOpaqueBackground()
+        tabBarAppearance.backgroundColor = .black
+
+        let normalAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: unselectedColor]
+        let selectedAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: selectedColor]
+
+        tabBarAppearance.stackedLayoutAppearance.normal.iconColor = unselectedColor
+        tabBarAppearance.stackedLayoutAppearance.normal.titleTextAttributes = normalAttributes
+        tabBarAppearance.stackedLayoutAppearance.selected.iconColor = selectedColor
+        tabBarAppearance.stackedLayoutAppearance.selected.titleTextAttributes = selectedAttributes
+
+        tabBarAppearance.inlineLayoutAppearance.normal.iconColor = unselectedColor
+        tabBarAppearance.inlineLayoutAppearance.normal.titleTextAttributes = normalAttributes
+        tabBarAppearance.inlineLayoutAppearance.selected.iconColor = selectedColor
+        tabBarAppearance.inlineLayoutAppearance.selected.titleTextAttributes = selectedAttributes
+
+        tabBarAppearance.compactInlineLayoutAppearance.normal.iconColor = unselectedColor
+        tabBarAppearance.compactInlineLayoutAppearance.normal.titleTextAttributes = normalAttributes
+        tabBarAppearance.compactInlineLayoutAppearance.selected.iconColor = selectedColor
+        tabBarAppearance.compactInlineLayoutAppearance.selected.titleTextAttributes = selectedAttributes
+
         UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
         UITabBar.appearance().standardAppearance = tabBarAppearance
+        UITabBar.appearance().tintColor = selectedColor
+        UITabBar.appearance().unselectedItemTintColor = unselectedColor
 
         let navBarAppearance = UINavigationBarAppearance()
         navBarAppearance.configureWithDefaultBackground()
