@@ -383,6 +383,40 @@ enum HTTPMethod: String {
     case delete = "DELETE"
 }
 
+// MARK: - Backend Configuration
+//
+// MTRX_PRODUCTION_URL: Update this to the production gateway URL
+// before App Store submission. The gateway runs on neo-l4.
+// Format: https://yourdomain.com
+// This is read first, then MTRX_RUNTIME_URL env var, then localhost.
+//
+// TODO (manual): Set this after domain and SSL are configured on neo-l4.
+private enum BackendConfig {
+    /// Production URL — update when domain and SSL are live on neo-l4.
+    /// Port 18790 is the Matrix gateway port.
+    static let productionURL: String? = nil // Set to "https://openmatrix.io" when live
+
+    /// Resolved base URL — runtime override → production → environment variable → localhost
+    static var resolvedURL: String {
+        // 1. Runtime override (set by Neo or config)
+        if let runtime = UserDefaults.standard.string(forKey: "mtrx.backend.url"),
+           !runtime.isEmpty {
+            return runtime
+        }
+        // 2. Compile-time production URL
+        if let prod = productionURL, !prod.isEmpty {
+            return prod
+        }
+        // 3. Environment variable (for CI and testing)
+        if let env = ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"],
+           !env.isEmpty {
+            return env
+        }
+        // 4. Localhost fallback (development only)
+        return "http://localhost:8000"
+    }
+}
+
 // MARK: - MTRXAPIClient
 
 final class MTRXAPIClient: @unchecked Sendable {
@@ -422,10 +456,23 @@ final class MTRXAPIClient: @unchecked Sendable {
 
     // MARK: - Init
 
+    /// Set the production URL at runtime without recompiling.
+    /// Call from AppDelegate before MTRXAPIClient.shared is first accessed.
+    static func setProductionURL(_ url: String) {
+        UserDefaults.standard.set(url, forKey: "mtrx.backend.url")
+    }
+
+    /// The runtime-configured production URL, if any.
+    static var runtimeURL: String? {
+        UserDefaults.standard.string(forKey: "mtrx.backend.url")
+    }
+
     init(baseURL: String? = nil, session: URLSession? = nil) {
-        self.baseURL = baseURL
-            ?? ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"]
-            ?? "http://localhost:8000"
+        self.baseURL = baseURL ?? BackendConfig.resolvedURL
+
+        #if DEBUG
+        print("[MTRXAPIClient] Backend URL: \(self.baseURL)")
+        #endif
 
         if let session {
             // Tests (and any caller that wants to stub transport) can inject

@@ -6,8 +6,8 @@
 // trial detection, and subscription lifecycle.
 //
 // Product IDs (configured in App Store Connect):
-//   com.mtrx.app.pro.monthly        — $4.99/month with 3-day free trial
-//   com.mtrx.app.enterprise.monthly — $19.99/month with 3-day free trial
+//   com.opnmatrx.mtrx.pro.monthly        — Pro tier, 3-day free trial
+//   com.opnmatrx.mtrx.enterprise.monthly — Enterprise tier, 3-day free trial
 //
 // Both paid tiers offer a 3-day introductory offer (free trial) configured
 // as a "Pay as you go" introductory offer in App Store Connect.
@@ -92,8 +92,8 @@ final class StoreKitManager {
     // MARK: Product IDs
 
     private let productIds: Set<String> = [
-        "com.mtrx.app.pro.monthly",
-        "com.mtrx.app.enterprise.monthly",
+        "com.opnmatrx.mtrx.pro.monthly",
+        "com.opnmatrx.mtrx.enterprise.monthly",
     ]
 
     // MARK: Transaction Listener
@@ -314,8 +314,8 @@ final class StoreKitManager {
     /// Map a product ID to a SubscriptionTier.
     private func tierForProductId(_ productId: String) -> SubscriptionTier? {
         switch productId {
-        case "com.mtrx.app.pro.monthly":        return .pro
-        case "com.mtrx.app.enterprise.monthly": return .enterprise
+        case "com.opnmatrx.mtrx.pro.monthly":        return .pro
+        case "com.opnmatrx.mtrx.enterprise.monthly": return .enterprise
         default:                                 return nil
         }
     }

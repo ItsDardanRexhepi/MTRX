@@ -131,8 +131,8 @@ extension Color {
 
     // MARK: - Tab Bar
 
-    /// Tab bar selected state — matrix green (#00FF41)
-    static let tabSelected = Color(red: 0, green: 1.0, blue: 0.255)
+    /// Tab bar selected state — terminal cyan
+    static let tabSelected = Color(red: 0.0, green: 0.675, blue: 0.694)
 
     /// Tab bar unselected state (#666666)
     static let tabUnselected = Color(white: 0.4)
@@ -157,8 +157,8 @@ extension Color {
     static let fallbackAccentTertiary = Color(red: 1.0, green: 0.7, blue: 0.0)
     static let fallbackPriceUp = Color(red: 0.2, green: 0.84, blue: 0.42)
     static let fallbackPriceDown = Color(red: 1.0, green: 0.27, blue: 0.27)
-    static let fallbackTrinityPrimary = Color(red: 0.4, green: 0.3, blue: 1.0)
-    static let fallbackTrinitySecondary = Color(red: 0.6, green: 0.2, blue: 0.9)
+    static let fallbackTrinityPrimary = Color(red: 0.0, green: 0.675, blue: 0.694)
+    static let fallbackTrinitySecondary = Color(red: 0.0, green: 0.800, blue: 0.750)
 }
 
 // MARK: - Gradient Definitions

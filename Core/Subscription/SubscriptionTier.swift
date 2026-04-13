@@ -3,8 +3,8 @@
 //
 // Three-tier subscription system:
 //   Free ($0)       — Default. Generous limits, on-device CoreML, local wallet, full privacy.
-//   Pro ($4.99/mo)  — Removes most limits, priority Trinity, advanced dashboard, custom skills.
-//   Enterprise ($19.99/mo) — Unlimited everything, teams, white-label, API access, audit logs.
+//   Pro             — Removes most limits, priority Trinity, advanced dashboard, custom skills.
+//   Enterprise      — Unlimited everything, teams, white-label, API access, audit logs.
 //
 // All tiers still pay automatic on-chain platform fees (PAC, NFT 10%, DAO treasury, etc.)
 // that route to NeoSafe.
@@ -24,8 +24,8 @@ enum SubscriptionTier: String, Codable, CaseIterable, Comparable {
     var productId: String? {
         switch self {
         case .free:       return nil
-        case .pro:        return "com.mtrx.app.pro.monthly"
-        case .enterprise: return "com.mtrx.app.enterprise.monthly"
+        case .pro:        return "com.opnmatrx.mtrx.pro.monthly"
+        case .enterprise: return "com.opnmatrx.mtrx.enterprise.monthly"
         }
     }
 
@@ -39,11 +39,12 @@ enum SubscriptionTier: String, Codable, CaseIterable, Comparable {
     }
 
     /// Monthly price as displayed to the user.
+    /// Actual pricing is managed in App Store Connect.
     var priceDisplay: String {
         switch self {
-        case .free:       return "$0"
-        case .pro:        return "$4.99/mo"
-        case .enterprise: return "$19.99/mo"
+        case .free:       return "Free"
+        case .pro:        return "Pro"
+        case .enterprise: return "Enterprise"
         }
     }
 
@@ -51,7 +52,7 @@ enum SubscriptionTier: String, Codable, CaseIterable, Comparable {
     var tagline: String {
         switch self {
         case .free:
-            return "Full access to all 30 components with generous limits"
+            return "Full access to all 50+ components with generous limits"
         case .pro:
             return "Remove limits, priority Trinity, advanced dashboard & custom skills"
         case .enterprise:
