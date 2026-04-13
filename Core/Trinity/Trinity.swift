@@ -21,12 +21,20 @@ final class Trinity: ObservableObject {
     @Published private(set) var lastResponse: TrinityResponse?
     @Published private(set) var conversationHistory: [ConversationTurn] = []
     @Published private(set) var currentState: TrinityState = .idle
+    @Published private(set) var inferenceSource: InferenceSource = .localFallback
+    @Published private(set) var isOffline: Bool = false
+
+    /// Privacy mode: when enabled, all inference stays on-device.
+    /// No data is sent to the gateway API.
+    @Published var isPrivacyMode: Bool = false {
+        didSet { router.isPrivacyModeEnabled = isPrivacyMode }
+    }
 
     // MARK: - Dependencies
 
     private let context: TrinityContext
     private let memory: TrinityMemoryStore
-    private let inference: TrinityInference
+    private let router: InferenceRouter
     private let voice: TrinityVoice
     private let scoringEngine: RexhepiEngine
     private let decisionLog: DecisionLog
@@ -127,17 +135,42 @@ final class Trinity: ObservableObject {
     init(
         context: TrinityContext = TrinityContext(),
         memory: TrinityMemoryStore = TrinityMemoryStore(),
-        inference: TrinityInference = TrinityInference(),
+        router: InferenceRouter = InferenceRouter(),
         voice: TrinityVoice = TrinityVoice(),
         scoringEngine: RexhepiEngine = RexhepiEngine(),
         decisionLog: DecisionLog = DecisionLog()
     ) {
         self.context = context
         self.memory = memory
-        self.inference = inference
+        self.router = router
         self.voice = voice
         self.scoringEngine = scoringEngine
         self.decisionLog = decisionLog
+        self.isPrivacyMode = router.isPrivacyModeEnabled
+    }
+
+    // MARK: - Inference State
+
+    /// Whether on-device Foundation Models inference is available.
+    var isOnDeviceAvailable: Bool { router.isOnDeviceAvailable }
+
+    /// The inference backend that will handle the next request.
+    var activeInferenceSource: InferenceSource { router.activeSource }
+
+    /// Toggle privacy mode on or off.
+    func setPrivacyMode(_ enabled: Bool) {
+        isPrivacyMode = enabled
+    }
+
+    /// Reset the on-device model session.
+    func resetInferenceSession() {
+        router.resetSession()
+    }
+
+    /// Update connectivity state from the network monitor.
+    func updateConnectivity(isConnected: Bool) {
+        router.updateConnectivity(isConnected: isConnected)
+        isOffline = router.isOffline
     }
 
     // MARK: - Primary Interface
@@ -378,7 +411,7 @@ final class Trinity: ObservableObject {
     // MARK: - Thinking / Response Generation
 
     /// Generate a response by combining intent, context, memory, and optional outcome.
-    /// Attempts to call the backend API first, falling back to local response generation.
+    /// Routes through the two-layer inference system: on-device first, gateway fallback.
     /// - Parameters:
     ///   - intent: The processed user intent.
     ///   - context: The current user context.
@@ -396,23 +429,31 @@ final class Trinity: ObservableObject {
         // Build the prompt from intent + context + memory
         let prompt = buildPrompt(intent: intent, context: context, memory: memory, outcome: outcome)
 
-        // Attempt API call to backend
-        var responseText: String
-        var fromAPI = false
+        // Route inference through the two-layer system:
+        //   Layer 1: On-device (Foundation Models / CoreML) — fast, private
+        //   Layer 2: Gateway API — full tool access, blockchain interaction
+        let complexity = router.classifyComplexity(intent: intent)
+        let result = await router.generate(
+            prompt: prompt,
+            systemPrompt: nil,
+            complexity: complexity
+        )
 
-        do {
-            let apiResponse = try await MTRXAPIClient.shared.sendAgentMessage(
-                agent: "trinity",
-                message: intent.description,
-                context: prompt,
-                conversationHistory: memory.map { ["role": "user", "content": $0.content, "response": $0.response] }
-            )
-            responseText = apiResponse.text
-            fromAPI = true
-        } catch {
-            // Fall back to local response generation
+        var responseText: String
+        let source: InferenceSource
+
+        if !result.text.isEmpty {
+            responseText = result.text
+            source = result.source
+        } else {
+            // All inference layers exhausted — use local template generation
             responseText = generateLocalResponse(intent: intent, context: context, outcome: outcome)
+            source = .localFallback
         }
+
+        // Update published inference state
+        inferenceSource = source
+        isOffline = router.isOffline
 
         // Build suggested actions based on intent category
         let suggestedActions = buildSuggestedActions(for: intent, outcome: outcome)
@@ -423,10 +464,16 @@ final class Trinity: ObservableObject {
         }
 
         var metadata: [String: String] = [
-            "source": fromAPI ? "api" : "local",
+            "source": source.rawValue,
             "intentCategory": intent.category.rawValue,
-            "confidence": String(format: "%.2f", intent.confidence)
+            "confidence": String(format: "%.2f", intent.confidence),
+            "latencyMs": String(format: "%.1f", result.latencyMs),
+            "onDevice": result.metadata["on_device"] ?? "false"
         ]
+        // Merge inference metadata
+        for (key, value) in result.metadata where metadata[key] == nil {
+            metadata[key] = value
+        }
         if let asset = intent.entities["asset"] {
             metadata["asset"] = asset
         }

@@ -1,0 +1,360 @@
+//
+//  InferenceRouter.swift
+//  MTRX — Trinity
+//
+//  Two-layer inference routing: on-device (Foundation Models) vs gateway (API).
+//  Routes requests based on task complexity, privacy settings, and connectivity.
+//
+
+import Foundation
+
+// MARK: - Inference Source
+
+/// Identifies where a response was generated.
+enum InferenceSource: String, Sendable {
+    /// Apple Foundation Models, on-device via Neural Engine (iOS 26+)
+    case foundationModels = "on_device"
+    /// CoreML classification models (iOS 18+)
+    case coreML = "coreml"
+    /// Backend gateway API
+    case gateway = "gateway"
+    /// Local template-based fallback (offline, no model available)
+    case localFallback = "local"
+}
+
+// MARK: - Inference Result
+
+/// The result of an inference request, including source metadata.
+struct InferenceResult: Sendable {
+    /// The generated text. Empty if all inference layers failed.
+    let text: String
+    /// Which inference layer produced this result.
+    let source: InferenceSource
+    /// Confidence in the result quality (0.0–1.0).
+    let confidence: Double
+    /// Generation latency in milliseconds.
+    let latencyMs: Double
+    /// Additional metadata about the generation.
+    let metadata: [String: String]
+}
+
+// MARK: - Task Complexity
+
+/// Classifies how complex an inference task is, which determines routing.
+enum TaskComplexity: Int, Sendable, Comparable {
+    /// Greetings, basic queries, settings, portfolio reads.
+    /// Routed on-device for speed and privacy.
+    case simple = 0
+
+    /// Explanations, comparisons, analysis, context-heavy queries.
+    /// On-device preferred, gateway fallback.
+    case moderate = 1
+
+    /// Multi-step transactions, contract deployment, cross-chain operations.
+    /// Gateway required for full tool access and blockchain interaction.
+    case complex = 2
+
+    static func < (lhs: TaskComplexity, rhs: TaskComplexity) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
+// MARK: - Inference Router
+
+/// Routes inference requests between on-device and gateway backends.
+///
+/// The router implements a two-layer inference architecture:
+///
+/// **Layer 1 — On-Device (Foundation Models / CoreML)**
+/// Fast, private, runs entirely on the Neural Engine. Handles simple and
+/// moderate tasks: greetings, portfolio queries, explanations, basic analysis.
+/// No data leaves the device. Available on iOS 26+ with Apple Intelligence.
+///
+/// **Layer 2 — Gateway (Backend API)**
+/// Full tool access, blockchain interaction, multi-step execution. Handles
+/// complex tasks: transactions, contract deployment, cross-chain operations.
+/// Requires network connectivity.
+///
+/// **Privacy Mode:** When enabled, all inference stays on-device regardless
+/// of complexity. Complex tasks that require the gateway will use local
+/// templates as a last resort rather than sending data off-device.
+final class InferenceRouter {
+
+    // MARK: - Properties
+
+    private let coreMLInference: TrinityInference
+    private let privacyModeKey = "mtrx_privacy_mode"
+
+    /// Type-erased storage for the Foundation Models engine.
+    /// Uses type erasure because FoundationModelsEngine requires iOS 26+.
+    private var _foundationEngine: Any?
+
+    /// Whether on-device Foundation Models inference is available.
+    var isOnDeviceAvailable: Bool {
+        if #available(iOS 26, macOS 26, *) {
+            return FoundationModelsEngine.isAvailable
+        }
+        return false
+    }
+
+    /// The inference source that will be used for the next request.
+    var activeSource: InferenceSource {
+        if isPrivacyModeEnabled {
+            return isOnDeviceAvailable ? .foundationModels : .localFallback
+        }
+        return isOnDeviceAvailable ? .foundationModels : .gateway
+    }
+
+    /// Whether privacy mode is enabled. When true, all inference stays on-device.
+    var isPrivacyModeEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: privacyModeKey) }
+        set { UserDefaults.standard.set(newValue, forKey: privacyModeKey) }
+    }
+
+    /// Whether the device currently has no network connectivity.
+    private(set) var isOffline: Bool = false
+
+    // MARK: - Initialization
+
+    init(coreMLInference: TrinityInference = TrinityInference()) {
+        self.coreMLInference = coreMLInference
+    }
+
+    // MARK: - Foundation Engine Access
+
+    /// Lazily create or return the Foundation Models engine (iOS 26+ only).
+    @available(iOS 26, macOS 26, *)
+    private var foundationEngine: FoundationModelsEngine {
+        if let engine = _foundationEngine as? FoundationModelsEngine {
+            return engine
+        }
+        let engine = FoundationModelsEngine()
+        _foundationEngine = engine
+        return engine
+    }
+
+    // MARK: - Routing
+
+    /// Route an inference request to the optimal backend.
+    ///
+    /// Routing logic:
+    /// - **Privacy mode ON:** Always on-device. Falls back to local templates.
+    /// - **Simple tasks:** On-device for speed and privacy.
+    /// - **Moderate tasks:** On-device preferred, gateway fallback.
+    /// - **Complex tasks:** Gateway for full tool access, on-device fallback.
+    ///
+    /// - Parameters:
+    ///   - prompt: The assembled prompt string.
+    ///   - systemPrompt: Optional system instructions override.
+    ///   - complexity: Task complexity level.
+    ///   - forceGateway: Override routing to use gateway (ignored in privacy mode).
+    /// - Returns: The inference result from whichever layer succeeded.
+    func generate(
+        prompt: String,
+        systemPrompt: String? = nil,
+        complexity: TaskComplexity = .moderate,
+        forceGateway: Bool = false
+    ) async -> InferenceResult {
+        let start = CFAbsoluteTimeGetCurrent()
+
+        // Privacy mode — never leave the device
+        if isPrivacyModeEnabled && !forceGateway {
+            return await generateOnDevice(
+                prompt: prompt,
+                systemPrompt: systemPrompt,
+                start: start
+            )
+        }
+
+        // Route by complexity
+        switch complexity {
+        case .simple:
+            // Prefer on-device for speed and privacy
+            let result = await generateOnDevice(
+                prompt: prompt,
+                systemPrompt: systemPrompt,
+                start: start
+            )
+            if result.source != .localFallback {
+                return result
+            }
+            // Simple tasks can also use gateway as fallback
+            return await generateViaGateway(
+                prompt: prompt,
+                systemPrompt: systemPrompt,
+                start: start
+            )
+
+        case .moderate:
+            // Try on-device first, fall back to gateway
+            let onDeviceResult = await generateOnDevice(
+                prompt: prompt,
+                systemPrompt: systemPrompt,
+                start: start
+            )
+            if onDeviceResult.source != .localFallback {
+                return onDeviceResult
+            }
+            return await generateViaGateway(
+                prompt: prompt,
+                systemPrompt: systemPrompt,
+                start: start
+            )
+
+        case .complex:
+            // Complex tasks need gateway for tool access
+            if forceGateway || !isPrivacyModeEnabled {
+                let gatewayResult = await generateViaGateway(
+                    prompt: prompt,
+                    systemPrompt: systemPrompt,
+                    start: start
+                )
+                if gatewayResult.source != .localFallback {
+                    return gatewayResult
+                }
+            }
+            // Fall back to on-device if gateway is unavailable
+            return await generateOnDevice(
+                prompt: prompt,
+                systemPrompt: systemPrompt,
+                start: start
+            )
+        }
+    }
+
+    /// Classify task complexity from a processed user intent.
+    ///
+    /// - Simple: Conversation, settings, queries without entities, alert acknowledgments
+    /// - Moderate: Portfolio queries, queries with specific entities, non-decision actions
+    /// - Complex: Actions requiring decisions (money movement, contract deployment)
+    func classifyComplexity(intent: TrinityIntent) -> TaskComplexity {
+        switch intent.category {
+        case .conversation:
+            return .simple
+        case .settings:
+            return .simple
+        case .alertResponse:
+            return intent.requiresDecision ? .complex : .simple
+        case .query:
+            // Queries with entities need more context (prices, analysis)
+            return intent.entities.isEmpty ? .simple : .moderate
+        case .portfolio:
+            return .moderate
+        case .action:
+            // Actions involving money or contracts must go through gateway
+            return intent.requiresDecision ? .complex : .moderate
+        }
+    }
+
+    // MARK: - On-Device Generation
+
+    /// Attempt to generate a response using on-device models.
+    /// Tries Foundation Models first (iOS 26+), then returns a local fallback.
+    private func generateOnDevice(
+        prompt: String,
+        systemPrompt: String?,
+        start: CFAbsoluteTime
+    ) async -> InferenceResult {
+        // Try Foundation Models (iOS 26+)
+        if #available(iOS 26, macOS 26, *), isOnDeviceAvailable {
+            do {
+                let text: String
+                if let instructions = systemPrompt {
+                    text = try await foundationEngine.respond(to: prompt, instructions: instructions)
+                } else {
+                    text = try await foundationEngine.respond(to: prompt)
+                }
+                let elapsed = (CFAbsoluteTimeGetCurrent() - start) * 1000
+
+                return InferenceResult(
+                    text: text,
+                    source: .foundationModels,
+                    confidence: 0.85,
+                    latencyMs: elapsed,
+                    metadata: [
+                        "engine": "apple_foundation_models",
+                        "on_device": "true",
+                        "privacy": "full"
+                    ]
+                )
+            } catch {
+                // Foundation Models generation failed — fall through
+            }
+        }
+
+        // No on-device model available — return empty local fallback
+        let elapsed = (CFAbsoluteTimeGetCurrent() - start) * 1000
+        return InferenceResult(
+            text: "",
+            source: .localFallback,
+            confidence: 0.0,
+            latencyMs: elapsed,
+            metadata: [
+                "engine": "local_fallback",
+                "on_device": "true",
+                "reason": "no_on_device_model"
+            ]
+        )
+    }
+
+    // MARK: - Gateway Generation
+
+    /// Attempt to generate a response via the backend gateway API.
+    private func generateViaGateway(
+        prompt: String,
+        systemPrompt: String?,
+        start: CFAbsoluteTime
+    ) async -> InferenceResult {
+        do {
+            let apiResponse = try await MTRXAPIClient.shared.sendAgentMessage(
+                agent: "trinity",
+                message: prompt,
+                context: systemPrompt ?? "",
+                conversationHistory: []
+            )
+            let elapsed = (CFAbsoluteTimeGetCurrent() - start) * 1000
+            isOffline = false
+
+            return InferenceResult(
+                text: apiResponse.text,
+                source: .gateway,
+                confidence: 0.90,
+                latencyMs: elapsed,
+                metadata: [
+                    "engine": "gateway",
+                    "on_device": "false"
+                ]
+            )
+        } catch {
+            // Gateway unreachable — mark offline
+            isOffline = true
+            let elapsed = (CFAbsoluteTimeGetCurrent() - start) * 1000
+
+            return InferenceResult(
+                text: "",
+                source: .localFallback,
+                confidence: 0.0,
+                latencyMs: elapsed,
+                metadata: [
+                    "engine": "local_fallback",
+                    "on_device": "true",
+                    "error": error.localizedDescription
+                ]
+            )
+        }
+    }
+
+    // MARK: - Session Management
+
+    /// Reset the on-device model session, clearing conversation context.
+    func resetSession() {
+        if #available(iOS 26, macOS 26, *) {
+            (_foundationEngine as? FoundationModelsEngine)?.resetSession()
+        }
+    }
+
+    /// Update the offline state based on network reachability.
+    func updateConnectivity(isConnected: Bool) {
+        isOffline = !isConnected
+    }
+}

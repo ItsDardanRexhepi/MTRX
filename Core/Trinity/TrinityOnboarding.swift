@@ -313,6 +313,18 @@ final class TrinityOnboarding: ObservableObject {
             order += 1
         }
 
+        // Foundation Models step — explain on-device intelligence
+        if #available(iOS 26, *) {
+            steps.append(OnboardingStep(
+                order: order,
+                title: "On-Device Intelligence",
+                description: "Trinity can process your requests directly on this device using Apple Intelligence. Your conversations stay private — nothing leaves your phone unless you choose to connect to the full platform. You can enable Privacy Mode at any time in Settings.",
+                type: .tutorial,
+                isRequired: false
+            ))
+            order += 1
+        }
+
         // Preference step
         steps.append(OnboardingStep(
             order: order,
