@@ -108,10 +108,17 @@ final class TrinityInference {
         // Build feature provider from input dictionary
         let featureProvider = try buildFeatureProvider(from: input)
 
-        // Run prediction
+        // Measure end-to-end inference latency in nanoseconds and
+        // round to an integer millisecond value. We use
+        // ``DispatchTime`` rather than ``Date`` so the measurement
+        // isn't affected by wall-clock adjustments while the model
+        // runs.
+        let started = DispatchTime.now()
         let prediction = try await Task.detached(priority: .userInitiated) {
             try model.prediction(from: featureProvider)
         }.value
+        let elapsedNs = DispatchTime.now().uptimeNanoseconds &- started.uptimeNanoseconds
+        let latencyMs = Int((Double(elapsedNs) / 1_000_000.0).rounded())
 
         // Parse output features
         let output = parseOutput(prediction)
@@ -120,7 +127,7 @@ final class TrinityInference {
             output: output,
             timestamp: Date(),
             modelVersion: modelMetadata?.version ?? "unknown",
-            latencyMs: 0 // TODO: Measure actual latency
+            latencyMs: latencyMs
         )
     }
 

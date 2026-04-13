@@ -1,866 +1,477 @@
 // MessagingView.swift
-// MTRX - XMTP end-to-end encrypted wallet-to-wallet messaging
+// MTRX -- End-to-end encrypted messaging
 // Copyright 2026 OPN MATRX. All rights reserved.
 
 import SwiftUI
-import Combine
 
 // MARK: - Models
 
-struct Conversation: Identifiable, Equatable {
+struct ChatMessage: Identifiable, Equatable {
     let id: String
-    let participants: [Participant]
-    let isGroup: Bool
-    let groupName: String?
-    let lastMessage: Message?
-    let unreadCount: Int
-    let createdAt: Date
-    let isEncrypted: Bool
-
-    var displayName: String {
-        if let name = groupName { return name }
-        let others = participants.filter { !$0.isCurrentUser }
-        if others.count == 1 {
-            return others[0].displayName
-        }
-        return others.prefix(3).map(\.displayName).joined(separator: ", ")
-    }
-
-    struct Participant: Identifiable, Equatable {
-        let id: String
-        let walletAddress: String
-        let displayName: String
-        let isCurrentUser: Bool
-        let ensName: String?
-    }
-}
-
-struct Message: Identifiable, Equatable {
-    let id: String
-    let senderAddress: String
-    let senderDisplayName: String
-    let content: MessageContent
+    let text: String
+    let isFromUser: Bool
     let timestamp: Date
-    let isFromCurrentUser: Bool
-    let deliveryStatus: DeliveryStatus
-
-    enum MessageContent: Equatable {
-        case text(String)
-        case transaction(txHash: String, amount: String, token: String)
-        case proofLink(url: URL, title: String)
-        case governanceVote(proposalId: String, vote: String)
-    }
-
-    enum DeliveryStatus: Equatable {
-        case sending
-        case sent
-        case delivered
-        case failed
-    }
+    let senderName: String
 }
 
-// MARK: - ViewModel
+struct ChatConversation: Identifiable {
+    let id: String
+    let contactName: String
+    let contactInitials: String
+    let contactColor: Color
+    let lastMessageText: String
+    let timestamp: Date
+    let unreadCount: Int
+}
+
+// MARK: - View Model
 
 @MainActor
 final class MessagingViewModel: ObservableObject {
-    @Published var conversations: [Conversation] = []
-    @Published var selectedConversation: Conversation?
-    @Published var messages: [Message] = []
-    @Published var messageText = ""
-    @Published var isLoading = false
-    @Published var isSending = false
-    @Published var errorMessage: String?
-    @Published var showNewConversation = false
-    @Published var newRecipientAddress = ""
-    @Published var isGroupChat = false
-    @Published var groupParticipants: [String] = []
-    @Published var groupName = ""
-    @Published var searchText = ""
 
-    static let maxGroupSize = 10
+    // MARK: - Published State
 
-    private let api = MTRXAPIClient.shared
-    private var cancellables = Set<AnyCancellable>()
+    @Published var conversations: [ChatConversation]
+    @Published var selectedConversation: ChatConversation?
+    @Published var messages: [ChatMessage] = []
+    @Published var inputText: String = ""
 
-    var filteredConversations: [Conversation] {
-        guard !searchText.isEmpty else { return conversations }
-        return conversations.filter {
-            $0.displayName.localizedCaseInsensitiveContains(searchText)
-        }
+    // MARK: - Init
+
+    init() {
+        let now = Date()
+        self.conversations = [
+            ChatConversation(
+                id: "conv_1",
+                contactName: "Elena Vasquez",
+                contactInitials: "EV",
+                contactColor: .accentPrimary,
+                lastMessageText: "The contract deployment went through!",
+                timestamp: now.addingTimeInterval(-120),
+                unreadCount: 3
+            ),
+            ChatConversation(
+                id: "conv_2",
+                contactName: "Marcus Chen",
+                contactInitials: "MC",
+                contactColor: .statusInfo,
+                lastMessageText: "Can you review the latest proposal?",
+                timestamp: now.addingTimeInterval(-3600),
+                unreadCount: 1
+            ),
+            ChatConversation(
+                id: "conv_3",
+                contactName: "Aisha Patel",
+                contactInitials: "AP",
+                contactColor: .statusSuccess,
+                lastMessageText: "Thanks for the staking walkthrough",
+                timestamp: now.addingTimeInterval(-7200),
+                unreadCount: 0
+            ),
+            ChatConversation(
+                id: "conv_4",
+                contactName: "Jordan Blake",
+                contactInitials: "JB",
+                contactColor: .accentTertiary,
+                lastMessageText: "Let me know when the DAO vote is live",
+                timestamp: now.addingTimeInterval(-86400),
+                unreadCount: 0
+            ),
+            ChatConversation(
+                id: "conv_5",
+                contactName: "Priya Sharma",
+                contactInitials: "PS",
+                contactColor: .trinityPrimary,
+                lastMessageText: "I sent 2.5 ETH to the escrow",
+                timestamp: now.addingTimeInterval(-172800),
+                unreadCount: 2
+            ),
+        ]
     }
 
-    func loadConversations() async {
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-        do {
-            let response: [String: AnyCodableValue] = try await api.get(path: "/api/v1/messaging/conversations")
-            conversations = parseConversations(response)
-        } catch {
-            errorMessage = "Failed to load conversations: \(error.localizedDescription)"
-        }
-    }
+    // MARK: - Load Messages
 
-    func loadMessages(for conversation: Conversation) async {
+    func loadMessages(for conversation: ChatConversation) {
         selectedConversation = conversation
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-        do {
-            let response: [String: AnyCodableValue] = try await api.get(
-                path: "/api/v1/messaging/conversations/\(conversation.id)/messages"
-            )
-            messages = parseMessages(response)
-        } catch {
-            errorMessage = "Failed to load messages: \(error.localizedDescription)"
-        }
+        let now = Date()
+        messages = [
+            ChatMessage(id: "m1", text: "Hey, did you see the new governance proposal?", isFromUser: false, timestamp: now.addingTimeInterval(-3600), senderName: conversation.contactName),
+            ChatMessage(id: "m2", text: "Not yet, which one?", isFromUser: true, timestamp: now.addingTimeInterval(-3540), senderName: "You"),
+            ChatMessage(id: "m3", text: "The treasury rebalancing one. Proposal #47.", isFromUser: false, timestamp: now.addingTimeInterval(-3480), senderName: conversation.contactName),
+            ChatMessage(id: "m4", text: "Just pulled it up. The allocation looks solid.", isFromUser: true, timestamp: now.addingTimeInterval(-3000), senderName: "You"),
+            ChatMessage(id: "m5", text: "Right? 40% to dev grants is exactly what we need.", isFromUser: false, timestamp: now.addingTimeInterval(-2940), senderName: conversation.contactName),
+            ChatMessage(id: "m6", text: "I'm going to vote yes. Are you delegating or voting directly?", isFromUser: true, timestamp: now.addingTimeInterval(-2400), senderName: "You"),
+            ChatMessage(id: "m7", text: "Voting directly this time. Too important to delegate.", isFromUser: false, timestamp: now.addingTimeInterval(-2340), senderName: conversation.contactName),
+            ChatMessage(id: "m8", text: "Agreed. Also, the escrow contract just cleared audit.", isFromUser: true, timestamp: now.addingTimeInterval(-1800), senderName: "You"),
+            ChatMessage(id: "m9", text: "That's huge! When does it go live?", isFromUser: false, timestamp: now.addingTimeInterval(-1740), senderName: conversation.contactName),
+            ChatMessage(id: "m10", text: "Deploying to mainnet tomorrow morning.", isFromUser: true, timestamp: now.addingTimeInterval(-1200), senderName: "You"),
+            ChatMessage(id: "m11", text: "The contract deployment went through!", isFromUser: false, timestamp: now.addingTimeInterval(-120), senderName: conversation.contactName),
+        ]
     }
 
-    func sendMessage() async {
-        let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, let convoId = selectedConversation?.id else { return }
-        isSending = true
-        defer { isSending = false }
+    // MARK: - Send Message
 
-        let pendingMessage = Message(
+    func sendMessage() {
+        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let newMessage = ChatMessage(
             id: UUID().uuidString,
-            senderAddress: "self",
-            senderDisplayName: "You",
-            content: .text(text),
+            text: trimmed,
+            isFromUser: true,
             timestamp: Date(),
-            isFromCurrentUser: true,
-            deliveryStatus: .sending
+            senderName: "You"
         )
-        messages.append(pendingMessage)
-        let pendingId = pendingMessage.id
-        messageText = ""
-
-        do {
-            let _: [String: AnyCodableValue] = try await api.postRaw(
-                path: "/api/v1/messaging/conversations/\(convoId)/messages",
-                body: ["content": text, "content_type": "text"]
-            )
-            if let idx = messages.firstIndex(where: { $0.id == pendingId }) {
-                messages[idx] = Message(
-                    id: pendingMessage.id,
-                    senderAddress: pendingMessage.senderAddress,
-                    senderDisplayName: pendingMessage.senderDisplayName,
-                    content: pendingMessage.content,
-                    timestamp: pendingMessage.timestamp,
-                    isFromCurrentUser: true,
-                    deliveryStatus: .sent
-                )
-            }
-        } catch {
-            if let idx = messages.firstIndex(where: { $0.id == pendingId }) {
-                messages[idx] = Message(
-                    id: pendingMessage.id,
-                    senderAddress: pendingMessage.senderAddress,
-                    senderDisplayName: pendingMessage.senderDisplayName,
-                    content: pendingMessage.content,
-                    timestamp: pendingMessage.timestamp,
-                    isFromCurrentUser: true,
-                    deliveryStatus: .failed
-                )
-            }
-            errorMessage = "Failed to send message: \(error.localizedDescription)"
-        }
+        messages.append(newMessage)
+        inputText = ""
+        MtrxHaptics.impact(.light)
     }
 
-    func createConversation() async {
-        guard !newRecipientAddress.isEmpty else { return }
-        isLoading = true
-        defer { isLoading = false }
+    // MARK: - Delete Conversation
 
-        do {
-            let _: [String: AnyCodableValue] = try await api.postRaw(
-                path: "/api/v1/messaging/conversations",
-                body: ["recipient": newRecipientAddress, "is_group": false]
-            )
-            showNewConversation = false
-            newRecipientAddress = ""
-            await loadConversations()
-        } catch {
-            errorMessage = "Failed to create conversation: \(error.localizedDescription)"
-        }
-    }
-
-    func createGroupConversation() async {
-        guard groupParticipants.count >= 2,
-              groupParticipants.count <= Self.maxGroupSize else {
-            errorMessage = "Group chat requires 2-\(Self.maxGroupSize) participants"
-            return
-        }
-        isLoading = true
-        defer { isLoading = false }
-
-        do {
-            let _: [String: AnyCodableValue] = try await api.postRaw(
-                path: "/api/v1/messaging/conversations",
-                body: [
-                    "participants": groupParticipants.joined(separator: ","),
-                    "is_group": "true",
-                    "group_name": groupName,
-                ]
-            )
-            showNewConversation = false
-            groupParticipants = []
-            groupName = ""
-            isGroupChat = false
-            await loadConversations()
-        } catch {
-            errorMessage = "Failed to create group: \(error.localizedDescription)"
-        }
-    }
-
-    func addGroupParticipant() {
-        let address = newRecipientAddress.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !address.isEmpty,
-              !groupParticipants.contains(address),
-              groupParticipants.count < Self.maxGroupSize else { return }
-        groupParticipants.append(address)
-        newRecipientAddress = ""
-    }
-
-    func removeGroupParticipant(_ address: String) {
-        groupParticipants.removeAll { $0 == address }
-    }
-
-    // MARK: - Parsing
-
-    private func parseConversations(_ response: [String: AnyCodableValue]) -> [Conversation] {
-        guard case .array(let items) = response["conversations"] ?? response["data"] ?? .null else {
-            return []
-        }
-        return items.compactMap { item -> Conversation? in
-            guard case .dictionary(let dict) = item else { return nil }
-            let id = dict["id"]?.stringValue ?? UUID().uuidString
-            let isGroup = dict["is_group"]?.boolValue ?? false
-            let gName = dict["group_name"]?.stringValue
-            let unread = dict["unread_count"]?.intValue ?? 0
-            let encrypted = dict["is_encrypted"]?.boolValue ?? true
-
-            var participants: [Conversation.Participant] = []
-            if case .array(let pList) = dict["participants"] {
-                participants = pList.compactMap { p -> Conversation.Participant? in
-                    guard case .dictionary(let pd) = p else { return nil }
-                    return Conversation.Participant(
-                        id: pd["id"]?.stringValue ?? UUID().uuidString,
-                        walletAddress: pd["wallet_address"]?.stringValue ?? "",
-                        displayName: pd["display_name"]?.stringValue ?? pd["wallet_address"]?.stringValue ?? "",
-                        isCurrentUser: pd["is_current_user"]?.boolValue ?? false,
-                        ensName: pd["ens_name"]?.stringValue
-                    )
-                }
-            }
-
-            return Conversation(
-                id: id,
-                participants: participants,
-                isGroup: isGroup,
-                groupName: gName,
-                lastMessage: nil,
-                unreadCount: unread,
-                createdAt: Date(),
-                isEncrypted: encrypted
-            )
-        }
-    }
-
-    private func parseMessages(_ response: [String: AnyCodableValue]) -> [Message] {
-        guard case .array(let items) = response["messages"] ?? response["data"] ?? .null else {
-            return []
-        }
-        return items.compactMap { item -> Message? in
-            guard case .dictionary(let dict) = item else { return nil }
-            let id = dict["id"]?.stringValue ?? UUID().uuidString
-            let sender = dict["sender_address"]?.stringValue ?? ""
-            let senderName = dict["sender_display_name"]?.stringValue ?? sender
-            let contentText = dict["content"]?.stringValue ?? ""
-            let isFromSelf = dict["is_from_current_user"]?.boolValue ?? false
-            let contentType = dict["content_type"]?.stringValue ?? "text"
-
-            let content: Message.MessageContent
-            switch contentType {
-            case "transaction":
-                content = .transaction(
-                    txHash: dict["tx_hash"]?.stringValue ?? "",
-                    amount: dict["amount"]?.stringValue ?? "0",
-                    token: dict["token"]?.stringValue ?? "ETH"
-                )
-            case "proof_link":
-                content = .proofLink(
-                    url: URL(string: dict["url"]?.stringValue ?? "https://basescan.org") ?? URL(string: "https://basescan.org")!,
-                    title: dict["title"]?.stringValue ?? "Proof"
-                )
-            case "governance_vote":
-                content = .governanceVote(
-                    proposalId: dict["proposal_id"]?.stringValue ?? "",
-                    vote: dict["vote"]?.stringValue ?? ""
-                )
-            default:
-                content = .text(contentText)
-            }
-
-            return Message(
-                id: id,
-                senderAddress: sender,
-                senderDisplayName: senderName,
-                content: content,
-                timestamp: Date(),
-                isFromCurrentUser: isFromSelf,
-                deliveryStatus: .delivered
-            )
-        }
+    func deleteConversation(_ conversation: ChatConversation) {
+        conversations.removeAll { $0.id == conversation.id }
+        MtrxHaptics.impact(.medium)
     }
 }
 
-// MARK: - Main View
+// MARK: - Messaging View
 
 struct MessagingView: View {
+
     @StateObject private var viewModel = MessagingViewModel()
+    @State private var showNewMessage = false
 
     var body: some View {
-        Group {
-            if viewModel.selectedConversation != nil {
-                chatView
-            } else {
-                conversationListView
-            }
-        }
-        .navigationTitle(viewModel.selectedConversation?.displayName ?? "Messages")
-        .navigationBarTitleDisplayMode(viewModel.selectedConversation != nil ? .inline : .large)
-        .toolbar {
-            if viewModel.selectedConversation != nil {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        viewModel.selectedConversation = nil
-                        viewModel.messages = []
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: Symbols.back)
-                            Text("Back")
-                        }
+        NavigationStack {
+            ZStack {
+                MtrxGradientBackground(style: .primary)
+
+                if viewModel.conversations.isEmpty {
+                    MtrxEmptyState(
+                        icon: "envelope",
+                        title: "No Messages",
+                        message: "Start a conversation with someone in your network to begin messaging securely.",
+                        actionLabel: "New Message"
+                    ) {
+                        showNewMessage = true
                     }
-                }
-                ToolbarItem(placement: .principal) {
-                    VStack(spacing: 1) {
-                        Text(viewModel.selectedConversation?.displayName ?? "")
-                            .font(.subheadline.weight(.semibold))
-                        HStack(spacing: 4) {
-                            Image(systemName: Symbols.lock)
-                                .font(.caption2)
-                            Text("End-to-End Encrypted")
-                                .font(.caption2)
-                        }
-                        .foregroundStyle(.statusSuccess)
-                    }
-                }
-            } else {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        viewModel.showNewConversation = true
-                    } label: {
-                        Image(systemName: Symbols.post)
-                    }
-                    .accessibilityLabel("New conversation")
+                } else {
+                    conversationList
                 }
             }
-        }
-        .sheet(isPresented: $viewModel.showNewConversation) {
-            newConversationSheet
-        }
-        .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
-            Button("OK") { viewModel.errorMessage = nil }
-        } message: {
-            Text(viewModel.errorMessage ?? "")
-        }
-        .task {
-            await viewModel.loadConversations()
+            .navigationTitle("Messages")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showNewMessage = true
+                        MtrxHaptics.selection()
+                    } label: {
+                        Image(systemName: Symbols.add)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.accentPrimary)
+                    }
+                }
+            }
+            .sheet(isPresented: $showNewMessage) {
+                newMessageSheet
+            }
         }
     }
 
     // MARK: - Conversation List
 
-    private var conversationListView: some View {
-        Group {
-            if viewModel.isLoading && viewModel.conversations.isEmpty {
-                List {
-                    ForEach(0..<5, id: \.self) { _ in
-                        ConversationSkeletonRow()
-                    }
-                }
-                .listStyle(.plain)
-            } else if let error = viewModel.errorMessage, viewModel.conversations.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: Symbols.alertWarning)
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
-                    Text("Could Not Load Messages")
-                        .font(.title3.weight(.semibold))
-                    Text(error)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button {
-                        Task { await viewModel.loadConversations() }
+    private var conversationList: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(viewModel.conversations) { conversation in
+                    NavigationLink {
+                        ConversationDetailView(viewModel: viewModel, conversation: conversation)
                     } label: {
-                        Label("Retry", systemImage: Symbols.refresh)
+                        conversationRow(conversation)
                     }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    if viewModel.filteredConversations.isEmpty {
-                        emptyConversationsView
-                    } else {
-                        ForEach(viewModel.filteredConversations) { conversation in
-                            ConversationRow(conversation: conversation)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    Task { await viewModel.loadMessages(for: conversation) }
-                                }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            viewModel.deleteConversation(conversation)
+                        } label: {
+                            Label("Delete", systemImage: Symbols.delete)
                         }
                     }
-                }
-                .listStyle(.plain)
-                .searchable(text: $viewModel.searchText, prompt: "Search conversations")
-                .refreshable {
-                    await viewModel.loadConversations()
+
+                    MtrxDivider()
+                        .padding(.leading, 76)
                 }
             }
+            .padding(.top, Spacing.xs)
         }
     }
 
-    private var emptyConversationsView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: Symbols.encrypted)
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("No Conversations")
-                .font(.title3.weight(.semibold))
-            Text("Start an end-to-end encrypted conversation with any wallet address using XMTP.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("New Message") {
-                viewModel.showNewConversation = true
+    // MARK: - Conversation Row
+
+    private func conversationRow(_ conversation: ChatConversation) -> some View {
+        HStack(spacing: Spacing.avatarContentGap) {
+            MtrxAvatar(
+                text: conversation.contactInitials,
+                color: conversation.contactColor,
+                size: 44
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(conversation.contactName)
+                    .font(.mtrxBodyBold)
+                    .foregroundStyle(Color.labelPrimary)
+
+                Text(conversation.lastMessageText)
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelSecondary)
+                    .lineLimit(1)
             }
-            .buttonStyle(.borderedProminent)
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: Spacing.xs) {
+                Text(formattedTimestamp(conversation.timestamp))
+                    .font(.mtrxCaption2)
+                    .foregroundStyle(Color.labelTertiary)
+
+                if conversation.unreadCount > 0 {
+                    Text("\(conversation.unreadCount)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(minWidth: 20, minHeight: 20)
+                        .background(Color.accentPrimary)
+                        .clipShape(Circle())
+                }
+            }
         }
-        .padding(.vertical, 60)
-        .frame(maxWidth: .infinity)
-        .listRowSeparator(.hidden)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.listRowVertical)
+        .contentShape(Rectangle())
     }
 
-    // MARK: - Chat View
+    // MARK: - New Message Sheet
 
-    private var chatView: some View {
+    private var newMessageSheet: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                MtrxSheetHeader(title: "New Message", subtitle: "End-to-end encrypted") {
+                    showNewMessage = false
+                }
+                MtrxEmptyState(
+                    icon: "person.badge.plus",
+                    title: "Choose a Contact",
+                    message: "Select someone from your connections to start a new encrypted conversation."
+                )
+            }
+            .background(Color.backgroundPrimary)
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+    }
+
+    // MARK: - Timestamp Formatting
+
+    private func formattedTimestamp(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "h:mm a"
+            return formatter.string(from: date)
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "M/d/yy"
+            return formatter.string(from: date)
+        }
+    }
+}
+
+// MARK: - Conversation Detail View
+
+struct ConversationDetailView: View {
+
+    @ObservedObject var viewModel: MessagingViewModel
+    let conversation: ChatConversation
+    @FocusState private var isInputFocused: Bool
+    @State private var appeared = false
+
+    var body: some View {
         VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 4) {
-                        encryptionBanner
+            messageList
+            MtrxDivider()
+            inputBar
+        }
+        .background(Color.backgroundPrimary)
+        .navigationTitle(conversation.contactName)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Image(systemName: Symbols.messageEncrypted)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.accentPrimary)
+            }
+        }
+        .onAppear {
+            viewModel.loadMessages(for: conversation)
+            appeared = true
+        }
+    }
 
-                        if viewModel.isLoading {
-                            ProgressView("Loading messages...")
-                                .padding()
+    // MARK: - Message List
+
+    private var messageList: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: Spacing.sm) {
+                    encryptionBanner
+                        .padding(.top, Spacing.md)
+
+                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                        let showTimeLabel = shouldShowTimeLabel(at: index)
+
+                        if showTimeLabel {
+                            timeLabel(for: message.timestamp)
                         }
 
-                        ForEach(viewModel.messages) { message in
-                            MessageBubble(message: message)
-                                .id(message.id)
-                        }
+                        messageBubble(message)
+                            .id(message.id)
                     }
-                    .padding()
                 }
-                .onChange(of: viewModel.messages.count) { _, _ in
-                    if let lastId = viewModel.messages.last?.id {
-                        withAnimation {
-                            proxy.scrollTo(lastId, anchor: .bottom)
-                        }
+                .padding(.horizontal, Spacing.md)
+                .padding(.bottom, Spacing.sm)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: viewModel.messages.count) { _, _ in
+                if let lastID = viewModel.messages.last?.id {
+                    withAnimation(Motion.springSnappy) {
+                        proxy.scrollTo(lastID, anchor: .bottom)
                     }
                 }
             }
-
-            Divider()
-            messageInputBar
+            .onAppear {
+                if let lastID = viewModel.messages.last?.id {
+                    proxy.scrollTo(lastID, anchor: .bottom)
+                }
+            }
         }
     }
+
+    // MARK: - Encryption Banner
 
     private var encryptionBanner: some View {
-        HStack(spacing: 6) {
-            Image(systemName: Symbols.lock)
-                .font(.caption2)
-            Text("Messages are end-to-end encrypted via XMTP. Only participants can read them.")
-                .font(.caption2)
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: Symbols.encrypted)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.accentPrimary)
+
+            Text("Messages are end-to-end encrypted")
+                .font(.mtrxCaption2)
+                .foregroundStyle(Color.labelTertiary)
         }
-        .foregroundStyle(.statusSuccess)
-        .padding(10)
-        .frame(maxWidth: .infinity)
-        .background(Color.statusSuccess.opacity(0.08))
-        .cornerRadius(12)
-        .padding(.bottom, 8)
+        .padding(.horizontal, Spacing.ms)
+        .padding(.vertical, Spacing.sm)
+        .background(Color.surfaceOverlay.opacity(0.5))
+        .clipShape(Capsule())
     }
 
-    private var messageInputBar: some View {
-        HStack(spacing: 12) {
-            TextField("Message", text: $viewModel.messageText, axis: .vertical)
-                .textFieldStyle(.plain)
+    // MARK: - Time Label
+
+    private func shouldShowTimeLabel(at index: Int) -> Bool {
+        guard index > 0 else { return true }
+        let current = viewModel.messages[index].timestamp
+        let previous = viewModel.messages[index - 1].timestamp
+        return current.timeIntervalSince(previous) > 600
+    }
+
+    private func timeLabel(for date: Date) -> some View {
+        Text(formattedTimeLabel(date))
+            .font(.mtrxCaption2)
+            .foregroundStyle(Color.labelTertiary)
+            .padding(.vertical, Spacing.sm)
+            .frame(maxWidth: .infinity)
+    }
+
+    private func formattedTimeLabel(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        if calendar.isDateInToday(date) {
+            formatter.dateFormat = "h:mm a"
+            return "Today \(formatter.string(from: date))"
+        } else if calendar.isDateInYesterday(date) {
+            formatter.dateFormat = "h:mm a"
+            return "Yesterday \(formatter.string(from: date))"
+        } else {
+            formatter.dateFormat = "MMM d, h:mm a"
+            return formatter.string(from: date)
+        }
+    }
+
+    // MARK: - Message Bubble
+
+    private func messageBubble(_ message: ChatMessage) -> some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            if message.isFromUser { Spacer(minLength: Spacing.xxl) }
+
+            Text(message.text)
+                .font(.mtrxBody)
+                .foregroundStyle(message.isFromUser ? .white : Color.labelPrimary)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
+                .background(message.isFromUser ? Color.accentPrimary : Color.surfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            if !message.isFromUser { Spacer(minLength: Spacing.xxl) }
+        }
+    }
+
+    // MARK: - Input Bar
+
+    private var inputBar: some View {
+        HStack(spacing: Spacing.sm) {
+            TextField("Message...", text: $viewModel.inputText, axis: .vertical)
+                .font(.mtrxBody)
                 .lineLimit(1...5)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.backgroundSecondary)
-                .cornerRadius(20)
-                .accessibilityLabel("Message input")
+                .focused($isInputFocused)
+                .padding(.horizontal, Spacing.ms)
+                .padding(.vertical, Spacing.sm)
+                .background(Color.surfaceOverlay)
+                .clipShape(Capsule())
 
             Button {
-                Task { await viewModel.sendMessage() }
+                viewModel.sendMessage()
             } label: {
-                Group {
-                    if viewModel.isSending {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Image(systemName: "arrow.up")
-                            .font(.body.weight(.semibold))
-                    }
-                }
-                .frame(width: 34, height: 34)
-                .background(viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color(.systemGray4) : Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(Circle())
+                Image(systemName: Symbols.send)
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(
+                        viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? Color.labelTertiary
+                            : Color.accentPrimary
+                    )
             }
-            .disabled(viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSending)
-            .accessibilityLabel("Send message")
+            .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
         .background(Color.backgroundPrimary)
     }
-
-    // MARK: - New Conversation Sheet
-
-    private var newConversationSheet: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Toggle("Group Chat", isOn: $viewModel.isGroupChat)
-                }
-
-                if viewModel.isGroupChat {
-                    Section("Group Details") {
-                        TextField("Group Name", text: $viewModel.groupName)
-
-                        HStack {
-                            TextField("Wallet address or ENS", text: $viewModel.newRecipientAddress)
-                                .textInputAutocapitalization(.never)
-                            Button("Add") {
-                                viewModel.addGroupParticipant()
-                            }
-                            .disabled(viewModel.newRecipientAddress.isEmpty)
-                        }
-
-                        ForEach(viewModel.groupParticipants, id: \.self) { address in
-                            HStack {
-                                Text(truncatedAddress(address))
-                                    .font(.caption.monospaced())
-                                Spacer()
-                                Button {
-                                    viewModel.removeGroupParticipant(address)
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    } footer: {
-                        Text("\(viewModel.groupParticipants.count)/\(MessagingViewModel.maxGroupSize) participants")
-                    }
-                } else {
-                    Section("Recipient") {
-                        TextField("Wallet address or ENS name", text: $viewModel.newRecipientAddress)
-                            .textInputAutocapitalization(.never)
-                            .keyboardType(.asciiCapable)
-                    }
-                }
-
-                Section {
-                    HStack(spacing: 6) {
-                        Image(systemName: Symbols.lock)
-                            .foregroundStyle(.statusSuccess)
-                        Text("All messages are end-to-end encrypted via XMTP protocol.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .navigationTitle(viewModel.isGroupChat ? "New Group" : "New Message")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        viewModel.showNewConversation = false
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        Task {
-                            if viewModel.isGroupChat {
-                                await viewModel.createGroupConversation()
-                            } else {
-                                await viewModel.createConversation()
-                            }
-                        }
-                    }
-                    .disabled(viewModel.isGroupChat
-                              ? viewModel.groupParticipants.count < 2
-                              : viewModel.newRecipientAddress.isEmpty)
-                }
-            }
-        }
-    }
-
-    private func truncatedAddress(_ address: String) -> String {
-        guard address.count > 10 else { return address }
-        return "\(address.prefix(6))...\(address.suffix(4))"
-    }
 }
 
-// MARK: - Conversation Row
+// MARK: - Preview
 
-struct ConversationRow: View {
-    let conversation: Conversation
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Color(.systemGray4))
-                    .frame(width: 48, height: 48)
-                if conversation.isGroup {
-                    Image(systemName: Symbols.backers)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(String(conversation.displayName.prefix(1)).uppercased())
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(conversation.displayName)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-
-                    if conversation.isEncrypted {
-                        Image(systemName: Symbols.lock)
-                            .font(.caption2)
-                            .foregroundStyle(.statusSuccess)
-                    }
-
-                    Spacer()
-
-                    if let lastMsg = conversation.lastMessage {
-                        Text(lastMsg.timestamp, style: .relative)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                HStack {
-                    if let lastMsg = conversation.lastMessage {
-                        switch lastMsg.content {
-                        case .text(let text):
-                            Text(text)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        case .transaction(_, let amount, let token):
-                            Label("\(amount) \(token)", systemImage: Symbols.transaction)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        case .proofLink(_, let title):
-                            Label(title, systemImage: Symbols.link)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        case .governanceVote(let proposalId, _):
-                            Label("Vote on #\(proposalId)", systemImage: Symbols.dao)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Spacer()
-
-                    if conversation.unreadCount > 0 {
-                        Text("\(conversation.unreadCount)")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.accentColor)
-                            .clipShape(Capsule())
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(conversation.displayName), \(conversation.unreadCount) unread messages")
-    }
+#Preview("Messages") {
+    MessagingView()
+        .preferredColorScheme(.dark)
 }
 
-// MARK: - Message Bubble
-
-struct MessageBubble: View {
-    let message: Message
-
-    var body: some View {
-        HStack {
-            if message.isFromCurrentUser { Spacer(minLength: 60) }
-
-            VStack(alignment: message.isFromCurrentUser ? .trailing : .leading, spacing: 4) {
-                if !message.isFromCurrentUser {
-                    Text(message.senderDisplayName)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-
-                messageContent
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(message.isFromCurrentUser ? Color.accentColor : Color(.systemGray5))
-                    .foregroundStyle(message.isFromCurrentUser ? .white : .primary)
-                    .cornerRadius(18, corners: message.isFromCurrentUser
-                                  ? [.topLeading, .topTrailing, .bottomLeading]
-                                  : [.topLeading, .topTrailing, .bottomTrailing])
-
-                HStack(spacing: 4) {
-                    Text(message.timestamp, style: .time)
-                        .font(.caption2)
-                    deliveryIcon
-                }
-                .foregroundStyle(.secondary)
-            }
-
-            if !message.isFromCurrentUser { Spacer(minLength: 60) }
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    @ViewBuilder
-    private var messageContent: some View {
-        switch message.content {
-        case .text(let text):
-            Text(text)
-                .font(.body)
-
-        case .transaction(let txHash, let amount, let token):
-            VStack(alignment: .leading, spacing: 6) {
-                Label("Transaction", systemImage: Symbols.transaction)
-                    .font(.caption.weight(.semibold))
-                Text("\(amount) \(token)")
-                    .font(.title3.weight(.bold))
-                Text(String(txHash.prefix(16)) + "...")
-                    .font(.caption2.monospaced())
-                    .opacity(0.7)
-            }
-
-        case .proofLink(let url, let title):
-            VStack(alignment: .leading, spacing: 4) {
-                Label("Proof Link", systemImage: "checkmark.shield")
-                    .font(.caption.weight(.semibold))
-                Text(title)
-                    .font(.subheadline)
-                Text(url.absoluteString)
-                    .font(.caption2)
-                    .opacity(0.7)
-            }
-
-        case .governanceVote(let proposalId, let vote):
-            VStack(alignment: .leading, spacing: 4) {
-                Label("Governance Vote", systemImage: Symbols.dao)
-                    .font(.caption.weight(.semibold))
-                Text("Proposal #\(proposalId)")
-                    .font(.subheadline)
-                Text("Voted: \(vote)")
-                    .font(.caption)
-                    .opacity(0.7)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var deliveryIcon: some View {
-        switch message.deliveryStatus {
-        case .sending:
-            Image(systemName: Symbols.clock)
-                .font(.caption2)
-        case .sent:
-            Image(systemName: Symbols.complete)
-                .font(.caption2)
-        case .delivered:
-            Image(systemName: Symbols.complete)
-                .font(.caption2)
-                .overlay(
-                    Image(systemName: Symbols.complete)
-                        .font(.caption2)
-                        .offset(x: 4)
-                )
-        case .failed:
-            Image(systemName: Symbols.failed)
-                .font(.caption2)
-                .foregroundStyle(.statusError)
-        }
-    }
-}
-
-// MARK: - Supporting
-
-struct ConversationSkeletonRow: View {
-    @State private var shimmer = false
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Circle().frame(width: 48, height: 48)
-            VStack(alignment: .leading, spacing: 6) {
-                RoundedRectangle(cornerRadius: 4).frame(width: 140, height: 14)
-                RoundedRectangle(cornerRadius: 4).frame(width: 200, height: 10)
-            }
-        }
-        .foregroundStyle(Color(.systemGray5))
-        .opacity(shimmer ? 0.4 : 1.0)
-        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: shimmer)
-        .onAppear { shimmer = true }
-    }
-}
-
-extension View {
-    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
-        clipShape(RoundedCornerShape(radius: radius, corners: corners))
-    }
-}
-
-struct RoundedCornerShape: Shape {
-    var radius: CGFloat
-    var corners: UIRectCorner
-
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: corners,
-            cornerRadii: CGSize(width: radius, height: radius)
-        )
-        return Path(path.cgPath)
-    }
-}
-
-#Preview("Messaging") {
+#Preview("Conversation") {
+    let vm = MessagingViewModel()
     NavigationStack {
-        MessagingView()
+        ConversationDetailView(
+            viewModel: vm,
+            conversation: vm.conversations[0]
+        )
     }
+    .preferredColorScheme(.dark)
 }

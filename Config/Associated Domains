@@ -1,0 +1,56 @@
+{
+  "webcredentials": {
+    "apps": [
+      "TEAMID.com.opnmatrx.mtrx"
+    ]
+  },
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "TEAMID.com.opnmatrx.mtrx"
+        ],
+        "components": [
+          {
+            "/": "/marketplace/*",
+            "comment": "Deep link to marketplace listings"
+          },
+          {
+            "/": "/contract/*",
+            "comment": "Deep link to contract details"
+          },
+          {
+            "/": "/fundraiser/*",
+            "comment": "Deep link to fundraiser campaigns"
+          },
+          {
+            "/": "/wallet",
+            "comment": "Deep link to wallet view"
+          },
+          {
+            "/": "/invite/*",
+            "comment": "Social invite links"
+          },
+          {
+            "/": "/dao/*",
+            "comment": "DAO governance proposal links"
+          },
+          {
+            "/": "/tx/*",
+            "comment": "Transaction detail links"
+          }
+        ]
+      }
+    ]
+  },
+  "appclips": {
+    "apps": [
+      "TEAMID.com.opnmatrx.mtrx.Clip"
+    ]
+  },
+  "activitycontinuation": {
+    "apps": [
+      "TEAMID.com.opnmatrx.mtrx"
+    ]
+  }
+}

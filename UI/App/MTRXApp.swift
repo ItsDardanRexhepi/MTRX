@@ -1,7 +1,7 @@
 // MTRXApp.swift
 // MTRX
 //
-// App entry point with WindowGroup, scene phases, and app delegate adapter.
+// App entry point — launch screen, authentication gate, five-tab navigation.
 
 import SwiftUI
 
@@ -31,6 +31,7 @@ struct MTRXApp: App {
                 .environmentObject(appState)
                 .environmentObject(walletManager)
                 .environmentObject(trinityEngine)
+                .preferredColorScheme(.dark)
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }
@@ -81,16 +82,30 @@ struct MTRXApp: App {
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
+    @State private var showLaunch = true
 
     var body: some View {
-        Group {
-            if appState.isAuthenticated {
-                MainTabView()
+        ZStack {
+            if showLaunch {
+                LaunchView {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        showLaunch = false
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(10)
             } else {
-                OnboardingView()
+                Group {
+                    if appState.isAuthenticated {
+                        MainTabView()
+                    } else {
+                        OnboardingView()
+                    }
+                }
+                .transition(.opacity)
+                .animation(Motion.springDefault, value: appState.isAuthenticated)
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: appState.isAuthenticated)
     }
 }
 
@@ -102,12 +117,6 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            AgentConversationView(userID: appState.currentUserID)
-                .tabItem {
-                    Label("Home", systemImage: Symbols.home)
-                }
-                .tag(AppTab.home)
-
             DiscoverView()
                 .tabItem {
                     Label("Discover", systemImage: Symbols.discover)
@@ -119,6 +128,12 @@ struct MainTabView: View {
                     Label("Build", systemImage: Symbols.build)
                 }
                 .tag(AppTab.build)
+
+            AgentConversationView(userID: appState.currentUserID)
+                .tabItem {
+                    Label("Home", systemImage: Symbols.home)
+                }
+                .tag(AppTab.home)
 
             SocialView()
                 .tabItem {
@@ -132,7 +147,10 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.account)
         }
-        .tint(Color.accentPrimary)
+        .tint(Color.tabSelected)
+        .onChange(of: selectedTab) { _, _ in
+            MtrxHaptics.selection()
+        }
     }
 }
 
@@ -145,27 +163,58 @@ enum NavigationDestination: Hashable {
     case wallet
     case settings
     case governance
+    case tokenDetail(symbol: String)
+    case nftDetail(id: String)
+    case transactionDetail(hash: String)
+    case messaging
+    case notifications
+    case search
+    case subscription
+    case privacy
+    case staking
+    case dao
+    case fundraiserList
+    case insurance
 }
 
 // MARK: - App Tab
 
 enum AppTab: Int, CaseIterable {
-    case home
     case discover
     case build
+    case home
     case social
     case account
 }
 
-// MARK: - Placeholder State Objects
+// MARK: - App State
 
 class AppState: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var currentDestination: NavigationDestination?
     @Published var currentUserID: String = ""
+    @Published var displayName: String = ""
+    @Published var walletAddress: String = ""
+    @Published var joinDate: Date = Date()
+    @Published var notificationCount: Int = 0
 
     func navigate(to destination: NavigationDestination) {
         currentDestination = destination
+    }
+
+    func signIn(userID: String, displayName: String, walletAddress: String) {
+        self.currentUserID = userID
+        self.displayName = displayName
+        self.walletAddress = walletAddress
+        self.joinDate = Date()
+        self.isAuthenticated = true
+    }
+
+    func signOut() {
+        isAuthenticated = false
+        currentUserID = ""
+        displayName = ""
+        walletAddress = ""
     }
 
     func refreshOnForeground() { }
@@ -173,17 +222,131 @@ class AppState: ObservableObject {
     func scheduleBackgroundTasks() { }
 }
 
+// MARK: - Wallet Manager
+
 class WalletManager: ObservableObject {
     @Published var isConnected: Bool = false
     @Published var balance: Decimal = 0
+    @Published var tokens: [TokenBalance] = TokenBalance.sampleData
+    @Published var nfts: [NFTItem] = NFTItem.sampleData
+    @Published var transactions: [TransactionItem] = TransactionItem.sampleData
+    @Published var defiPositions: [DeFiPositionItem] = DeFiPositionItem.sampleData
+
+    var totalPortfolioValue: Double {
+        tokens.reduce(0) { $0 + $1.valueUSD }
+    }
+
+    var portfolioChange24h: Double { 2.34 }
+    var portfolioChangeAbsolute: Double { 127.45 }
 
     func reconnectIfNeeded() { }
     func persistState() { }
 }
 
+// MARK: - Trinity Engine
+
 class TrinityEngine: ObservableObject {
     @Published var isProcessing: Bool = false
 }
 
+// MARK: - Sample Data Models
+
+struct TokenBalance: Identifiable {
+    let id = UUID()
+    let symbol: String
+    let name: String
+    let balance: Double
+    let priceUSD: Double
+    let change24h: Double
+    let iconColor: Color
+
+    var valueUSD: Double { balance * priceUSD }
+
+    static let sampleData: [TokenBalance] = [
+        TokenBalance(symbol: "ETH", name: "Ethereum", balance: 2.4531, priceUSD: 3245.67, change24h: 3.12, iconColor: .blue),
+        TokenBalance(symbol: "USDC", name: "USD Coin", balance: 1250.00, priceUSD: 1.00, change24h: 0.01, iconColor: .green),
+        TokenBalance(symbol: "MTRX", name: "Matrix Token", balance: 50000, priceUSD: 0.0234, change24h: 12.45, iconColor: .accentPrimary),
+        TokenBalance(symbol: "WBTC", name: "Wrapped Bitcoin", balance: 0.0521, priceUSD: 67890.12, change24h: -1.23, iconColor: .orange),
+        TokenBalance(symbol: "LINK", name: "Chainlink", balance: 125.5, priceUSD: 14.56, change24h: 5.67, iconColor: .blue),
+        TokenBalance(symbol: "UNI", name: "Uniswap", balance: 89.2, priceUSD: 7.82, change24h: -0.45, iconColor: .pink),
+    ]
+}
+
+struct NFTItem: Identifiable {
+    let id = UUID()
+    let name: String
+    let collection: String
+    let floorPrice: Double
+    let rarity: String
+    let gradientColors: [Color]
+
+    static let sampleData: [NFTItem] = [
+        NFTItem(name: "Genesis Pass #0042", collection: "MTRX Genesis", floorPrice: 0.85, rarity: "Legendary", gradientColors: [.accentPrimary, .blue]),
+        NFTItem(name: "Protocol Badge #128", collection: "MTRX Badges", floorPrice: 0.12, rarity: "Rare", gradientColors: [.purple, .pink]),
+        NFTItem(name: "DAO Founder #7", collection: "Governance NFTs", floorPrice: 2.1, rarity: "Epic", gradientColors: [.orange, .red]),
+    ]
+}
+
+struct TransactionItem: Identifiable {
+    let id = UUID()
+    let type: TxType
+    let title: String
+    let subtitle: String
+    let amount: String
+    let timestamp: Date
+    let status: TxStatus
+
+    enum TxType { case send, receive, swap, stake, contract, approve }
+    enum TxStatus { case confirmed, pending, failed }
+
+    var icon: String {
+        switch type {
+        case .send: return Symbols.send
+        case .receive: return Symbols.receive
+        case .swap: return Symbols.swap
+        case .stake: return Symbols.stake
+        case .contract: return Symbols.contract
+        case .approve: return Symbols.verified
+        }
+    }
+
+    var iconColor: Color {
+        switch type {
+        case .send: return .statusError
+        case .receive: return .statusSuccess
+        case .swap: return .statusInfo
+        case .stake: return .accentPrimary
+        case .contract: return .accentTertiary
+        case .approve: return .statusSuccess
+        }
+    }
+
+    static let sampleData: [TransactionItem] = [
+        TransactionItem(type: .receive, title: "Received ETH", subtitle: "From 0x1a2b...3c4d", amount: "+0.5 ETH", timestamp: Date().addingTimeInterval(-3600), status: .confirmed),
+        TransactionItem(type: .swap, title: "Swap ETH → USDC", subtitle: "Via Uniswap V3", amount: "1,250 USDC", timestamp: Date().addingTimeInterval(-7200), status: .confirmed),
+        TransactionItem(type: .stake, title: "Staked MTRX", subtitle: "90-day lock", amount: "10,000 MTRX", timestamp: Date().addingTimeInterval(-86400), status: .confirmed),
+        TransactionItem(type: .contract, title: "Deploy Contract", subtitle: "Escrow Agreement", amount: "-0.003 ETH", timestamp: Date().addingTimeInterval(-172800), status: .confirmed),
+        TransactionItem(type: .send, title: "Sent USDC", subtitle: "To 0x9f8e...7d6c", amount: "-500 USDC", timestamp: Date().addingTimeInterval(-259200), status: .confirmed),
+        TransactionItem(type: .approve, title: "Token Approval", subtitle: "USDC on Uniswap", amount: "Unlimited", timestamp: Date().addingTimeInterval(-345600), status: .confirmed),
+    ]
+}
+
+struct DeFiPositionItem: Identifiable {
+    let id = UUID()
+    let protocol_: String
+    let type: String
+    let value: Double
+    let apy: Double
+    let healthFactor: Double?
+    let icon: String
+
+    static let sampleData: [DeFiPositionItem] = [
+        DeFiPositionItem(protocol_: "Aave V3", type: "Lending", value: 2500.00, apy: 4.2, healthFactor: 2.8, icon: "building.columns"),
+        DeFiPositionItem(protocol_: "Uniswap V3", type: "Liquidity", value: 1800.50, apy: 12.5, healthFactor: nil, icon: "arrow.left.arrow.right"),
+        DeFiPositionItem(protocol_: "MTRX Staking", type: "Staking", value: 1170.00, apy: 8.7, healthFactor: nil, icon: "lock.circle"),
+    ]
+}
+
 // MARK: - Placeholder Views
+
 // OnboardingView is defined in UI/Views/Onboarding/OnboardingView.swift

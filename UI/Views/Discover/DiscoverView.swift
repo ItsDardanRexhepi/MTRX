@@ -1,7 +1,8 @@
 // DiscoverView.swift
 // MTRX
 //
-// Marketplace partner network and fundraisers discovery hub.
+// Marketplace browsing and discovery hub — featured items, trending listings,
+// active fundraisers, and the partner network.
 
 import SwiftUI
 
@@ -9,6 +10,7 @@ import SwiftUI
 
 @MainActor
 final class DiscoverViewModel: ObservableObject {
+
     // MARK: - Published State
 
     @Published var featuredItems: [FeaturedItem] = []
@@ -19,25 +21,46 @@ final class DiscoverViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var searchText: String = ""
     @Published var selectedCategory: DiscoverCategory = .all
-
-    private let api = MTRXAPIClient.shared
+    @Published var currentFeaturedIndex: Int = 0
+    @Published var contentAppeared: Bool = false
 
     // MARK: - Computed Filters
+
+    var filteredFeaturedItems: [FeaturedItem] {
+        var result = featuredItems
+        if !searchText.isEmpty {
+            result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) || $0.subtitle.localizedCaseInsensitiveContains(searchText) }
+        }
+        return result
+    }
 
     var filteredListings: [MarketplaceListing] {
         var result = trendingListings
         if selectedCategory != .all {
-            result = result.filter { $0.category == selectedCategory.rawValue }
+            result = result.filter { $0.category.localizedCaseInsensitiveContains(selectedCategory.rawValue) }
         }
         if !searchText.isEmpty {
-            result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.category.localizedCaseInsensitiveContains(searchText) }
         }
         return result
     }
 
     var filteredFundraisers: [FundraiserItem] {
-        if searchText.isEmpty { return activeFundraisers }
-        return activeFundraisers.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        var result = activeFundraisers
+        if selectedCategory != .all && selectedCategory != .fundraisers {
+            return []
+        }
+        if !searchText.isEmpty {
+            result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        }
+        return result
+    }
+
+    var filteredPartners: [PartnerItem] {
+        if !searchText.isEmpty {
+            return partners.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        }
+        return partners
     }
 
     // MARK: - Load Data
@@ -47,111 +70,56 @@ final class DiscoverViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        async let listingsTask: () = loadListings()
-        async let fundraisersTask: () = loadFundraisers()
-        async let partnersTask: () = loadPartners()
+        // Simulated network delay
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
 
-        _ = await (listingsTask, fundraisersTask, partnersTask)
-        isLoading = false
-    }
-
-    func loadListings() async {
-        do {
-            let raw: [String: AnyCodableValue] = try await api.listMarketplaceListings()
-            let items = parseListings(raw)
-            trendingListings = items
-
-            // Derive featured items from top listings
-            featuredItems = items.prefix(3).enumerated().map { index, listing in
-                let badges = ["Trending", "New", "Hot"]
-                return FeaturedItem(
-                    title: listing.name,
-                    subtitle: "\(listing.category) - \(listing.price)",
-                    badge: badges[index % badges.count]
-                )
-            }
-            if featuredItems.isEmpty {
-                featuredItems = FeaturedItem.sampleData
-            }
-        } catch {
-            if trendingListings.isEmpty {
-                trendingListings = MarketplaceListing.sampleData
-                featuredItems = FeaturedItem.sampleData
-            }
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    func loadFundraisers() async {
-        do {
-            let raw: [String: AnyCodableValue] = try await api.listCampaigns()
-            let items = parseFundraisers(raw)
-            activeFundraisers = items
-            if activeFundraisers.isEmpty {
-                activeFundraisers = FundraiserItem.sampleData
-            }
-        } catch {
-            if activeFundraisers.isEmpty {
-                activeFundraisers = FundraiserItem.sampleData
-            }
-        }
-    }
-
-    func loadPartners() async {
-        // Partners are currently static; populate from local data
+        featuredItems = FeaturedItem.sampleData
+        trendingListings = MarketplaceListing.sampleData
+        activeFundraisers = FundraiserItem.sampleData
         partners = PartnerItem.sampleData
-    }
 
-    // MARK: - Parsers
+        isLoading = false
 
-    private func parseListings(_ raw: [String: AnyCodableValue]) -> [MarketplaceListing] {
-        guard case .array(let items) = raw["data"] ?? raw["listings"] ?? .null else {
-            return []
-        }
-        return items.compactMap { item -> MarketplaceListing? in
-            guard case .dictionary(let dict) = item else { return nil }
-            let name = dict["name"]?.stringValue ?? dict["title"]?.stringValue ?? "Unknown"
-            let category = dict["category"]?.stringValue ?? dict["asset_type"]?.stringValue ?? "DeFi"
-            let priceVal = dict["price"]?.doubleValue ?? dict["price"]?.intValue.map { Double($0) } ?? 0
-            let price = priceVal > 0 ? "$\(String(format: "%.2f", priceVal))" : "$0.00"
-            let volumeVal = dict["volume"]?.doubleValue ?? 0
-            let volume = volumeVal > 0 ? "\(String(format: "%.1f", volumeVal / 1000))K vol" : "0 vol"
-            let icon = iconForCategory(category)
-            return MarketplaceListing(name: name, category: category, price: price, volume: volume, icon: icon)
+        withAnimation(Motion.springDefault) {
+            contentAppeared = true
         }
     }
 
-    private func parseFundraisers(_ raw: [String: AnyCodableValue]) -> [FundraiserItem] {
-        guard case .array(let items) = raw["data"] ?? raw["campaigns"] ?? .null else {
-            return []
-        }
-        return items.compactMap { item -> FundraiserItem? in
-            guard case .dictionary(let dict) = item else { return nil }
-            let title = dict["title"]?.stringValue ?? "Campaign"
-            let desc = dict["description"]?.stringValue ?? ""
-            let goalAmount = dict["goal_amount"]?.doubleValue ?? 100_000
-            let raisedAmount = dict["raised_amount"]?.doubleValue ?? dict["current_amount"]?.doubleValue ?? 0
-            let progress = goalAmount > 0 ? min(raisedAmount / goalAmount, 1.0) : 0
-            let daysLeft = dict["days_remaining"]?.intValue ?? dict["duration_days"]?.intValue ?? 30
-            let verified = dict["is_verified"]?.boolValue ?? false
-            return FundraiserItem(
-                title: title,
-                description_: desc,
-                progress: progress,
-                daysLeft: "\(daysLeft) days left",
-                isVerified: verified
-            )
-        }
+    func refresh() async {
+        contentAppeared = false
+        await loadAll()
     }
 
-    private func iconForCategory(_ category: String) -> String {
-        switch category.lowercased() {
-        case "defi": return Symbols.chartLine
-        case "nft", "nfts": return Symbols.nft
-        case "rwa": return Symbols.property
-        case "insurance": return Symbols.insurance
-        case "dao", "daos": return Symbols.dao
-        default: return Symbols.globe
+    // MARK: - Auto-advance Featured
+
+    func advanceFeatured() {
+        guard !filteredFeaturedItems.isEmpty else { return }
+        withAnimation(Motion.springGentle) {
+            currentFeaturedIndex = (currentFeaturedIndex + 1) % filteredFeaturedItems.count
+        }
+    }
+}
+
+// MARK: - Discover Category
+
+enum DiscoverCategory: String, CaseIterable {
+    case all = "All"
+    case marketplace = "Marketplace"
+    case fundraisers = "Fundraisers"
+    case daos = "DAOs"
+    case defi = "DeFi"
+    case insurance = "Insurance"
+    case gaming = "Gaming"
+
+    var icon: String {
+        switch self {
+        case .all: return Symbols.globe
+        case .marketplace: return Symbols.marketplace
+        case .fundraisers: return Symbols.fundraiser
+        case .daos: return Symbols.dao
+        case .defi: return Symbols.chartLine
+        case .insurance: return Symbols.insurance
+        case .gaming: return "gamecontroller.fill"
         }
     }
 }
@@ -160,145 +128,137 @@ final class DiscoverViewModel: ObservableObject {
 
 struct DiscoverView: View {
     @StateObject private var viewModel = DiscoverViewModel()
-
-    // MARK: - Body
+    @State private var autoAdvanceTimer: Timer?
 
     var body: some View {
         NavigationStack {
-            Group {
-                if viewModel.isLoading && viewModel.trendingListings.isEmpty {
-                    loadingState
-                } else if let error = viewModel.errorMessage, viewModel.trendingListings.isEmpty {
-                    errorState(error)
-                } else {
-                    contentView
+            ZStack {
+                MtrxGradientBackground(style: .primary)
+
+                Group {
+                    if viewModel.isLoading && viewModel.trendingListings.isEmpty {
+                        MtrxLoadingView(rows: 8)
+                    } else {
+                        contentView
+                    }
                 }
             }
             .navigationTitle("Discover")
-            .searchable(text: $viewModel.searchText, prompt: "Search marketplace, fundraisers...")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        // Open filters
+                        MtrxHaptics.impact(.light)
                     } label: {
                         Image(systemName: Symbols.filter)
+                            .foregroundStyle(Color.accentPrimary)
                     }
                 }
             }
         }
         .task {
             await viewModel.loadAll()
+            startAutoAdvance()
         }
-    }
-
-    // MARK: - Loading State
-
-    private var loadingState: some View {
-        VStack(spacing: Spacing.lg) {
-            ProgressView()
-                .controlSize(.large)
-            Text("Loading discoveries...")
-                .font(.mtrxSubheadline)
-                .foregroundStyle(Color.labelSecondary)
+        .onDisappear {
+            stopAutoAdvance()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Error State
-
-    private func errorState(_ message: String) -> some View {
-        VStack(spacing: Spacing.md) {
-            Image(systemName: Symbols.alertWarning)
-                .font(.system(size: 48))
-                .foregroundStyle(Color.statusWarning)
-
-            Text("Something went wrong")
-                .font(.mtrxTitle3)
-
-            Text(message)
-                .font(.mtrxCaption1)
-                .foregroundStyle(Color.labelSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Spacing.lg)
-
-            Button {
-                Task { await viewModel.loadAll() }
-            } label: {
-                Label("Retry", systemImage: Symbols.refresh)
-                    .font(.mtrxHeadline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, Spacing.lg)
-                    .frame(height: Spacing.Size.buttonHeight)
-                    .background(Color.accentPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Content View
 
     private var contentView: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             LazyVStack(spacing: Spacing.sectionGap) {
-                categoryFilter
-                featuredCarousel
+                searchBar
+                    .mtrxStaggeredAppearance(index: 0, isVisible: viewModel.contentAppeared)
+
+                categoryChips
+                    .mtrxStaggeredAppearance(index: 1, isVisible: viewModel.contentAppeared)
+
+                featuredSection
+                    .mtrxStaggeredAppearance(index: 2, isVisible: viewModel.contentAppeared)
+
                 trendingSection
+                    .mtrxStaggeredAppearance(index: 3, isVisible: viewModel.contentAppeared)
+
                 fundraiserSection
-                partnersSection
+                    .mtrxStaggeredAppearance(index: 4, isVisible: viewModel.contentAppeared)
+
+                partnerSection
+                    .mtrxStaggeredAppearance(index: 5, isVisible: viewModel.contentAppeared)
+
+                // Bottom padding for tab bar
+                Spacer().frame(height: Spacing.xxl)
             }
-            .padding(.vertical, Spacing.contentPadding)
+            .padding(.top, Spacing.sm)
         }
         .refreshable {
-            await viewModel.loadAll()
+            await viewModel.refresh()
         }
     }
 
-    // MARK: - Category Filter
+    // MARK: - Search Bar
 
-    private var categoryFilter: some View {
+    private var searchBar: some View {
+        MtrxSearchBar(text: $viewModel.searchText, placeholder: "Search marketplace, fundraisers...")
+            .padding(.horizontal, Spacing.contentPadding)
+    }
+
+    // MARK: - Category Chips
+
+    private var categoryChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Spacing.sm) {
                 ForEach(DiscoverCategory.allCases, id: \.self) { category in
-                    Button {
+                    MtrxChip(
+                        label: category.rawValue,
+                        icon: category.icon,
+                        isSelected: viewModel.selectedCategory == category
+                    ) {
                         withAnimation(Motion.springSnappy) {
                             viewModel.selectedCategory = category
                         }
-                    } label: {
-                        HStack(spacing: Spacing.xs) {
-                            Image(systemName: category.icon)
-                                .font(.system(size: 12))
-                            Text(category.rawValue)
-                                .font(.mtrxCaptionBold)
-                        }
-                        .padding(.horizontal, Spacing.chipHorizontal)
-                        .padding(.vertical, Spacing.chipVertical)
-                        .background(viewModel.selectedCategory == category ? Color.accentPrimary : Color.surfaceOverlay)
-                        .foregroundStyle(viewModel.selectedCategory == category ? .white : Color.labelPrimary)
-                        .clipShape(Capsule())
+                        MtrxHaptics.selection()
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, Spacing.contentPadding)
         }
     }
 
-    // MARK: - Featured Carousel
+    // MARK: - Featured Section
 
-    private var featuredCarousel: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("Featured")
-                .font(.mtrxTitle3)
+    private var featuredSection: some View {
+        let items = viewModel.filteredFeaturedItems
+        return VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
+            MtrxSectionHeader(title: "Featured")
                 .padding(.horizontal, Spacing.contentPadding)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.md) {
-                    ForEach(viewModel.featuredItems) { item in
-                        FeaturedCard(item: item)
+            if items.isEmpty {
+                EmptyView()
+            } else {
+                TabView(selection: $viewModel.currentFeaturedIndex) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        FeaturedCardView(item: item)
+                            .padding(.horizontal, Spacing.contentPadding)
+                            .tag(index)
                     }
                 }
-                .padding(.horizontal, Spacing.contentPadding)
+                .tabViewStyle(.page(indexDisplayMode: .automatic))
+                .frame(height: 280)
+
+                // Page dots
+                HStack(spacing: 6) {
+                    ForEach(0..<items.count, id: \.self) { index in
+                        Circle()
+                            .fill(index == viewModel.currentFeaturedIndex ? Color.accentPrimary : Color.labelQuaternary)
+                            .frame(width: index == viewModel.currentFeaturedIndex ? 8 : 6, height: index == viewModel.currentFeaturedIndex ? 8 : 6)
+                            .animation(Motion.springSnappy, value: viewModel.currentFeaturedIndex)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, Spacing.xs)
             }
         }
     }
@@ -306,58 +266,28 @@ struct DiscoverView: View {
     // MARK: - Trending Section
 
     private var trendingSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                Label("Trending", systemImage: Symbols.trendUp)
-                    .font(.mtrxTitle3)
-                Spacer()
-                NavigationLink {
-                    MarketplaceView()
-                } label: {
-                    Text("See All")
-                        .font(.mtrxCaptionBold)
-                        .foregroundStyle(Color.accentPrimary)
-                }
-            }
+        let listings = viewModel.filteredListings
+        return VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
+            MtrxSectionHeader(title: "Trending", action: {
+                MtrxHaptics.impact(.light)
+            })
             .padding(.horizontal, Spacing.contentPadding)
 
-            ForEach(viewModel.filteredListings) { listing in
-                NavigationLink {
-                    MarketplaceListingDetail(listing: listing)
-                } label: {
-                    MarketplaceListingRow(listing: listing)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, Spacing.contentPadding)
-            }
-        }
-    }
-
-    // MARK: - Fundraiser Section
-
-    private var fundraiserSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                Label("Active Fundraisers", systemImage: Symbols.fundraiser)
-                    .font(.mtrxTitle3)
-                Spacer()
-                NavigationLink {
-                    FundraiserView()
-                } label: {
-                    Text("See All")
-                        .font(.mtrxCaptionBold)
-                        .foregroundStyle(Color.accentPrimary)
-                }
-            }
-            .padding(.horizontal, Spacing.contentPadding)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.md) {
-                    ForEach(viewModel.filteredFundraisers) { fundraiser in
+            if listings.isEmpty {
+                MtrxEmptyState(
+                    icon: Symbols.search,
+                    title: "No Results",
+                    message: "Try adjusting your search or category filter."
+                )
+                .frame(height: 180)
+            } else {
+                LazyVStack(spacing: Spacing.xs) {
+                    ForEach(Array(listings.enumerated()), id: \.element.id) { index, listing in
                         NavigationLink {
-                            FundraiserView()
+                            MarketplaceListingDetail(listing: listing)
                         } label: {
-                            FundraiserCard(fundraiser: fundraiser)
+                            TrendingListingRow(listing: listing, rank: index + 1)
+                                .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
                         }
                         .buttonStyle(.plain)
                     }
@@ -367,197 +297,352 @@ struct DiscoverView: View {
         }
     }
 
-    // MARK: - Partners Section
+    // MARK: - Fundraiser Section
 
-    private var partnersSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("Partner Network")
-                .font(.mtrxTitle3)
-                .padding(.horizontal, Spacing.contentPadding)
+    private var fundraiserSection: some View {
+        let fundraisers = viewModel.filteredFundraisers
+        return VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
+            MtrxSectionHeader(title: "Active Fundraisers", action: {
+                MtrxHaptics.impact(.light)
+            })
+            .padding(.horizontal, Spacing.contentPadding)
 
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: Spacing.md) {
-                ForEach(viewModel.partners) { partner in
-                    PartnerCell(partner: partner)
+            if !fundraisers.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Spacing.md) {
+                        ForEach(fundraisers) { fundraiser in
+                            FundraiserCardView(fundraiser: fundraiser)
+                        }
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
                 }
             }
-            .padding(.horizontal, Spacing.contentPadding)
         }
+    }
+
+    // MARK: - Partner Section
+
+    private var partnerSection: some View {
+        let partners = viewModel.filteredPartners
+        return VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
+            MtrxSectionHeader(title: "Partner Network")
+                .padding(.horizontal, Spacing.contentPadding)
+
+            if !partners.isEmpty {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.md) {
+                    ForEach(Array(partners.enumerated()), id: \.element.id) { index, partner in
+                        PartnerCardView(partner: partner)
+                            .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
+                    }
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+            }
+        }
+    }
+
+    // MARK: - Timer
+
+    private func startAutoAdvance() {
+        autoAdvanceTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
+            Task { @MainActor in
+                viewModel.advanceFeatured()
+            }
+        }
+    }
+
+    private func stopAutoAdvance() {
+        autoAdvanceTimer?.invalidate()
+        autoAdvanceTimer = nil
     }
 }
 
-// MARK: - Discover Category
+// MARK: - Featured Card View
 
-enum DiscoverCategory: String, CaseIterable {
-    case all = "All"
-    case defi = "DeFi"
-    case nft = "NFTs"
-    case rwa = "RWA"
-    case dao = "DAOs"
-    case insurance = "Insurance"
-
-    var icon: String {
-        switch self {
-        case .all: return Symbols.globe
-        case .defi: return Symbols.chartLine
-        case .nft: return Symbols.nft
-        case .rwa: return Symbols.property
-        case .dao: return Symbols.dao
-        case .insurance: return Symbols.insurance
-        }
-    }
-}
-
-// MARK: - Featured Card
-
-struct FeaturedCard: View {
+struct FeaturedCardView: View {
     let item: FeaturedItem
+    @State private var parallaxOffset: CGFloat = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
-                .fill(LinearGradient.mtrxPrimary)
-                .frame(width: 280, height: 160)
-                .overlay(
-                    VStack(alignment: .leading, spacing: Spacing.sm) {
-                        Text(item.badge)
-                            .font(.mtrxCaptionBold)
-                            .padding(.horizontal, Spacing.sm)
-                            .padding(.vertical, Spacing.xs)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Capsule())
+        GeometryReader { geometry in
+            let midX = geometry.frame(in: .global).midX
+            let screenWidth = UIScreen.main.bounds.width
+            let offset = (midX - screenWidth / 2) / screenWidth
 
-                        Spacer()
+            ZStack(alignment: .bottomLeading) {
+                // Gradient background
+                RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous)
+                    .fill(item.gradient)
+                    .overlay(
+                        // Subtle pattern overlay
+                        RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.08), .clear, .black.opacity(0.2)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    )
 
+                // Parallax decorative circle
+                Circle()
+                    .fill(.white.opacity(0.06))
+                    .frame(width: 200, height: 200)
+                    .offset(x: 140 + offset * 30, y: -60)
+
+                Circle()
+                    .fill(.white.opacity(0.04))
+                    .frame(width: 120, height: 120)
+                    .offset(x: -40 + offset * 20, y: -100)
+
+                // Content
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    // Category badge
+                    MtrxBadge(text: item.badge, style: .accent)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+
+                    Spacer()
+
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
                         Text(item.title)
-                            .font(.mtrxHeadline)
+                            .font(.mtrxTitle2)
                             .foregroundStyle(.white)
+                            .lineLimit(2)
 
                         Text(item.subtitle)
-                            .font(.mtrxCaption1)
+                            .font(.mtrxSubheadline)
                             .foregroundStyle(.white.opacity(0.8))
+                            .lineLimit(2)
                     }
-                    .padding(Spacing.md)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                )
+
+                    Button {
+                        MtrxHaptics.impact(.medium)
+                    } label: {
+                        Text("Explore")
+                    }
+                    .buttonStyle(MtrxButtonStyle(variant: .accent, size: .compact))
+                }
+                .padding(Spacing.lg)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous))
+            .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.xl)
+            .shadow(color: .black.opacity(0.2), radius: 16, y: 8)
         }
     }
 }
 
-// MARK: - Marketplace Listing Row
+// MARK: - Trending Listing Row
 
-struct MarketplaceListingRow: View {
+struct TrendingListingRow: View {
     let listing: MarketplaceListing
+    let rank: Int
 
     var body: some View {
-        HStack(spacing: Spacing.sm) {
-            RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous)
-                .fill(Color.accentSecondary.opacity(0.2))
-                .frame(width: 48, height: 48)
-                .overlay(
-                    Image(systemName: listing.icon)
-                        .foregroundStyle(Color.accentSecondary)
-                )
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(listing.name)
-                    .font(.mtrxBodyBold)
-                    .foregroundStyle(Color.labelPrimary)
-                Text(listing.category)
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelSecondary)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(listing.price)
-                    .font(.mtrxBodyTabular)
-                    .foregroundStyle(Color.labelPrimary)
-                Text(listing.volume)
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelSecondary)
-            }
-        }
-        .padding(.vertical, Spacing.xs)
-    }
-}
-
-// MARK: - Fundraiser Card
-
-struct FundraiserCard: View {
-    let fundraiser: FundraiserItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                Text(fundraiser.title)
-                    .font(.mtrxHeadline)
-                    .lineLimit(1)
-                Spacer()
-                Image(systemName: Symbols.verified)
-                    .foregroundStyle(Color.accentPrimary)
-                    .opacity(fundraiser.isVerified ? 1 : 0)
-            }
-
-            Text(fundraiser.description_)
-                .font(.mtrxCaption1)
-                .foregroundStyle(Color.labelSecondary)
-                .lineLimit(2)
-
-            ProgressView(value: fundraiser.progress)
-                .tint(Color.accentPrimary)
-
-            HStack {
-                Text("\(Int(fundraiser.progress * 100))% funded")
+        MtrxCard(style: .standard) {
+            HStack(spacing: Spacing.ms) {
+                // Rank number
+                Text("\(rank)")
                     .font(.mtrxCaptionBold)
-                    .foregroundStyle(Color.accentPrimary)
-                Spacer()
-                Text(fundraiser.daysLeft)
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelSecondary)
-            }
-        }
-        .padding(Spacing.cardPadding)
-        .frame(width: 260)
-        .background(Color.surfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
-    }
-}
+                    .foregroundStyle(Color.labelTertiary)
+                    .frame(width: 20)
 
-// MARK: - Partner Cell
-
-struct PartnerCell: View {
-    let partner: PartnerItem
-
-    var body: some View {
-        VStack(spacing: Spacing.sm) {
-            Circle()
-                .fill(Color.accentPrimary.opacity(0.1))
-                .frame(width: Spacing.Size.avatarLarge, height: Spacing.Size.avatarLarge)
-                .overlay(
-                    Image(systemName: partner.icon)
-                        .font(.system(size: 24))
-                        .foregroundStyle(Color.accentPrimary)
+                // Token avatar
+                MtrxAvatar(
+                    symbol: listing.icon,
+                    color: listing.avatarColor,
+                    size: Spacing.Size.avatarMedium
                 )
 
-            Text(partner.name)
-                .font(.mtrxCaptionBold)
-                .lineLimit(1)
+                // Name + category
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(listing.name)
+                        .font(.mtrxHeadline)
+                        .foregroundStyle(Color.labelPrimary)
+                        .lineLimit(1)
+
+                    MtrxBadge(text: listing.category, style: .neutral)
+                }
+
+                Spacer()
+
+                // Price + change
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(listing.price)
+                        .font(.mtrxMono)
+                        .foregroundStyle(Color.labelPrimary)
+
+                    HStack(spacing: 3) {
+                        Image(systemName: listing.change24h >= 0 ? Symbols.trendUp : Symbols.trendDown)
+                            .font(.system(size: 10, weight: .bold))
+                        Text(String(format: "%.1f%%", abs(listing.change24h)))
+                            .font(.mtrxCaptionBold)
+                    }
+                    .foregroundStyle(listing.change24h >= 0 ? Color.priceUp : Color.priceDown)
+                }
+            }
         }
     }
 }
 
-// MARK: - Placeholder Detail
+// MARK: - Fundraiser Card View
+
+struct FundraiserCardView: View {
+    let fundraiser: FundraiserItem
+    @State private var isPressed: Bool = false
+
+    var body: some View {
+        MtrxCard(style: .glass) {
+            VStack(alignment: .leading, spacing: Spacing.ms) {
+                // Title row
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(fundraiser.title)
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.labelPrimary)
+                            .lineLimit(1)
+
+                        Text(fundraiser.description_)
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer()
+
+                    MtrxProgressRing(
+                        progress: fundraiser.progress,
+                        size: 50,
+                        lineWidth: 5,
+                        color: fundraiser.progress >= 0.75 ? .statusSuccess : .accentPrimary
+                    )
+                }
+
+                // Raised / Goal
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Raised")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelTertiary)
+                        Text(fundraiser.raisedFormatted)
+                            .font(.mtrxMonoSmall)
+                            .foregroundStyle(Color.accentPrimary)
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Goal")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelTertiary)
+                        Text(fundraiser.goalFormatted)
+                            .font(.mtrxMonoSmall)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+                }
+
+                // Days left + Back button
+                HStack {
+                    HStack(spacing: Spacing.xs) {
+                        Image(systemName: Symbols.clock)
+                            .font(.system(size: 12))
+                        Text(fundraiser.daysLeft)
+                            .font(.mtrxCaptionBold)
+                    }
+                    .foregroundStyle(Color.labelSecondary)
+
+                    Spacer()
+
+                    Button {
+                        MtrxHaptics.impact(.medium)
+                    } label: {
+                        Text("Back")
+                    }
+                    .buttonStyle(MtrxButtonStyle(variant: .primary, size: .compact))
+                }
+            }
+        }
+        .frame(width: 280)
+        .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.lg)
+    }
+}
+
+// MARK: - Partner Card View
+
+struct PartnerCardView: View {
+    let partner: PartnerItem
+    @State private var isPressed: Bool = false
+
+    var body: some View {
+        MtrxCard(style: .glass) {
+            VStack(spacing: Spacing.ms) {
+                // Logo
+                ZStack {
+                    Circle()
+                        .fill(partner.brandColor.opacity(0.12))
+                        .frame(width: 52, height: 52)
+
+                    Image(systemName: partner.icon)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(partner.brandColor)
+                }
+
+                // Name
+                Text(partner.name)
+                    .font(.mtrxHeadline)
+                    .foregroundStyle(Color.labelPrimary)
+                    .lineLimit(1)
+
+                Text(partner.category)
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelSecondary)
+                    .lineLimit(1)
+
+                // Verified badge
+                if partner.isVerified {
+                    HStack(spacing: Spacing.xs) {
+                        Image(systemName: Symbols.verified)
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Verified")
+                            .font(.mtrxCaptionBold)
+                    }
+                    .foregroundStyle(Color.accentPrimary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+// MARK: - Marketplace Listing Detail (Placeholder)
 
 struct MarketplaceListingDetail: View {
     let listing: MarketplaceListing
+
     var body: some View {
-        Text(listing.name)
-            .navigationTitle(listing.name)
+        ScrollView {
+            VStack(spacing: Spacing.sectionGap) {
+                MtrxAvatar(
+                    symbol: listing.icon,
+                    color: listing.avatarColor,
+                    size: Spacing.Size.avatarXLarge
+                )
+                .padding(.top, Spacing.xl)
+
+                Text(listing.name)
+                    .font(.mtrxTitle1)
+
+                MtrxBadge(text: listing.category, style: .accent)
+
+                Text(listing.price)
+                    .font(.mtrxMonoMedium)
+                    .foregroundStyle(Color.accentPrimary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .background(MtrxGradientBackground(style: .primary))
+        .navigationTitle(listing.name)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -568,10 +653,53 @@ struct FeaturedItem: Identifiable {
     let title: String
     let subtitle: String
     let badge: String
+    let gradientColors: [Color]
+
+    var gradient: LinearGradient {
+        LinearGradient(
+            colors: gradientColors,
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
 
     static let sampleData: [FeaturedItem] = [
-        FeaturedItem(title: "Tokenized Real Estate", subtitle: "Invest in fractional property", badge: "New"),
-        FeaturedItem(title: "Weather Insurance", subtitle: "Parametric crop protection", badge: "Trending"),
+        FeaturedItem(
+            title: "Tokenized Real Estate",
+            subtitle: "Invest in fractional property ownership on-chain",
+            badge: "Featured",
+            gradientColors: [Color.accentPrimary, Color(red: 0.1, green: 0.3, blue: 0.6)]
+        ),
+        FeaturedItem(
+            title: "DeFi Yield Aggregator",
+            subtitle: "Auto-compound across 15+ protocols for max yield",
+            badge: "Trending",
+            gradientColors: [Color(red: 0.4, green: 0.2, blue: 0.8), Color(red: 0.6, green: 0.1, blue: 0.5)]
+        ),
+        FeaturedItem(
+            title: "Parametric Insurance",
+            subtitle: "Weather-indexed crop protection with instant payouts",
+            badge: "New",
+            gradientColors: [Color(red: 0.0, green: 0.5, blue: 0.4), Color(red: 0.0, green: 0.3, blue: 0.5)]
+        ),
+        FeaturedItem(
+            title: "DAO Governance Hub",
+            subtitle: "Create and manage decentralized organizations",
+            badge: "Popular",
+            gradientColors: [Color(red: 0.6, green: 0.3, blue: 0.0), Color(red: 0.4, green: 0.15, blue: 0.0)]
+        ),
+        FeaturedItem(
+            title: "Carbon Credit Exchange",
+            subtitle: "Trade verified carbon offsets transparently",
+            badge: "Impact",
+            gradientColors: [Color(red: 0.1, green: 0.5, blue: 0.2), Color(red: 0.05, green: 0.3, blue: 0.15)]
+        ),
+        FeaturedItem(
+            title: "Gaming Marketplace",
+            subtitle: "Trade in-game assets across chains seamlessly",
+            badge: "Hot",
+            gradientColors: [Color(red: 0.7, green: 0.1, blue: 0.3), Color(red: 0.5, green: 0.0, blue: 0.4)]
+        ),
     ]
 }
 
@@ -580,13 +708,20 @@ struct MarketplaceListing: Identifiable, Hashable {
     let name: String
     let category: String
     let price: String
+    let change24h: Double
     let volume: String
     let icon: String
+    let avatarColor: Color
 
     static let sampleData: [MarketplaceListing] = [
-        MarketplaceListing(name: "Nairobi Solar Farm", category: "RWA", price: "$50/token", volume: "2.4K vol", icon: Symbols.property),
-        MarketplaceListing(name: "DeFi Index Fund", category: "DeFi", price: "$1,240", volume: "12K vol", icon: Symbols.chartPie),
-        MarketplaceListing(name: "Carbon Credits", category: "RWA", price: "$12.50", volume: "8.1K vol", icon: Symbols.globe),
+        MarketplaceListing(name: "Nairobi Solar Farm", category: "Marketplace", price: "$50.00", change24h: 12.4, volume: "2.4K", icon: Symbols.property, avatarColor: .orange),
+        MarketplaceListing(name: "DeFi Index Fund", category: "DeFi", price: "$1,240.00", change24h: 3.8, volume: "12K", icon: Symbols.chartPie, avatarColor: .blue),
+        MarketplaceListing(name: "Carbon Credits", category: "Marketplace", price: "$12.50", change24h: -2.1, volume: "8.1K", icon: Symbols.globe, avatarColor: .green),
+        MarketplaceListing(name: "Yield Optimizer V2", category: "DeFi", price: "$89.99", change24h: 7.2, volume: "5.6K", icon: Symbols.chartLine, avatarColor: .purple),
+        MarketplaceListing(name: "Weather Shield", category: "Insurance", price: "$150.00", change24h: 1.5, volume: "1.2K", icon: Symbols.insurance, avatarColor: .accentPrimary),
+        MarketplaceListing(name: "Governance Token", category: "DAOs", price: "$3.42", change24h: -0.8, volume: "45K", icon: Symbols.dao, avatarColor: .accentTertiary),
+        MarketplaceListing(name: "Gaming Loot Box", category: "Gaming", price: "$25.00", change24h: 24.6, volume: "3.3K", icon: "gamecontroller.fill", avatarColor: .pink),
+        MarketplaceListing(name: "Staking Pool Alpha", category: "DeFi", price: "$500.00", change24h: -4.3, volume: "9.8K", icon: Symbols.stake, avatarColor: .statusInfo),
     ]
 }
 
@@ -595,12 +730,34 @@ struct FundraiserItem: Identifiable {
     let title: String
     let description_: String
     let progress: Double
+    let raised: Double
+    let goal: Double
     let daysLeft: String
     let isVerified: Bool
 
+    var raisedFormatted: String {
+        formatCurrency(raised)
+    }
+
+    var goalFormatted: String {
+        formatCurrency(goal)
+    }
+
+    private func formatCurrency(_ value: Double) -> String {
+        if value >= 1_000_000 {
+            return String(format: "$%.1fM", value / 1_000_000)
+        } else if value >= 1_000 {
+            return String(format: "$%.0fK", value / 1_000)
+        } else {
+            return String(format: "$%.0f", value)
+        }
+    }
+
     static let sampleData: [FundraiserItem] = [
-        FundraiserItem(title: "Community Solar", description_: "Solar panel installation for rural communities", progress: 0.72, daysLeft: "12 days left", isVerified: true),
-        FundraiserItem(title: "Water Access DAO", description_: "Clean water infrastructure in East Africa", progress: 0.45, daysLeft: "28 days left", isVerified: true),
+        FundraiserItem(title: "Community Solar", description_: "Solar panel installation for rural communities across East Africa", progress: 0.72, raised: 72_000, goal: 100_000, daysLeft: "12 days left", isVerified: true),
+        FundraiserItem(title: "Water Access DAO", description_: "Clean water infrastructure and maintenance in remote villages", progress: 0.45, raised: 225_000, goal: 500_000, daysLeft: "28 days left", isVerified: true),
+        FundraiserItem(title: "Open Protocol Fund", description_: "Building open-source DeFi tooling for emerging markets", progress: 0.88, raised: 440_000, goal: 500_000, daysLeft: "5 days left", isVerified: true),
+        FundraiserItem(title: "Digital ID Initiative", description_: "Self-sovereign identity infrastructure for underbanked populations", progress: 0.31, raised: 155_000, goal: 500_000, daysLeft: "45 days left", isVerified: false),
     ]
 }
 
@@ -608,14 +765,17 @@ struct PartnerItem: Identifiable {
     let id = UUID()
     let name: String
     let icon: String
+    let category: String
+    let brandColor: Color
+    let isVerified: Bool
 
     static let sampleData: [PartnerItem] = [
-        PartnerItem(name: "Aave", icon: Symbols.stake),
-        PartnerItem(name: "Uniswap", icon: Symbols.swap),
-        PartnerItem(name: "Chainlink", icon: Symbols.link),
-        PartnerItem(name: "XMTP", icon: Symbols.messageEncrypted),
-        PartnerItem(name: "Lido", icon: Symbols.escrow),
-        PartnerItem(name: "ENS", icon: Symbols.globe),
+        PartnerItem(name: "Aave", icon: Symbols.stake, category: "Lending", brandColor: .purple, isVerified: true),
+        PartnerItem(name: "Uniswap", icon: Symbols.swap, category: "DEX", brandColor: .pink, isVerified: true),
+        PartnerItem(name: "Chainlink", icon: Symbols.link, category: "Oracle", brandColor: .blue, isVerified: true),
+        PartnerItem(name: "XMTP", icon: Symbols.messageEncrypted, category: "Messaging", brandColor: .accentPrimary, isVerified: true),
+        PartnerItem(name: "Lido", icon: Symbols.escrow, category: "Staking", brandColor: .accentSecondary, isVerified: true),
+        PartnerItem(name: "ENS", icon: Symbols.globe, category: "Identity", brandColor: .statusInfo, isVerified: true),
     ]
 }
 

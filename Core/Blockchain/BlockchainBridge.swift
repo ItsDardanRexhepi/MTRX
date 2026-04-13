@@ -1661,6 +1661,10 @@ final class BlockchainBridge {
     }
 
     /// POST JSON to the MTRX API and return the parsed response.
+    ///
+    /// Uses the shared API client's auth token and the standard MTRX
+    /// headers so the gateway can attribute the call to the right
+    /// session, rate-limit it correctly, and tag the metrics.
     @discardableResult
     private func postToAPI(endpoint: String, body: [String: Any]) async throws -> [String: Any] {
         let url = baseURL.appendingPathComponent(endpoint)
@@ -1668,6 +1672,16 @@ final class BlockchainBridge {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("1.0", forHTTPHeaderField: "X-MTRX-API-Version")
+        request.setValue("ios", forHTTPHeaderField: "X-MTRX-Platform")
+        request.setValue("bridge", forHTTPHeaderField: "X-MTRX-Component")
+        if let token = apiClient.authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let wallet = connectedWalletAddress {
+            request.setValue(wallet, forHTTPHeaderField: "X-MTRX-Wallet")
+        }
 
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else {
             throw BlockchainBridgeError.invalidParameters(reason: "Failed to serialize request body")
@@ -1682,10 +1696,22 @@ final class BlockchainBridge {
 
         guard (200...299).contains(httpResponse.statusCode) else {
             let bodyText = String(data: data, encoding: .utf8) ?? "Unknown error"
-            if httpResponse.statusCode == 402 {
+            switch httpResponse.statusCode {
+            case 401, 403:
+                throw BlockchainBridgeError.signingFailed(reason: "Unauthorized (HTTP \(httpResponse.statusCode))")
+            case 402:
                 throw BlockchainBridgeError.insufficientFunds
+            case 408, 504:
+                throw BlockchainBridgeError.operationTimeout
+            case 409:
+                throw BlockchainBridgeError.contractError(reason: "Conflict: \(bodyText)")
+            case 429:
+                throw BlockchainBridgeError.apiRequestFailed(reason: "Rate limited — please retry in a moment")
+            case 500...599:
+                throw BlockchainBridgeError.apiRequestFailed(reason: "Server error (HTTP \(httpResponse.statusCode)): \(bodyText)")
+            default:
+                throw BlockchainBridgeError.apiRequestFailed(reason: "HTTP \(httpResponse.statusCode): \(bodyText)")
             }
-            throw BlockchainBridgeError.apiRequestFailed(reason: "HTTP \(httpResponse.statusCode): \(bodyText)")
         }
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -1707,6 +1733,15 @@ final class BlockchainBridge {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("1.0", forHTTPHeaderField: "X-MTRX-API-Version")
+        request.setValue("ios", forHTTPHeaderField: "X-MTRX-Platform")
+        request.setValue("bridge", forHTTPHeaderField: "X-MTRX-Component")
+        if let token = apiClient.authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let wallet = connectedWalletAddress {
+            request.setValue(wallet, forHTTPHeaderField: "X-MTRX-Wallet")
+        }
 
         let (data, response) = try await session.data(for: request)
 
@@ -1720,6 +1755,179 @@ final class BlockchainBridge {
             throw BlockchainBridgeError.apiRequestFailed(reason: "Invalid JSON response")
         }
 
+        return json
+    }
+
+    // MARK: - Matrix-to-0pnMatrx Session Bridge
+    //
+    // These methods implement the session-layer side of the bridge — the
+    // plumbing that sits between the iOS Matrix shell and the 0pnMatrx
+    // gateway's ``/bridge/v1/*`` endpoints. Everything above this line
+    // deals with on-chain actions (component 1–30 calls that end in a
+    // UserOperation). Everything below this line deals with session
+    // lifecycle: creating a chat session, resuming one, sending chat
+    // turns, linking the wallet to the session, and reading the
+    // dashboard snapshot the home screen needs.
+    //
+    // All the requests are built by ``MTRXPackager.shared`` so we get the
+    // standard headers and the packager's registered encoder/decoder for
+    // free. The bridge then just executes them through the shared
+    // session and returns the parsed response back to the caller.
+
+    /// The currently active bridge session id, if any. The shell stores
+    /// this in UserDefaults on first launch and restores it on subsequent
+    /// launches so the user never loses their conversation.
+    private(set) var activeSessionId: String?
+
+    /// Create a new Matrix bridge session. Returns the new session id.
+    /// Call this the first time the user launches the app, or whenever
+    /// the previous session has expired.
+    @discardableResult
+    func createBridgeSession() async throws -> String {
+        let request = try MTRXPackager.shared.packageBridgeSessionCreate(
+            walletAddress: connectedWalletAddress
+        )
+        let json = try await executeBridgeRequest(request)
+        guard let sessionId = json["sessionId"] as? String ?? json["session_id"] as? String else {
+            throw BlockchainBridgeError.apiRequestFailed(reason: "Session create response missing session id")
+        }
+        activeSessionId = sessionId
+        return sessionId
+    }
+
+    /// Resume a previously-created bridge session. Returns true if the
+    /// gateway accepted the resume, false if the session had expired and
+    /// the caller should create a new one.
+    @discardableResult
+    func resumeBridgeSession(sessionId: String) async throws -> Bool {
+        let request = try MTRXPackager.shared.packageBridgeSessionResume(sessionId: sessionId)
+        do {
+            _ = try await executeBridgeRequest(request)
+            activeSessionId = sessionId
+            return true
+        } catch BlockchainBridgeError.apiRequestFailed(let reason) where reason.contains("404") || reason.contains("410") {
+            return false
+        }
+    }
+
+    /// Send a chat turn to Trinity through the bridge. The reply is
+    /// streamed through the SSE events stream, so this call just returns
+    /// once the gateway has accepted the turn.
+    func sendBridgeChat(message: String, attachments: [String]? = nil) async throws {
+        guard let sessionId = activeSessionId else {
+            throw BlockchainBridgeError.invalidParameters(reason: "No active bridge session")
+        }
+        let request = try MTRXPackager.shared.packageBridgeChat(
+            sessionId: sessionId,
+            message: message,
+            attachments: attachments
+        )
+        _ = try await executeBridgeRequest(request)
+    }
+
+    /// Send a structured action reply (Confirm / Modify / Cancel /
+    /// custom) through the bridge.
+    func sendBridgeAction(action: String, payload: [String: Any]? = nil) async throws {
+        guard let sessionId = activeSessionId else {
+            throw BlockchainBridgeError.invalidParameters(reason: "No active bridge session")
+        }
+        // Convert the dictionary payload to AnyCodableValue for the packager.
+        let codablePayload: [String: AnyCodableValue]?
+        if let payload {
+            codablePayload = payload.mapValues { AnyCodableValue.from($0) }
+        } else {
+            codablePayload = nil
+        }
+        let request = try MTRXPackager.shared.packageBridgeAction(
+            sessionId: sessionId,
+            action: action,
+            payload: codablePayload
+        )
+        _ = try await executeBridgeRequest(request)
+    }
+
+    /// Link the currently-connected wallet to the active bridge session.
+    /// Must be called after both `connectWallet` and `createBridgeSession`
+    /// have completed.
+    func linkWalletToSession(signature: String? = nil) async throws {
+        guard let sessionId = activeSessionId else {
+            throw BlockchainBridgeError.invalidParameters(reason: "No active bridge session")
+        }
+        guard let wallet = connectedWalletAddress else {
+            throw BlockchainBridgeError.walletNotConnected
+        }
+        let request = try MTRXPackager.shared.packageBridgeWalletLink(
+            sessionId: sessionId,
+            walletAddress: wallet,
+            chainId: Int(chainId),
+            signature: signature
+        )
+        _ = try await executeBridgeRequest(request)
+    }
+
+    /// Fetch the dashboard snapshot the home screen needs. Returns the
+    /// raw JSON so the caller can map it to its own view model.
+    func fetchBridgeDashboard() async throws -> [String: Any] {
+        guard let sessionId = activeSessionId else {
+            throw BlockchainBridgeError.invalidParameters(reason: "No active bridge session")
+        }
+        let request = try MTRXPackager.shared.packageBridgeDashboard(sessionId: sessionId)
+        return try await executeBridgeRequest(request)
+    }
+
+    /// Fetch the current list of 30 components and their health status.
+    func fetchBridgeComponents() async throws -> [[String: Any]] {
+        let request = try MTRXPackager.shared.packageBridgeComponentsList()
+        let json = try await executeBridgeRequest(request)
+        return (json["components"] as? [[String: Any]]) ?? []
+    }
+
+    /// Fetch the runtime config (feature flags, rate limits, supported
+    /// chains) from the bridge.
+    func fetchBridgeConfig() async throws -> [String: Any] {
+        let request = try MTRXPackager.shared.packageBridgeConfig()
+        return try await executeBridgeRequest(request)
+    }
+
+    /// Register an APNs push token so the bridge can forward Morpheus
+    /// alerts as silent/critical pushes while the app is backgrounded.
+    func registerPushToken(_ token: String, environment: String = "production") async throws {
+        guard let sessionId = activeSessionId else {
+            throw BlockchainBridgeError.invalidParameters(reason: "No active bridge session")
+        }
+        let request = try MTRXPackager.shared.packageBridgePushRegister(
+            sessionId: sessionId,
+            token: token,
+            environment: environment
+        )
+        _ = try await executeBridgeRequest(request)
+    }
+
+    /// Run a pre-built bridge URLRequest and return the parsed JSON body.
+    /// Centralises error mapping so every bridge-session helper produces
+    /// the same BlockchainBridgeError cases.
+    @discardableResult
+    private func executeBridgeRequest(_ request: URLRequest) async throws -> [String: Any] {
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw BlockchainBridgeError.networkUnavailable
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let bodyText = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw BlockchainBridgeError.apiRequestFailed(
+                reason: "HTTP \(httpResponse.statusCode): \(bodyText)"
+            )
+        }
+
+        if data.isEmpty {
+            return [:]
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw BlockchainBridgeError.apiRequestFailed(reason: "Invalid JSON response from bridge")
+        }
         return json
     }
 }

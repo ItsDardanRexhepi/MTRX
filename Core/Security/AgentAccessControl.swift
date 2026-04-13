@@ -17,8 +17,9 @@ final class AgentAccessControl: ObservableObject {
 
     // MARK: - Owner identity
 
-    /// The owner's Telegram ID — only account with Neo access
-    static let ownerTelegramID: Int64 = 7161847911
+    /// The owner's Telegram ID — only account with Neo access.
+    /// Value sourced from AppSecrets (Config/Secrets.swift, gitignored).
+    static let ownerTelegramID: Int64 = AppSecrets.ownerTelegramID
 
     // MARK: - Published state
 

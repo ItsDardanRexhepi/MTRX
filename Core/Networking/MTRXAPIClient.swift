@@ -395,6 +395,11 @@ final class MTRXAPIClient: @unchecked Sendable {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
+    /// Exposes the underlying URLSession so tests (and diagnostic tools) can
+    /// observe the real session being used. Production code should stick to
+    /// the convenience verbs above rather than reaching into the session.
+    var urlSession: URLSession { session }
+
     private let lock = NSLock()
     private var _authToken: String?
     private var _networkStatus: NetworkStatus = .disconnected
@@ -417,19 +422,27 @@ final class MTRXAPIClient: @unchecked Sendable {
 
     // MARK: - Init
 
-    init(baseURL: String? = nil) {
+    init(baseURL: String? = nil, session: URLSession? = nil) {
         self.baseURL = baseURL
             ?? ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"]
             ?? "http://localhost:8000"
 
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 120
-        config.waitsForConnectivity = true
-        config.httpAdditionalHeaders = [
-            "User-Agent": "MTRX-iOS/1.0",
-        ]
-        self.session = URLSession(configuration: config)
+        if let session {
+            // Tests (and any caller that wants to stub transport) can inject
+            // a pre-configured session — typically one whose
+            // URLSessionConfiguration has MockURLProtocol in its
+            // `protocolClasses` array.
+            self.session = session
+        } else {
+            let config = URLSessionConfiguration.default
+            config.timeoutIntervalForRequest = 30
+            config.timeoutIntervalForResource = 120
+            config.waitsForConnectivity = true
+            config.httpAdditionalHeaders = [
+                "User-Agent": "MTRX-iOS/1.0",
+            ]
+            self.session = URLSession(configuration: config)
+        }
 
         self.decoder = JSONDecoder()
         self.decoder.dateDecodingStrategy = .custom { decoder in
@@ -758,18 +771,30 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func sendAgentMessage(
-        _ message: String,
         agent: String,
-        conversationId: String? = nil,
-        context: [String: AnyCodableValue]? = nil
+        message: String,
+        context: String = "",
+        conversationHistory: [[String: String]] = []
     ) async throws -> AgentChatResponse {
-        let body = AgentChatRequest(
-            message: message,
-            agent: agent,
-            conversationId: conversationId,
-            context: context
+        let body: [String: Any] = [
+            "message": message,
+            "agent": agent,
+            "session_id": bridgeSessionId ?? "default",
+        ]
+        let result: BridgeResponse<BridgeChatData> = try await post(
+            path: "/bridge/v1/chat", body: body
         )
-        return try await post(path: "/api/v1/agents/chat", body: body)
+        guard let data = result.data else {
+            throw MTRXAPIError.decodingFailed("No data in bridge response")
+        }
+        return AgentChatResponse(
+            text: data.response,
+            agent: data.agent,
+            suggestedActions: nil,
+            metadata: nil,
+            conversationId: data.sessionId,
+            toolCalls: nil
+        )
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1471,6 +1496,281 @@ final class MTRXAPIClient: @unchecked Sendable {
         try await postRaw(path: "/api/v1/wallet/send", body: [
             "to": to, "amount": "\(amount)", "asset": asset,
         ])
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - 0pnMatrx Bridge
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /// Session ID for the bridge connection
+    private(set) var bridgeSessionId: String?
+
+    /// Create a new bridge session with the 0pnMatrx backend
+    func bridgeCreateSession(deviceId: String = "") async throws -> BridgeSessionData {
+        let body: [String: String] = [
+            "device_id": deviceId,
+            "app_version": "1.0.0",
+        ]
+        let result: BridgeResponse<BridgeSessionData> = try await post(
+            path: "/bridge/v1/session/create", body: body
+        )
+        guard let data = result.data else {
+            throw MTRXAPIError.decodingFailed("No session data")
+        }
+        bridgeSessionId = data.sessionId
+        return data
+    }
+
+    /// Resume an existing bridge session
+    func bridgeResumeSession(_ sessionId: String) async throws -> Bool {
+        let body: [String: String] = ["session_id": sessionId]
+        let result: BridgeResponse<BridgeResumeData> = try await post(
+            path: "/bridge/v1/session/resume", body: body
+        )
+        if result.data?.resumed == true {
+            bridgeSessionId = sessionId
+            return true
+        }
+        return false
+    }
+
+    /// Execute a platform action directly (no chat, button-driven)
+    func bridgeExecuteAction(
+        _ action: String,
+        params: [String: AnyCodableValue] = [:]
+    ) async throws -> [String: AnyCodableValue] {
+        let body: [String: Any] = [
+            "action": action,
+            "params": params,
+            "session_id": bridgeSessionId ?? "default",
+        ]
+        return try await postRaw(path: "/bridge/v1/action", body: body)
+    }
+
+    /// Link a wallet to the current session
+    func bridgeLinkWallet(address: String, network: String = "base-sepolia") async throws {
+        let body: [String: String] = [
+            "session_id": bridgeSessionId ?? "default",
+            "address": address,
+            "network": network,
+        ]
+        let _: BridgeResponse<BridgeLinkData> = try await post(
+            path: "/bridge/v1/wallet/link", body: body
+        )
+    }
+
+    /// Get wallet status
+    func bridgeWalletStatus() async throws -> BridgeWalletStatus {
+        let result: BridgeResponse<BridgeWalletStatus> = try await get(
+            path: "/bridge/v1/wallet/status",
+            queryItems: [URLQueryItem(name: "session_id", value: bridgeSessionId ?? "default")]
+        )
+        return result.data ?? BridgeWalletStatus(linked: false, address: nil, network: nil, balanceEth: nil)
+    }
+
+    /// Get app config from the backend
+    func bridgeGetConfig() async throws -> BridgeConfigData {
+        let result: BridgeResponse<BridgeConfigData> = try await get(
+            path: "/bridge/v1/config", authenticated: false
+        )
+        guard let data = result.data else {
+            throw MTRXAPIError.decodingFailed("No config data")
+        }
+        return data
+    }
+
+    /// Get service catalog
+    func bridgeGetServices() async throws -> [BridgeService] {
+        let result: BridgeResponse<BridgeServicesData> = try await get(
+            path: "/bridge/v1/services", authenticated: false
+        )
+        return result.data?.services ?? []
+    }
+
+    /// Get dashboard data for home screen
+    func bridgeGetDashboard() async throws -> BridgeDashboardData {
+        let result: BridgeResponse<BridgeDashboardData> = try await get(
+            path: "/bridge/v1/dashboard",
+            queryItems: [URLQueryItem(name: "session_id", value: bridgeSessionId ?? "default")]
+        )
+        guard let data = result.data else {
+            throw MTRXAPIError.decodingFailed("No dashboard data")
+        }
+        return data
+    }
+
+    // MARK: - Component Registry
+
+    /// Get full component registry with UI schemas
+    func bridgeGetComponents() async throws -> [BridgeComponent] {
+        let result: BridgeResponse<BridgeComponentsData> = try await get(
+            path: "/bridge/v1/components", authenticated: false
+        )
+        return result.data?.components ?? []
+    }
+
+    /// Get a single component by ID
+    func bridgeGetComponent(id: String) async throws -> BridgeComponent {
+        let result: BridgeResponse<BridgeComponent> = try await get(
+            path: "/bridge/v1/components/\(id)", authenticated: false
+        )
+        guard let data = result.data else {
+            throw MTRXAPIError.decodingFailed("Component not found: \(id)")
+        }
+        return data
+    }
+
+    /// Get component manifest (lightweight version check)
+    func bridgeGetComponentManifest() async throws -> BridgeManifestData {
+        let result: BridgeResponse<BridgeManifestData> = try await get(
+            path: "/bridge/v1/components/manifest", authenticated: false
+        )
+        guard let data = result.data else {
+            throw MTRXAPIError.decodingFailed("No manifest data")
+        }
+        return data
+    }
+
+    /// Register for push notifications
+    func bridgeRegisterPush(token: String) async throws {
+        let body: [String: String] = [
+            "session_id": bridgeSessionId ?? "default",
+            "push_token": token,
+        ]
+        let _: BridgeResponse<BridgePushData> = try await post(
+            path: "/bridge/v1/push/register", body: body
+        )
+    }
+}
+
+// MARK: - Bridge Response Models
+
+struct BridgeResponse<T: Decodable>: Decodable {
+    let ok: Bool
+    let data: T?
+    let error: String?
+    let timestamp: Double?
+}
+
+struct BridgeSessionData: Decodable {
+    let sessionId: String
+    let greeting: String
+}
+
+struct BridgeResumeData: Decodable {
+    let sessionId: String
+    let resumed: Bool
+    let messageCount: Int?
+}
+
+struct BridgeChatData: Decodable {
+    let response: String
+    let agent: String
+    let sessionId: String
+    let provider: String?
+}
+
+struct BridgeLinkData: Decodable {
+    let linked: Bool
+    let address: String
+}
+
+struct BridgeWalletStatus: Decodable {
+    let linked: Bool
+    let address: String?
+    let network: String?
+    let balanceEth: String?
+}
+
+struct BridgeConfigData: Decodable {
+    let platform: String
+    let version: String
+    let network: String
+    let chainId: Int
+    let agents: [String]
+}
+
+struct BridgeService: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let icon: String
+    let description: String
+    let category: String
+    let actions: [String]
+}
+
+struct BridgeServicesData: Decodable {
+    let services: [BridgeService]
+}
+
+struct BridgeDashboardData: Decodable {
+    let wallet: BridgeWalletStatus?
+    let servicesAvailable: Int
+    let activeSessions: Int
+    let suggestions: [String]
+}
+
+struct BridgePushData: Decodable {
+    let registered: Bool
+}
+
+// MARK: - Component Registry Models
+
+struct BridgeComponentField: Decodable {
+    let name: String
+    let type: String
+    let label: String
+    let required: Bool
+    let placeholder: String?
+    let options: [String]?
+}
+
+struct BridgeComponentScreen: Decodable {
+    let id: String
+    let title: String
+    let fields: [BridgeComponentField]
+}
+
+struct BridgeUIFlow: Decodable {
+    let screens: [BridgeComponentScreen]
+}
+
+struct BridgeComponent: Decodable {
+    let id: String
+    let name: String
+    let icon: String
+    let description: String
+    let category: String
+    let actions: [String]
+    let version: String
+    let capabilities: [String]
+    let minAppVersion: String
+    let uiFlow: BridgeUIFlow?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, icon, description, category, actions, version, capabilities
+        case minAppVersion = "min_app_version"
+        case uiFlow = "ui_flow"
+    }
+}
+
+struct BridgeComponentsData: Decodable {
+    let components: [BridgeComponent]
+}
+
+struct BridgeManifestEntry: Decodable {
+    let id: String
+    let version: String
+    let checksum: String
+}
+
+struct BridgeManifestData: Decodable {
+    let manifest: [BridgeManifestEntry]
+    let manifestVersion: String
+
+    enum CodingKeys: String, CodingKey {
+        case manifest
+        case manifestVersion = "manifest_version"
     }
 }
 

@@ -1,7 +1,7 @@
 // BuildView.swift
 // MTRX
 //
-// Smart contracts listings and subscription management hub.
+// Smart contract management hub — contracts, templates, and subscriptions.
 
 import SwiftUI
 
@@ -9,150 +9,95 @@ import SwiftUI
 
 @MainActor
 final class BuildViewModel: ObservableObject {
+
     // MARK: - Published State
 
-    @Published var activeContracts: [ContractListItem] = []
-    @Published var subscriptions: [SubscriptionItem] = []
+    @Published var contracts: [ContractListItem] = []
     @Published var templates: [ContractTemplate] = []
+    @Published var subscriptions: [SubscriptionItem] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
-    @Published var selectedSection: BuildSection = .contracts
+    @Published var selectedSegment: BuildSegment = .contracts
     @Published var showCreateContract: Bool = false
+    @Published var contentAppeared: Bool = false
 
-    // Stats
-    @Published var activeCount: Int = 0
-    @Published var pendingCount: Int = 0
-    @Published var completedCount: Int = 0
+    // MARK: - Computed Stats
 
-    private let api = MTRXAPIClient.shared
+    var activeCount: Int {
+        contracts.filter { $0.status == .active }.count
+    }
 
-    // MARK: - Load All
+    var pendingCount: Int {
+        contracts.filter { $0.status == .pending }.count
+    }
+
+    var totalValue: String {
+        let total = contracts.reduce(0.0) { $0 + $1.valueNumeric }
+        if total >= 1_000_000 {
+            return String(format: "$%.1fM", total / 1_000_000)
+        } else if total >= 1_000 {
+            return String(format: "$%.1fK", total / 1_000)
+        }
+        return String(format: "$%.0f", total)
+    }
+
+    // MARK: - Load Data
 
     func loadAll() async {
         guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
 
-        async let contractsTask: () = loadContracts()
-        async let subscriptionsTask: () = loadSubscriptions()
-        async let templatesTask: () = loadTemplates()
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
 
-        _ = await (contractsTask, subscriptionsTask, templatesTask)
-        isLoading = false
-    }
-
-    // MARK: - Load Contracts
-
-    func loadContracts() async {
-        do {
-            let raw: [String: AnyCodableValue] = try await api.listContracts()
-            let items = parseContracts(raw)
-            activeContracts = items
-
-            activeCount = items.filter { $0.status == "Active" }.count
-            pendingCount = items.filter { $0.status == "Pending" }.count
-            completedCount = items.filter { $0.status == "Completed" }.count
-
-            if activeContracts.isEmpty {
-                activeContracts = ContractListItem.sampleData
-                activeCount = 3
-                pendingCount = 2
-                completedCount = 15
-            }
-        } catch {
-            if activeContracts.isEmpty {
-                activeContracts = ContractListItem.sampleData
-                activeCount = 3
-                pendingCount = 2
-                completedCount = 15
-            }
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    // MARK: - Load Subscriptions
-
-    func loadSubscriptions() async {
-        do {
-            let raw: [String: AnyCodableValue] = try await api.listSubscriptions()
-            let items = parseSubscriptions(raw)
-            subscriptions = items
-            if subscriptions.isEmpty {
-                subscriptions = SubscriptionItem.sampleData
-            }
-        } catch {
-            if subscriptions.isEmpty {
-                subscriptions = SubscriptionItem.sampleData
-            }
-        }
-    }
-
-    // MARK: - Load Templates
-
-    func loadTemplates() async {
-        // Templates are currently sourced locally
+        contracts = ContractListItem.sampleData
         templates = ContractTemplate.sampleData
-    }
+        subscriptions = SubscriptionItem.sampleData
 
-    // MARK: - Parsers
+        isLoading = false
 
-    private func parseContracts(_ raw: [String: AnyCodableValue]) -> [ContractListItem] {
-        guard case .array(let items) = raw["data"] ?? raw["contracts"] ?? .null else {
-            return []
-        }
-        return items.compactMap { item -> ContractListItem? in
-            guard case .dictionary(let dict) = item else { return nil }
-            let title = dict["title"]?.stringValue ?? dict["name"]?.stringValue ?? "Contract"
-            let counterparty = dict["counterparty"]?.stringValue ?? dict["parties"]?.stringValue ?? "Unknown"
-            let valueNum = dict["value"]?.doubleValue ?? dict["total_value"]?.doubleValue ?? 0
-            let value = valueNum > 0 ? "$\(String(format: "%,.0f", valueNum))" : "$0"
-            let status = dict["status"]?.stringValue ?? "Pending"
-            let contractType = dict["type"]?.stringValue ?? dict["contract_type"]?.stringValue ?? "escrow"
-
-            let statusColor: Color = {
-                switch status.lowercased() {
-                case "active": return .statusSuccess
-                case "pending": return .statusWarning
-                case "completed", "executed": return .accentPrimary
-                case "disputed": return .statusError
-                default: return .labelTertiary
-                }
-            }()
-
-            let typeIcon: String = {
-                switch contractType.lowercased() {
-                case "escrow": return Symbols.escrow
-                case "freelance": return Symbols.contract
-                case "subscription": return Symbols.processing
-                case "lease", "property": return Symbols.property
-                case "insurance": return Symbols.insurance
-                default: return Symbols.contract
-                }
-            }()
-
-            return ContractListItem(
-                title: title,
-                counterparty: counterparty,
-                value: value,
-                status: status.capitalized,
-                statusColor: statusColor,
-                typeIcon: typeIcon
-            )
+        withAnimation(Motion.springDefault) {
+            contentAppeared = true
         }
     }
 
-    private func parseSubscriptions(_ raw: [String: AnyCodableValue]) -> [SubscriptionItem] {
-        guard case .array(let items) = raw["data"] ?? raw["subscriptions"] ?? .null else {
-            return []
+    func refresh() async {
+        contentAppeared = false
+        await loadAll()
+    }
+}
+
+// MARK: - Build Segment
+
+enum BuildSegment: String, CaseIterable {
+    case contracts = "My Contracts"
+    case templates = "Templates"
+    case subscriptions = "Subscriptions"
+}
+
+// MARK: - Contract Status
+
+enum ContractStatus: String {
+    case active = "Active"
+    case pending = "Pending"
+    case completed = "Completed"
+    case disputed = "Disputed"
+
+    var color: Color {
+        switch self {
+        case .active: return .statusSuccess
+        case .pending: return .statusWarning
+        case .completed: return .accentPrimary
+        case .disputed: return .statusError
         }
-        return items.compactMap { item -> SubscriptionItem? in
-            guard case .dictionary(let dict) = item else { return nil }
-            let name = dict["name"]?.stringValue ?? dict["plan_name"]?.stringValue ?? "Subscription"
-            let frequency = dict["frequency"]?.stringValue ?? dict["interval"]?.stringValue ?? "Monthly"
-            let amountVal = dict["amount"]?.doubleValue ?? 0
-            let amount = amountVal > 0 ? "$\(String(format: "%.0f", amountVal))/mo" : "$0/mo"
-            let nextDate = dict["next_billing_date"]?.stringValue ?? dict["next_date"]?.stringValue ?? "N/A"
-            return SubscriptionItem(name: name, frequency: frequency.capitalized, amount: amount, nextDate: nextDate)
+    }
+
+    var icon: String {
+        switch self {
+        case .active: return Symbols.contractActive
+        case .pending: return Symbols.pending
+        case .completed: return Symbols.complete
+        case .disputed: return Symbols.dispute
         }
     }
 }
@@ -162,37 +107,45 @@ final class BuildViewModel: ObservableObject {
 struct BuildView: View {
     @StateObject private var viewModel = BuildViewModel()
 
-    // MARK: - Body
-
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                sectionPicker
+            ZStack(alignment: .bottomTrailing) {
+                VStack(spacing: 0) {
+                    segmentControl
+                        .padding(.horizontal, Spacing.contentPadding)
+                        .padding(.vertical, Spacing.ms)
 
-                Group {
-                    if viewModel.isLoading && viewModel.activeContracts.isEmpty {
-                        loadingState
-                    } else if let error = viewModel.errorMessage, viewModel.activeContracts.isEmpty {
-                        errorState(error)
-                    } else {
-                        switch viewModel.selectedSection {
-                        case .contracts:
-                            contractsSection
-                        case .subscriptions:
-                            subscriptionsSection
-                        case .templates:
-                            templatesSection
+                    Group {
+                        if viewModel.isLoading && viewModel.contracts.isEmpty {
+                            MtrxLoadingView(rows: 8)
+                        } else {
+                            switch viewModel.selectedSegment {
+                            case .contracts:
+                                contractsView
+                            case .templates:
+                                templatesView
+                            case .subscriptions:
+                                subscriptionsView
+                            }
                         }
                     }
                 }
+                .background(MtrxGradientBackground(style: .primary))
+
+                // FAB
+                if viewModel.selectedSegment == .contracts && !viewModel.contracts.isEmpty {
+                    fabButton
+                }
             }
             .navigationTitle("Build")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        viewModel.showCreateContract = true
+                        MtrxHaptics.impact(.light)
                     } label: {
-                        Image(systemName: Symbols.addCircle)
+                        Image(systemName: Symbols.filter)
+                            .foregroundStyle(Color.accentPrimary)
                     }
                 }
             }
@@ -207,180 +160,282 @@ struct BuildView: View {
         }
     }
 
-    // MARK: - Loading State
+    // MARK: - Custom Segment Control
 
-    private var loadingState: some View {
-        VStack(spacing: Spacing.lg) {
-            ProgressView()
-                .controlSize(.large)
-            Text("Loading contracts...")
-                .font(.mtrxSubheadline)
-                .foregroundStyle(Color.labelSecondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Error State
-
-    private func errorState(_ message: String) -> some View {
-        VStack(spacing: Spacing.md) {
-            Image(systemName: Symbols.alertWarning)
-                .font(.system(size: 48))
-                .foregroundStyle(Color.statusWarning)
-
-            Text("Failed to load")
-                .font(.mtrxTitle3)
-
-            Text(message)
-                .font(.mtrxCaption1)
-                .foregroundStyle(Color.labelSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Spacing.lg)
-
-            Button {
-                Task { await viewModel.loadAll() }
-            } label: {
-                Label("Retry", systemImage: Symbols.refresh)
-                    .font(.mtrxHeadline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, Spacing.lg)
-                    .frame(height: Spacing.Size.buttonHeight)
-                    .background(Color.accentPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Section Picker
-
-    private var sectionPicker: some View {
-        Picker("Section", selection: $viewModel.selectedSection) {
-            ForEach(BuildSection.allCases, id: \.self) { section in
-                Text(section.rawValue).tag(section)
-            }
-        }
-        .pickerStyle(.segmented)
-        .padding(.horizontal, Spacing.contentPadding)
-        .padding(.vertical, Spacing.sm)
-    }
-
-    // MARK: - Contracts Section
-
-    private var contractsSection: some View {
-        ScrollView {
-            LazyVStack(spacing: Spacing.sm) {
-                // Summary stats
-                HStack(spacing: Spacing.md) {
-                    BuildStatCard(title: "Active", value: "\(viewModel.activeCount)", color: .statusSuccess)
-                    BuildStatCard(title: "Pending", value: "\(viewModel.pendingCount)", color: .statusWarning)
-                    BuildStatCard(title: "Completed", value: "\(viewModel.completedCount)", color: .accentPrimary)
-                }
-                .padding(.bottom, Spacing.sm)
-
-                ForEach(viewModel.activeContracts) { contract in
-                    NavigationLink {
-                        ContractDetailView(contract: contract)
-                    } label: {
-                        ContractListRow(contract: contract)
+    private var segmentControl: some View {
+        HStack(spacing: 0) {
+            ForEach(BuildSegment.allCases, id: \.self) { segment in
+                Button {
+                    withAnimation(Motion.springSnappy) {
+                        viewModel.selectedSegment = segment
                     }
-                    .buttonStyle(.plain)
+                    MtrxHaptics.selection()
+                } label: {
+                    Text(segment.rawValue)
+                        .font(.mtrxCaptionBold)
+                        .foregroundStyle(viewModel.selectedSegment == segment ? .white : Color.labelSecondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 36)
+                        .background(
+                            viewModel.selectedSegment == segment
+                                ? Capsule().fill(Color.accentPrimary)
+                                : Capsule().fill(Color.clear)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(Color.surfaceOverlay)
+        .clipShape(Capsule())
+    }
+
+    // MARK: - FAB
+
+    private var fabButton: some View {
+        Button {
+            viewModel.showCreateContract = true
+            MtrxHaptics.impact(.medium)
+        } label: {
+            Image(systemName: Symbols.add)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 56, height: 56)
+                .background(Color.accentPrimary)
+                .clipShape(Circle())
+                .shadow(color: Color.accentPrimary.opacity(0.4), radius: 12, y: 4)
+        }
+        .padding(.trailing, Spacing.lg)
+        .padding(.bottom, Spacing.lg)
+        .transition(.mtrxScale)
+    }
+
+    // MARK: - Contracts View
+
+    private var contractsView: some View {
+        Group {
+            if viewModel.contracts.isEmpty {
+                MtrxEmptyState(
+                    icon: Symbols.contractCreate,
+                    title: "No Contracts Yet",
+                    message: "Create your first smart contract to get started with secure, on-chain agreements.",
+                    actionLabel: "Create Your First Contract"
+                ) {
+                    viewModel.showCreateContract = true
+                    MtrxHaptics.impact(.medium)
+                }
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(spacing: Spacing.md) {
+                        // Stats row
+                        statsRow
+                            .mtrxStaggeredAppearance(index: 0, isVisible: viewModel.contentAppeared)
+
+                        // Contract list
+                        ForEach(Array(viewModel.contracts.enumerated()), id: \.element.id) { index, contract in
+                            NavigationLink {
+                                ContractDetailView(contract: contract)
+                            } label: {
+                                ContractCardRow(contract: contract)
+                                    .mtrxStaggeredAppearance(index: index + 1, isVisible: viewModel.contentAppeared)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Spacer().frame(height: Spacing.xxxl + Spacing.xl)
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+                    .padding(.top, Spacing.sm)
+                }
+                .refreshable {
+                    await viewModel.refresh()
                 }
             }
-            .padding(Spacing.contentPadding)
-        }
-        .refreshable {
-            await viewModel.loadContracts()
         }
     }
 
-    // MARK: - Subscriptions Section
+    // MARK: - Stats Row
 
-    private var subscriptionsSection: some View {
-        ScrollView {
-            LazyVStack(spacing: Spacing.sm) {
-                ForEach(viewModel.subscriptions) { subscription in
-                    SubscriptionRow(subscription: subscription)
-                }
-            }
-            .padding(Spacing.contentPadding)
-        }
-        .refreshable {
-            await viewModel.loadSubscriptions()
+    private var statsRow: some View {
+        HStack(spacing: Spacing.sm) {
+            MtrxStatCard(
+                title: "Active",
+                value: "\(viewModel.activeCount)",
+                icon: Symbols.contractActive
+            )
+
+            MtrxStatCard(
+                title: "Pending",
+                value: "\(viewModel.pendingCount)",
+                icon: Symbols.pending
+            )
+
+            MtrxStatCard(
+                title: "Total Value",
+                value: viewModel.totalValue,
+                icon: Symbols.wallet
+            )
         }
     }
 
-    // MARK: - Templates Section
+    // MARK: - Templates View
 
-    private var templatesSection: some View {
-        ScrollView {
+    private var templatesView: some View {
+        ScrollView(.vertical, showsIndicators: false) {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.md) {
-                ForEach(viewModel.templates) { template in
-                    NavigationLink {
-                        ContractView()
-                    } label: {
-                        TemplateCard(template: template)
-                    }
-                    .buttonStyle(.plain)
+                ForEach(Array(viewModel.templates.enumerated()), id: \.element.id) { index, template in
+                    TemplateCardView(template: template)
+                        .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
                 }
             }
-            .padding(Spacing.contentPadding)
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.top, Spacing.sm)
+            .padding(.bottom, Spacing.xxl)
         }
+    }
+
+    // MARK: - Subscriptions View
+
+    private var subscriptionsView: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            LazyVStack(spacing: Spacing.md) {
+                // Active subscriptions
+                ForEach(Array(viewModel.subscriptions.enumerated()), id: \.element.id) { index, subscription in
+                    SubscriptionCardView(subscription: subscription)
+                        .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
+                }
+
+                // Upgrade prompt
+                upgradePrompt
+                    .mtrxStaggeredAppearance(index: viewModel.subscriptions.count, isVisible: viewModel.contentAppeared)
+
+                Spacer().frame(height: Spacing.xxl)
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.top, Spacing.sm)
+        }
+    }
+
+    // MARK: - Upgrade Prompt
+
+    private var upgradePrompt: some View {
+        MtrxCard(style: .glass) {
+            VStack(spacing: Spacing.md) {
+                Image(systemName: Symbols.sparkle)
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundStyle(Color.accentPrimary)
+                    .mtrxGlow()
+
+                VStack(spacing: Spacing.xs) {
+                    Text("Unlock Pro Features")
+                        .font(.mtrxTitle3)
+                        .foregroundStyle(Color.labelPrimary)
+
+                    Text("Get unlimited contracts, priority execution, and advanced analytics with MTRX Pro.")
+                        .font(.mtrxSubheadline)
+                        .foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                Button {
+                    MtrxHaptics.impact(.medium)
+                } label: {
+                    Text("Upgrade to Pro")
+                }
+                .buttonStyle(MtrxButtonStyle(variant: .primary, size: .regular, fullWidth: true))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.lg)
     }
 }
 
-// MARK: - Build Section
+// MARK: - Contract Card Row
 
-enum BuildSection: String, CaseIterable {
-    case contracts = "Contracts"
-    case subscriptions = "Subscriptions"
-    case templates = "Templates"
-}
-
-// MARK: - Contract List Row
-
-struct ContractListRow: View {
+struct ContractCardRow: View {
     let contract: ContractListItem
 
     var body: some View {
-        HStack(spacing: Spacing.sm) {
-            Image(systemName: contract.typeIcon)
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(Color.accentPrimary)
-                .frame(width: Spacing.Size.avatarMedium, height: Spacing.Size.avatarMedium)
-                .background(Color.accentPrimary.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+        MtrxCard(style: .standard, accentEdge: .leading) {
+            VStack(spacing: Spacing.ms) {
+                // Top row: status badge + type
+                HStack {
+                    MtrxBadge(text: contract.status.rawValue, style: badgeStyle)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(contract.title)
-                    .font(.mtrxBodyBold)
-                    .foregroundStyle(Color.labelPrimary)
+                    Spacer()
 
-                Text(contract.counterparty)
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelSecondary)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(contract.value)
-                    .font(.mtrxBodyTabular)
-                    .foregroundStyle(Color.labelPrimary)
-
-                HStack(spacing: Spacing.xs) {
-                    Circle()
-                        .fill(contract.statusColor)
-                        .frame(width: 8, height: 8)
-                    Text(contract.status)
+                    Text(contract.contractType)
                         .font(.mtrxCaption1)
-                        .foregroundStyle(Color.labelSecondary)
+                        .foregroundStyle(Color.labelTertiary)
+                }
+
+                // Middle: name + counterparty
+                HStack(spacing: Spacing.ms) {
+                    MtrxAvatar(
+                        symbol: contract.typeIcon,
+                        color: contract.status.color,
+                        size: Spacing.Size.avatarMedium
+                    )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(contract.title)
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.labelPrimary)
+                            .lineLimit(1)
+
+                        Text(contract.counterparty)
+                            .font(.mtrxMonoSmall)
+                            .foregroundStyle(Color.labelSecondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+                }
+
+                MtrxDivider()
+
+                // Bottom: value + date + action
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Value")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelTertiary)
+                        Text(contract.value)
+                            .font(.mtrxMono)
+                            .foregroundStyle(Color.labelPrimary)
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Created")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelTertiary)
+                        Text(contract.createdDate)
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+
+                    Spacer().frame(width: Spacing.md)
+
+                    Button {
+                        MtrxHaptics.impact(.light)
+                    } label: {
+                        Text(contract.actionLabel)
+                    }
+                    .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .compact))
                 }
             }
         }
-        .padding(Spacing.sm)
-        .background(Color.surfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+    }
+
+    private var badgeStyle: MtrxBadge.BadgeStyle {
+        switch contract.status {
+        case .active: return .success
+        case .pending: return .warning
+        case .completed: return .accent
+        case .disputed: return .error
+        }
     }
 }
 
@@ -397,143 +452,119 @@ struct ContractDetailView: View {
             VStack(alignment: .leading, spacing: Spacing.sectionGap) {
                 // Status header
                 HStack {
-                    VStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
                         Text(contract.title)
                             .font(.mtrxTitle2)
                         Text(contract.counterparty)
-                            .font(.mtrxSubheadline)
+                            .font(.mtrxMono)
                             .foregroundStyle(Color.labelSecondary)
                     }
                     Spacer()
-                    Text(contract.status)
-                        .font(.mtrxCaptionBold)
-                        .padding(.horizontal, Spacing.sm)
-                        .padding(.vertical, Spacing.xs)
-                        .background(contract.statusColor.opacity(0.15))
-                        .foregroundStyle(contract.statusColor)
-                        .clipShape(Capsule())
+                    MtrxBadge(
+                        text: contract.status.rawValue,
+                        style: contract.status == .active ? .success :
+                               contract.status == .pending ? .warning :
+                               contract.status == .disputed ? .error : .accent
+                    )
                 }
 
-                // Value
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text("Contract Value")
-                        .font(.mtrxCaption1)
-                        .foregroundStyle(Color.labelSecondary)
-                    Text(contract.value)
-                        .font(.mtrxMonoMedium)
+                // Value card
+                MtrxCard(style: .glass) {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text("Contract Value")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                        Text(contract.value)
+                            .font(.mtrxMonoMedium)
+                            .foregroundStyle(Color.accentPrimary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Divider()
-
-                // Milestones placeholder
+                // Milestones
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     Text("Milestones")
                         .font(.mtrxTitle3)
 
                     ForEach(0..<3, id: \.self) { i in
-                        HStack {
+                        HStack(spacing: Spacing.ms) {
                             Image(systemName: i == 0 ? Symbols.complete : Symbols.pending)
+                                .font(.system(size: 18, weight: .medium))
                                 .foregroundStyle(i == 0 ? Color.statusSuccess : Color.labelTertiary)
+                                .frame(width: 24)
+
                             Text("Milestone \(i + 1)")
                                 .font(.mtrxBody)
+                                .foregroundStyle(Color.labelPrimary)
+
                             Spacer()
+
                             Text("$\((i + 1) * 1000)")
-                                .font(.mtrxBodyTabular)
+                                .font(.mtrxMono)
                                 .foregroundStyle(Color.labelSecondary)
+                        }
+                        .padding(.vertical, Spacing.sm)
+
+                        if i < 2 {
+                            MtrxDivider()
                         }
                     }
                 }
 
                 // Actions
                 VStack(spacing: Spacing.sm) {
-                    if contract.status == "Pending" {
+                    if contract.status == .pending {
                         Button {
                             isSigningContract = true
+                            MtrxHaptics.impact(.medium)
                             Task {
                                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                                 isSigningContract = false
+                                MtrxHaptics.success()
                             }
                         } label: {
-                            HStack {
-                                if isSigningContract {
-                                    ProgressView()
-                                        .tint(.white)
-                                } else {
-                                    Label("Sign Contract", systemImage: Symbols.contractSign)
-                                }
-                            }
-                            .font(.mtrxHeadline)
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: Spacing.Size.buttonHeight)
-                            .background(Color.statusSuccess)
-                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                            Label("Sign Contract", systemImage: Symbols.contractSign)
                         }
+                        .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, isLoading: isSigningContract, fullWidth: true))
                         .disabled(isSigningContract)
                     }
 
-                    if contract.status == "Active" {
+                    if contract.status == .active {
                         Button {
                             isExecuting = true
+                            MtrxHaptics.impact(.medium)
                             Task {
                                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                                 isExecuting = false
+                                MtrxHaptics.success()
                             }
                         } label: {
-                            HStack {
-                                if isExecuting {
-                                    ProgressView()
-                                        .tint(.white)
-                                } else {
-                                    Label("Execute Milestone", systemImage: Symbols.milestone)
-                                }
-                            }
-                            .font(.mtrxHeadline)
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: Spacing.Size.buttonHeight)
-                            .background(Color.accentPrimary)
-                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                            Label("Execute Milestone", systemImage: Symbols.milestone)
                         }
+                        .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, isLoading: isExecuting, fullWidth: true))
                         .disabled(isExecuting)
                     }
 
                     Button { } label: {
                         Label("View on Chain", systemImage: Symbols.externalLink)
-                            .font(.mtrxHeadline)
-                            .foregroundStyle(Color.accentPrimary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: Spacing.Size.buttonHeight)
-                            .background(Color.accentPrimary.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
                     }
+                    .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .regular, fullWidth: true))
 
                     Button {
                         showDisputeConfirm = true
                     } label: {
                         Label("Raise Dispute", systemImage: Symbols.dispute)
-                            .font(.mtrxHeadline)
-                            .foregroundStyle(Color.statusError)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: Spacing.Size.buttonHeight)
-                            .background(Color.statusError.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
                     }
+                    .buttonStyle(MtrxButtonStyle(variant: .destructive, size: .regular, fullWidth: true))
                 }
             }
             .padding(Spacing.contentPadding)
         }
+        .background(MtrxGradientBackground(style: .primary))
         .navigationBarTitleDisplayMode(.inline)
         .alert("Raise Dispute?", isPresented: $showDisputeConfirm) {
             Button("Raise Dispute", role: .destructive) {
-                Task {
-                    let request = DisputeCreateRequest(
-                        contractId: contract.id.uuidString,
-                        description: "Dispute for \(contract.title)",
-                        evidence: [:]
-                    )
-                    _ = try? await MTRXAPIClient.shared.createDispute(request)
-                }
+                MtrxHaptics.warning()
             }
             Button("Cancel", role: .cancel) { }
         } message: {
@@ -542,122 +573,207 @@ struct ContractDetailView: View {
     }
 }
 
-// MARK: - Subscription Row
+// MARK: - Template Card View
 
-struct SubscriptionRow: View {
+struct TemplateCardView: View {
+    let template: ContractTemplate
+    @State private var isPressed: Bool = false
+
+    var body: some View {
+        MtrxCard(style: .glass) {
+            VStack(alignment: .leading, spacing: Spacing.ms) {
+                // Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous)
+                        .fill(template.accentColor.opacity(0.12))
+                        .frame(width: 44, height: 44)
+
+                    Image(systemName: template.icon)
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(template.accentColor)
+                }
+
+                // Name
+                Text(template.name)
+                    .font(.mtrxHeadline)
+                    .foregroundStyle(Color.labelPrimary)
+                    .lineLimit(1)
+
+                // Description
+                Text(template.description_)
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
+
+                // Use Template button
+                Button {
+                    MtrxHaptics.impact(.medium)
+                } label: {
+                    Text("Use Template")
+                }
+                .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .compact, fullWidth: true))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.lg)
+        .scaleEffect(isPressed ? 0.97 : 1.0)
+        .animation(Motion.springSnappy, value: isPressed)
+        .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
+            isPressed = pressing
+        }, perform: { })
+    }
+}
+
+// MARK: - Subscription Card View
+
+struct SubscriptionCardView: View {
     let subscription: SubscriptionItem
 
     var body: some View {
-        HStack(spacing: Spacing.sm) {
-            Image(systemName: Symbols.processing)
-                .font(.system(size: 16))
-                .foregroundStyle(Color.accentPrimary)
-                .frame(width: Spacing.Size.avatarSmall, height: Spacing.Size.avatarSmall)
-                .background(Color.accentPrimary.opacity(0.1))
-                .clipShape(Circle())
+        MtrxCard(style: .standard, accentEdge: .leading) {
+            VStack(spacing: Spacing.ms) {
+                HStack {
+                    MtrxAvatar(
+                        symbol: subscription.icon,
+                        color: subscription.tierColor,
+                        size: Spacing.Size.avatarMedium
+                    )
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(subscription.name)
-                    .font(.mtrxBodyBold)
-                Text(subscription.frequency)
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelSecondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(subscription.name)
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.labelPrimary)
+
+                        MtrxBadge(text: subscription.tier, style: .accent)
+                    }
+
+                    Spacer()
+
+                    Text(subscription.amount)
+                        .font(.mtrxMono)
+                        .foregroundStyle(Color.labelPrimary)
+                }
+
+                MtrxDivider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Renewal")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelTertiary)
+                        Text(subscription.nextDate)
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+
+                    Spacer()
+
+                    // Usage stats
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Usage")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelTertiary)
+                        HStack(spacing: Spacing.xs) {
+                            MtrxProgressRing(
+                                progress: subscription.usagePercent,
+                                size: 24,
+                                lineWidth: 3,
+                                color: subscription.tierColor,
+                                showLabel: false
+                            )
+                            Text("\(Int(subscription.usagePercent * 100))%")
+                                .font(.mtrxCaptionBold)
+                                .foregroundStyle(Color.labelSecondary)
+                        }
+                    }
+
+                    Spacer().frame(width: Spacing.sm)
+
+                    Button {
+                        MtrxHaptics.impact(.light)
+                    } label: {
+                        Text("Manage")
+                    }
+                    .buttonStyle(MtrxButtonStyle(variant: .ghost, size: .compact))
+                }
             }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(subscription.amount)
-                    .font(.mtrxBodyTabular)
-                Text("Next: \(subscription.nextDate)")
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelSecondary)
-            }
         }
-        .padding(Spacing.sm)
-        .background(Color.surfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
     }
 }
 
-// MARK: - Template Card
-
-struct TemplateCard: View {
-    let template: ContractTemplate
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Image(systemName: template.icon)
-                .font(.system(size: 28))
-                .foregroundStyle(Color.accentPrimary)
-
-            Text(template.name)
-                .font(.mtrxHeadline)
-                .foregroundStyle(Color.labelPrimary)
-
-            Text(template.description_)
-                .font(.mtrxCaption1)
-                .foregroundStyle(Color.labelSecondary)
-                .lineLimit(2)
-        }
-        .padding(Spacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.surfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
-    }
-}
-
-// MARK: - Build Stat Card
-
-struct BuildStatCard: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: Spacing.xs) {
-            Text(value)
-                .font(.mtrxTitle2)
-                .foregroundStyle(color)
-            Text(title)
-                .font(.mtrxCaption2)
-                .foregroundStyle(Color.labelSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(Spacing.sm)
-        .background(Color.surfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-    }
-}
-
-// MARK: - Models
+// MARK: - Data Models
 
 struct ContractListItem: Identifiable {
     let id = UUID()
     let title: String
+    let contractType: String
     let counterparty: String
     let value: String
-    let status: String
-    let statusColor: Color
+    let valueNumeric: Double
+    let status: ContractStatus
     let typeIcon: String
+    let createdDate: String
+    let actionLabel: String
 
     static let sampleData: [ContractListItem] = [
-        ContractListItem(title: "Freelance Development", counterparty: "0x1a2b...3c4d", value: "$5,000", status: "Active", statusColor: .statusSuccess, typeIcon: Symbols.contract),
-        ContractListItem(title: "Property Lease", counterparty: "PropertyDAO", value: "$2,400/mo", status: "Active", statusColor: .statusSuccess, typeIcon: Symbols.property),
-        ContractListItem(title: "Insurance Policy", counterparty: "InsureDAO", value: "$500", status: "Pending", statusColor: .statusWarning, typeIcon: Symbols.insurance),
-    ]
-}
-
-struct SubscriptionItem: Identifiable {
-    let id = UUID()
-    let name: String
-    let frequency: String
-    let amount: String
-    let nextDate: String
-
-    static let sampleData: [SubscriptionItem] = [
-        SubscriptionItem(name: "DeFi Yield Optimizer", frequency: "Monthly", amount: "$29/mo", nextDate: "Apr 1"),
-        SubscriptionItem(name: "Data Oracle Feed", frequency: "Weekly", amount: "$5/wk", nextDate: "Mar 31"),
+        ContractListItem(
+            title: "Freelance Development",
+            contractType: "Escrow",
+            counterparty: "0x1a2b...3c4d",
+            value: "$5,000",
+            valueNumeric: 5_000,
+            status: .active,
+            typeIcon: Symbols.contract,
+            createdDate: "Mar 15, 2026",
+            actionLabel: "View"
+        ),
+        ContractListItem(
+            title: "Property Lease Agreement",
+            contractType: "Lease",
+            counterparty: "0x9f8e...7d6c",
+            value: "$2,400/mo",
+            valueNumeric: 28_800,
+            status: .active,
+            typeIcon: Symbols.property,
+            createdDate: "Feb 28, 2026",
+            actionLabel: "View"
+        ),
+        ContractListItem(
+            title: "Insurance Policy",
+            contractType: "Insurance",
+            counterparty: "InsureDAO",
+            value: "$500",
+            valueNumeric: 500,
+            status: .pending,
+            typeIcon: Symbols.insurance,
+            createdDate: "Apr 2, 2026",
+            actionLabel: "Sign"
+        ),
+        ContractListItem(
+            title: "Revenue Share",
+            contractType: "Revenue Split",
+            counterparty: "0xab12...ef34",
+            value: "$12,500",
+            valueNumeric: 12_500,
+            status: .completed,
+            typeIcon: Symbols.chartPie,
+            createdDate: "Jan 10, 2026",
+            actionLabel: "Details"
+        ),
+        ContractListItem(
+            title: "Vendor Payment",
+            contractType: "Escrow",
+            counterparty: "0x5678...9abc",
+            value: "$3,200",
+            valueNumeric: 3_200,
+            status: .disputed,
+            typeIcon: Symbols.dispute,
+            createdDate: "Mar 28, 2026",
+            actionLabel: "Resolve"
+        ),
     ]
 }
 
@@ -666,12 +782,34 @@ struct ContractTemplate: Identifiable {
     let name: String
     let description_: String
     let icon: String
+    let accentColor: Color
 
     static let sampleData: [ContractTemplate] = [
-        ContractTemplate(name: "Escrow", description_: "Milestone-based escrow contract", icon: Symbols.escrow),
-        ContractTemplate(name: "Subscription", description_: "Recurring payment stream", icon: Symbols.processing),
-        ContractTemplate(name: "DAO Treasury", description_: "Multi-sig treasury management", icon: Symbols.treasury),
-        ContractTemplate(name: "Insurance", description_: "Parametric insurance policy", icon: Symbols.insurance),
+        ContractTemplate(name: "Escrow", description_: "Milestone-based escrow with conditional release", icon: Symbols.escrow, accentColor: .accentPrimary),
+        ContractTemplate(name: "Freelance", description_: "Time or deliverable based freelance agreement", icon: Symbols.contract, accentColor: .statusInfo),
+        ContractTemplate(name: "Subscription", description_: "Recurring payment streams with auto-renewal", icon: Symbols.processing, accentColor: .purple),
+        ContractTemplate(name: "Revenue Share", description_: "Automatic revenue splitting between parties", icon: Symbols.chartPie, accentColor: .statusSuccess),
+        ContractTemplate(name: "Joint Ownership", description_: "Shared asset ownership with governance rules", icon: Symbols.property, accentColor: .orange),
+        ContractTemplate(name: "Loan Agreement", description_: "Collateralized lending with flexible terms", icon: Symbols.fee, accentColor: .accentTertiary),
+        ContractTemplate(name: "Fundraiser", description_: "Campaign-based fundraising with milestones", icon: Symbols.fundraiser, accentColor: .pink),
+        ContractTemplate(name: "DAO", description_: "Decentralized governance with treasury management", icon: Symbols.dao, accentColor: .accentSecondary),
+    ]
+}
+
+struct SubscriptionItem: Identifiable {
+    let id = UUID()
+    let name: String
+    let tier: String
+    let amount: String
+    let nextDate: String
+    let icon: String
+    let tierColor: Color
+    let usagePercent: Double
+
+    static let sampleData: [SubscriptionItem] = [
+        SubscriptionItem(name: "DeFi Yield Optimizer", tier: "Pro", amount: "$29/mo", nextDate: "May 1, 2026", icon: Symbols.chartLine, tierColor: .accentPrimary, usagePercent: 0.73),
+        SubscriptionItem(name: "Data Oracle Feed", tier: "Standard", amount: "$12/mo", nextDate: "Apr 28, 2026", icon: Symbols.link, tierColor: .statusInfo, usagePercent: 0.45),
+        SubscriptionItem(name: "Contract Analytics", tier: "Free", amount: "$0/mo", nextDate: "N/A", icon: Symbols.chartBar, tierColor: .labelTertiary, usagePercent: 0.92),
     ]
 }
 

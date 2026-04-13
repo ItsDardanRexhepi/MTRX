@@ -580,55 +580,577 @@ final class Trinity: ObservableObject {
         }
     }
 
+    // MARK: - 30-Component Conversational Flows
+
+    /// Every action the user can take on MTRX maps to one of these 30 runtime
+    /// components. The keyword lists below are deliberately written in plain
+    /// English so that non-technical users can trigger the right wizard by
+    /// saying "I want to sell my cat picture", "get me some insurance for
+    /// this trip", "set up a recurring payment to my brother", etc.
+    ///
+    /// The detector walks the list in priority order and returns the first
+    /// component whose keywords match the user's message. Money-action verbs
+    /// like "buy", "send" are intentionally low-priority so that a phrase
+    /// like "buy an NFT" is classified as NFT (3) instead of generic
+    /// payments (17).
+    private static let componentKeywords: [(id: Int, keywords: [String])] = [
+        // Concept-first components (highest priority — these override verb matches)
+        (3,  ["nft", "nfts", "collectible", "collectable", "erc721", "erc-721", "jpeg", "art piece", "digital art"]),
+        (4,  ["rwa", "real world asset", "real-world asset", "tokenize property", "tokenise property", "real estate", "tokenize a house", "tokenise a house", "commodity token", "gold bar", "treasury bill"]),
+        (5,  ["decentralized identity", "decentralised identity", "did", "self sovereign", "self-sovereign", "kyc", "verify myself", "prove who i am"]),
+        (8,  ["attestation", "attest", "eas", "sign a statement", "verifiable credential", "vc"]),
+        (9,  ["agent identity", "ai agent", "my agent", "autonomous agent", "robot identity"]),
+        (10, ["agentic payment", "agent payment", "agent-to-agent", "autonomous payment", "ai pays", "agent pays"]),
+        (11, ["oracle", "price feed", "data feed", "chainlink feed", "weather data", "sports data", "off-chain data"]),
+        (12, ["supply chain", "provenance", "track shipment", "track my shipment", "track product", "where is my package", "batch number"]),
+        (13, ["insurance", "insure", "coverage", "cover my", "policy", "file a claim", "travel insurance", "renter", "flight delay"]),
+        (14, ["gaming", "tournament", "play to earn", "play-to-earn", "in-game", "video game", "leaderboard", "game asset"]),
+        (15, ["intellectual property", "ip rights", "trademark", "copyright", "patent", "license my work", "protect my art", "register my song"]),
+        (18, ["security token", "tokenized stock", "tokenised stock", "equity token", "bond token", "ipo", "regulation d", "reg d"]),
+        (22, ["fundraiser", "fundraising", "crowdfund", "campaign", "milestone release", "donation drive", "raise money", "kickstart"]),
+        (23, ["loyalty", "loyalty points", "points program", "tier", "silver tier", "gold tier", "platinum tier"]),
+        (25, ["cashback", "rebate", "cash back", "cash-back"]),
+        (26, ["brand reward", "partner reward", "merchant reward", "coffee shop reward", "store reward"]),
+        (27, ["subscription", "subscribe", "recurring", "monthly plan", "yearly plan", "renewal", "cancel subscription"]),
+        (28, ["social", "post something", "social feed", "follow someone", "message someone", "encrypted chat", "social graph"]),
+        (29, ["privacy", "private transfer", "private send", "zero knowledge", "zero-knowledge", "zk", "hide the amount", "anonymous"]),
+        (30, ["dispute", "arbitration", "resolve a dispute", "counterparty", "refund request", "they didn't deliver"]),
+        (20, ["dashboard", "overview", "give me a summary", "my numbers", "kpi", "metric", "stats"]),
+        (6,  ["dao", "join a dao", "create a dao", "dao proposal"]),
+        (19, ["governance", "vote on proposal", "proposal", "delegate my vote", "cast a vote"]),
+        (16, ["stake", "staking", "validator", "unstake", "staking reward"]),
+        (7,  ["stablecoin", "mint stablecoin", "usdc", "usdt", "dai", "pegged", "peg"]),
+        (2,  ["lending", "defi loan", "borrow against", "supply to aave", "supply to compound", "yield farm", "earn yield"]),
+        (21, ["swap", "dex", "trade tokens", "exchange tokens", "liquidity pool", "amm"]),
+        (24, ["marketplace", "list for sale", "auction", "sell it", "list it", "bid on"]),
+        (17, ["send money", "send payment", "pay", "wire", "remittance"]),
+        (1,  ["smart contract", "deploy contract", "contract template", "escrow contract", "multisig"]),
+    ]
+
+    /// Map a component ID back to a short plain-English label Trinity uses in
+    /// response text ("your NFT", "your stablecoin", etc.).
+    private static func componentLabel(_ id: Int) -> String {
+        switch id {
+        case 1: return "smart contract"
+        case 2: return "DeFi position"
+        case 3: return "NFT"
+        case 4: return "real-world asset"
+        case 5: return "digital identity"
+        case 6: return "DAO"
+        case 7: return "stablecoin"
+        case 8: return "attestation"
+        case 9: return "AI agent identity"
+        case 10: return "agentic payment"
+        case 11: return "oracle feed"
+        case 12: return "supply-chain record"
+        case 13: return "insurance policy"
+        case 14: return "gaming asset"
+        case 15: return "IP rights entry"
+        case 16: return "staking position"
+        case 17: return "payment"
+        case 18: return "security token"
+        case 19: return "governance vote"
+        case 20: return "dashboard"
+        case 21: return "swap"
+        case 22: return "fundraising campaign"
+        case 23: return "loyalty rewards"
+        case 24: return "marketplace listing"
+        case 25: return "cashback claim"
+        case 26: return "brand reward"
+        case 27: return "subscription"
+        case 28: return "social post"
+        case 29: return "private transfer"
+        case 30: return "dispute"
+        default: return "action"
+        }
+    }
+
+    /// Detect which of the 30 components the user's message refers to, if any.
+    /// The detector uses `componentKeywords` in priority order, so the first
+    /// match wins. Returns nil if no component is recognised — the caller
+    /// falls back to a generic "tell me more" prompt so Trinity never just
+    /// stares silently at the user.
+    private func detectComponent(lower: String) -> Int? {
+        for (id, keywords) in Self.componentKeywords {
+            for kw in keywords where lower.contains(kw) {
+                return id
+            }
+        }
+        return nil
+    }
+
+    /// Plain-English guided wizard for each of the 30 components. These are
+    /// deliberately chatty and use everyday language rather than protocol
+    /// jargon so that first-time users can follow along without reading a
+    /// DeFi glossary. Each wizard:
+    ///
+    /// * names the action in one sentence
+    /// * lists what Trinity needs from the user
+    /// * explains the consequences in plain English
+    /// * ends with a yes/no confirmation prompt
+    ///
+    /// The wizards substitute extracted entities (amount, asset, recipient)
+    /// when available so the user sees their own numbers echoed back instead
+    /// of boilerplate placeholders.
+    private func componentFlow(component: Int, lower: String, entities: [String: String]) -> String {
+        let amount = entities["amount"]
+        let asset = entities["asset"]
+        let recipient = entities["ensName"] ?? entities["walletAddress"]
+        let amountPhrase = amount.map { "\($0)" } ?? "the amount you choose"
+        let assetPhrase = asset.map { "of \($0)" } ?? ""
+
+        switch component {
+        case 1: // Smart Contracts
+            return """
+            I can deploy a smart contract for you. This is a permanent on-chain action, so let's do it carefully.
+
+            Here's what I need from you:
+              1. What should the contract do? (hold money in escrow, release funds on a date, require multiple signatures, something custom)
+              2. Which network? (Base is cheapest and fastest, Ethereum mainnet is the most established)
+              3. Do you want to start from one of our pre-audited templates, or do you have your own code?
+
+            I'll run a safety check on the code and show you the full deployment cost before anything goes live. Ready to begin — which of the three questions above can you answer first?
+            """
+
+        case 2: // DeFi Lending
+            if lower.contains("borrow") {
+                return """
+                You want to borrow against what you already own — that's a loan where your crypto stays as collateral. Here's the deal in plain English:
+
+                  • You lock up some of your holdings (like ETH)
+                  • You receive a loan in a stablecoin (like USDC) up to about 50–75% of the locked value
+                  • You pay interest over time, and you can repay whenever you want
+                  • If the market drops hard, your collateral can be sold to cover the loan — that's called liquidation
+
+                To get you the best rate, tell me: what do you want to borrow, how much, and what can you put up as collateral?
+                """
+            }
+            return """
+            You'd like to earn yield on your crypto by lending it out \(assetPhrase). Here's what happens in plain English:
+
+              • Your tokens sit in a lending pool
+              • Other people borrow from that pool and pay interest
+              • You earn a share of that interest automatically, usually between 2% and 8% APY
+              • You can pull your money out whenever you want
+
+            I'll scan the top lending protocols (Aave, Compound, Morpho) for the safest rate and show you the numbers side by side. Which asset do you want to lend?
+            """
+
+        case 3: // NFT
+            if lower.contains("mint") || lower.contains("create") {
+                return """
+                Minting an NFT means registering a piece of digital content — an image, video, song, or 3D model — on the blockchain as something you uniquely own.
+
+                To mint yours, I just need:
+                  1. The file itself (you can attach it here)
+                  2. A name and a sentence or two describing it
+                  3. Whether it's a one-of-a-kind piece or a small edition (say, 10 copies)
+                  4. The resale royalty you want — that's a cut you get every time it's sold later. Most artists pick between 5% and 10%
+
+                I'll show you the gas fee before we hit the button, and once minted you can list it for sale in the marketplace. Ready to upload?
+                """
+            }
+            if lower.contains("buy") {
+                return """
+                Happy to help you buy an NFT. Do you already have the listing link or the contract + token ID, or would you like me to browse trending collections with you first? I'll show the asking price, the price history, and whether the collection has been verified before you commit anything.
+                """
+            }
+            if lower.contains("sell") || lower.contains("list") {
+                return """
+                To list your NFT for sale, tell me:
+                  • Which NFT (you can pick from your wallet or paste the link)
+                  • Fixed price or auction?
+                  • What price (or starting bid)
+                  • How long the listing should run
+
+                I'll handle the on-chain listing and ping you the moment someone makes an offer.
+                """
+            }
+            return "I can help with NFTs — do you want to mint a new one, buy one, or list one of yours for sale?"
+
+        case 4: // RWA
+            return """
+            Tokenising a real-world asset turns something physical — a piece of real estate, a gold bar, an invoice, a car — into digital shares you can own, trade, or use as collateral.
+
+            Before I start, I'll need:
+              1. What's the asset? (address for property, serial number for gold, contract number for an invoice)
+              2. Proof of ownership (title deed, receipt, certificate)
+              3. Who's authorised to verify it? (your lawyer, an appraiser, a notary)
+              4. How many tokens you want to split it into
+
+            This is a regulated area, so I'll walk you through the legal paperwork step by step. Is the asset you're tokenising property, a commodity, or something else?
+            """
+
+        case 5: // Identity
+            return """
+            A decentralised identity (DID) is a secure digital ID that belongs only to you — no company can delete it or lock you out. You can use it to prove things about yourself (age, citizenship, license) without handing over a photo of your passport every time.
+
+            I can:
+              • Create a new DID for you (takes about 30 seconds)
+              • Add verifiable credentials (driver's licence, university degree, etc.)
+              • Show you which apps are asking to read it
+
+            Would you like me to create a DID now, or add a credential to an existing one?
+            """
+
+        case 6: // DAO
+            return """
+            A DAO is a group that makes decisions together on-chain — think of it as a club, a co-op, or even a mini company where every member has a vote.
+
+            Tell me which you'd like to do:
+              • Join a DAO (I'll look up membership requirements)
+              • Create a new DAO (I'll walk you through naming it, setting voting rules, and inviting members)
+              • See what DAOs you're already a member of and their active proposals
+
+            Which sounds right?
+            """
+
+        case 7: // Stablecoin
+            return """
+            You'd like to mint a stablecoin — that means locking up collateral (like ETH) and receiving a stable-value token (like USDC-style) against it.
+
+            Here's how it works in plain English:
+              • You deposit, say, $150 worth of ETH
+              • You can mint up to $100 of stablecoin (the extra buffer is a safety cushion)
+              • You pay a small interest rate on the amount you mint
+              • If ETH drops too much, some of your collateral gets sold to keep things safe
+
+            How much stablecoin do you want to mint, and what will you use as collateral?
+            """
+
+        case 8: // Attestation
+            return """
+            An attestation is a signed statement — you (or someone you trust) asserting that something is true: "Alice is over 18", "this wallet belongs to my company", "Bob finished the course".
+
+            I just need to know:
+              1. What's the statement?
+              2. Who is it about? (a wallet address or your own)
+              3. Should anyone be able to see it, or only people you share it with?
+
+            It takes a few seconds and a tiny gas fee. Want to write one now?
+            """
+
+        case 9: // Agent Identity
+            return """
+            I can set up an identity for an AI agent — useful if you want an automated program to act on your behalf (for example, to rebalance your portfolio while you sleep).
+
+            To register one I need:
+              • A name for the agent
+              • What it's allowed to do (spending limit, asset whitelist, time window)
+              • Your confirmation, because this agent will be able to sign transactions under those limits
+
+            Every action the agent takes stays in your decision log and can be revoked instantly. Shall we start by naming it?
+            """
+
+        case 10: // Agentic Payments
+            return """
+            An agentic payment is a transaction an AI agent executes on your behalf — for example, paying a subscription, tipping a content creator, or settling with another agent.
+
+            For this one I need:
+              • Which agent should send it (yours, or one you've authorised)
+              • How much, and to whom
+              • What it's for (so it shows up clearly in your history)
+
+            I'll double-check the spending stays inside the limits you set for that agent before it goes through.
+            """
+
+        case 11: // Oracle
+            return """
+            Oracles are how a smart contract learns about the outside world — stock prices, weather, sports scores, whatever you need.
+
+            Tell me what data you want and I'll:
+              • Find the right feed (Chainlink, Pyth, RedStone, or a custom source)
+              • Pull the latest value right now
+              • Optionally wire it into one of your contracts so it updates automatically
+
+            What data do you need a feed for?
+            """
+
+        case 12: // Supply Chain
+            return """
+            I can record a supply-chain event on-chain — a permanent, tamper-proof log of where a product is, who handled it, and when.
+
+            To log an event I need:
+              1. The product ID or batch number
+              2. What happened (shipped, received, inspected, stored)
+              3. Where it happened (address or GPS)
+              4. Optionally, a photo for evidence
+
+            It's especially useful for food, pharma, and luxury goods where provenance matters. What product are we logging?
+            """
+
+        case 13: // Insurance
+            return """
+            MTRX has several insurance products — tell me which one fits:
+
+              • **Smart-contract cover** — pays out if a protocol you use gets hacked
+              • **DeFi position cover** — protects against liquidation or impermanent loss
+              • **Travel cover** — flight delays, lost baggage, trip cancellation
+              • **Rental cover** — for short-term stays
+              • **Parametric cover** — pays automatically based on weather data (useful for farmers and events)
+
+            If you've already got a policy and want to file a claim, just say "file a claim" and tell me what happened — I'll handle the paperwork.
+            """
+
+        case 14: // Gaming
+            return """
+            The MTRX gaming layer lets you:
+              • Play games where in-game items (skins, weapons, land) are actual NFTs you own
+              • Join tournaments with prize pools paid out on-chain
+              • Move items between compatible games
+              • Track your stats and achievements across titles
+
+            What would you like to do — browse games, enter a tournament, or check the value of an in-game item you already own?
+            """
+
+        case 15: // IP Rights
+            return """
+            I can register your intellectual property on-chain so you've got a permanent, timestamped record of authorship — useful for art, music, writing, photography, designs, even inventions.
+
+            Just tell me:
+              1. What's the work? (attach or describe it)
+              2. What rights are you claiming? (full copyright, Creative Commons, patent application, trademark)
+              3. Do you want to make it licensable — i.e. let others pay you to use it?
+
+            Once registered you can license, transfer, or enforce it through the dispute system if someone copies it.
+            """
+
+        case 16: // Staking
+            if lower.contains("unstake") {
+                return """
+                Got it — you want to unstake \(amountPhrase) \(assetPhrase). A few things to know before we do this:
+
+                  • There's an unbonding period (usually a few days) during which your tokens are frozen and don't earn rewards
+                  • You'll still see the tokens in your wallet once unbonding finishes
+                  • You can cancel while the request is in flight if you change your mind
+
+                Want me to check the exact unbonding time for your validator and proceed?
+                """
+            }
+            return """
+            Staking means locking up your tokens to help secure a network — in return, the network pays you rewards, usually 3% to 10% a year.
+
+            A few things to know:
+              • Your tokens are locked for an unbonding period (a few days to a few weeks depending on the network)
+              • Rewards get paid out automatically, you don't have to claim them manually
+              • If a validator misbehaves, a small percentage can be slashed — I'll only recommend validators with a spotless history
+
+            Want me to show you the top-performing validators for \(asset ?? "your asset")?
+            """
+
+        case 17: // Payments
+            let who = recipient ?? "the recipient"
+            return """
+            Let's set up a payment. Here's what I have so far:
+
+              • Amount: \(amountPhrase) \(assetPhrase)
+              • To: \(who)
+              • Fee: I'll calculate this at current network rates before you confirm
+
+            Before I send it I'll show you the exact total including fees. Can you confirm the recipient's address (or ENS name) is correct? That's the one thing I can't undo if it's wrong.
+            """
+
+        case 18: // Securities
+            return """
+            Security tokens are digital versions of regulated investments — shares in a company, bonds, or fund units. Because they're regulated, there are rules about who can buy them, what disclosures you need, and where they can be traded.
+
+            If you want to issue one, I need to know:
+              1. What does the token represent? (equity, debt, fund unit)
+              2. Which jurisdiction's rules apply?
+              3. Who's allowed to hold it? (accredited investors only, or open)
+              4. How many tokens and what's each worth?
+
+            If you want to buy one, tell me which offering and I'll verify you meet the eligibility requirements first.
+            """
+
+        case 19: // Governance
+            if lower.contains("delegate") {
+                return """
+                Delegating means handing your voting power to someone you trust who will vote on your behalf — great if you care about a protocol but don't want to track every proposal yourself.
+
+                Tell me which token's voting power you want to delegate, and I'll show you the top delegates, their voting history, and how aligned they are with what you usually support.
+                """
+            }
+            return """
+            I'll help you vote on a governance proposal. I can:
+              • Show you the active proposals for any protocol you hold tokens in
+              • Translate each proposal into plain English so you actually know what you're voting on
+              • Show you how whales and delegates are voting
+              • Cast your vote on-chain
+
+            Which protocol's proposals do you want to look at?
+            """
+
+        case 20: // Dashboard
+            return """
+            I'll pull up your dashboard — a single view of your portfolio, recent activity, active positions, pending transactions, upcoming subscription renewals, governance votes you haven't cast yet, and any alerts. Give me a second to assemble it.
+            """
+
+        case 21: // DEX / Swap
+            return """
+            Swapping means trading one token for another without going through a centralised exchange. Here's what I'll do for you:
+
+              • Compare rates across every major DEX (Uniswap, Curve, Balancer, 1inch)
+              • Show you the exact amount you'll receive after fees and slippage
+              • Split the swap across multiple pools if that gets you more output
+              • Protect you from sandwich attacks with a safe slippage setting
+
+            What are you swapping, and how much?
+            """
+
+        case 22: // Fundraising
+            if lower.contains("donate") {
+                return """
+                Happy to help you donate. Do you have a specific campaign in mind, or would you like me to show you trending campaigns by cause (disaster relief, open-source, climate, animals)? Every donation is tracked on-chain and the recipient can only pull funds as they hit verified milestones.
+                """
+            }
+            return """
+            Let's set up a fundraiser. Here's what I need:
+
+              1. A title and a short story — why are you raising money?
+              2. The goal amount
+              3. Milestones — break the goal into 2–5 chunks, each with a condition. Donors love this because their money only releases as you hit real progress
+              4. A deadline
+
+            All funds sit in an on-chain escrow until each milestone is verified. Ready to tell me the title?
+            """
+
+        case 23: // Loyalty
+            return """
+            Loyalty programs on MTRX track your points on-chain, so they can't be revoked or expire secretly. I can:
+              • Show your current points balance across every program you're enrolled in
+              • Redeem points for rewards
+              • Move points between compatible programs
+              • Check what tier you're in and how close you are to the next one
+
+            Which of those would you like to do?
+            """
+
+        case 24: // Marketplace
+            return """
+            The marketplace is where you can buy, sell, or auction anything — NFTs, tokens, real-world asset shares, physical items with on-chain provenance.
+
+            If you're listing, tell me:
+              • What's the item?
+              • Fixed price or auction?
+              • Price (or starting bid and reserve)
+              • How long should it run?
+
+            If you're buying, just paste the listing link or tell me what you're hunting for — I'll search.
+            """
+
+        case 25: // Cashback
+            return """
+            I can pull up your cashback wallet — every qualifying purchase you've made through MTRX generates cashback that accrues here. I can:
+              • Show your pending and claimable balance
+              • Redeem it into any asset you like (stablecoins are most common)
+              • Set up auto-redeem so cashback converts to USDC on the 1st of every month
+
+            What would you like to do?
+            """
+
+        case 26: // Brand Rewards
+            return """
+            Brand rewards are merchant-specific points you earn from partner brands. Tell me which brand and I'll:
+              • Show your balance and the rewards catalogue
+              • Redeem points for a specific reward
+              • Link a new brand to your account so future purchases count
+
+            Which brand are we working with?
+            """
+
+        case 27: // Subscriptions
+            if lower.contains("cancel") {
+                return """
+                I can cancel a subscription for you. Which one — I'll pull up your active subscriptions so you can pick. Cancellation is instant on-chain; you'll keep access until the end of the current billing period.
+                """
+            }
+            return """
+            Let's set up a subscription. I need:
+              1. What you're subscribing to (a service, a creator, a DAO membership)
+              2. Which plan (monthly, annual)
+              3. Which asset you want to pay with (USDC is the most common for recurring payments because its price doesn't swing)
+              4. Whether to auto-renew
+
+            You can cancel any time with one tap. Which service is this for?
+            """
+
+        case 28: // Social
+            if lower.contains("post") {
+                return """
+                What do you want to post? I can:
+                  • Post plain text to your on-chain social feed
+                  • Attach an image, video, or audio clip
+                  • Tag other users (they'll get a notification)
+                  • Gate the post so only your followers, or token holders, can see it
+
+                Once posted it lives on-chain and can't be quietly edited or deleted by anyone but you.
+                """
+            }
+            if lower.contains("message") {
+                return """
+                Messages on MTRX are end-to-end encrypted — only you and the recipient can read them. Who do you want to message? You can use a wallet address, an ENS name, or their username.
+                """
+            }
+            return "I can help with social — do you want to post something, message someone, follow an account, or manage your followers?"
+
+        case 29: // Privacy
+            return """
+            A private transfer hides the amount and the recipient from public view on the blockchain. It still settles on-chain, but observers only see that *some* transaction happened, not the details.
+
+            A few things to know in plain English:
+              • The money goes into a privacy pool and comes out on the other side, untraceable
+              • The fees are a bit higher than a regular transfer
+              • You can still prove the transfer happened to anyone you want (for taxes, for compliance) using a zero-knowledge receipt
+
+            How much do you want to send privately, and to whom?
+            """
+
+        case 30: // Disputes
+            return """
+            Sorry you're dealing with a dispute — I can help. The MTRX dispute system uses neutral arbitrators who review the evidence on-chain and issue a binding decision.
+
+            To open a dispute I need:
+              1. The other party's wallet address
+              2. A short description of what went wrong
+              3. Evidence — screenshots, transaction hashes, messages, anything that backs your story
+
+            Once filed, the other side has 7 days to respond. If they don't, the dispute is decided in your favour by default. Want to start filing?
+            """
+
+        default:
+            return "I'll help you with that. Could you give me a little more detail so I can pick the right wizard?"
+        }
+    }
+
+    /// Generate an action response. Routes through `detectComponent` so every
+    /// message that mentions one of the 30 runtime components gets the
+    /// matching plain-English wizard; falls back to a generic-but-still-
+    /// friendly prompt otherwise.
     private func generateActionResponse(lower: String, entities: [String: String]) -> String {
-        let amount = entities["amount"] ?? "the specified amount"
+        if let component = detectComponent(lower: lower) {
+            return componentFlow(component: component, lower: lower, entities: entities)
+        }
+
+        // No specific component detected — generic action acknowledgment
+        // that still asks a useful clarifying question instead of stalling.
+        let amount = entities["amount"] ?? "the amount"
         let asset = entities["asset"] ?? "your asset"
+        if lower.contains("send") || lower.contains("transfer") || lower.contains("pay") {
+            return componentFlow(component: 17, lower: lower, entities: entities)
+        }
+        if lower.contains("buy") || lower.contains("sell") {
+            return componentFlow(component: 24, lower: lower, entities: entities)
+        }
+        return """
+        I can help you with that. To make sure I take the safest path, tell me:
 
-        if lower.contains("send") || lower.contains("transfer") {
-            let recipient = entities["ensName"] ?? entities["walletAddress"] ?? "the recipient"
-            return "I'll prepare a transfer of \(amount) to \(recipient). Before I execute this, please confirm the details:\n\n- Amount: \(amount)\n- To: \(recipient)\n- Network fees will be calculated at current rates\n\nShall I proceed with this transfer?"
-        }
-        if lower.contains("swap") {
-            return "I'll set up a swap for \(amount) of \(asset). I'll find the best rate across available DEXs and show you the quote including slippage and fees before executing. One moment while I fetch current rates."
-        }
-        if lower.contains("bridge") {
-            return "I can bridge \(amount) of \(asset) to your target chain. I'll compare bridge protocols for the best combination of speed, cost, and security. Which chain would you like to bridge to?"
-        }
-        if lower.contains("deploy") || lower.contains("create contract") {
-            return "I'll help you deploy a smart contract. This is an irreversible on-chain action, so let me walk you through it carefully:\n\n1. What type of contract do you need? (token, NFT collection, escrow, multisig, custom)\n2. Which network should it be deployed on?\n3. Do you have the contract code ready, or would you like to use one of our audited templates?\n\nI'll run a security analysis before any deployment."
-        }
-        if lower.contains("stake") {
-            return "I can help you stake \(amount) of \(asset). Here's what you should know:\n\n- Current APY varies by validator — I'll show you the top-performing ones\n- Staking locks your tokens for the unbonding period\n- Rewards are distributed automatically\n\nWould you like to see available validators and their performance history?"
-        }
-        if lower.contains("unstake") {
-            return "I'll initiate an unstaking request for \(amount) of \(asset). Please note that unstaking involves an unbonding period during which your tokens will not earn rewards and cannot be transferred. I'll show you the exact timeline. Shall I proceed?"
-        }
-        if lower.contains("mint") {
-            return "I'll help you mint a new NFT. Please provide:\n\n- The media file (image, video, audio, or 3D model)\n- Name and description for the NFT\n- Collection (existing or new)\n- Royalty percentage for secondary sales\n- Supply (1 for unique, or multiple for editions)\n\nI'll estimate gas fees before minting."
-        }
-        if lower.contains("borrow") || lower.contains("loan") {
-            return "I can help you open a borrowing position. Here's the current landscape:\n\n- I'll scan available lending protocols for the best rates\n- Your collateral ratio and liquidation price will be clearly displayed\n- Health factor monitoring will be set up automatically\n\nWhat asset would you like to borrow, and what collateral will you provide?"
-        }
-        if lower.contains("lend") || lower.contains("supply") {
-            return "I can help you supply \(amount) of \(asset) to a lending protocol. I'll compare current supply APYs across protocols and show you:\n\n- Expected yield over different time horizons\n- Protocol risk ratings\n- Withdrawal flexibility\n\nWould you like to see the comparison?"
-        }
-        if lower.contains("vote") || lower.contains("propose") {
-            return "I'll help you participate in governance. I can show you active proposals, help you understand their implications, and submit your vote on-chain. Which DAO or protocol are you looking to participate in?"
-        }
-        if lower.contains("insure") || lower.contains("insurance") || lower.contains("coverage") {
-            return "I can help you get coverage. MTRX offers several insurance products:\n\n- Smart contract cover (protect against exploits)\n- Parametric insurance (weather, flight delays)\n- DeFi position insurance (impermanent loss, liquidation)\n- Renters and travel insurance\n\nWhat type of coverage are you looking for?"
-        }
-        if lower.contains("list") || lower.contains("auction") {
-            return "I'll help you list your asset on the marketplace. Please provide:\n\n- The asset to list (NFT, token, or RWA)\n- Sale type: fixed price or auction\n- Starting price and optional reserve price\n- Duration for the listing\n\nI'll handle the on-chain listing and notify you of any offers."
-        }
-        if lower.contains("donate") || lower.contains("fund") || lower.contains("campaign") {
-            return "I can help with fundraising. Would you like to:\n\n- Create a new fundraising campaign with milestone-based releases\n- Donate to an existing campaign\n- View campaign progress and milestone status\n\nAll campaigns use transparent on-chain accounting with milestone verification."
-        }
-        if lower.contains("delegate") {
-            return "I'll help you delegate your voting power. I can show you active delegates, their voting history, and alignment with your preferences. Which governance token would you like to delegate?"
-        }
+          • Which asset? (for example \(asset))
+          • How much? (for example \(amount))
+          • And a little bit about what you're trying to achieve
 
-        return "I'll help you with that action. Let me prepare everything needed. Could you confirm the specific details so I can proceed safely?"
+        Once I know that, I'll walk you through it step by step and confirm before anything touches the blockchain.
+        """
     }
 
     private func generateQueryResponse(lower: String, entities: [String: String], context: UserContext) -> String {
@@ -671,6 +1193,16 @@ final class Trinity: ObservableObject {
         }
         if lower.contains("social") || lower.contains("message") || lower.contains("post") {
             return "MTRX social features include:\n\n- Encrypted peer-to-peer messaging\n- Community posts with on-chain verification\n- Token-gated groups and channels\n- Social trading and portfolio sharing\n- Content monetization with direct tipping\n\nWhat would you like to do?"
+        }
+
+        // Component-aware fallback for questions: if the user is asking about
+        // one of the 30 components but didn't hit an explicit keyword above,
+        // re-use the same plain-English wizard we show for actions. The
+        // wizards are written to double as explainers so a user asking "what
+        // is staking" gets the same clear answer as one saying "I want to
+        // stake".
+        if let component = detectComponent(lower: lower) {
+            return componentFlow(component: component, lower: lower, entities: entities)
         }
 
         return "Let me look into that for you. I'll gather the relevant information and present it clearly. One moment."
@@ -818,91 +1350,13 @@ final class Trinity: ObservableObject {
     }
 }
 
-// MARK: - MTRX API Client
-
-/// API client for communicating with the MTRX backend runtime.
-/// Singleton that manages agent message routing and conversation context.
-final class MTRXAPIClient {
-    static let shared = MTRXAPIClient()
-
-    private let session: URLSession
-    private let baseURL: URL
-
-    struct AgentResponse {
-        let text: String
-        let suggestedActions: [SuggestedAction]
-        let metadata: [String: String]
-    }
-
-    private init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
-        self.session = URLSession(configuration: config)
-        // Default to local runtime; override via environment or config
-        self.baseURL = URL(string: ProcessInfo.processInfo.environment["MTRX_API_URL"] ?? "https://api.mtrx.run/v1")!
-    }
-
-    /// Send a message to an agent and receive a response.
-    /// - Parameters:
-    ///   - agent: The agent name ("trinity", "morpheus", "neo").
-    ///   - message: The user's message.
-    ///   - context: The assembled prompt/context string.
-    ///   - conversationHistory: Recent conversation entries for continuity.
-    /// - Returns: The agent's response.
-    func sendAgentMessage(
-        agent: String,
-        message: String,
-        context: String,
-        conversationHistory: [[String: String]]
-    ) async throws -> AgentResponse {
-        let url = baseURL.appendingPathComponent("agent/\(agent)/message")
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: Any] = [
-            "message": message,
-            "context": context,
-            "history": conversationHistory
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            throw APIError.requestFailed
-        }
-
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let text = json["text"] as? String else {
-            throw APIError.invalidResponse
-        }
-
-        let suggestedActions: [SuggestedAction]
-        if let actionsArray = json["suggestedActions"] as? [[String: String]] {
-            suggestedActions = actionsArray.compactMap { dict in
-                guard let title = dict["title"],
-                      let description = dict["description"],
-                      let action = dict["action"] else { return nil }
-                return SuggestedAction(title: title, description: description, action: action)
-            }
-        } else {
-            suggestedActions = []
-        }
-
-        let metadata = json["metadata"] as? [String: String] ?? [:]
-
-        return AgentResponse(text: text, suggestedActions: suggestedActions, metadata: metadata)
-    }
-
-    enum APIError: Error {
-        case requestFailed
-        case invalidResponse
-    }
-}
+// The authoritative ``MTRXAPIClient`` lives in
+// ``Core/Networking/MTRXAPIClient.swift``. Trinity calls
+// ``MTRXAPIClient.shared.sendAgentMessage`` which is declared there and
+// returns an ``AgentChatResponse`` whose ``text`` property is what the
+// ``think(...)`` method reads. This file used to carry a duplicate stub
+// of the same class; that stub has been removed to avoid a redeclaration
+// conflict now that the real client has shipped.
 
 // MARK: - Trinity Response
 

@@ -53,6 +53,10 @@ final class MorpheusVoice: NSObject, @unchecked Sendable {
     // MARK: - Alert Sound
 
     private var alertSoundEnabled: Bool = true
+    /// Pool of ``AVAudioPlayer`` instances — one per severity — built
+    /// lazily from synthesized PCM so MTRX doesn't need to bundle
+    /// audio assets for the alert chimes.
+    private var chimePlayers: [MomentSeverity: AVAudioPlayer] = [:]
 
     // MARK: - Initialization
 
@@ -111,7 +115,8 @@ final class MorpheusVoice: NSObject, @unchecked Sendable {
         currentProfile = .morpheusCritical
         selectedVoice = selectVoice(for: .morpheusCritical)
 
-        // TODO: Play alert chime before critical voice
+        // Play the critical-severity chime first so the user hears
+        // the attention-getting tone before Morpheus's voice starts.
         if alertSoundEnabled {
             playAlertChime(severity: .critical)
         }
@@ -196,13 +201,152 @@ final class MorpheusVoice: NSObject, @unchecked Sendable {
         return voices.first
     }
 
+    /// Play the alert chime that precedes a Morpheus voice line.
+    ///
+    /// Rather than bundling four audio assets in the app package we
+    /// synthesize each chime once at first use and cache the resulting
+    /// ``AVAudioPlayer`` in ``chimePlayers``. Each severity gets its
+    /// own timbre:
+    ///
+    /// * ``.critical``  — a sharp 880 Hz single tone, 0.35 s, full volume.
+    /// * ``.urgent``    — a firm double-tap at 660 Hz with a short gap.
+    /// * ``.important`` — a single 523 Hz tone, 0.22 s, 80% volume.
+    /// * ``.advisory``  — a soft 392 Hz tone, 0.30 s, 60% volume.
+    ///
+    /// The synthesis work happens on a background queue so the first
+    /// chime doesn't block the main thread. If AVAudio or the PCM
+    /// encoder errors out we fall back silently — the speech itself
+    /// is the primary signal and the chime is a nicety.
     private func playAlertChime(severity: MomentSeverity) {
-        // TODO: Implement alert chime playback using AVAudioPlayer
-        // Different chimes for different severity levels:
-        // - critical: sharp, attention-grabbing tone
-        // - urgent: firm double-tone
-        // - important: single notification tone
-        // - advisory: soft chime
+        if let cached = chimePlayers[severity] {
+            cached.currentTime = 0
+            cached.play()
+            return
+        }
+        do {
+            let player = try Self.buildChimePlayer(for: severity)
+            chimePlayers[severity] = player
+            player.play()
+        } catch {
+            print("[MorpheusVoice] Chime synthesis failed: \(error)")
+        }
+    }
+
+    /// Synthesize a PCM WAV in-memory and return a ready-to-play
+    /// ``AVAudioPlayer`` for *severity*. The returned player is
+    /// cached by the caller so we only pay this cost once per launch.
+    private static func buildChimePlayer(for severity: MomentSeverity) throws -> AVAudioPlayer {
+        let sampleRate: Double = 44_100
+        let segments = segments(for: severity)
+
+        var samples: [Int16] = []
+        samples.reserveCapacity(Int(sampleRate) * 2)
+        for segment in segments {
+            let count = Int(sampleRate * segment.duration)
+            for i in 0..<count {
+                let t = Double(i) / sampleRate
+                let envelope = envelopeValue(at: t, duration: segment.duration)
+                let sine = sin(2.0 * .pi * segment.frequency * t)
+                let value = sine * envelope * segment.amplitude
+                samples.append(Int16(max(-1.0, min(1.0, value)) * Double(Int16.max)))
+            }
+            if segment.tailGap > 0 {
+                let gapCount = Int(sampleRate * segment.tailGap)
+                samples.append(contentsOf: repeatElement(Int16(0), count: gapCount))
+            }
+        }
+
+        let data = Self.wavData(samples: samples, sampleRate: Int(sampleRate))
+        let player = try AVAudioPlayer(data: data)
+        player.prepareToPlay()
+        player.volume = 1.0
+        return player
+    }
+
+    /// One segment of a synthesized chime — pure tone + optional gap.
+    private struct ChimeSegment {
+        let frequency: Double
+        let duration: Double
+        let amplitude: Double
+        let tailGap: Double
+    }
+
+    /// Return the ordered list of segments that make up the chime for
+    /// *severity*. Keeping this as pure data makes the chime profiles
+    /// easy to tweak without touching the synthesis code.
+    private static func segments(for severity: MomentSeverity) -> [ChimeSegment] {
+        switch severity {
+        case .critical:
+            return [
+                ChimeSegment(frequency: 880.0, duration: 0.35, amplitude: 1.00, tailGap: 0.02),
+            ]
+        case .urgent:
+            return [
+                ChimeSegment(frequency: 660.0, duration: 0.18, amplitude: 0.90, tailGap: 0.08),
+                ChimeSegment(frequency: 660.0, duration: 0.18, amplitude: 0.90, tailGap: 0.02),
+            ]
+        case .important:
+            return [
+                ChimeSegment(frequency: 523.25, duration: 0.22, amplitude: 0.80, tailGap: 0.02),
+            ]
+        case .advisory:
+            return [
+                ChimeSegment(frequency: 392.00, duration: 0.30, amplitude: 0.60, tailGap: 0.02),
+            ]
+        }
+    }
+
+    /// Cheap triangular attack/release envelope to avoid clicking at
+    /// the start/end of each tone. We ramp the amplitude up over the
+    /// first 10ms, hold, then ramp back down over the last 30ms.
+    private static func envelopeValue(at t: Double, duration: Double) -> Double {
+        let attack = 0.010
+        let release = min(0.030, duration * 0.2)
+        if t < attack {
+            return t / attack
+        }
+        if t > duration - release {
+            let remaining = max(0, duration - t)
+            return remaining / release
+        }
+        return 1.0
+    }
+
+    /// Assemble a minimal WAV file (RIFF/WAVE, 16-bit mono PCM) from a
+    /// buffer of samples so ``AVAudioPlayer(data:)`` can decode it
+    /// without round-tripping through disk.
+    private static func wavData(samples: [Int16], sampleRate: Int) -> Data {
+        var data = Data()
+        let byteRate = sampleRate * 2
+        let dataSize = samples.count * 2
+
+        func appendLE32(_ value: UInt32) {
+            var v = value.littleEndian
+            withUnsafeBytes(of: &v) { data.append(contentsOf: $0) }
+        }
+        func appendLE16(_ value: UInt16) {
+            var v = value.littleEndian
+            withUnsafeBytes(of: &v) { data.append(contentsOf: $0) }
+        }
+
+        data.append("RIFF".data(using: .ascii)!)
+        appendLE32(UInt32(36 + dataSize))
+        data.append("WAVE".data(using: .ascii)!)
+        data.append("fmt ".data(using: .ascii)!)
+        appendLE32(16)                 // fmt chunk size
+        appendLE16(1)                  // PCM
+        appendLE16(1)                  // mono
+        appendLE32(UInt32(sampleRate))
+        appendLE32(UInt32(byteRate))
+        appendLE16(2)                  // block align
+        appendLE16(16)                 // bits per sample
+        data.append("data".data(using: .ascii)!)
+        appendLE32(UInt32(dataSize))
+        for sample in samples {
+            var s = sample.littleEndian
+            withUnsafeBytes(of: &s) { data.append(contentsOf: $0) }
+        }
+        return data
     }
 }
 

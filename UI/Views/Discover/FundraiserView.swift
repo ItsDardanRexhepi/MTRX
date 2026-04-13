@@ -1,7 +1,7 @@
 // FundraiserView.swift
 // MTRX
 //
-// Component 22 — Active fundraisers, progress bars, and contribution interface.
+// Fundraiser campaign browsing with progress tracking, milestones, and contribution flow.
 
 import SwiftUI
 
@@ -9,675 +9,878 @@ import SwiftUI
 
 @MainActor
 final class FundraiserViewModel: ObservableObject {
-    @Published var fundraisers: [FundraiserDetail] = []
-    @Published var selectedStatus: FundraiserStatus = .active
-    @Published var searchText: String = ""
+    @Published var campaigns: [Campaign] = []
+    @Published var selectedFilter: CampaignFilter = .all
     @Published var isLoading: Bool = false
-    @Published var errorMessage: String?
-    @Published var totalRaised: String = "$0"
-    @Published var activeCount: Int = 0
-    @Published var totalBackers: Int = 0
+    @Published var selectedCampaign: Campaign?
+    @Published var showDetail: Bool = false
 
-    private let api = MTRXAPIClient.shared
+    // MARK: - Filtered Campaigns
 
-    // MARK: - Filtered
-
-    var filteredFundraisers: [FundraiserDetail] {
-        var result = fundraisers
-        if selectedStatus != .all {
-            result = result.filter { $0.status == selectedStatus }
+    var filteredCampaigns: [Campaign] {
+        switch selectedFilter {
+        case .all:
+            return campaigns
+        case .active:
+            return campaigns.filter { $0.status == .active }
+        case .completed:
+            return campaigns.filter { $0.status == .completed }
+        case .myCampaigns:
+            return campaigns.filter { $0.isOwnCampaign }
         }
-        if !searchText.isEmpty {
-            result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
-        }
-        return result
     }
 
     // MARK: - Load
 
-    func loadFundraisers() async {
+    func loadCampaigns() async {
         guard !isLoading else { return }
         isLoading = true
-        errorMessage = nil
 
-        do {
-            let raw: [String: AnyCodableValue] = try await api.listCampaigns()
-            let items = parseCampaigns(raw)
-            fundraisers = items
-
-            // Compute stats
-            activeCount = items.filter { $0.status == .active }.count
-            totalBackers = items.reduce(0) { $0 + $1.backersCount }
-            let totalAmount = items.reduce(0.0) { acc, item in
-                let numStr = item.raised.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: ",", with: "")
-                return acc + (Double(numStr) ?? 0)
-            }
-            if totalAmount >= 1_000_000 {
-                totalRaised = "$\(String(format: "%.1f", totalAmount / 1_000_000))M"
-            } else if totalAmount >= 1_000 {
-                totalRaised = "$\(String(format: "%.1f", totalAmount / 1_000))K"
-            } else {
-                totalRaised = "$\(String(format: "%.0f", totalAmount))"
-            }
-
-            if fundraisers.isEmpty {
-                fundraisers = FundraiserDetail.sampleData
-                totalRaised = "$2.4M"
-                activeCount = 23
-                totalBackers = 1_200
-            }
-        } catch {
-            if fundraisers.isEmpty {
-                fundraisers = FundraiserDetail.sampleData
-                totalRaised = "$2.4M"
-                activeCount = 23
-                totalBackers = 1_200
-            }
-            errorMessage = error.localizedDescription
-        }
-
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        campaigns = Campaign.sampleData
         isLoading = false
     }
 
-    // MARK: - Contribute
-
-    func contribute(campaignId: String, amount: Double) async throws {
-        let request = ContributeRequest(campaignId: campaignId, amount: amount)
-        _ = try await api.contributeToCampaign(request)
-        // Reload to reflect updated progress
-        await loadFundraisers()
+    func refresh() async {
+        campaigns = []
+        await loadCampaigns()
     }
 
-    // MARK: - Parser
+    func selectCampaign(_ campaign: Campaign) {
+        selectedCampaign = campaign
+        showDetail = true
+        MtrxHaptics.impact(.light)
+    }
+}
 
-    private func parseCampaigns(_ raw: [String: AnyCodableValue]) -> [FundraiserDetail] {
-        guard case .array(let items) = raw["data"] ?? raw["campaigns"] ?? .null else {
-            return []
-        }
-        return items.compactMap { item -> FundraiserDetail? in
-            guard case .dictionary(let dict) = item else { return nil }
-            let title = dict["title"]?.stringValue ?? "Campaign"
-            let organizer = dict["organizer"]?.stringValue ?? dict["creator"]?.stringValue ?? "Anonymous"
-            let desc = dict["description"]?.stringValue ?? ""
-            let goalAmount = dict["goal_amount"]?.doubleValue ?? 100_000
-            let raisedAmount = dict["raised_amount"]?.doubleValue ?? dict["current_amount"]?.doubleValue ?? 0
-            let progress = goalAmount > 0 ? min(raisedAmount / goalAmount, 1.0) : 0
-            let backers = dict["backers_count"]?.intValue ?? dict["contributors"]?.intValue ?? 0
-            let daysLeft = dict["days_remaining"]?.intValue ?? dict["duration_days"]?.intValue ?? 30
-            let verified = dict["is_verified"]?.boolValue ?? false
-            let statusStr = dict["status"]?.stringValue ?? "active"
+// MARK: - Campaign Filter
 
-            let status: FundraiserStatus = {
-                switch statusStr.lowercased() {
-                case "funded": return .funded
-                case "closed": return .closed
-                default: return .active
-                }
-            }()
+enum CampaignFilter: String, CaseIterable, Identifiable {
+    case all          = "All"
+    case active       = "Active"
+    case completed    = "Completed"
+    case myCampaigns  = "My Campaigns"
 
-            let tags = dict["tags"]?.stringValue?.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) } ?? []
+    var id: String { rawValue }
+}
 
-            // Parse milestones
-            var milestones: [FundraiserMilestone] = []
-            if case .array(let ms) = dict["milestones"] {
-                milestones = ms.compactMap { m -> FundraiserMilestone? in
-                    guard case .dictionary(let md) = m else { return nil }
-                    let msTitle = md["title"]?.stringValue ?? "Milestone"
-                    let msAmount = md["amount"]?.doubleValue ?? 0
-                    let isComplete = md["is_complete"]?.boolValue ?? md["completed"]?.boolValue ?? false
-                    return FundraiserMilestone(title: msTitle, amount: "$\(String(format: "%,.0f", msAmount))", isComplete: isComplete)
-                }
-            }
-            if milestones.isEmpty {
-                milestones = [
-                    FundraiserMilestone(title: "Phase 1", amount: "$\(String(format: "%,.0f", goalAmount * 0.3))", isComplete: progress >= 0.3),
-                    FundraiserMilestone(title: "Phase 2", amount: "$\(String(format: "%,.0f", goalAmount * 0.6))", isComplete: progress >= 0.6),
-                    FundraiserMilestone(title: "Complete", amount: "$\(String(format: "%,.0f", goalAmount))", isComplete: progress >= 1.0),
-                ]
-            }
+// MARK: - Campaign Status
 
-            return FundraiserDetail(
-                title: title,
-                organizer: organizer,
-                description_: desc,
-                raised: "$\(String(format: "%,.0f", raisedAmount))",
-                goal: "$\(String(format: "%,.0f", goalAmount))",
-                progress: progress,
-                backersCount: backers,
-                daysRemaining: "\(daysLeft) days left",
-                status: status,
-                isVerified: verified,
-                tags: tags,
-                milestones: milestones
-            )
+enum CampaignStatus: String {
+    case active    = "Active"
+    case completed = "Completed"
+
+    var color: Color {
+        switch self {
+        case .active:    return .statusSuccess
+        case .completed: return .accentPrimary
         }
     }
+
+    var badgeStyle: MtrxBadge.BadgeStyle {
+        switch self {
+        case .active:    return .success
+        case .completed: return .accent
+        }
+    }
+}
+
+// MARK: - Campaign Model
+
+struct Campaign: Identifiable {
+    let id = UUID()
+    let title: String
+    let creatorName: String
+    let creatorInitials: String
+    let description_: String
+    let raised: Double
+    let goal: Double
+    let backerCount: Int
+    let daysRemaining: Int
+    let status: CampaignStatus
+    let isOwnCampaign: Bool
+    let milestones: [CampaignMilestone]
+    let rewardTiers: [RewardTier]
+    let avatarColor: Color
+
+    var progress: Double { min(raised / goal, 1.0) }
+    var percentComplete: Int { Int(progress * 100) }
+
+    var formattedRaised: String {
+        if raised >= 1_000_000 {
+            return String(format: "$%.1fM", raised / 1_000_000)
+        } else if raised >= 1_000 {
+            return String(format: "$%,.0f", raised)
+        }
+        return String(format: "$%.0f", raised)
+    }
+
+    var formattedGoal: String {
+        if goal >= 1_000_000 {
+            return String(format: "$%.1fM", goal / 1_000_000)
+        } else if goal >= 1_000 {
+            return String(format: "$%,.0f", goal)
+        }
+        return String(format: "$%.0f", goal)
+    }
+
+    static let sampleData: [Campaign] = [
+        Campaign(
+            title: "Community Solar Farm",
+            creatorName: "SolarDAO",
+            creatorInitials: "SD",
+            description_: "Building a 2MW solar farm to power rural communities in East Africa. This project provides sustainable energy and creates local jobs. Fully transparent on-chain governance with milestone-based fund release.",
+            raised: 72000, goal: 100000, backerCount: 234, daysRemaining: 12,
+            status: .active, isOwnCampaign: false,
+            milestones: [
+                CampaignMilestone(title: "Land Acquisition", description_: "Secure and prepare the site", targetAmount: 20000, isComplete: true),
+                CampaignMilestone(title: "Equipment Purchase", description_: "Order solar panels and inverters", targetAmount: 50000, isComplete: true),
+                CampaignMilestone(title: "Installation", description_: "Full installation and grid connection", targetAmount: 80000, isComplete: false),
+                CampaignMilestone(title: "Launch", description_: "Begin power generation", targetAmount: 100000, isComplete: false),
+            ],
+            rewardTiers: [
+                RewardTier(name: "Bronze", amount: 25, description_: "Thank you message and progress updates"),
+                RewardTier(name: "Silver", amount: 100, description_: "Name on donor wall + quarterly energy reports"),
+                RewardTier(name: "Gold", amount: 500, description_: "Revenue share token + governance voting rights"),
+            ],
+            avatarColor: .orange
+        ),
+        Campaign(
+            title: "Clean Water DAO",
+            creatorName: "AquaDAO",
+            creatorInitials: "AD",
+            description_: "Deploying water purification systems across 15 villages in rural Kenya. Each system serves 500+ people. Smart contract ensures funds release only upon verified installation.",
+            raised: 45000, goal: 120000, backerCount: 156, daysRemaining: 28,
+            status: .active, isOwnCampaign: false,
+            milestones: [
+                CampaignMilestone(title: "Survey Complete", description_: "Site assessment for all villages", targetAmount: 15000, isComplete: true),
+                CampaignMilestone(title: "Phase 1 Deploy", description_: "Install in first 5 villages", targetAmount: 50000, isComplete: false),
+                CampaignMilestone(title: "Phase 2 Deploy", description_: "Install in next 5 villages", targetAmount: 85000, isComplete: false),
+                CampaignMilestone(title: "Full Coverage", description_: "Complete all installations", targetAmount: 120000, isComplete: false),
+            ],
+            rewardTiers: [
+                RewardTier(name: "Bronze", amount: 10, description_: "Impact certificate NFT"),
+                RewardTier(name: "Silver", amount: 50, description_: "Named well plaque + NFT"),
+                RewardTier(name: "Gold", amount: 250, description_: "DAO voting token + impact dashboard"),
+            ],
+            avatarColor: .blue
+        ),
+        Campaign(
+            title: "Open Source DeFi Tools",
+            creatorName: "DevCollective",
+            creatorInitials: "DC",
+            description_: "Building open-source developer tools for DeFi protocol integration. Includes SDK, documentation, and example applications. All code MIT licensed.",
+            raised: 38000, goal: 50000, backerCount: 412, daysRemaining: 5,
+            status: .active, isOwnCampaign: true,
+            milestones: [
+                CampaignMilestone(title: "Core SDK", description_: "Build and release the core SDK", targetAmount: 15000, isComplete: true),
+                CampaignMilestone(title: "Documentation", description_: "Comprehensive docs and tutorials", targetAmount: 30000, isComplete: true),
+                CampaignMilestone(title: "Example Apps", description_: "3 reference applications", targetAmount: 40000, isComplete: false),
+                CampaignMilestone(title: "Audit & Launch", description_: "Security audit and v1.0 release", targetAmount: 50000, isComplete: false),
+            ],
+            rewardTiers: [
+                RewardTier(name: "Bronze", amount: 15, description_: "Name in contributor credits"),
+                RewardTier(name: "Silver", amount: 100, description_: "Logo in README + priority support"),
+                RewardTier(name: "Gold", amount: 1000, description_: "Governance seat + custom integration"),
+            ],
+            avatarColor: .green
+        ),
+        Campaign(
+            title: "Regenerative Agriculture",
+            creatorName: "FarmDAO",
+            creatorInitials: "FD",
+            description_: "Transitioning 500 acres of conventional farmland to regenerative practices. Carbon credits generated are tokenized and distributed to backers.",
+            raised: 250000, goal: 250000, backerCount: 892, daysRemaining: 0,
+            status: .completed, isOwnCampaign: false,
+            milestones: [
+                CampaignMilestone(title: "Soil Testing", description_: "Baseline soil health assessment", targetAmount: 25000, isComplete: true),
+                CampaignMilestone(title: "Cover Crops", description_: "Plant initial cover crop rotation", targetAmount: 100000, isComplete: true),
+                CampaignMilestone(title: "Equipment", description_: "No-till equipment purchase", targetAmount: 180000, isComplete: true),
+                CampaignMilestone(title: "Full Transition", description_: "Complete regenerative conversion", targetAmount: 250000, isComplete: true),
+            ],
+            rewardTiers: [
+                RewardTier(name: "Bronze", amount: 20, description_: "Monthly farm updates"),
+                RewardTier(name: "Silver", amount: 200, description_: "Carbon credit token allocation"),
+                RewardTier(name: "Gold", amount: 2000, description_: "Revenue share + farm visit"),
+            ],
+            avatarColor: .purple
+        ),
+        Campaign(
+            title: "Mesh Network Initiative",
+            creatorName: "ConnectDAO",
+            creatorInitials: "CD",
+            description_: "Deploying decentralized mesh network nodes across underserved urban areas. Providing free internet access and resilient communication infrastructure.",
+            raised: 18500, goal: 75000, backerCount: 89, daysRemaining: 45,
+            status: .active, isOwnCampaign: false,
+            milestones: [
+                CampaignMilestone(title: "Hardware Sourcing", description_: "Source and test mesh hardware", targetAmount: 20000, isComplete: false),
+                CampaignMilestone(title: "Pilot Zone", description_: "Deploy 10-node pilot network", targetAmount: 40000, isComplete: false),
+                CampaignMilestone(title: "Expansion", description_: "Scale to 50 nodes across 3 zones", targetAmount: 60000, isComplete: false),
+                CampaignMilestone(title: "Full Network", description_: "100+ nodes with redundancy", targetAmount: 75000, isComplete: false),
+            ],
+            rewardTiers: [
+                RewardTier(name: "Bronze", amount: 10, description_: "Network status dashboard access"),
+                RewardTier(name: "Silver", amount: 75, description_: "Dedicated node naming rights"),
+                RewardTier(name: "Gold", amount: 500, description_: "Governance + bandwidth allocation"),
+            ],
+            avatarColor: .accentPrimary
+        ),
+        Campaign(
+            title: "Music Rights Marketplace",
+            creatorName: "SoundBlock",
+            creatorInitials: "SB",
+            description_: "Building a decentralized platform for independent musicians to tokenize and trade music royalty rights. Smart contracts automate revenue distribution.",
+            raised: 95000, goal: 95000, backerCount: 543, daysRemaining: 0,
+            status: .completed, isOwnCampaign: false,
+            milestones: [
+                CampaignMilestone(title: "Smart Contracts", description_: "Royalty distribution contracts", targetAmount: 30000, isComplete: true),
+                CampaignMilestone(title: "Platform MVP", description_: "Core marketplace interface", targetAmount: 60000, isComplete: true),
+                CampaignMilestone(title: "Artist Onboarding", description_: "Onboard 50 pilot artists", targetAmount: 80000, isComplete: true),
+                CampaignMilestone(title: "Public Launch", description_: "Open marketplace to all", targetAmount: 95000, isComplete: true),
+            ],
+            rewardTiers: [
+                RewardTier(name: "Bronze", amount: 25, description_: "Early platform access"),
+                RewardTier(name: "Silver", amount: 150, description_: "Curated royalty token bundle"),
+                RewardTier(name: "Gold", amount: 1000, description_: "Platform governance token"),
+            ],
+            avatarColor: .pink
+        ),
+    ]
+}
+
+struct CampaignMilestone: Identifiable {
+    let id = UUID()
+    let title: String
+    let description_: String
+    let targetAmount: Double
+    let isComplete: Bool
+}
+
+struct RewardTier: Identifiable {
+    let id = UUID()
+    let name: String
+    let amount: Double
+    let description_: String
 }
 
 // MARK: - Fundraiser View
 
 struct FundraiserView: View {
     @StateObject private var viewModel = FundraiserViewModel()
-
-    // MARK: - Body
+    @State private var appeared = false
 
     var body: some View {
-        Group {
-            if viewModel.isLoading && viewModel.fundraisers.isEmpty {
-                loadingState
-            } else if let error = viewModel.errorMessage, viewModel.fundraisers.isEmpty {
-                errorState(error)
-            } else {
-                contentView
+        NavigationStack {
+            ZStack {
+                MtrxGradientBackground(style: .primary)
+
+                if viewModel.isLoading && viewModel.campaigns.isEmpty {
+                    loadingState
+                } else if viewModel.filteredCampaigns.isEmpty {
+                    MtrxEmptyState(
+                        icon: Symbols.fundraiser,
+                        title: "No Campaigns",
+                        message: "No \(viewModel.selectedFilter.rawValue.lowercased()) campaigns found. Check back later or start your own.",
+                        actionLabel: "Refresh"
+                    ) {
+                        Task { await viewModel.refresh() }
+                    }
+                } else {
+                    campaignList
+                }
+            }
+            .navigationTitle("Fundraisers")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $viewModel.showDetail) {
+                if let campaign = viewModel.selectedCampaign {
+                    CampaignDetailSheet(campaign: campaign)
+                        .presentationDetents([.large])
+                }
+            }
+            .task {
+                guard !appeared else { return }
+                appeared = true
+                await viewModel.loadCampaigns()
             }
         }
-        .navigationTitle("Fundraisers")
-        .searchable(text: $viewModel.searchText, prompt: "Search fundraisers...")
-        .task {
-            await viewModel.loadFundraisers()
+    }
+
+    // MARK: - Campaign List
+
+    private var campaignList: some View {
+        ScrollView {
+            VStack(spacing: Spacing.md) {
+                filterChips
+                campaignCards
+            }
+            .padding(.bottom, Spacing.xxl)
         }
+        .refreshable {
+            await viewModel.refresh()
+        }
+    }
+
+    // MARK: - Filter Chips
+
+    private var filterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Spacing.sm) {
+                ForEach(CampaignFilter.allCases) { filter in
+                    MtrxChip(
+                        label: filter.rawValue,
+                        isSelected: filter == viewModel.selectedFilter
+                    ) {
+                        withAnimation(Motion.springSnappy) {
+                            viewModel.selectedFilter = filter
+                        }
+                        MtrxHaptics.selection()
+                    }
+                }
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.top, Spacing.sm)
+        }
+    }
+
+    // MARK: - Campaign Cards
+
+    private var campaignCards: some View {
+        LazyVStack(spacing: Spacing.ms) {
+            ForEach(Array(viewModel.filteredCampaigns.enumerated()), id: \.element.id) { index, campaign in
+                CampaignCardView(campaign: campaign) {
+                    viewModel.selectCampaign(campaign)
+                }
+                .mtrxStaggeredAppearance(index: index, isVisible: appeared)
+            }
+        }
+        .padding(.horizontal, Spacing.contentPadding)
     }
 
     // MARK: - Loading
 
     private var loadingState: some View {
-        VStack(spacing: Spacing.lg) {
-            ProgressView()
-                .controlSize(.large)
-            Text("Loading fundraisers...")
-                .font(.mtrxSubheadline)
-                .foregroundStyle(Color.labelSecondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Error
-
-    private func errorState(_ message: String) -> some View {
-        VStack(spacing: Spacing.md) {
-            Image(systemName: Symbols.alertWarning)
-                .font(.system(size: 48))
-                .foregroundStyle(Color.statusWarning)
-            Text("Failed to load fundraisers")
-                .font(.mtrxTitle3)
-            Text(message)
-                .font(.mtrxCaption1)
-                .foregroundStyle(Color.labelSecondary)
-                .multilineTextAlignment(.center)
-            Button {
-                Task { await viewModel.loadFundraisers() }
-            } label: {
-                Label("Retry", systemImage: Symbols.refresh)
-                    .font(.mtrxHeadline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, Spacing.lg)
-                    .frame(height: Spacing.Size.buttonHeight)
-                    .background(Color.accentPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Content
-
-    private var contentView: some View {
         ScrollView {
-            LazyVStack(spacing: Spacing.sectionGap) {
-                statusFilter
-                statsOverview
-
-                ForEach(viewModel.filteredFundraisers) { fundraiser in
-                    NavigationLink {
-                        FundraiserDetailView(fundraiser: fundraiser, viewModel: viewModel)
-                    } label: {
-                        FundraiserListCard(fundraiser: fundraiser)
+            VStack(spacing: Spacing.ms) {
+                HStack(spacing: Spacing.sm) {
+                    ForEach(0..<4, id: \.self) { _ in
+                        Capsule()
+                            .fill(Color.surfaceOverlay)
+                            .frame(width: 72, height: 30)
                     }
-                    .buttonStyle(.plain)
+                    Spacer()
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+                .mtrxShimmer(isActive: true)
+
+                ForEach(0..<4, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        HStack(spacing: Spacing.sm) {
+                            Circle().fill(Color.surfaceOverlay).frame(width: 36, height: 36)
+                            VStack(alignment: .leading, spacing: 4) {
+                                RoundedRectangle(cornerRadius: 3).fill(Color.surfaceOverlay).frame(width: 140, height: 14)
+                                RoundedRectangle(cornerRadius: 3).fill(Color.surfaceOverlay).frame(width: 80, height: 10)
+                            }
+                            Spacer()
+                        }
+                        RoundedRectangle(cornerRadius: 4).fill(Color.surfaceOverlay).frame(height: 8)
+                        HStack {
+                            RoundedRectangle(cornerRadius: 3).fill(Color.surfaceOverlay).frame(width: 80, height: 12)
+                            Spacer()
+                            RoundedRectangle(cornerRadius: 3).fill(Color.surfaceOverlay).frame(width: 60, height: 12)
+                        }
+                    }
+                    .mtrxCardStyle()
+                    .mtrxShimmer(isActive: true)
                 }
             }
-            .padding(Spacing.contentPadding)
-        }
-        .refreshable {
-            await viewModel.loadFundraisers()
-        }
-    }
-
-    // MARK: - Status Filter
-
-    private var statusFilter: some View {
-        HStack(spacing: Spacing.sm) {
-            ForEach(FundraiserStatus.allCases, id: \.self) { status in
-                Button {
-                    withAnimation(Motion.springSnappy) {
-                        viewModel.selectedStatus = status
-                    }
-                } label: {
-                    Text(status.rawValue)
-                        .font(.mtrxCaptionBold)
-                        .padding(.horizontal, Spacing.chipHorizontal)
-                        .padding(.vertical, Spacing.chipVertical)
-                        .background(viewModel.selectedStatus == status ? Color.accentPrimary : Color.surfaceOverlay)
-                        .foregroundStyle(viewModel.selectedStatus == status ? .white : Color.labelPrimary)
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-            Spacer()
-        }
-    }
-
-    // MARK: - Stats Overview
-
-    private var statsOverview: some View {
-        HStack(spacing: Spacing.md) {
-            FundraiserStatBox(title: "Total Raised", value: viewModel.totalRaised, icon: Symbols.trendUp)
-            FundraiserStatBox(title: "Active", value: "\(viewModel.activeCount)", icon: Symbols.fundraiser)
-            FundraiserStatBox(title: "Backers", value: viewModel.totalBackers >= 1000 ? "\(String(format: "%.1f", Double(viewModel.totalBackers) / 1000))K" : "\(viewModel.totalBackers)", icon: Symbols.backers)
+            .padding(.top, Spacing.sm)
         }
     }
 }
 
-// MARK: - Fundraiser List Card
+// MARK: - Campaign Card
 
-struct FundraiserListCard: View {
-    let fundraiser: FundraiserDetail
+struct CampaignCardView: View {
+    let campaign: Campaign
+    let onTap: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    HStack(spacing: Spacing.xs) {
-                        Text(fundraiser.title)
-                            .font(.mtrxHeadline)
-                            .foregroundStyle(Color.labelPrimary)
+        Button(action: onTap) {
+            MtrxCard(style: .standard) {
+                VStack(alignment: .leading, spacing: Spacing.ms) {
+                    // Title
+                    Text(campaign.title)
+                        .font(.mtrxBodyBold)
+                        .foregroundStyle(Color.labelPrimary)
+                        .lineLimit(1)
 
-                        if fundraiser.isVerified {
-                            Image(systemName: Symbols.verified)
-                                .foregroundStyle(Color.accentPrimary)
-                                .font(.system(size: 14))
-                        }
+                    // Creator row
+                    HStack(spacing: Spacing.sm) {
+                        MtrxAvatar(
+                            text: campaign.creatorInitials,
+                            color: campaign.avatarColor,
+                            size: 24
+                        )
+
+                        Text(campaign.creatorName)
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+
+                        Spacer()
+
+                        MtrxBadge(text: campaign.status.rawValue, style: campaign.status.badgeStyle)
                     }
 
-                    Text(fundraiser.organizer)
-                        .font(.mtrxCaption1)
-                        .foregroundStyle(Color.labelSecondary)
+                    // Progress bar
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.surfaceOverlay)
+                                .frame(height: 8)
+
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.accentPrimary)
+                                .frame(width: geo.size.width * campaign.progress, height: 8)
+                                .animation(Motion.springDefault, value: campaign.progress)
+                        }
+                    }
+                    .frame(height: 8)
+
+                    // Amount
+                    HStack(spacing: Spacing.xs) {
+                        Text("\(campaign.formattedRaised) / \(campaign.formattedGoal) raised")
+                            .font(.mtrxMono)
+                            .foregroundStyle(Color.labelPrimary)
+                    }
+
+                    // Stats row
+                    HStack(spacing: Spacing.ms) {
+                        MtrxProgressRing(
+                            progress: campaign.progress,
+                            size: 36,
+                            lineWidth: 3,
+                            color: .accentPrimary,
+                            showLabel: true
+                        )
+
+                        Text("\(campaign.percentComplete)%")
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(Color.accentPrimary)
+
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: Symbols.backers)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.labelTertiary)
+                            Text("\(campaign.backerCount)")
+                                .font(.mtrxCaptionBold)
+                                .foregroundStyle(Color.labelSecondary)
+                        }
+
+                        if campaign.daysRemaining > 0 {
+                            HStack(spacing: Spacing.xs) {
+                                Image(systemName: Symbols.clock)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.labelTertiary)
+                                Text("\(campaign.daysRemaining)d left")
+                                    .font(.mtrxCaptionBold)
+                                    .foregroundStyle(campaign.daysRemaining <= 5 ? Color.statusWarning : Color.labelSecondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        if campaign.status == .active {
+                            Button {} label: {
+                                Text("Back This")
+                            }
+                            .buttonStyle(MtrxButtonStyle(variant: .primary, size: .compact))
+                            .allowsHitTesting(false)
+                        }
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Campaign Detail Sheet
+
+struct CampaignDetailSheet: View {
+    let campaign: Campaign
+    @Environment(\.dismiss) private var dismiss
+    @State private var contributionAmount: String = ""
+    @State private var isContributing = false
+    @State private var showContributed = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                MtrxGradientBackground(style: .primary)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Spacing.sectionGap) {
+                        MtrxSheetHeader(title: campaign.title, subtitle: "by \(campaign.creatorName)") {
+                            dismiss()
+                        }
+
+                        descriptionSection
+                        progressSection
+                        milestoneTimeline
+                        rewardTiersSection
+                        contributionSection
+
+                        Spacer().frame(height: Spacing.xxxl)
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+                    .padding(.top, Spacing.sm)
                 }
 
-                Spacer()
+                // Floating contribute button
+                if campaign.status == .active && !contributionAmount.isEmpty {
+                    VStack {
+                        Spacer()
 
-                Text(fundraiser.status.rawValue)
-                    .font(.mtrxCaptionBold)
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.vertical, Spacing.xs)
-                    .background(fundraiser.status.color.opacity(0.15))
-                    .foregroundStyle(fundraiser.status.color)
-                    .clipShape(Capsule())
+                        Button {
+                            guard let val = Double(contributionAmount), val > 0 else { return }
+                            isContributing = true
+                            MtrxHaptics.success()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                isContributing = false
+                                showContributed = true
+                                contributionAmount = ""
+                            }
+                        } label: {
+                            Text("Contribute")
+                        }
+                        .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, isLoading: isContributing, fullWidth: true))
+                        .disabled(contributionAmount.isEmpty || isContributing)
+                        .padding(Spacing.contentPadding)
+                        .background(.ultraThinMaterial)
+                    }
+                }
             }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: {
+                        Image(systemName: Symbols.close)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.labelSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(Color.surfaceOverlay)
+                            .clipShape(Circle())
+                    }
+                }
+            }
+            .overlay {
+                if showContributed {
+                    contributedToast
+                }
+            }
+        }
+    }
 
-            Text(fundraiser.description_)
-                .font(.mtrxBody)
-                .foregroundStyle(Color.labelSecondary)
-                .lineLimit(2)
+    // MARK: - Description
 
-            // Progress bar
-            VStack(spacing: Spacing.xs) {
-                ProgressView(value: fundraiser.progress)
-                    .tint(Color.accentPrimary)
+    private var descriptionSection: some View {
+        MtrxCard(style: .standard) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("About")
+                    .font(.mtrxHeadline)
+                    .foregroundStyle(Color.labelPrimary)
 
+                Text(campaign.description_)
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelSecondary)
+                    .lineSpacing(4)
+            }
+        }
+    }
+
+    // MARK: - Progress
+
+    private var progressSection: some View {
+        MtrxCard(style: .standard) {
+            VStack(spacing: Spacing.ms) {
                 HStack {
-                    Text(fundraiser.raised)
-                        .font(.mtrxCaptionBold)
-                        .foregroundStyle(Color.accentPrimary)
-
-                    Text("of \(fundraiser.goal)")
-                        .font(.mtrxCaption1)
-                        .foregroundStyle(Color.labelSecondary)
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text("Raised")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                        MtrxAnimatedValue(
+                            value: campaign.raised,
+                            prefix: "$",
+                            decimals: 0,
+                            font: .mtrxMonoMedium,
+                            color: .accentPrimary
+                        )
+                    }
 
                     Spacer()
 
+                    MtrxProgressRing(
+                        progress: campaign.progress,
+                        size: 64,
+                        lineWidth: 6,
+                        color: .accentPrimary,
+                        showLabel: true
+                    )
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: Spacing.xs) {
+                        Text("Goal")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                        Text(campaign.formattedGoal)
+                            .font(.mtrxMono)
+                            .foregroundStyle(Color.labelPrimary)
+                    }
+                }
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.surfaceOverlay)
+                            .frame(height: 10)
+
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.accentPrimary)
+                            .frame(width: geo.size.width * campaign.progress, height: 10)
+                            .mtrxGlow(color: .accentPrimary, radius: 4)
+                    }
+                }
+                .frame(height: 10)
+
+                HStack {
                     HStack(spacing: Spacing.xs) {
                         Image(systemName: Symbols.backers)
-                            .font(.system(size: 12))
-                        Text("\(fundraiser.backersCount) backers")
+                            .font(.system(size: 14))
+                        Text("\(campaign.backerCount) backers")
+                            .font(.mtrxCaptionBold)
                     }
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelSecondary)
-                }
-            }
-
-            HStack {
-                Label(fundraiser.daysRemaining, systemImage: Symbols.clock)
-                    .font(.mtrxCaption1)
                     .foregroundStyle(Color.labelSecondary)
 
-                Spacer()
+                    Spacer()
 
-                HStack(spacing: Spacing.xs) {
-                    ForEach(fundraiser.tags, id: \.self) { tag in
-                        Text(tag)
-                            .font(.mtrxCaption2)
-                            .padding(.horizontal, Spacing.sm)
-                            .padding(.vertical, 2)
-                            .background(Color.surfaceOverlay)
-                            .clipShape(Capsule())
+                    if campaign.daysRemaining > 0 {
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: Symbols.clock)
+                                .font(.system(size: 14))
+                            Text("\(campaign.daysRemaining) days left")
+                                .font(.mtrxCaptionBold)
+                        }
+                        .foregroundStyle(campaign.daysRemaining <= 5 ? Color.statusWarning : Color.labelSecondary)
+                    } else {
+                        MtrxBadge(text: "Ended", style: .neutral)
                     }
                 }
             }
         }
-        .mtrxCardStyle()
     }
-}
 
-// MARK: - Fundraiser Detail View
+    // MARK: - Milestone Timeline
 
-struct FundraiserDetailView: View {
-    let fundraiser: FundraiserDetail
-    @ObservedObject var viewModel: FundraiserViewModel
-    @State private var contributionAmount: String = ""
-    @State private var showContributeSheet: Bool = false
+    private var milestoneTimeline: some View {
+        MtrxCard(style: .standard) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("Milestones")
+                    .font(.mtrxHeadline)
+                    .foregroundStyle(Color.labelPrimary)
 
-    var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: Spacing.sectionGap) {
-                // Hero
-                RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
-                    .fill(LinearGradient.mtrxPrimary)
-                    .frame(height: 200)
-                    .overlay(
-                        VStack {
-                            Image(systemName: Symbols.fundraiser)
-                                .font(.system(size: 48))
-                                .foregroundStyle(.white)
-                            Text(fundraiser.title)
-                                .font(.mtrxTitle2)
-                                .foregroundStyle(.white)
+                ForEach(Array(campaign.milestones.enumerated()), id: \.element.id) { index, milestone in
+                    HStack(alignment: .top, spacing: Spacing.ms) {
+                        // Timeline connector
+                        VStack(spacing: 0) {
+                            milestoneCircle(for: milestone, index: index)
+
+                            if index < campaign.milestones.count - 1 {
+                                Rectangle()
+                                    .fill(Color.accentPrimary.opacity(0.3))
+                                    .frame(width: 2)
+                                    .frame(minHeight: 44)
+                            }
                         }
-                    )
 
-                // Progress
-                VStack(spacing: Spacing.sm) {
-                    HStack {
-                        Text(fundraiser.raised)
-                            .font(.mtrxMonoMedium)
-                        Text("of \(fundraiser.goal)")
-                            .font(.mtrxSubheadline)
-                            .foregroundStyle(Color.labelSecondary)
-                    }
+                        // Content
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            Text(milestone.title)
+                                .font(.mtrxCalloutBold)
+                                .foregroundStyle(milestone.isComplete ? Color.labelPrimary : Color.labelSecondary)
 
-                    ProgressView(value: fundraiser.progress)
-                        .tint(Color.accentPrimary)
-                        .scaleEffect(y: 2)
+                            Text(milestone.description_)
+                                .font(.mtrxCaption1)
+                                .foregroundStyle(Color.labelTertiary)
 
-                    HStack {
-                        Label("\(fundraiser.backersCount) backers", systemImage: Symbols.backers)
+                            Text(String(format: "$%,.0f", milestone.targetAmount))
+                                .font(.mtrxMonoSmall)
+                                .foregroundStyle(milestone.isComplete ? Color.accentPrimary : Color.labelTertiary)
+                        }
+
                         Spacer()
-                        Label(fundraiser.daysRemaining, systemImage: Symbols.clock)
                     }
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelSecondary)
                 }
+            }
+        }
+    }
 
-                // Description
-                VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Text("About")
-                        .font(.mtrxTitle3)
-                    Text(fundraiser.description_)
-                        .font(.mtrxBody)
-                        .foregroundStyle(Color.labelSecondary)
-                }
+    private func milestoneCircle(for milestone: CampaignMilestone, index: Int) -> some View {
+        let isCurrentMilestone = !milestone.isComplete && (index == 0 || campaign.milestones[index - 1].isComplete)
 
-                // Milestones
-                VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Text("Milestones")
-                        .font(.mtrxTitle3)
+        return ZStack {
+            Circle()
+                .fill(milestone.isComplete ? Color.statusSuccess : (isCurrentMilestone ? Color.clear : Color.surfaceOverlay))
+                .frame(width: 14, height: 14)
 
-                    ForEach(fundraiser.milestones) { milestone in
-                        HStack(spacing: Spacing.sm) {
-                            Image(systemName: milestone.isComplete ? Symbols.complete : Symbols.pending)
-                                .foregroundStyle(milestone.isComplete ? Color.statusSuccess : Color.labelTertiary)
+            Circle()
+                .stroke(
+                    milestone.isComplete ? Color.statusSuccess : (isCurrentMilestone ? Color.accentPrimary : Color.labelTertiary),
+                    lineWidth: 2
+                )
+                .frame(width: 14, height: 14)
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(milestone.title)
-                                    .font(.mtrxBodyBold)
-                                Text(milestone.amount)
+            if milestone.isComplete {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+        }
+    }
+
+    // MARK: - Reward Tiers
+
+    private var rewardTiersSection: some View {
+        MtrxCard(style: .standard) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("Reward Tiers")
+                    .font(.mtrxHeadline)
+                    .foregroundStyle(Color.labelPrimary)
+
+                ForEach(campaign.rewardTiers) { tier in
+                    MtrxCard(style: .outlined) {
+                        HStack(spacing: Spacing.ms) {
+                            VStack(alignment: .leading, spacing: Spacing.xs) {
+                                HStack(spacing: Spacing.sm) {
+                                    Image(systemName: Symbols.reward)
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(tierColor(for: tier.name))
+
+                                    Text(tier.name)
+                                        .font(.mtrxCalloutBold)
+                                        .foregroundStyle(Color.labelPrimary)
+                                }
+
+                                Text(tier.description_)
                                     .font(.mtrxCaption1)
                                     .foregroundStyle(Color.labelSecondary)
                             }
 
                             Spacer()
 
-                            if milestone.isComplete {
-                                Text("Complete")
-                                    .font(.mtrxCaption2)
-                                    .foregroundStyle(Color.statusSuccess)
+                            Text(String(format: "$%.0f+", tier.amount))
+                                .font(.mtrxMono)
+                                .foregroundStyle(Color.accentPrimary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func tierColor(for name: String) -> Color {
+        switch name {
+        case "Bronze": return .orange
+        case "Silver": return .gray
+        case "Gold":   return .yellow
+        default:       return .accentPrimary
+        }
+    }
+
+    // MARK: - Contribution Section
+
+    private var contributionSection: some View {
+        Group {
+            if campaign.status == .active {
+                MtrxCard(style: .elevated, accentEdge: .top) {
+                    VStack(alignment: .leading, spacing: Spacing.ms) {
+                        Text("Contribute")
+                            .font(.mtrxTitle3)
+                            .foregroundStyle(Color.labelPrimary)
+
+                        MtrxTextField(
+                            placeholder: "Amount (USD)",
+                            text: $contributionAmount,
+                            icon: "dollarsign.circle",
+                            keyboardType: .decimalPad
+                        )
+
+                        // Quick amount chips
+                        HStack(spacing: Spacing.sm) {
+                            ForEach(["25", "50", "100", "500"], id: \.self) { amount in
+                                MtrxChip(
+                                    label: "$\(amount)",
+                                    isSelected: contributionAmount == amount
+                                ) {
+                                    contributionAmount = amount
+                                    MtrxHaptics.selection()
+                                }
                             }
                         }
-                        .padding(Spacing.sm)
-                        .background(Color.surfaceCard)
-                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm))
-                    }
-                }
-            }
-            .padding(Spacing.contentPadding)
-        }
-        .navigationTitle(fundraiser.title)
-        .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
-            Button {
-                showContributeSheet = true
-            } label: {
-                Text("Contribute")
-                    .font(.mtrxHeadline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Spacing.Size.buttonHeight)
-                    .background(Color.accentPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-            }
-            .padding(Spacing.contentPadding)
-            .background(.ultraThinMaterial)
-        }
-        .sheet(isPresented: $showContributeSheet) {
-            ContributeSheet(fundraiser: fundraiser, viewModel: viewModel)
-                .presentationDetents([.medium])
-        }
-    }
-}
 
-// MARK: - Contribute Sheet
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: Symbols.gas)
+                                .font(.system(size: 12))
+                            Text("Est. network fee: ~0.001 ETH")
+                                .font(.mtrxCaption1)
+                        }
+                        .foregroundStyle(Color.labelTertiary)
 
-struct ContributeSheet: View {
-    let fundraiser: FundraiserDetail
-    @ObservedObject var viewModel: FundraiserViewModel
-    @State private var amount: String = ""
-    @State private var selectedToken: String = "USDC"
-    @State private var isContributing: Bool = false
-    @State private var contributionError: String?
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: Spacing.lg) {
-                Text("Contribute to \(fundraiser.title)")
-                    .font(.mtrxTitle3)
-
-                VStack(spacing: Spacing.sm) {
-                    TextField("Amount", text: $amount)
-                        .font(.mtrxMonoMedium)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.center)
-                        .padding()
-                        .background(Color.surfaceOverlay)
-                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm))
-
-                    HStack {
-                        ForEach(["10", "50", "100", "500"], id: \.self) { preset in
-                            Button {
-                                amount = preset
-                            } label: {
-                                Text("$\(preset)")
-                                    .font(.mtrxCaptionBold)
-                                    .padding(.horizontal, Spacing.chipHorizontal)
-                                    .padding(.vertical, Spacing.chipVertical)
-                                    .background(amount == preset ? Color.accentPrimary.opacity(0.2) : Color.surfaceOverlay)
-                                    .clipShape(Capsule())
+                        Button {
+                            guard let val = Double(contributionAmount), val > 0 else { return }
+                            isContributing = true
+                            MtrxHaptics.success()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                isContributing = false
+                                withAnimation(Motion.springDefault) {
+                                    showContributed = true
+                                }
+                                contributionAmount = ""
                             }
-                            .buttonStyle(.plain)
+                        } label: {
+                            Text("Contribute")
                         }
+                        .buttonStyle(MtrxButtonStyle(variant: .primary, size: .regular, isLoading: isContributing, fullWidth: true))
+                        .disabled(contributionAmount.isEmpty || isContributing)
                     }
-                }
-
-                if let error = contributionError {
-                    Text(error)
-                        .font(.mtrxCaption1)
-                        .foregroundStyle(Color.statusError)
-                }
-
-                Spacer()
-
-                Button {
-                    guard let amountValue = Double(amount), amountValue > 0 else { return }
-                    isContributing = true
-                    contributionError = nil
-                    Task {
-                        do {
-                            try await viewModel.contribute(
-                                campaignId: fundraiser.id.uuidString,
-                                amount: amountValue
-                            )
-                            dismiss()
-                        } catch {
-                            contributionError = error.localizedDescription
-                        }
-                        isContributing = false
-                    }
-                } label: {
-                    HStack {
-                        if isContributing {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text("Confirm Contribution")
-                        }
-                    }
-                    .font(.mtrxHeadline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Spacing.Size.buttonHeight)
-                    .background(amount.isEmpty ? Color.labelTertiary : Color.accentPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-                }
-                .disabled(amount.isEmpty || isContributing)
-            }
-            .padding(Spacing.contentPadding)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Cancel") { dismiss() }
                 }
             }
         }
     }
-}
 
-// MARK: - Supporting Components
+    // MARK: - Toast
 
-struct FundraiserStatBox: View {
-    let title: String
-    let value: String
-    let icon: String
-
-    var body: some View {
-        VStack(spacing: Spacing.xs) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(Color.accentPrimary)
-            Text(value)
-                .font(.mtrxHeadline)
-            Text(title)
-                .font(.mtrxCaption2)
-                .foregroundStyle(Color.labelSecondary)
+    private var contributedToast: some View {
+        VStack {
+            MtrxToast(message: "Contribution submitted!", icon: Symbols.complete, style: .success)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation(Motion.springDefault) {
+                            showContributed = false
+                        }
+                    }
+                }
+            Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .padding(Spacing.sm)
-        .background(Color.surfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+        .padding(.top, Spacing.xl)
+        .animation(Motion.springDefault, value: showContributed)
     }
-}
-
-// MARK: - Enums & Models
-
-enum FundraiserStatus: String, CaseIterable {
-    case all = "All"
-    case active = "Active"
-    case funded = "Funded"
-    case closed = "Closed"
-
-    var color: Color {
-        switch self {
-        case .all: return Color.labelPrimary
-        case .active: return Color.statusSuccess
-        case .funded: return Color.accentPrimary
-        case .closed: return Color.labelTertiary
-        }
-    }
-}
-
-struct FundraiserDetail: Identifiable {
-    let id = UUID()
-    let title: String
-    let organizer: String
-    let description_: String
-    let raised: String
-    let goal: String
-    let progress: Double
-    let backersCount: Int
-    let daysRemaining: String
-    let status: FundraiserStatus
-    let isVerified: Bool
-    let tags: [String]
-    let milestones: [FundraiserMilestone]
-
-    static let sampleData: [FundraiserDetail] = [
-        FundraiserDetail(
-            title: "Community Solar", organizer: "SolarDAO",
-            description_: "Solar panel installation for rural communities providing sustainable energy.",
-            raised: "$72,000", goal: "$100,000", progress: 0.72, backersCount: 234,
-            daysRemaining: "12 days left", status: .active, isVerified: true,
-            tags: ["Energy", "RWA"],
-            milestones: [
-                FundraiserMilestone(title: "Equipment Purchase", amount: "$30,000", isComplete: true),
-                FundraiserMilestone(title: "Installation Phase", amount: "$50,000", isComplete: true),
-                FundraiserMilestone(title: "Grid Connection", amount: "$100,000", isComplete: false),
-            ]
-        ),
-        FundraiserDetail(
-            title: "Water Access DAO", organizer: "AquaDAO",
-            description_: "Clean water infrastructure development in East Africa communities.",
-            raised: "$45,000", goal: "$100,000", progress: 0.45, backersCount: 156,
-            daysRemaining: "28 days left", status: .active, isVerified: true,
-            tags: ["Infrastructure", "DAO"],
-            milestones: [
-                FundraiserMilestone(title: "Site Survey", amount: "$10,000", isComplete: true),
-                FundraiserMilestone(title: "Equipment", amount: "$50,000", isComplete: false),
-                FundraiserMilestone(title: "Construction", amount: "$100,000", isComplete: false),
-            ]
-        ),
-    ]
-}
-
-struct FundraiserMilestone: Identifiable {
-    let id = UUID()
-    let title: String
-    let amount: String
-    let isComplete: Bool
 }
 
 // MARK: - Preview
 
 #Preview {
-    NavigationStack {
-        FundraiserView()
-    }
+    FundraiserView()
+        .preferredColorScheme(.dark)
 }

@@ -11,11 +11,11 @@ enum Symbols {
 
     // MARK: - Tab Bar
 
-    static let home = "house.fill"
-    static let discover = "safari.fill"
-    static let build = "hammer.fill"
-    static let social = "bubble.left.and.bubble.right.fill"
-    static let account = "person.crop.circle.fill"
+    static let home = "message.fill"
+    static let discover = "safari"
+    static let build = "hammer"
+    static let social = "globe"
+    static let account = "person.crop.circle"
 
     // MARK: - Navigation
 

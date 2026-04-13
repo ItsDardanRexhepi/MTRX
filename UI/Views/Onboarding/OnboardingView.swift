@@ -1,7 +1,8 @@
 // OnboardingView.swift
 // MTRX
 //
-// Sign in with Apple onboarding flow: Welcome, Authentication, Wallet Setup.
+// Three-page onboarding: Welcome, Sign In, Your Wallet.
+// Sign in with Apple, biometric detection, wallet creation animation.
 
 import AuthenticationServices
 import LocalAuthentication
@@ -20,33 +21,44 @@ struct OnboardingView: View {
     @State private var walletAddress: String = ""
     @State private var biometricType: BiometricType = .none
 
+    // Welcome page animation states
+    @State private var logoAppeared = false
+    @State private var headlineAppeared = false
+    @State private var cardsAppeared = false
+    @State private var glowPulse = false
+
+    // Wallet page animation states
+    @State private var walletRingRotation: Double = 0
+    @State private var walletCreated = false
+    @State private var walletBadgeAppeared = false
+
     var body: some View {
         ZStack {
-            Color.backgroundPrimary
-                .ignoresSafeArea()
+            // Page-specific background gradient
+            backgroundGradient
+                .animation(Motion.springGentle, value: currentPage)
 
-            switch currentPage {
-            case .welcome:
+            TabView(selection: $currentPage) {
                 welcomePage
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-            case .signIn:
+                    .tag(OnboardingPage.welcome)
+
                 signInPage
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-            case .walletSetup:
+                    .tag(OnboardingPage.signIn)
+
                 walletSetupPage
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
+                    .tag(OnboardingPage.walletSetup)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .animation(Motion.springDefault, value: currentPage)
+
+            // Custom page indicators
+            VStack {
+                Spacer()
+                pageIndicator
+                    .padding(.bottom, Spacing.md)
+            }
+            .ignoresSafeArea(.keyboard)
         }
-        .animation(.spring(response: 0.5, dampingFraction: 0.85), value: currentPage)
         .alert("Sign In Error", isPresented: $showErrorAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -57,73 +69,168 @@ struct OnboardingView: View {
         }
     }
 
+    // MARK: - Background Gradient
+
+    @ViewBuilder
+    private var backgroundGradient: some View {
+        switch currentPage {
+        case .welcome:
+            ZStack {
+                Color.backgroundPrimary.ignoresSafeArea()
+                RadialGradient(
+                    colors: [Color.accentPrimary.opacity(0.12), .clear],
+                    center: .top,
+                    startRadius: 0,
+                    endRadius: 500
+                ).ignoresSafeArea()
+            }
+        case .signIn:
+            ZStack {
+                Color.backgroundPrimary.ignoresSafeArea()
+                RadialGradient(
+                    colors: [Color.trinityPrimary.opacity(0.08), .clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 400
+                ).ignoresSafeArea()
+            }
+        case .walletSetup:
+            ZStack {
+                Color.backgroundPrimary.ignoresSafeArea()
+                RadialGradient(
+                    colors: [Color.accentSecondary.opacity(0.1), .clear],
+                    center: .bottomTrailing,
+                    startRadius: 0,
+                    endRadius: 500
+                ).ignoresSafeArea()
+            }
+        }
+    }
+
+    // MARK: - Page Indicator
+
+    private var pageIndicator: some View {
+        HStack(spacing: Spacing.sm) {
+            ForEach(OnboardingPage.allCases, id: \.self) { page in
+                Capsule()
+                    .fill(page == currentPage ? Color.accentPrimary : Color.labelQuaternary)
+                    .frame(width: page == currentPage ? 24 : 8, height: 8)
+                    .animation(Motion.springSnappy, value: currentPage)
+            }
+        }
+    }
+
     // MARK: - Welcome Page
 
     private var welcomePage: some View {
         VStack(spacing: 0) {
             Spacer()
-                .frame(height: 80)
+                .frame(height: Spacing.xxxl)
 
-            // Logo & Branding
-            VStack(spacing: 16) {
+            // Animated MTRX logo with cyan glow
+            ZStack {
+                // Outer glow rings
+                Circle()
+                    .stroke(Color.accentPrimary.opacity(glowPulse ? 0.15 : 0.05), lineWidth: 2)
+                    .frame(width: 140, height: 140)
+                    .scaleEffect(glowPulse ? 1.2 : 1.0)
+
+                Circle()
+                    .stroke(Color.accentPrimary.opacity(glowPulse ? 0.08 : 0.02), lineWidth: 1)
+                    .frame(width: 180, height: 180)
+                    .scaleEffect(glowPulse ? 1.15 : 1.0)
+
+                // Logo background
+                Circle()
+                    .fill(Color.accentPrimary.opacity(0.12))
+                    .frame(width: 110, height: 110)
+
                 Image(systemName: "cube.fill")
-                    .font(.system(size: 64, weight: .thin))
+                    .font(.system(size: 52, weight: .thin))
                     .foregroundStyle(LinearGradient.mtrxPrimary)
+                    .mtrxGlow(color: .accentPrimary, radius: 16)
+            }
+            .mtrxScaleIn(isVisible: logoAppeared)
 
+            Spacer()
+                .frame(height: Spacing.lg)
+
+            // Headline
+            VStack(spacing: Spacing.sm) {
                 Text("MTRX")
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
-                    .foregroundColor(.labelPrimary)
+                    .font(.mtrxDisplayLarge)
+                    .foregroundStyle(Color.labelPrimary)
+
+                Text("The Future of Finance")
+                    .font(.mtrxTitle1)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.accentPrimary, .accentSecondary],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+
+                Text("Decentralized everything. AI-powered.\nBuilt for you.")
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Spacing.xl)
+                    .padding(.top, Spacing.xs)
             }
+            .mtrxFadeInFromBottom(isVisible: headlineAppeared, delay: 0.2)
 
             Spacer()
-                .frame(height: 20)
+                .frame(height: Spacing.xxl)
 
-            Text("Welcome to MTRX")
-                .font(.title)
-                .fontWeight(.semibold)
-                .foregroundColor(.labelPrimary)
-
-            Spacer()
-                .frame(height: 48)
-
-            // Feature Highlights
-            VStack(spacing: 28) {
-                FeatureRow(
-                    icon: Symbols.trinity,
-                    title: "Talk to Trinity",
-                    subtitle: "Your AI-powered financial companion"
+            // Feature cards with staggered animation
+            VStack(spacing: Spacing.md) {
+                OnboardingFeatureCard(
+                    icon: Symbols.trinityActive,
+                    iconColor: .trinityPrimary,
+                    title: "Trinity AI",
+                    subtitle: "Your intelligent financial companion that learns and adapts"
                 )
+                .mtrxStaggeredAppearance(index: 0, isVisible: cardsAppeared)
 
-                FeatureRow(
-                    icon: Symbols.wallet,
-                    title: "Own Your Assets",
-                    subtitle: "Self-custody wallet with account abstraction"
+                OnboardingFeatureCard(
+                    icon: Symbols.contract,
+                    iconColor: .accentPrimary,
+                    title: "Smart Contracts",
+                    subtitle: "Create, deploy, and manage contracts with natural language"
                 )
+                .mtrxStaggeredAppearance(index: 1, isVisible: cardsAppeared)
 
-                FeatureRow(
-                    icon: Symbols.build,
-                    title: "Build & Earn",
-                    subtitle: "Smart contracts, DeFi, NFTs, and more"
+                OnboardingFeatureCard(
+                    icon: Symbols.swap,
+                    iconColor: .accentSecondary,
+                    title: "DeFi & Beyond",
+                    subtitle: "Swap, stake, lend, and earn across protocols"
                 )
+                .mtrxStaggeredAppearance(index: 2, isVisible: cardsAppeared)
             }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, Spacing.lg)
 
             Spacer()
 
-            // Continue Button
+            // Continue button
             Button {
+                MtrxHaptics.impact(.light)
                 currentPage = .signIn
             } label: {
                 Text("Continue")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(Color.accentPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 48)
+            .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, fullWidth: true))
+            .padding(.horizontal, Spacing.lg)
+            .padding(.bottom, Spacing.xxl)
+        }
+        .onAppear {
+            withAnimation(Motion.springBouncy) { logoAppeared = true }
+            withAnimation(Motion.springDefault.delay(0.15)) { headlineAppeared = true }
+            withAnimation(Motion.springDefault.delay(0.35)) { cardsAppeared = true }
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                glowPulse = true
+            }
         }
     }
 
@@ -132,86 +239,86 @@ struct OnboardingView: View {
     private var signInPage: some View {
         VStack(spacing: 0) {
             Spacer()
-                .frame(height: 120)
+                .frame(height: Spacing.xxxl + Spacing.xl)
 
-            VStack(spacing: 12) {
+            VStack(spacing: Spacing.ms) {
                 Image(systemName: "cube.fill")
-                    .font(.system(size: 48, weight: .thin))
+                    .font(.system(size: 44, weight: .thin))
                     .foregroundStyle(LinearGradient.mtrxPrimary)
+                    .mtrxGlow(color: .accentPrimary, radius: 10)
 
                 Text("Get Started")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundColor(.labelPrimary)
+                    .font(.mtrxDisplay)
+                    .foregroundStyle(Color.labelPrimary)
 
-                Text("Sign in to create your wallet and start exploring MTRX.")
-                    .font(.body)
-                    .foregroundColor(.labelSecondary)
+                Text("Sign in to create your wallet and\nstart exploring MTRX.")
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelSecondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, Spacing.xl)
+            }
+
+            Spacer()
+                .frame(height: Spacing.xxl)
+
+            // Biometric indicator
+            if biometricType != .none {
+                VStack(spacing: Spacing.sm) {
+                    Image(systemName: biometricIconName)
+                        .font(.system(size: 36))
+                        .foregroundStyle(Color.accentPrimary)
+                        .mtrxGlow(color: .accentPrimary, radius: 6)
+
+                    Text("\(biometricDisplayName) Ready")
+                        .font(.mtrxCaptionBold)
+                        .foregroundStyle(Color.labelSecondary)
+                }
+                .padding(.bottom, Spacing.lg)
             }
 
             Spacer()
 
-            // Sign In Button or Loading
-            VStack(spacing: 20) {
+            // Sign In Section
+            VStack(spacing: Spacing.ml) {
                 if isAuthenticating {
-                    VStack(spacing: 16) {
+                    VStack(spacing: Spacing.md) {
                         ProgressView()
                             .progressViewStyle(.circular)
                             .scaleEffect(1.2)
                             .tint(.accentPrimary)
 
                         Text("Setting up your account...")
-                            .font(.subheadline)
-                            .foregroundColor(.labelSecondary)
+                            .font(.mtrxSubheadline)
+                            .foregroundStyle(Color.labelSecondary)
                     }
-                    .frame(height: 54)
+                    .frame(height: 56)
+                    .transition(.mtrxScale)
                 } else {
-                    SignInWithAppleButton(.signIn) { request in
-                        request.requestedScopes = [.fullName, .email]
-                    } onCompletion: { _ in
-                        // We handle auth through AuthServicesManager directly
-                    }
-                    .signInWithAppleButtonStyle(
-                        UITraitCollection.current.userInterfaceStyle == .dark ? .white : .black
-                    )
-                    .frame(height: 54)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay {
-                        // Intercept taps to use AuthServicesManager
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                performSignIn()
-                            }
-                    }
-
-                    // Actual tappable button layered for accessibility
+                    // Sign in with Apple button
                     Button {
                         performSignIn()
                     } label: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: Spacing.sm) {
                             Image(systemName: "apple.logo")
-                                .font(.title3)
+                                .font(.system(size: 18, weight: .semibold))
                             Text("Sign in with Apple")
-                                .font(.headline)
                         }
-                        .foregroundColor(Color(uiColor: .systemBackground))
+                        .foregroundStyle(Color(uiColor: .systemBackground))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 54)
+                        .frame(height: 56)
                         .background(Color.labelPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
                     }
+                    .transition(.mtrxScale)
                 }
 
-                Text("By continuing, you agree to our Terms of Service")
-                    .font(.caption)
-                    .foregroundColor(.labelTertiary)
+                Text("By continuing, you agree to our Terms of Service\nand Privacy Policy")
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelTertiary)
                     .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 48)
+            .padding(.horizontal, Spacing.lg)
+            .padding(.bottom, Spacing.xxl)
         }
     }
 
@@ -220,99 +327,152 @@ struct OnboardingView: View {
     private var walletSetupPage: some View {
         VStack(spacing: 0) {
             Spacer()
-                .frame(height: 100)
+                .frame(height: Spacing.xxxl + Spacing.lg)
 
-            VStack(spacing: 20) {
-                ZStack {
+            // Wallet creation animation
+            ZStack {
+                if !walletCreated {
+                    // Spinning ring animation
+                    Circle()
+                        .trim(from: 0, to: 0.7)
+                        .stroke(
+                            LinearGradient.mtrxPrimary,
+                            style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                        )
+                        .frame(width: 96, height: 96)
+                        .rotationEffect(.degrees(walletRingRotation))
+
+                    Circle()
+                        .trim(from: 0, to: 0.4)
+                        .stroke(
+                            Color.accentSecondary.opacity(0.4),
+                            style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                        )
+                        .frame(width: 112, height: 112)
+                        .rotationEffect(.degrees(-walletRingRotation * 0.7))
+                } else {
                     Circle()
                         .fill(Color.accentPrimary.opacity(0.12))
                         .frame(width: 96, height: 96)
+                        .transition(.mtrxScale)
 
                     Image(systemName: Symbols.wallet)
                         .font(.system(size: 40, weight: .medium))
-                        .foregroundColor(.accentPrimary)
+                        .foregroundStyle(LinearGradient.mtrxPrimary)
+                        .transition(.mtrxScale)
                 }
-
-                Text("Your Wallet")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundColor(.labelPrimary)
             }
+            .frame(height: 120)
 
             Spacer()
-                .frame(height: 40)
+                .frame(height: Spacing.lg)
 
-            // Wallet Address Card
-            VStack(spacing: 16) {
-                VStack(spacing: 8) {
-                    Text("WALLET ADDRESS")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.labelTertiary)
-                        .tracking(1.2)
-
-                    Text(truncatedAddress)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.labelPrimary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-                .background(Color.backgroundSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                // Security Badge
-                HStack(spacing: 8) {
-                    Image(systemName: Symbols.shieldCheck)
-                        .font(.subheadline)
-                        .foregroundColor(.statusSuccess)
-
-                    Text("Your wallet is secured by your device's Secure Enclave")
-                        .font(.footnote)
-                        .foregroundColor(.labelSecondary)
-                }
-                .padding(.horizontal, 8)
-            }
-            .padding(.horizontal, 24)
+            Text("Your Wallet")
+                .font(.mtrxDisplay)
+                .foregroundStyle(Color.labelPrimary)
+                .mtrxFadeInFromBottom(isVisible: walletCreated)
 
             Spacer()
-                .frame(height: 32)
+                .frame(height: Spacing.xl)
 
-            // Biometric Setup
-            if biometricType != .none {
-                VStack(spacing: 12) {
-                    Image(systemName: biometricIconName)
-                        .font(.system(size: 32))
-                        .foregroundColor(.accentPrimary)
+            // Wallet address card
+            if walletCreated {
+                MtrxCard(style: .glass) {
+                    VStack(spacing: Spacing.ms) {
+                        Text("WALLET ADDRESS")
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(Color.labelTertiary)
+                            .tracking(1.2)
 
-                    Text("Enable \(biometricDisplayName)")
-                        .font(.headline)
-                        .foregroundColor(.labelPrimary)
+                        Text(truncatedAddress)
+                            .font(.mtrxMono)
+                            .foregroundStyle(Color.labelPrimary)
 
-                    Text("Secure transactions with \(biometricDisplayName) for quick and safe access.")
-                        .font(.subheadline)
-                        .foregroundColor(.labelSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                }
-                .padding(.vertical, 20)
-            }
+                        MtrxDivider()
 
-            Spacer()
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: Symbols.shieldCheck)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.statusSuccess)
 
-            // Enter MTRX Button
-            Button {
-                completeOnboarding()
-            } label: {
-                Text("Enter MTRX")
-                    .font(.headline)
-                    .foregroundColor(.white)
+                            Text("Secured by Secure Enclave")
+                                .font(.mtrxCaption1)
+                                .foregroundStyle(Color.labelSecondary)
+                        }
+                    }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(LinearGradient.mtrxPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.lg)
+                .padding(.horizontal, Spacing.lg)
+                .transition(.mtrxSlideUp)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 48)
+
+            Spacer()
+                .frame(height: Spacing.lg)
+
+            // Security badge
+            if walletCreated {
+                MtrxBadge(text: "Secured by Secure Enclave", style: .success)
+                    .mtrxScaleIn(isVisible: walletBadgeAppeared, delay: 0.3)
+            }
+
+            // Biometric info
+            if walletCreated && biometricType != .none {
+                VStack(spacing: Spacing.sm) {
+                    Image(systemName: biometricIconName)
+                        .font(.system(size: 28))
+                        .foregroundStyle(Color.accentPrimary)
+
+                    Text("\(biometricDisplayName) enabled")
+                        .font(.mtrxCaptionBold)
+                        .foregroundStyle(Color.labelSecondary)
+                }
+                .padding(.top, Spacing.lg)
+                .mtrxFadeInFromBottom(isVisible: walletBadgeAppeared, delay: 0.4)
+            }
+
+            Spacer()
+
+            // Enter MTRX button
+            if walletCreated {
+                Button {
+                    MtrxHaptics.success()
+                    completeOnboarding()
+                } label: {
+                    HStack(spacing: Spacing.sm) {
+                        Text("Enter MTRX")
+                        Image(systemName: Symbols.forward)
+                            .font(.system(size: 14, weight: .bold))
+                    }
+                }
+                .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, fullWidth: true))
+                .padding(.horizontal, Spacing.lg)
+                .padding(.bottom, Spacing.xxl)
+                .transition(.mtrxSlideUp)
+            }
+        }
+        .onAppear {
+            startWalletAnimation()
+        }
+    }
+
+    // MARK: - Wallet Animation
+
+    private func startWalletAnimation() {
+        // Spin the ring
+        withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+            walletRingRotation = 360
+        }
+
+        // After 2 seconds, show the wallet
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            withAnimation(Motion.springBouncy) {
+                walletCreated = true
+            }
+            withAnimation(Motion.springDefault.delay(0.2)) {
+                walletBadgeAppeared = true
+            }
         }
     }
 
@@ -320,6 +480,7 @@ struct OnboardingView: View {
 
     private func performSignIn() {
         guard !isAuthenticating else { return }
+        MtrxHaptics.impact(.medium)
         isAuthenticating = true
 
         Task {
@@ -368,7 +529,13 @@ struct OnboardingView: View {
     private func completeOnboarding() {
         UserDefaults.standard.set(true, forKey: "com.mtrx.onboardingComplete")
         UserDefaults.standard.set(walletAddress, forKey: "com.mtrx.walletAddress")
-        appState.isAuthenticated = true
+
+        let displayName = UserDefaults.standard.string(forKey: "com.mtrx.userDisplayName") ?? ""
+        appState.signIn(
+            userID: appState.currentUserID,
+            displayName: displayName,
+            walletAddress: walletAddress
+        )
     }
 
     // MARK: - Helpers
@@ -424,7 +591,7 @@ struct OnboardingView: View {
 
 // MARK: - Onboarding Page
 
-private enum OnboardingPage {
+private enum OnboardingPage: Int, CaseIterable {
     case welcome
     case signIn
     case walletSetup
@@ -439,36 +606,40 @@ private enum BiometricType {
     case none
 }
 
-// MARK: - Feature Row
+// MARK: - Feature Card
 
-private struct FeatureRow: View {
+private struct OnboardingFeatureCard: View {
     let icon: String
+    let iconColor: Color
     let title: String
     let subtitle: String
 
     var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.accentPrimary.opacity(0.12))
-                    .frame(width: 48, height: 48)
+        MtrxCard(style: .glass) {
+            HStack(spacing: Spacing.md) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous)
+                        .fill(iconColor.opacity(0.12))
+                        .frame(width: 48, height: 48)
 
-                Image(systemName: icon)
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(.accentPrimary)
+                    Image(systemName: icon)
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(iconColor)
+                }
+
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text(title)
+                        .font(.mtrxHeadline)
+                        .foregroundStyle(Color.labelPrimary)
+
+                    Text(subtitle)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 0)
             }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundColor(.labelPrimary)
-
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundColor(.labelSecondary)
-            }
-
-            Spacer()
         }
     }
 }
@@ -478,4 +649,5 @@ private struct FeatureRow: View {
 #Preview {
     OnboardingView()
         .environmentObject(AppState())
+        .preferredColorScheme(.dark)
 }

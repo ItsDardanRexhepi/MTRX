@@ -1,0 +1,840 @@
+// MtrxComponents.swift
+// MTRX
+//
+// Production-grade reusable UI component library.
+// Every view in the app builds on these primitives.
+
+import SwiftUI
+
+// MARK: - Gradient Background
+
+struct MtrxGradientBackground: View {
+    var style: GradientStyle = .primary
+
+    enum GradientStyle {
+        case primary, subtle, dark, trinityGlow
+    }
+
+    var body: some View {
+        switch style {
+        case .primary:
+            LinearGradient(
+                stops: [
+                    .init(color: Color.backgroundPrimary, location: 0),
+                    .init(color: Color.backgroundPrimary.opacity(0.97), location: 0.4),
+                    .init(color: Color.accentPrimary.opacity(0.03), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            ).ignoresSafeArea()
+        case .subtle:
+            Color.backgroundPrimary.ignoresSafeArea()
+        case .dark:
+            LinearGradient(
+                colors: [Color.black, Color(white: 0.06)],
+                startPoint: .top,
+                endPoint: .bottom
+            ).ignoresSafeArea()
+        case .trinityGlow:
+            ZStack {
+                Color.backgroundPrimary.ignoresSafeArea()
+                RadialGradient(
+                    colors: [Color.trinityPrimary.opacity(0.08), .clear],
+                    center: .top,
+                    startRadius: 0,
+                    endRadius: 400
+                ).ignoresSafeArea()
+            }
+        }
+    }
+}
+
+// MARK: - Glass Card
+
+struct MtrxCard<Content: View>: View {
+    var style: CardStyle = .standard
+    var accentEdge: Edge? = nil
+    @ViewBuilder let content: () -> Content
+
+    enum CardStyle {
+        case standard, elevated, glass, outlined
+    }
+
+    var body: some View {
+        content()
+            .padding(Spacing.cardPadding)
+            .background(cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+            .overlay(accentOverlay)
+            .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
+    }
+
+    @ViewBuilder
+    private var cardBackground: some View {
+        switch style {
+        case .standard:
+            Color.surfaceCard
+        case .elevated:
+            Color.surfaceElevated
+        case .glass:
+            Color.surfaceCard.opacity(0.6)
+                .background(.ultraThinMaterial)
+        case .outlined:
+            Color.clear
+        }
+    }
+
+    @ViewBuilder
+    private var accentOverlay: some View {
+        if let edge = accentEdge {
+            RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
+                .stroke(Color.accentPrimary.opacity(0.3), lineWidth: 1)
+                .overlay(alignment: alignment(for: edge)) {
+                    accentBar(for: edge)
+                }
+        } else if style == .outlined {
+            RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
+                .stroke(Color.separatorStandard, lineWidth: 0.5)
+        }
+    }
+
+    private func alignment(for edge: Edge) -> Alignment {
+        switch edge {
+        case .leading: return .leading
+        case .trailing: return .trailing
+        case .top: return .top
+        case .bottom: return .bottom
+        }
+    }
+
+    @ViewBuilder
+    private func accentBar(for edge: Edge) -> some View {
+        let isVertical = edge == .leading || edge == .trailing
+        RoundedRectangle(cornerRadius: 2)
+            .fill(Color.accentPrimary)
+            .frame(width: isVertical ? 3 : nil, height: isVertical ? nil : 3)
+            .padding(isVertical ? .vertical : .horizontal, Spacing.sm)
+    }
+
+    private var shadowColor: Color {
+        style == .elevated ? Color.black.opacity(0.12) : Color.black.opacity(0.06)
+    }
+    private var shadowRadius: CGFloat { style == .elevated ? 12 : 4 }
+    private var shadowY: CGFloat { style == .elevated ? 4 : 2 }
+}
+
+// MARK: - Button Styles
+
+struct MtrxButtonStyle: ButtonStyle {
+    var variant: Variant = .primary
+    var size: Size = .regular
+    var isLoading: Bool = false
+    var fullWidth: Bool = false
+
+    enum Variant { case primary, secondary, destructive, ghost, accent }
+    enum Size { case compact, regular, large }
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: Spacing.iconTextGap) {
+            if isLoading {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(foregroundColor)
+                    .scaleEffect(0.8)
+            }
+            configuration.label
+        }
+        .font(fontSize)
+        .fontWeight(.semibold)
+        .foregroundStyle(foregroundColor)
+        .frame(maxWidth: fullWidth ? .infinity : nil)
+        .frame(height: height)
+        .padding(.horizontal, horizontalPadding)
+        .background(background(isPressed: configuration.isPressed))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(border)
+        .opacity(configuration.isPressed ? 0.85 : 1)
+        .scaleEffect(configuration.isPressed ? 0.97 : 1)
+        .animation(.spring(response: 0.2, dampingFraction: 0.8), value: configuration.isPressed)
+    }
+
+    private var foregroundColor: Color {
+        switch variant {
+        case .primary: return .white
+        case .secondary: return .accentPrimary
+        case .destructive: return .white
+        case .ghost: return .accentPrimary
+        case .accent: return .black
+        }
+    }
+
+    @ViewBuilder
+    private func background(isPressed: Bool) -> some View {
+        switch variant {
+        case .primary:
+            Color.accentPrimary.opacity(isPressed ? 0.85 : 1)
+        case .secondary:
+            Color.accentPrimary.opacity(isPressed ? 0.15 : 0.1)
+        case .destructive:
+            Color.statusError.opacity(isPressed ? 0.85 : 1)
+        case .ghost:
+            Color.clear
+        case .accent:
+            Color.tabSelected.opacity(isPressed ? 0.85 : 1)
+        }
+    }
+
+    @ViewBuilder
+    private var border: some View {
+        if variant == .secondary {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(Color.accentPrimary.opacity(0.3), lineWidth: 1)
+        }
+    }
+
+    private var height: CGFloat {
+        switch size {
+        case .compact: return Spacing.Size.buttonHeightCompact
+        case .regular: return Spacing.Size.buttonHeight
+        case .large: return 56
+        }
+    }
+
+    private var horizontalPadding: CGFloat {
+        switch size {
+        case .compact: return Spacing.md
+        case .regular: return Spacing.buttonHorizontal
+        case .large: return Spacing.xl
+        }
+    }
+
+    private var fontSize: Font {
+        switch size {
+        case .compact: return .mtrxCaptionBold
+        case .regular: return .mtrxCalloutBold
+        case .large: return .mtrxBodyBold
+        }
+    }
+
+    private var cornerRadius: CGFloat {
+        switch size {
+        case .compact: return Spacing.CornerRadius.sm
+        case .regular: return Spacing.CornerRadius.md
+        case .large: return Spacing.CornerRadius.lg
+        }
+    }
+}
+
+// MARK: - Text Field
+
+struct MtrxTextField: View {
+    let placeholder: String
+    @Binding var text: String
+    var icon: String? = nil
+    var isSecure: Bool = false
+    var keyboardType: UIKeyboardType = .default
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Color.labelTertiary)
+                    .frame(width: 20)
+            }
+
+            if isSecure {
+                SecureField(placeholder, text: $text)
+                    .font(.mtrxBody)
+            } else {
+                TextField(placeholder, text: $text)
+                    .font(.mtrxBody)
+                    .keyboardType(keyboardType)
+            }
+
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color.labelTertiary)
+                }
+            }
+        }
+        .padding(.horizontal, Spacing.textFieldPadding)
+        .frame(height: Spacing.Size.textFieldHeight)
+        .background(Color.surfaceOverlay)
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+    }
+}
+
+// MARK: - Search Bar
+
+struct MtrxSearchBar: View {
+    @Binding var text: String
+    var placeholder: String = "Search"
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: Symbols.search)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(Color.labelTertiary)
+
+            TextField(placeholder, text: $text)
+                .font(.mtrxBody)
+                .focused($isFocused)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color.labelTertiary)
+                }
+            }
+        }
+        .padding(.horizontal, Spacing.ms)
+        .frame(height: 40)
+        .background(Color.surfaceOverlay)
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+    }
+}
+
+// MARK: - Badge
+
+struct MtrxBadge: View {
+    let text: String
+    var style: BadgeStyle = .info
+
+    enum BadgeStyle {
+        case success, warning, error, info, neutral, accent
+        var color: Color {
+            switch self {
+            case .success: return .statusSuccess
+            case .warning: return .statusWarning
+            case .error: return .statusError
+            case .info: return .statusInfo
+            case .neutral: return .labelTertiary
+            case .accent: return .accentPrimary
+            }
+        }
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.mtrxCaptionBold)
+            .foregroundStyle(style.color)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xs)
+            .background(style.color.opacity(0.12))
+            .clipShape(Capsule())
+    }
+}
+
+// MARK: - Chip / Filter
+
+struct MtrxChip: View {
+    let label: String
+    var icon: String? = nil
+    var isSelected: Bool = false
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Spacing.xs) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                Text(label)
+                    .font(.mtrxCaptionBold)
+            }
+            .foregroundStyle(isSelected ? .white : Color.labelPrimary)
+            .padding(.horizontal, Spacing.chipHorizontal)
+            .padding(.vertical, Spacing.chipVertical)
+            .background(isSelected ? Color.accentPrimary : Color.surfaceOverlay)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? Color.clear : Color.separatorStandard, lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Section Header
+
+struct MtrxSectionHeader: View {
+    let title: String
+    var subtitle: String? = nil
+    var action: (() -> Void)? = nil
+    var actionLabel: String = "See All"
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.mtrxTitle3)
+                    .foregroundStyle(Color.labelPrimary)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                }
+            }
+            Spacer()
+            if let action {
+                Button(action: action) {
+                    Text(actionLabel)
+                        .font(.mtrxCaptionBold)
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - List Row
+
+struct MtrxListRow<Leading: View, Trailing: View>: View {
+    var icon: String? = nil
+    var iconColor: Color = .accentPrimary
+    let title: String
+    var subtitle: String? = nil
+    var showChevron: Bool = true
+    @ViewBuilder var leading: () -> Leading
+    @ViewBuilder var trailing: () -> Trailing
+
+    init(
+        icon: String? = nil,
+        iconColor: Color = .accentPrimary,
+        title: String,
+        subtitle: String? = nil,
+        showChevron: Bool = true,
+        @ViewBuilder leading: @escaping () -> Leading = { EmptyView() },
+        @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }
+    ) {
+        self.icon = icon
+        self.iconColor = iconColor
+        self.title = title
+        self.subtitle = subtitle
+        self.showChevron = showChevron
+        self.leading = leading
+        self.trailing = trailing
+    }
+
+    var body: some View {
+        HStack(spacing: Spacing.ms) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 28, height: 28)
+            }
+            leading()
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelPrimary)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                }
+            }
+
+            Spacer()
+            trailing()
+
+            if showChevron {
+                Image(systemName: Symbols.forward)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.labelTertiary)
+            }
+        }
+        .padding(.vertical, Spacing.listRowVertical)
+        .padding(.horizontal, Spacing.listRowHorizontal)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Token / Avatar
+
+struct MtrxAvatar: View {
+    var symbol: String? = nil
+    var text: String? = nil
+    var color: Color = .accentPrimary
+    var size: CGFloat = Spacing.Size.avatarMedium
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(color.opacity(0.15))
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: size * 0.4, weight: .semibold))
+                    .foregroundStyle(color)
+            } else if let text {
+                Text(String(text.prefix(2)).uppercased())
+                    .font(.system(size: size * 0.35, weight: .bold, design: .rounded))
+                    .foregroundStyle(color)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+// MARK: - Stat Card
+
+struct MtrxStatCard: View {
+    let title: String
+    let value: String
+    var change: String? = nil
+    var isPositive: Bool = true
+    var icon: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack {
+                Text(title)
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelSecondary)
+                Spacer()
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
+
+            Text(value)
+                .font(.mtrxMonoMedium)
+                .foregroundStyle(Color.labelPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            if let change {
+                HStack(spacing: 3) {
+                    Image(systemName: isPositive ? Symbols.trendUp : Symbols.trendDown)
+                        .font(.system(size: 10, weight: .bold))
+                    Text(change)
+                        .font(.mtrxCaptionBold)
+                }
+                .foregroundStyle(isPositive ? Color.priceUp : Color.priceDown)
+            }
+        }
+        .padding(Spacing.ms)
+        .background(Color.surfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+    }
+}
+
+// MARK: - Progress Ring
+
+struct MtrxProgressRing: View {
+    let progress: Double
+    var size: CGFloat = 60
+    var lineWidth: CGFloat = 6
+    var color: Color = .accentPrimary
+    var showLabel: Bool = true
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(color.opacity(0.15), lineWidth: lineWidth)
+
+            Circle()
+                .trim(from: 0, to: min(progress, 1.0))
+                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(Motion.springDefault, value: progress)
+
+            if showLabel {
+                Text("\(Int(progress * 100))%")
+                    .font(.system(size: size * 0.22, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.labelPrimary)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+// MARK: - Empty State
+
+struct MtrxEmptyState: View {
+    let icon: String
+    let title: String
+    let message: String
+    var actionLabel: String? = nil
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: Spacing.lg) {
+            Spacer()
+            Image(systemName: icon)
+                .font(.system(size: 48, weight: .light))
+                .foregroundStyle(Color.labelTertiary)
+                .padding(.bottom, Spacing.sm)
+
+            VStack(spacing: Spacing.sm) {
+                Text(title)
+                    .font(.mtrxTitle3)
+                    .foregroundStyle(Color.labelPrimary)
+                Text(message)
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 280)
+            }
+
+            if let actionLabel, let action {
+                Button(action: action) {
+                    Text(actionLabel)
+                }
+                .buttonStyle(MtrxButtonStyle(variant: .primary, size: .regular))
+                .padding(.top, Spacing.sm)
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Loading / Skeleton
+
+struct MtrxSkeletonRow: View {
+    var body: some View {
+        HStack(spacing: Spacing.ms) {
+            RoundedRectangle(cornerRadius: Spacing.CornerRadius.xs)
+                .fill(Color.surfaceOverlay)
+                .frame(width: 40, height: 40)
+
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.surfaceOverlay)
+                    .frame(width: 120, height: 14)
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.surfaceOverlay)
+                    .frame(width: 80, height: 12)
+            }
+            Spacer()
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.surfaceOverlay)
+                .frame(width: 60, height: 14)
+        }
+        .padding(.vertical, Spacing.ms)
+        .padding(.horizontal, Spacing.md)
+        .mtrxShimmer(isActive: true)
+    }
+}
+
+struct MtrxLoadingView: View {
+    var rows: Int = 6
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<rows, id: \.self) { _ in
+                MtrxSkeletonRow()
+            }
+        }
+    }
+}
+
+// MARK: - Error View
+
+struct MtrxErrorView: View {
+    let message: String
+    var retryAction: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: Spacing.lg) {
+            Spacer()
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(Color.statusError.opacity(0.7))
+
+            VStack(spacing: Spacing.sm) {
+                Text("Something went wrong")
+                    .font(.mtrxTitle3)
+                    .foregroundStyle(Color.labelPrimary)
+                Text(message)
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelSecondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            if let retryAction {
+                Button("Try Again", action: retryAction)
+                    .buttonStyle(MtrxButtonStyle(variant: .secondary))
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(Spacing.xl)
+    }
+}
+
+// MARK: - Toast
+
+struct MtrxToast: View {
+    let message: String
+    var icon: String = "checkmark.circle.fill"
+    var style: MtrxBadge.BadgeStyle = .success
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(style.color)
+
+            Text(message)
+                .font(.mtrxCallout)
+                .foregroundStyle(Color.labelPrimary)
+                .lineLimit(2)
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.ms)
+        .background(.ultraThickMaterial)
+        .clipShape(Capsule())
+        .shadow(color: .black.opacity(0.15), radius: 16, y: 8)
+    }
+}
+
+// MARK: - Sheet Header
+
+struct MtrxSheetHeader: View {
+    let title: String
+    var subtitle: String? = nil
+    var onDismiss: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: Spacing.md) {
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(Color.labelTertiary.opacity(0.4))
+                .frame(width: 36, height: 5)
+                .padding(.top, Spacing.sm)
+
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.mtrxTitle3)
+                        .foregroundStyle(Color.labelPrimary)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+                }
+                Spacer()
+                if let onDismiss {
+                    Button(action: onDismiss) {
+                        Image(systemName: Symbols.close)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.labelSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(Color.surfaceOverlay)
+                            .clipShape(Circle())
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, Spacing.contentPadding)
+        .padding(.bottom, Spacing.sm)
+    }
+}
+
+// MARK: - Themed Divider
+
+struct MtrxDivider: View {
+    var color: Color = .separatorStandard
+    var body: some View {
+        Rectangle()
+            .fill(color)
+            .frame(height: 0.5)
+    }
+}
+
+// MARK: - Animated Number
+
+struct MtrxAnimatedValue: View {
+    let value: Double
+    var prefix: String = "$"
+    var decimals: Int = 2
+    var font: Font = .mtrxMonoLarge
+    var color: Color = .labelPrimary
+
+    @State private var displayValue: Double = 0
+
+    var body: some View {
+        Text(formattedValue)
+            .font(font)
+            .foregroundStyle(color)
+            .contentTransition(.numericText(value: displayValue))
+            .onAppear {
+                withAnimation(Motion.springDefault) {
+                    displayValue = value
+                }
+            }
+            .onChange(of: value) { _, newValue in
+                withAnimation(Motion.springDefault) {
+                    displayValue = newValue
+                }
+            }
+    }
+
+    private var formattedValue: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = decimals
+        formatter.maximumFractionDigits = decimals
+        let formatted = formatter.string(from: NSNumber(value: displayValue)) ?? "0.00"
+        return "\(prefix)\(formatted)"
+    }
+}
+
+// MARK: - Glow Effect Modifier
+
+extension View {
+    func mtrxGlow(color: Color = .accentPrimary, radius: CGFloat = 8) -> some View {
+        self
+            .shadow(color: color.opacity(0.4), radius: radius / 2)
+            .shadow(color: color.opacity(0.2), radius: radius)
+    }
+
+    func mtrxAccentBorder(cornerRadius: CGFloat = Spacing.CornerRadius.md) -> some View {
+        self.overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.accentPrimary.opacity(0.5), Color.accentPrimary.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+    }
+}
+
+// MARK: - Haptic Feedback
+
+enum MtrxHaptics {
+    static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
+    }
+    static func success() {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+    static func warning() {
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+    }
+    static func error() {
+        UINotificationFeedbackGenerator().notificationOccurred(.error)
+    }
+    static func selection() {
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+}

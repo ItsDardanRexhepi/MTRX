@@ -1,22 +1,61 @@
+# Xcode
+*.xcworkspace/
+*.xcodeproj/xcuserdata/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.hmap
+*.moved-aside
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+
+# CocoaPods
+Pods/
+Podfile.lock
+
 # Dependencies
 node_modules/
 
 # Build artifacts
 artifacts/
-cache/
+/cache/
 
-# Environment
+# Environment & Secrets
 .env
+.env.*
+
+# OS
 .DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
-*.xcworkspace/
-*.xcodeproj/xcuserdata/
+.idea/
+*.swp
+*.swo
 
-# OS
-Thumbs.db
-
-# Python
+# Python (should not exist in iOS repo)
 __pycache__/
 *.pyc
+*.py[cod]
+.venv/
+
+# Backend code (belongs in 0pnMatrx only)
+runtime/
+matrix/
+skills/
+contracts/
+
+# Secrets (real values — never commit)
+Config/Secrets.swift
+
+# Internal planning docs
+**/TODO_TRIAGE.md
+**/ROADMAP.md
+
+# Dev tooling
+.claude/

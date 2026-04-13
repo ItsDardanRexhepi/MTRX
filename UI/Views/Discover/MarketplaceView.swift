@@ -1,7 +1,7 @@
 // MarketplaceView.swift
 // MTRX
 //
-// Component 24 — Decentralized marketplace listings with search, filters, and categories.
+// Full marketplace browsing UI with search, category filters, grid layout, and detail sheet.
 
 import SwiftUI
 
@@ -9,34 +9,42 @@ import SwiftUI
 
 @MainActor
 final class MarketplaceViewModel: ObservableObject {
-    @Published var listings: [MarketplaceListing] = []
+    @Published var listings: [MarketplaceItem] = []
     @Published var searchText: String = ""
-    @Published var selectedFilter: MarketplaceFilter = .all
-    @Published var sortOrder: MarketplaceSortOrder = .trending
-    @Published var viewMode: MarketplaceViewMode = .list
+    @Published var selectedCategory: MarketCategory = .all
+    @Published var sortOption: MarketSortOption = .popularity
     @Published var isLoading: Bool = false
-    @Published var errorMessage: String?
-    @Published var showFilters: Bool = false
-    @Published var showListItemSheet: Bool = false
-    @Published var showPurchaseConfirmation: Bool = false
-    @Published var selectedListingForPurchase: MarketplaceListing?
-    @Published var isPurchasing: Bool = false
-    @Published var currentPage: Int = 1
-    @Published var hasMorePages: Bool = true
-    @Published var isLoadingMore: Bool = false
-
-    private let api = MTRXAPIClient.shared
+    @Published var showSortPicker: Bool = false
+    @Published var selectedListing: MarketplaceItem?
+    @Published var showDetail: Bool = false
 
     // MARK: - Filtered Listings
 
-    var filteredListings: [MarketplaceListing] {
+    var filteredListings: [MarketplaceItem] {
         var result = listings
-        if selectedFilter != .all {
-            result = result.filter { $0.category == selectedFilter.rawValue }
+
+        if selectedCategory != .all {
+            result = result.filter { $0.category == selectedCategory }
         }
+
         if !searchText.isEmpty {
-            result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            result = result.filter {
+                $0.name.localizedCaseInsensitiveContains(searchText) ||
+                $0.sellerName.localizedCaseInsensitiveContains(searchText)
+            }
         }
+
+        switch sortOption {
+        case .priceLow:
+            result.sort { $0.priceValue < $1.priceValue }
+        case .priceHigh:
+            result.sort { $0.priceValue > $1.priceValue }
+        case .newest:
+            result.sort { $0.listedDate > $1.listedDate }
+        case .popularity:
+            result.sort { $0.viewCount > $1.viewCount }
+        }
+
         return result
     }
 
@@ -45,529 +53,415 @@ final class MarketplaceViewModel: ObservableObject {
     func loadListings() async {
         guard !isLoading else { return }
         isLoading = true
-        errorMessage = nil
-        currentPage = 1
 
-        do {
-            let query = searchText.isEmpty ? nil : searchText
-            let raw: [String: AnyCodableValue] = try await api.listMarketplaceListings(query: query)
-            listings = parseListings(raw)
-
-            // Check for pagination
-            if case .dictionary(let meta) = raw["meta"] {
-                let total = meta["total"]?.intValue ?? listings.count
-                hasMorePages = listings.count < total
-            } else {
-                hasMorePages = false
-            }
-
-            if listings.isEmpty {
-                listings = MarketplaceListing.sampleData
-            }
-        } catch {
-            if listings.isEmpty {
-                listings = MarketplaceListing.sampleData
-            }
-            errorMessage = error.localizedDescription
-        }
-
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        listings = MarketplaceItem.sampleData
         isLoading = false
     }
 
-    func loadMoreIfNeeded(currentItem: MarketplaceListing) async {
-        guard hasMorePages, !isLoadingMore else { return }
-        let thresholdIndex = filteredListings.index(filteredListings.endIndex, offsetBy: -3)
-        guard let currentIndex = filteredListings.firstIndex(where: { $0.id == currentItem.id }),
-              currentIndex >= thresholdIndex else { return }
-
-        isLoadingMore = true
-        currentPage += 1
-
-        do {
-            let raw: [String: AnyCodableValue] = try await api.listMarketplaceListings(query: nil)
-            let newItems = parseListings(raw)
-            listings.append(contentsOf: newItems)
-            hasMorePages = !newItems.isEmpty
-        } catch {
-            hasMorePages = false
-        }
-
-        isLoadingMore = false
+    func refresh() async {
+        listings = []
+        await loadListings()
     }
 
-    // MARK: - Purchase
-
-    func purchaseListing(_ listing: MarketplaceListing) async {
-        isPurchasing = true
-        do {
-            _ = try await api.purchaseListing(id: listing.id.uuidString)
-            // Remove purchased listing from the list
-            listings.removeAll { $0.id == listing.id }
-        } catch {
-            errorMessage = "Purchase failed: \(error.localizedDescription)"
-        }
-        isPurchasing = false
-        showPurchaseConfirmation = false
-        selectedListingForPurchase = nil
+    func selectListing(_ item: MarketplaceItem) {
+        selectedListing = item
+        showDetail = true
+        MtrxHaptics.impact(.light)
     }
+}
 
-    // MARK: - List Item for Sale
+// MARK: - Category
 
-    func createListing(assetType: String, assetId: String, price: Double, currency: String, description: String) async {
-        do {
-            let request = ListingCreateRequest(
-                assetType: assetType,
-                assetId: assetId,
-                price: price,
-                currency: currency,
-                description: description
-            )
-            _ = try await api.createListing(request)
-            await loadListings()
-        } catch {
-            errorMessage = "Failed to list item: \(error.localizedDescription)"
+enum MarketCategory: String, CaseIterable, Identifiable {
+    case all = "All"
+    case property = "Property"
+    case digital = "Digital"
+    case services = "Services"
+    case collectibles = "Collectibles"
+    case equipment = "Equipment"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .all: return Symbols.marketplace
+        case .property: return Symbols.property
+        case .digital: return Symbols.nft
+        case .services: return Symbols.contract
+        case .collectibles: return Symbols.reward
+        case .equipment: return Symbols.build
         }
     }
+}
 
-    // MARK: - Parser
+// MARK: - Sort Option
 
-    private func parseListings(_ raw: [String: AnyCodableValue]) -> [MarketplaceListing] {
-        guard case .array(let items) = raw["data"] ?? raw["listings"] ?? .null else {
-            return []
+enum MarketSortOption: String, CaseIterable, Identifiable {
+    case popularity = "Popular"
+    case newest = "Newest"
+    case priceLow = "Price: Low"
+    case priceHigh = "Price: High"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .popularity: return Symbols.trendUp
+        case .newest: return Symbols.clock
+        case .priceLow: return "arrow.down"
+        case .priceHigh: return "arrow.up"
         }
-        return items.compactMap { item -> MarketplaceListing? in
-            guard case .dictionary(let dict) = item else { return nil }
-            let name = dict["name"]?.stringValue ?? dict["title"]?.stringValue ?? "Unknown"
-            let category = dict["category"]?.stringValue ?? dict["asset_type"]?.stringValue ?? "DeFi"
-            let priceVal = dict["price"]?.doubleValue ?? 0
-            let price = priceVal > 0 ? "$\(String(format: "%.2f", priceVal))" : "$0.00"
-            let volumeVal = dict["volume"]?.doubleValue ?? 0
-            let volume = volumeVal > 0 ? "\(String(format: "%.1f", volumeVal / 1000))K vol" : "0 vol"
-            let icon = iconForCategory(category)
-            return MarketplaceListing(name: name, category: category, price: price, volume: volume, icon: icon)
+    }
+}
+
+// MARK: - Marketplace Item Model
+
+struct MarketplaceItem: Identifiable, Hashable {
+    let id = UUID()
+    let name: String
+    let description_: String
+    let priceValue: Double
+    let category: MarketCategory
+    let sellerName: String
+    let sellerRating: Double
+    let gradientColors: [Color]
+    let viewCount: Int
+    let listedDate: Date
+    let specifications: [SpecRow]
+
+    var formattedPrice: String {
+        if priceValue >= 1000 {
+            return String(format: "$%,.0f", priceValue)
+        }
+        return String(format: "$%,.2f", priceValue)
+    }
+
+    var categoryBadgeStyle: MtrxBadge.BadgeStyle {
+        switch category {
+        case .all: return .neutral
+        case .property: return .warning
+        case .digital: return .info
+        case .services: return .success
+        case .collectibles: return .accent
+        case .equipment: return .neutral
         }
     }
 
-    private func iconForCategory(_ category: String) -> String {
-        switch category.lowercased() {
-        case "defi": return Symbols.chartLine
-        case "nft", "nfts": return Symbols.nft
-        case "rwa": return Symbols.property
-        case "insurance": return Symbols.insurance
-        case "services": return Symbols.contract
-        default: return Symbols.globe
-        }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    static func == (lhs: MarketplaceItem, rhs: MarketplaceItem) -> Bool { lhs.id == rhs.id }
+
+    struct SpecRow: Hashable, Identifiable {
+        let id = UUID()
+        let label: String
+        let value: String
     }
+
+    static let sampleData: [MarketplaceItem] = [
+        MarketplaceItem(
+            name: "Nairobi Solar Farm Token",
+            description_: "Fractional ownership of a 2MW solar farm in Nairobi. Earn yield from energy production distributed monthly. Fully audited smart contract with insurance coverage.",
+            priceValue: 2500, category: .property, sellerName: "SolarDAO", sellerRating: 4.8,
+            gradientColors: [.orange, .yellow], viewCount: 1842, listedDate: Date().addingTimeInterval(-86400),
+            specifications: [.init(label: "Capacity", value: "2 MW"), .init(label: "Yield", value: "~8.2% APY"), .init(label: "Insurance", value: "Covered")]
+        ),
+        MarketplaceItem(
+            name: "Genesis Pass #0042",
+            description_: "Legendary MTRX Genesis Pass granting early access to all platform features, governance voting power, and fee discounts. Limited edition of 100.",
+            priceValue: 3400, category: .digital, sellerName: "MTRX Labs", sellerRating: 5.0,
+            gradientColors: [.accentPrimary, .blue], viewCount: 3210, listedDate: Date().addingTimeInterval(-172800),
+            specifications: [.init(label: "Edition", value: "#42 of 100"), .init(label: "Rarity", value: "Legendary"), .init(label: "Perks", value: "Fee Discount")]
+        ),
+        MarketplaceItem(
+            name: "Smart Contract Audit",
+            description_: "Professional security audit for Solidity smart contracts. Includes vulnerability assessment, gas optimization report, and remediation guidance.",
+            priceValue: 1800, category: .services, sellerName: "SecureChain", sellerRating: 4.9,
+            gradientColors: [.green, .mint], viewCount: 956, listedDate: Date().addingTimeInterval(-43200),
+            specifications: [.init(label: "Duration", value: "5-7 days"), .init(label: "Languages", value: "Solidity, Vyper"), .init(label: "Report", value: "Full PDF")]
+        ),
+        MarketplaceItem(
+            name: "Vintage Hardware Wallet",
+            description_: "Rare first-edition Ledger Nano S from 2016. Collector's item in original packaging, fully functional with firmware update capability.",
+            priceValue: 450, category: .collectibles, sellerName: "CryptoVault", sellerRating: 4.6,
+            gradientColors: [.purple, .pink], viewCount: 678, listedDate: Date().addingTimeInterval(-259200),
+            specifications: [.init(label: "Year", value: "2016"), .init(label: "Condition", value: "Mint"), .init(label: "Box", value: "Original")]
+        ),
+        MarketplaceItem(
+            name: "Mining Rig - 6x RTX 4090",
+            description_: "Complete mining rig with 6 NVIDIA RTX 4090 GPUs. Custom cooling solution, 2000W PSU, ready to deploy. Hashrate tested and verified.",
+            priceValue: 12500, category: .equipment, sellerName: "MineForge", sellerRating: 4.7,
+            gradientColors: [.red, .orange], viewCount: 2104, listedDate: Date().addingTimeInterval(-518400),
+            specifications: [.init(label: "GPUs", value: "6x RTX 4090"), .init(label: "PSU", value: "2000W"), .init(label: "Hashrate", value: "Verified")]
+        ),
+        MarketplaceItem(
+            name: "DeFi Yield Strategy Bot",
+            description_: "Automated yield farming bot that optimizes across 12 protocols. Backtested with 18% APY over the last year. Includes source code and documentation.",
+            priceValue: 890, category: .digital, sellerName: "AlgoTrader", sellerRating: 4.4,
+            gradientColors: [.blue, .cyan], viewCount: 1567, listedDate: Date().addingTimeInterval(-345600),
+            specifications: [.init(label: "Protocols", value: "12"), .init(label: "Backtested APY", value: "~18%"), .init(label: "Language", value: "Python")]
+        ),
+        MarketplaceItem(
+            name: "Carbon Credit Bundle",
+            description_: "1000 verified carbon credits from reforestation projects in Brazil. Each credit offsets 1 tonne of CO2. Gold Standard certified.",
+            priceValue: 15000, category: .property, sellerName: "GreenBlock", sellerRating: 4.5,
+            gradientColors: [.green, .teal], viewCount: 890, listedDate: Date().addingTimeInterval(-604800),
+            specifications: [.init(label: "Credits", value: "1,000"), .init(label: "Standard", value: "Gold Standard"), .init(label: "Origin", value: "Brazil")]
+        ),
+        MarketplaceItem(
+            name: "Web3 UX Consultation",
+            description_: "1-on-1 UX design consultation for DeFi and Web3 applications. Includes wireframes, user flow analysis, and accessibility review.",
+            priceValue: 350, category: .services, sellerName: "PixelDAO", sellerRating: 4.8,
+            gradientColors: [.indigo, .purple], viewCount: 423, listedDate: Date().addingTimeInterval(-129600),
+            specifications: [.init(label: "Duration", value: "2 hours"), .init(label: "Deliverables", value: "Wireframes"), .init(label: "Follow-up", value: "Included")]
+        ),
+    ]
 }
 
 // MARK: - Marketplace View
 
 struct MarketplaceView: View {
     @StateObject private var viewModel = MarketplaceViewModel()
+    @State private var appeared = false
 
     private let gridColumns = [
-        GridItem(.flexible(), spacing: Spacing.md),
-        GridItem(.flexible(), spacing: Spacing.md)
+        GridItem(.flexible(), spacing: Spacing.ms),
+        GridItem(.flexible(), spacing: Spacing.ms)
     ]
 
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            if viewModel.isLoading && viewModel.listings.isEmpty {
-                loadingState
-            } else if let error = viewModel.errorMessage, viewModel.listings.isEmpty {
-                errorState(error)
-            } else {
-                filterBar
-                sortAndViewControls
+        NavigationStack {
+            ZStack {
+                MtrxGradientBackground(style: .primary)
 
-                Group {
-                    switch viewModel.viewMode {
-                    case .list:
-                        listLayout
-                    case .grid:
-                        gridLayout
+                if viewModel.isLoading && viewModel.listings.isEmpty {
+                    shimmerGrid
+                } else if viewModel.filteredListings.isEmpty && !viewModel.searchText.isEmpty {
+                    MtrxEmptyState(
+                        icon: Symbols.search,
+                        title: "No Results",
+                        message: "No listings match \"\(viewModel.searchText)\". Try a different search term.",
+                        actionLabel: "Clear Search"
+                    ) {
+                        viewModel.searchText = ""
                     }
-                }
-            }
-        }
-        .navigationTitle("Marketplace")
-        .searchable(text: $viewModel.searchText, prompt: "Search listings...")
-        .onChange(of: viewModel.searchText) { _, _ in
-            Task { await viewModel.loadListings() }
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    viewModel.showListItemSheet = true
-                } label: {
-                    Image(systemName: Symbols.addCircle)
-                }
-            }
-        }
-        .sheet(isPresented: $viewModel.showFilters) {
-            MarketplaceFilterSheet(selectedFilter: $viewModel.selectedFilter)
-                .presentationDetents([.medium])
-        }
-        .sheet(isPresented: $viewModel.showListItemSheet) {
-            ListItemForSaleSheet(viewModel: viewModel)
-                .presentationDetents([.medium, .large])
-        }
-        .sheet(isPresented: $viewModel.showPurchaseConfirmation) {
-            if let listing = viewModel.selectedListingForPurchase {
-                PurchaseConfirmationSheet(listing: listing, viewModel: viewModel)
-                    .presentationDetents([.medium])
-            }
-        }
-        .task {
-            await viewModel.loadListings()
-        }
-    }
-
-    // MARK: - Loading State
-
-    private var loadingState: some View {
-        VStack(spacing: Spacing.lg) {
-            ProgressView()
-                .controlSize(.large)
-            Text("Loading marketplace...")
-                .font(.mtrxSubheadline)
-                .foregroundStyle(Color.labelSecondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Error State
-
-    private func errorState(_ message: String) -> some View {
-        VStack(spacing: Spacing.md) {
-            Image(systemName: Symbols.alertWarning)
-                .font(.system(size: 48))
-                .foregroundStyle(Color.statusWarning)
-            Text("Failed to load marketplace")
-                .font(.mtrxTitle3)
-            Text(message)
-                .font(.mtrxCaption1)
-                .foregroundStyle(Color.labelSecondary)
-                .multilineTextAlignment(.center)
-            Button {
-                Task { await viewModel.loadListings() }
-            } label: {
-                Label("Retry", systemImage: Symbols.refresh)
-                    .font(.mtrxHeadline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, Spacing.lg)
-                    .frame(height: Spacing.Size.buttonHeight)
-                    .background(Color.accentPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Filter Bar
-
-    private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Spacing.sm) {
-                ForEach(MarketplaceFilter.allCases, id: \.self) { filter in
-                    Button {
-                        withAnimation(Motion.springSnappy) {
-                            viewModel.selectedFilter = filter
-                        }
-                    } label: {
-                        Text(filter.rawValue)
-                            .font(.mtrxCaptionBold)
-                            .padding(.horizontal, Spacing.chipHorizontal)
-                            .padding(.vertical, Spacing.chipVertical)
-                            .background(viewModel.selectedFilter == filter ? Color.accentPrimary : Color.surfaceOverlay)
-                            .foregroundStyle(viewModel.selectedFilter == filter ? .white : Color.labelPrimary)
-                            .clipShape(Capsule())
+                } else if viewModel.filteredListings.isEmpty {
+                    MtrxEmptyState(
+                        icon: Symbols.marketplace,
+                        title: "No Listings",
+                        message: "The marketplace is empty right now. Check back soon for new listings.",
+                        actionLabel: "Refresh"
+                    ) {
+                        Task { await viewModel.refresh() }
                     }
-                    .buttonStyle(.plain)
+                } else {
+                    listingContent
                 }
             }
-            .padding(.horizontal, Spacing.contentPadding)
-            .padding(.vertical, Spacing.sm)
+            .navigationTitle("Marketplace")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $viewModel.showSortPicker) {
+                sortPickerSheet
+                    .presentationDetents([.height(320)])
+            }
+            .sheet(isPresented: $viewModel.showDetail) {
+                if let listing = viewModel.selectedListing {
+                    MarketplaceDetailSheet(listing: listing)
+                        .presentationDetents([.large])
+                }
+            }
+            .task {
+                guard !appeared else { return }
+                appeared = true
+                await viewModel.loadListings()
+            }
         }
     }
 
-    // MARK: - Sort & View Controls
+    // MARK: - Content
 
-    private var sortAndViewControls: some View {
-        HStack {
-            Menu {
-                ForEach(MarketplaceSortOrder.allCases, id: \.self) { order in
-                    Button {
-                        viewModel.sortOrder = order
-                    } label: {
-                        Label(order.rawValue, systemImage: order == viewModel.sortOrder ? Symbols.complete : "")
-                    }
-                }
-            } label: {
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: Symbols.sort)
-                    Text(viewModel.sortOrder.rawValue)
-                        .font(.mtrxCaption1)
-                }
-                .foregroundStyle(Color.labelSecondary)
+    private var listingContent: some View {
+        ScrollView {
+            VStack(spacing: Spacing.md) {
+                searchAndSort
+                categoryFilters
+                listingGrid
             }
+            .padding(.bottom, Spacing.xxl)
+        }
+        .refreshable {
+            await viewModel.refresh()
+        }
+    }
 
-            Spacer()
+    // MARK: - Search + Sort
 
-            Text("\(viewModel.filteredListings.count) listings")
-                .font(.mtrxCaption1)
-                .foregroundStyle(Color.labelTertiary)
-
-            Spacer()
-
-            HStack(spacing: Spacing.xs) {
-                Button {
-                    withAnimation { viewModel.viewMode = .list }
-                } label: {
-                    Image(systemName: "list.bullet")
-                        .foregroundStyle(viewModel.viewMode == .list ? Color.accentPrimary : Color.labelTertiary)
-                }
-
-                Button {
-                    withAnimation { viewModel.viewMode = .grid }
-                } label: {
-                    Image(systemName: "square.grid.2x2")
-                        .foregroundStyle(viewModel.viewMode == .grid ? Color.accentPrimary : Color.labelTertiary)
-                }
-            }
+    private var searchAndSort: some View {
+        HStack(spacing: Spacing.sm) {
+            MtrxSearchBar(text: $viewModel.searchText, placeholder: "Search marketplace...")
 
             Button {
-                viewModel.showFilters = true
+                viewModel.showSortPicker = true
+                MtrxHaptics.impact(.light)
             } label: {
-                Image(systemName: Symbols.filter)
+                Image(systemName: Symbols.sort)
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(Color.accentPrimary)
+                    .frame(width: 40, height: 40)
+                    .background(Color.surfaceOverlay)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
-        .padding(.vertical, Spacing.sm)
+        .padding(.top, Spacing.sm)
     }
 
-    // MARK: - List Layout
+    // MARK: - Category Filters
 
-    private var listLayout: some View {
-        ScrollView {
-            LazyVStack(spacing: Spacing.sm) {
-                ForEach(viewModel.filteredListings) { listing in
-                    NavigationLink {
-                        MarketplaceListingDetail(listing: listing)
-                    } label: {
-                        MarketplaceListingRow(listing: listing)
-                    }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                        Button {
-                            viewModel.selectedListingForPurchase = listing
-                            viewModel.showPurchaseConfirmation = true
-                        } label: {
-                            Label("Purchase", systemImage: Symbols.purchase)
+    private var categoryFilters: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Spacing.sm) {
+                ForEach(MarketCategory.allCases) { category in
+                    MtrxChip(
+                        label: category.rawValue,
+                        icon: category == viewModel.selectedCategory ? category.icon : nil,
+                        isSelected: category == viewModel.selectedCategory
+                    ) {
+                        withAnimation(Motion.springSnappy) {
+                            viewModel.selectedCategory = category
                         }
-                    }
-                    .task {
-                        await viewModel.loadMoreIfNeeded(currentItem: listing)
-                    }
-                }
-
-                if viewModel.isLoadingMore {
-                    ProgressView()
-                        .padding()
-                }
-            }
-            .padding(Spacing.contentPadding)
-        }
-        .refreshable {
-            await viewModel.loadListings()
-        }
-    }
-
-    // MARK: - Grid Layout
-
-    private var gridLayout: some View {
-        ScrollView {
-            LazyVGrid(columns: gridColumns, spacing: Spacing.md) {
-                ForEach(viewModel.filteredListings) { listing in
-                    NavigationLink {
-                        MarketplaceListingDetail(listing: listing)
-                    } label: {
-                        MarketplaceGridCard(listing: listing)
-                    }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                        Button {
-                            viewModel.selectedListingForPurchase = listing
-                            viewModel.showPurchaseConfirmation = true
-                        } label: {
-                            Label("Purchase", systemImage: Symbols.purchase)
-                        }
+                        MtrxHaptics.selection()
                     }
                 }
             }
-            .padding(Spacing.contentPadding)
-        }
-        .refreshable {
-            await viewModel.loadListings()
+            .padding(.horizontal, Spacing.contentPadding)
         }
     }
-}
 
-// MARK: - Purchase Confirmation Sheet
+    // MARK: - Listing Grid
 
-struct PurchaseConfirmationSheet: View {
-    let listing: MarketplaceListing
-    @ObservedObject var viewModel: MarketplaceViewModel
-    @Environment(\.dismiss) private var dismiss
+    private var listingGrid: some View {
+        LazyVGrid(columns: gridColumns, spacing: Spacing.ms) {
+            ForEach(Array(viewModel.filteredListings.enumerated()), id: \.element.id) { index, item in
+                MarketplaceGridCard(listing: item)
+                    .onTapGesture {
+                        viewModel.selectListing(item)
+                    }
+                    .mtrxStaggeredAppearance(index: index, isVisible: appeared)
+            }
+        }
+        .padding(.horizontal, Spacing.contentPadding)
+    }
 
-    var body: some View {
+    // MARK: - Shimmer Loading
+
+    private var shimmerGrid: some View {
+        ScrollView {
+            VStack(spacing: Spacing.md) {
+                // Fake search bar
+                RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm)
+                    .fill(Color.surfaceOverlay)
+                    .frame(height: 40)
+                    .padding(.horizontal, Spacing.contentPadding)
+                    .mtrxShimmer(isActive: true)
+
+                // Fake chips
+                HStack(spacing: Spacing.sm) {
+                    ForEach(0..<4, id: \.self) { _ in
+                        Capsule()
+                            .fill(Color.surfaceOverlay)
+                            .frame(width: 70, height: 30)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+                .mtrxShimmer(isActive: true)
+
+                // Fake grid
+                LazyVGrid(columns: gridColumns, spacing: Spacing.ms) {
+                    ForEach(0..<6, id: \.self) { _ in
+                        VStack(alignment: .leading, spacing: Spacing.sm) {
+                            RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm)
+                                .fill(Color.surfaceOverlay)
+                                .frame(height: 120)
+
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.surfaceOverlay)
+                                .frame(width: 100, height: 14)
+
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.surfaceOverlay)
+                                .frame(width: 60, height: 12)
+
+                            HStack {
+                                Circle().fill(Color.surfaceOverlay).frame(width: 20, height: 20)
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color.surfaceOverlay)
+                                    .frame(width: 50, height: 10)
+                            }
+                        }
+                        .mtrxCardStyle()
+                        .mtrxShimmer(isActive: true)
+                    }
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+            }
+            .padding(.top, Spacing.sm)
+        }
+    }
+
+    // MARK: - Sort Picker Sheet
+
+    private var sortPickerSheet: some View {
         NavigationStack {
-            VStack(spacing: Spacing.lg) {
-                Image(systemName: listing.icon)
-                    .font(.system(size: 48))
-                    .foregroundStyle(Color.accentPrimary)
+            VStack(spacing: 0) {
+                MtrxSheetHeader(title: "Sort By", subtitle: "Choose listing order")
 
-                Text("Purchase \(listing.name)?")
-                    .font(.mtrxTitle3)
-                    .multilineTextAlignment(.center)
+                VStack(spacing: Spacing.xs) {
+                    ForEach(MarketSortOption.allCases) { option in
+                        Button {
+                            withAnimation(Motion.springSnappy) {
+                                viewModel.sortOption = option
+                            }
+                            MtrxHaptics.selection()
+                            viewModel.showSortPicker = false
+                        } label: {
+                            HStack(spacing: Spacing.ms) {
+                                Image(systemName: option.icon)
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(viewModel.sortOption == option ? Color.accentPrimary : Color.labelSecondary)
+                                    .frame(width: 24)
 
-                VStack(spacing: Spacing.sm) {
-                    HStack {
-                        Text("Price")
-                            .foregroundStyle(Color.labelSecondary)
-                        Spacer()
-                        Text(listing.price)
-                            .font(.mtrxMonoMedium)
-                    }
-                    HStack {
-                        Text("Category")
-                            .foregroundStyle(Color.labelSecondary)
-                        Spacer()
-                        Text(listing.category)
-                    }
-                    HStack {
-                        Text("Est. Gas Fee")
-                            .foregroundStyle(Color.labelSecondary)
-                        Spacer()
-                        Text("~0.002 ETH")
-                            .font(.mtrxMonoSmall)
+                                Text(option.rawValue)
+                                    .font(.mtrxBody)
+                                    .foregroundStyle(Color.labelPrimary)
+
+                                Spacer()
+
+                                if viewModel.sortOption == option {
+                                    Image(systemName: Symbols.complete)
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundStyle(Color.accentPrimary)
+                                }
+                            }
+                            .padding(.vertical, Spacing.ms)
+                            .padding(.horizontal, Spacing.contentPadding)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        if option != MarketSortOption.allCases.last {
+                            MtrxDivider()
+                                .padding(.leading, Spacing.xxl)
+                        }
                     }
                 }
-                .font(.mtrxBody)
-                .padding(Spacing.md)
-                .background(Color.surfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm))
+                .padding(.top, Spacing.sm)
 
                 Spacer()
-
-                Button {
-                    Task { await viewModel.purchaseListing(listing) }
-                } label: {
-                    HStack {
-                        if viewModel.isPurchasing {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text("Confirm Purchase")
-                        }
-                    }
-                    .font(.mtrxHeadline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Spacing.Size.buttonHeight)
-                    .background(Color.accentPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-                }
-                .disabled(viewModel.isPurchasing)
             }
-            .padding(Spacing.contentPadding)
-            .navigationTitle("Confirm Purchase")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - List Item For Sale Sheet
-
-struct ListItemForSaleSheet: View {
-    @ObservedObject var viewModel: MarketplaceViewModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var assetType: String = "NFT"
-    @State private var assetId: String = ""
-    @State private var price: String = ""
-    @State private var currency: String = "USDC"
-    @State private var description: String = ""
-    @State private var isSubmitting: Bool = false
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Asset") {
-                    Picker("Type", selection: $assetType) {
-                        ForEach(["NFT", "RWA", "Token", "Service"], id: \.self) { Text($0) }
-                    }
-                    TextField("Asset ID", text: $assetId)
-                        .font(.mtrxMono)
-                }
-
-                Section("Pricing") {
-                    TextField("Price", text: $price)
-                        .keyboardType(.decimalPad)
-                    Picker("Currency", selection: $currency) {
-                        ForEach(["USDC", "ETH", "DAI", "USDT"], id: \.self) { Text($0) }
-                    }
-                }
-
-                Section("Description") {
-                    TextField("Describe your listing...", text: $description, axis: .vertical)
-                        .lineLimit(3...6)
-                }
-
-                Section {
-                    Button {
-                        isSubmitting = true
-                        Task {
-                            let priceValue = Double(price) ?? 0
-                            await viewModel.createListing(
-                                assetType: assetType,
-                                assetId: assetId,
-                                price: priceValue,
-                                currency: currency,
-                                description: description
-                            )
-                            isSubmitting = false
-                            dismiss()
-                        }
-                    } label: {
-                        HStack {
-                            Spacer()
-                            if isSubmitting {
-                                ProgressView()
-                            } else {
-                                Text("List for Sale")
-                                    .font(.mtrxHeadline)
-                            }
-                            Spacer()
-                        }
-                    }
-                    .disabled(assetId.isEmpty || price.isEmpty || isSubmitting)
-                }
-            }
-            .navigationTitle("List Item")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
+            .background(Color.backgroundPrimary)
         }
     }
 }
@@ -575,119 +469,272 @@ struct ListItemForSaleSheet: View {
 // MARK: - Grid Card
 
 struct MarketplaceGridCard: View {
-    let listing: MarketplaceListing
+    let listing: MarketplaceItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous)
-                .fill(Color.accentPrimary.opacity(0.1))
-                .frame(height: 120)
-                .overlay(
-                    Image(systemName: listing.icon)
-                        .font(.system(size: 32))
-                        .foregroundStyle(Color.accentPrimary)
-                )
+        MtrxCard(style: .standard) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                // Gradient placeholder image
+                RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: listing.gradientColors,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(height: 120)
+                    .overlay(
+                        Image(systemName: listing.category.icon)
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.7))
+                    )
+                    .overlay(alignment: .topTrailing) {
+                        MtrxBadge(text: listing.category.rawValue, style: listing.categoryBadgeStyle)
+                            .padding(Spacing.xs)
+                    }
 
-            Text(listing.name)
-                .font(.mtrxBodyBold)
-                .foregroundStyle(Color.labelPrimary)
-                .lineLimit(1)
-
-            Text(listing.category)
-                .font(.mtrxCaption1)
-                .foregroundStyle(Color.labelSecondary)
-
-            HStack {
-                Text(listing.price)
-                    .font(.mtrxHeadlineTabular)
+                // Name
+                Text(listing.name)
+                    .font(.mtrxCalloutBold)
                     .foregroundStyle(Color.labelPrimary)
-                Spacer()
-                Text(listing.volume)
-                    .font(.mtrxCaption2)
-                    .foregroundStyle(Color.labelTertiary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // Price
+                Text(listing.formattedPrice)
+                    .font(.mtrxMono)
+                    .foregroundStyle(Color.accentPrimary)
+
+                // Seller
+                HStack(spacing: Spacing.xs) {
+                    MtrxAvatar(
+                        text: listing.sellerName,
+                        color: listing.gradientColors.first ?? .accentPrimary,
+                        size: 20
+                    )
+
+                    Text(listing.sellerName)
+                        .font(.mtrxCaption2)
+                        .foregroundStyle(Color.labelSecondary)
+                        .lineLimit(1)
+                }
+
+                // View button
+                Button {} label: {
+                    Text("View")
+                }
+                .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .compact, fullWidth: true))
+                .allowsHitTesting(false)
             }
         }
-        .padding(Spacing.cardPadding)
-        .background(Color.surfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
     }
 }
 
-// MARK: - Filter Sheet
+// MARK: - Detail Sheet
 
-struct MarketplaceFilterSheet: View {
-    @Binding var selectedFilter: MarketplaceFilter
+struct MarketplaceDetailSheet: View {
+    let listing: MarketplaceItem
     @Environment(\.dismiss) private var dismiss
+    @State private var showOfferInput = false
+    @State private var offerAmount: String = ""
+    @State private var isBuying = false
 
     var body: some View {
         NavigationStack {
-            List {
-                Section("Category") {
-                    ForEach(MarketplaceFilter.allCases, id: \.self) { filter in
-                        Button {
-                            selectedFilter = filter
-                            dismiss()
-                        } label: {
-                            HStack {
-                                Text(filter.rawValue)
+            ZStack {
+                MtrxGradientBackground(style: .primary)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Spacing.sectionGap) {
+                        // Large image area
+                        RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: listing.gradientColors,
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(height: 240)
+                            .overlay(
+                                Image(systemName: listing.category.icon)
+                                    .font(.system(size: 56, weight: .light))
+                                    .foregroundStyle(.white.opacity(0.6))
+                            )
+                            .overlay(alignment: .topTrailing) {
+                                MtrxBadge(text: listing.category.rawValue, style: listing.categoryBadgeStyle)
+                                    .padding(Spacing.ms)
+                            }
+
+                        // Title + price
+                        VStack(alignment: .leading, spacing: Spacing.sm) {
+                            Text(listing.name)
+                                .font(.mtrxTitle2)
+                                .foregroundStyle(Color.labelPrimary)
+
+                            Text(listing.formattedPrice)
+                                .font(.mtrxMonoMedium)
+                                .foregroundStyle(Color.accentPrimary)
+                                .mtrxGlow(color: .accentPrimary, radius: 4)
+                        }
+
+                        // Description
+                        MtrxCard(style: .standard) {
+                            VStack(alignment: .leading, spacing: Spacing.sm) {
+                                MtrxSectionHeader(title: "Description")
+
+                                Text(listing.description_)
+                                    .font(.mtrxBody)
+                                    .foregroundStyle(Color.labelSecondary)
+                                    .lineSpacing(4)
+                            }
+                        }
+
+                        // Seller info
+                        MtrxCard(style: .standard) {
+                            HStack(spacing: Spacing.ms) {
+                                MtrxAvatar(
+                                    text: listing.sellerName,
+                                    color: listing.gradientColors.first ?? .accentPrimary,
+                                    size: Spacing.Size.avatarMedium
+                                )
+
+                                VStack(alignment: .leading, spacing: Spacing.xs) {
+                                    Text(listing.sellerName)
+                                        .font(.mtrxHeadline)
+                                        .foregroundStyle(Color.labelPrimary)
+
+                                    HStack(spacing: Spacing.xs) {
+                                        ForEach(0..<5, id: \.self) { i in
+                                            Image(systemName: Double(i) < listing.sellerRating ? "star.fill" : "star")
+                                                .font(.system(size: 10))
+                                                .foregroundStyle(Double(i) < listing.sellerRating ? Color.accentTertiary : Color.labelTertiary)
+                                        }
+                                        Text(String(format: "%.1f", listing.sellerRating))
+                                            .font(.mtrxCaptionBold)
+                                            .foregroundStyle(Color.labelSecondary)
+                                    }
+                                }
+
                                 Spacer()
-                                if selectedFilter == filter {
-                                    Image(systemName: Symbols.complete)
-                                        .foregroundStyle(Color.accentPrimary)
+
+                                Image(systemName: Symbols.verified)
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(Color.accentPrimary)
+                            }
+                        }
+
+                        // Specifications
+                        if !listing.specifications.isEmpty {
+                            MtrxCard(style: .standard) {
+                                VStack(alignment: .leading, spacing: Spacing.sm) {
+                                    MtrxSectionHeader(title: "Specifications")
+
+                                    ForEach(listing.specifications) { spec in
+                                        HStack {
+                                            Text(spec.label)
+                                                .font(.mtrxCallout)
+                                                .foregroundStyle(Color.labelSecondary)
+                                            Spacer()
+                                            Text(spec.value)
+                                                .font(.mtrxMono)
+                                                .foregroundStyle(Color.labelPrimary)
+                                        }
+
+                                        if spec.id != listing.specifications.last?.id {
+                                            MtrxDivider()
+                                        }
+                                    }
                                 }
                             }
                         }
-                        .foregroundStyle(Color.labelPrimary)
+
+                        // Offer input
+                        if showOfferInput {
+                            MtrxCard(style: .elevated, accentEdge: .leading) {
+                                VStack(alignment: .leading, spacing: Spacing.ms) {
+                                    Text("Your Offer")
+                                        .font(.mtrxHeadline)
+                                        .foregroundStyle(Color.labelPrimary)
+
+                                    MtrxTextField(
+                                        placeholder: "Enter amount (USD)",
+                                        text: $offerAmount,
+                                        icon: "dollarsign.circle",
+                                        keyboardType: .decimalPad
+                                    )
+
+                                    Button {
+                                        MtrxHaptics.success()
+                                        showOfferInput = false
+                                        offerAmount = ""
+                                    } label: {
+                                        Text("Submit Offer")
+                                    }
+                                    .buttonStyle(MtrxButtonStyle(variant: .primary, size: .regular, fullWidth: true))
+                                    .disabled(offerAmount.isEmpty)
+                                }
+                            }
+                        }
+
+                        Spacer().frame(height: Spacing.xxxl)
                     }
+                    .padding(.horizontal, Spacing.contentPadding)
+                    .padding(.top, Spacing.sm)
                 }
 
-                Section("Price Range") {
-                    Text("Min - Max (coming soon)")
-                        .foregroundStyle(Color.labelTertiary)
-                }
+                // Bottom action buttons
+                VStack {
+                    Spacer()
 
-                Section("Verified Only") {
-                    Toggle("Show verified only", isOn: .constant(false))
+                    HStack(spacing: Spacing.ms) {
+                        Button {
+                            withAnimation(Motion.springDefault) {
+                                showOfferInput.toggle()
+                            }
+                            MtrxHaptics.impact(.medium)
+                        } label: {
+                            Text("Make Offer")
+                        }
+                        .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .large))
+
+                        Button {
+                            isBuying = true
+                            MtrxHaptics.success()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                isBuying = false
+                            }
+                        } label: {
+                            Text("Buy Now")
+                        }
+                        .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, isLoading: isBuying, fullWidth: true))
+                        .disabled(isBuying)
+                    }
+                    .padding(Spacing.contentPadding)
+                    .background(.ultraThinMaterial)
                 }
             }
-            .navigationTitle("Filters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button { dismiss() } label: {
+                        Image(systemName: Symbols.close)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.labelSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(Color.surfaceOverlay)
+                            .clipShape(Circle())
+                    }
                 }
             }
         }
     }
-}
-
-// MARK: - Enums
-
-enum MarketplaceFilter: String, CaseIterable {
-    case all = "All"
-    case defi = "DeFi"
-    case nft = "NFTs"
-    case rwa = "RWA"
-    case insurance = "Insurance"
-    case services = "Services"
-}
-
-enum MarketplaceSortOrder: String, CaseIterable {
-    case trending = "Trending"
-    case newest = "Newest"
-    case priceHigh = "Price: High"
-    case priceLow = "Price: Low"
-    case volume = "Volume"
-}
-
-enum MarketplaceViewMode {
-    case list, grid
 }
 
 // MARK: - Preview
 
 #Preview {
-    NavigationStack {
-        MarketplaceView()
-    }
+    MarketplaceView()
+        .preferredColorScheme(.dark)
 }

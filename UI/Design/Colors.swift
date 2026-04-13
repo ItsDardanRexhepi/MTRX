@@ -11,7 +11,7 @@ extension Color {
 
     // MARK: - Brand
 
-    /// Primary brand color — vibrant blue
+    /// Primary brand color — terminal cyan
     static let accentPrimary = Color("AccentPrimary", bundle: .main)
 
     /// Secondary brand color — complementary teal
@@ -129,6 +129,14 @@ extension Color {
     /// Quorum met — blue
     static let quorumMet = Color.blue
 
+    // MARK: - Tab Bar
+
+    /// Tab bar selected state — matrix green (#00FF41)
+    static let tabSelected = Color(red: 0, green: 1.0, blue: 0.255)
+
+    /// Tab bar unselected state (#666666)
+    static let tabUnselected = Color(white: 0.4)
+
     // MARK: - Trinity AI
 
     /// Trinity primary glow
@@ -144,7 +152,7 @@ extension Color {
 // MARK: - Fallback Color Definitions (When Asset Catalog is unavailable)
 
 extension Color {
-    static let fallbackAccentPrimary = Color(red: 0.0, green: 0.478, blue: 1.0)
+    static let fallbackAccentPrimary = Color(red: 0.0, green: 0.675, blue: 0.694)
     static let fallbackAccentSecondary = Color(red: 0.0, green: 0.8, blue: 0.75)
     static let fallbackAccentTertiary = Color(red: 1.0, green: 0.7, blue: 0.0)
     static let fallbackPriceUp = Color(red: 0.2, green: 0.84, blue: 0.42)

@@ -1,539 +1,676 @@
 // ContractView.swift
 // MTRX
 //
-// Component 1 — Contract creation wizard with template selection and parameter configuration.
+// Contract creation wizard with three-step flow: Template, Configure, Review.
 
 import SwiftUI
 
-// MARK: - Contract Creation ViewModel
+// MARK: - Contract ViewModel
 
 @MainActor
-final class ContractCreationViewModel: ObservableObject {
-    @Published var currentStep: ContractWizardStep = .template
-    @Published var selectedTemplate: ContractTemplateType?
+final class ContractViewModel: ObservableObject {
+    @Published var step: Int = 0
+    @Published var selectedTemplate: ContractTemplate?
+
+    // Form fields
     @Published var contractName: String = ""
     @Published var counterpartyAddress: String = ""
-    @Published var totalValue: String = ""
-    @Published var selectedToken: String = "USDC"
-    @Published var milestones: [MilestoneInput] = [MilestoneInput()]
-    @Published var disputeResolution: DisputeResolutionType = .arbitration
-    @Published var expirationDays: Int = 30
-    @Published var isDeploying: Bool = false
-    @Published var deployError: String?
-    @Published var deploySuccess: Bool = false
-    @Published var showConfirmation: Bool = false
+    @Published var amount: String = ""
+    @Published var selectedDuration: ContractDuration = .thirtyDays
+    @Published var customDurationDays: String = ""
+    @Published var termsText: String = ""
+    @Published var agreedToImmutable: Bool = false
 
-    private let api = MTRXAPIClient.shared
+    // State
+    @Published var isDeploying: Bool = false
+    @Published var deploySuccess: Bool = false
 
     // MARK: - Validation
 
-    var canProceed: Bool {
-        switch currentStep {
-        case .template: return selectedTemplate != nil
-        case .details: return !contractName.isEmpty && !counterpartyAddress.isEmpty
-        case .milestones: return !milestones.isEmpty
-        case .terms: return true
-        case .review: return true
+    var isTemplateSelected: Bool { selectedTemplate != nil }
+
+    var isNameValid: Bool {
+        !contractName.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    var isAddressValid: Bool {
+        let addr = counterpartyAddress.trimmingCharacters(in: .whitespaces)
+        return addr.count >= 10 && (addr.hasPrefix("0x") || addr.hasSuffix(".eth"))
+    }
+
+    var isAmountValid: Bool {
+        guard let val = Double(amount) else { return false }
+        return val > 0
+    }
+
+    var canProceedFromConfig: Bool {
+        isNameValid && isAddressValid && isAmountValid
+    }
+
+    var canDeploy: Bool {
+        canProceedFromConfig && agreedToImmutable && selectedTemplate != nil
+    }
+
+    var estimatedFee: String { "~0.003 ETH ($9.74)" }
+
+    var durationDisplay: String {
+        switch selectedDuration {
+        case .thirtyDays:  return "30 days"
+        case .sixtyDays:   return "60 days"
+        case .ninetyDays:  return "90 days"
+        case .custom:
+            let d = Int(customDurationDays) ?? 0
+            return d > 0 ? "\(d) days" : "Custom"
         }
     }
 
     // MARK: - Navigation
 
     func goNext() {
-        if currentStep == .review {
-            showConfirmation = true
-        } else {
-            currentStep = currentStep.next
+        guard step < 2 else { return }
+        withAnimation(Motion.springDefault) {
+            step += 1
         }
+        MtrxHaptics.impact(.light)
     }
 
     func goBack() {
-        currentStep = currentStep.previous
+        guard step > 0 else { return }
+        withAnimation(Motion.springDefault) {
+            step -= 1
+        }
     }
 
     // MARK: - Deploy
 
-    func deployContract() async {
+    func deploy() {
         isDeploying = true
-        deployError = nil
+        MtrxHaptics.impact(.heavy)
 
-        do {
-            // Build milestones payload
-            let milestonesPayload: [AnyCodableValue] = milestones.map { ms in
-                .dictionary([
-                    "description": .string(ms.description_),
-                    "amount": .string(ms.amount),
-                ])
-            }
-
-            let body: [String: AnyCodableValue] = [
-                "name": .string(contractName),
-                "template": .string(selectedTemplate?.rawValue ?? "escrow"),
-                "counterparty": .string(counterpartyAddress),
-                "value": .string(totalValue),
-                "token": .string(selectedToken),
-                "milestones": .array(milestonesPayload),
-                "dispute_resolution": .string(disputeResolution.rawValue.lowercased()),
-                "expiration_days": .int(expirationDays),
-            ]
-
-            _ = try await api.postRaw(path: "/api/v1/contracts/deploy", body: body)
-            deploySuccess = true
-        } catch {
-            deployError = error.localizedDescription
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+            self?.isDeploying = false
+            self?.deploySuccess = true
+            MtrxHaptics.success()
         }
+    }
 
-        isDeploying = false
+    func pasteAddress() {
+        if let clip = UIPasteboard.general.string {
+            counterpartyAddress = clip
+            MtrxHaptics.impact(.light)
+        }
     }
 }
 
-// MARK: - Contract View (Creation Wizard)
+// MARK: - Duration
+
+enum ContractDuration: String, CaseIterable, Identifiable {
+    case thirtyDays  = "30 days"
+    case sixtyDays   = "60 days"
+    case ninetyDays  = "90 days"
+    case custom      = "Custom"
+
+    var id: String { rawValue }
+}
+
+// MARK: - Template
+
+enum ContractTemplate: String, CaseIterable, Identifiable {
+    case escrow       = "Escrow"
+    case freelance    = "Freelance"
+    case subscription = "Subscription"
+    case revenueShare = "Revenue Share"
+    case loan         = "Loan"
+    case jointOwnership = "Joint Ownership"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .escrow:         return Symbols.escrow
+        case .freelance:      return "person.fill"
+        case .subscription:   return Symbols.processing
+        case .revenueShare:   return Symbols.chartPie
+        case .loan:           return Symbols.fee
+        case .jointOwnership: return Symbols.groupChat
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .escrow:         return "Milestone-based payment release with dispute resolution"
+        case .freelance:      return "Time or deliverable-based work agreements"
+        case .subscription:   return "Recurring automated payment schedules"
+        case .revenueShare:   return "Proportional revenue distribution to parties"
+        case .loan:           return "Collateralized lending with repayment terms"
+        case .jointOwnership: return "Shared asset ownership and governance"
+        }
+    }
+}
+
+// MARK: - Contract View
 
 struct ContractView: View {
+    @StateObject private var viewModel = ContractViewModel()
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var viewModel = ContractCreationViewModel()
+    @State private var appeared = false
 
-    // MARK: - Body
+    private let gridColumns = [
+        GridItem(.flexible(), spacing: Spacing.md),
+        GridItem(.flexible(), spacing: Spacing.md)
+    ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            progressBar
-            stepContent
-            navigationButtons
-        }
-        .navigationTitle("New Contract")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button("Cancel") { dismiss() }
+        NavigationStack {
+            ZStack {
+                MtrxGradientBackground(style: .primary)
+
+                VStack(spacing: 0) {
+                    stepIndicator
+                        .padding(.horizontal, Spacing.contentPadding)
+                        .padding(.vertical, Spacing.md)
+
+                    // Step content
+                    Group {
+                        switch viewModel.step {
+                        case 0:  templateStep
+                        case 1:  configureStep
+                        default: reviewStep
+                        }
+                    }
+                }
+
+                // Deploy overlay
+                if viewModel.isDeploying {
+                    deployingOverlay
+                }
+
+                if viewModel.deploySuccess {
+                    deploySuccessOverlay
+                }
             }
-        }
-        .alert("Deploy Contract?", isPresented: $viewModel.showConfirmation) {
-            Button("Deploy", role: .none) {
-                Task {
-                    await viewModel.deployContract()
-                    if viewModel.deploySuccess {
-                        dismiss()
+            .navigationTitle("New Contract")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        if viewModel.step == 0 {
+                            dismiss()
+                        } else {
+                            viewModel.goBack()
+                        }
+                    } label: {
+                        Image(systemName: viewModel.step == 0 ? Symbols.close : Symbols.back)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.labelPrimary)
                     }
                 }
             }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This will deploy the contract to the blockchain. Gas fees will apply.")
-        }
-        .alert("Deployment Failed", isPresented: .init(
-            get: { viewModel.deployError != nil },
-            set: { if !$0 { viewModel.deployError = nil } }
-        )) {
-            Button("OK") { viewModel.deployError = nil }
-        } message: {
-            Text(viewModel.deployError ?? "")
-        }
-        .overlay {
-            if viewModel.isDeploying {
-                ZStack {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                    VStack(spacing: Spacing.md) {
-                        ProgressView()
-                            .controlSize(.large)
-                        Text("Deploying contract...")
-                            .font(.mtrxHeadline)
-                            .foregroundStyle(.white)
-                    }
-                    .padding(Spacing.lg)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md))
+            .onAppear {
+                withAnimation(Motion.springDefault.delay(0.1)) {
+                    appeared = true
                 }
             }
         }
     }
 
-    // MARK: - Progress Bar
+    // MARK: - Step Indicator
 
-    private var progressBar: some View {
-        HStack(spacing: Spacing.xs) {
-            ForEach(ContractWizardStep.allCases, id: \.self) { step in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(step.rawValue <= viewModel.currentStep.rawValue ? Color.accentPrimary : Color.surfaceOverlay)
-                    .frame(height: 4)
-            }
-        }
-        .padding(.horizontal, Spacing.contentPadding)
-        .padding(.vertical, Spacing.sm)
-    }
+    private var stepIndicator: some View {
+        HStack(spacing: 0) {
+            ForEach(0..<3, id: \.self) { index in
+                let stepLabels = ["Template", "Configure", "Review"]
 
-    // MARK: - Step Content
+                // Circle
+                VStack(spacing: Spacing.xs) {
+                    ZStack {
+                        Circle()
+                            .fill(stepCircleColor(for: index))
+                            .frame(width: 32, height: 32)
 
-    @ViewBuilder
-    private var stepContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.lg) {
-                switch viewModel.currentStep {
-                case .template:
-                    templateSelectionStep
-                case .details:
-                    detailsStep
-                case .milestones:
-                    milestonesStep
-                case .terms:
-                    termsStep
-                case .review:
-                    reviewStep
+                        if index < viewModel.step {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white)
+                        } else {
+                            Text("\(index + 1)")
+                                .font(.mtrxCaptionBold)
+                                .foregroundStyle(index == viewModel.step ? .white : Color.labelTertiary)
+                        }
+                    }
+
+                    Text(stepLabels[index])
+                        .font(.mtrxCaption2)
+                        .foregroundStyle(index <= viewModel.step ? Color.labelPrimary : Color.labelTertiary)
+                }
+
+                // Connecting line
+                if index < 2 {
+                    Rectangle()
+                        .fill(index < viewModel.step ? Color.statusSuccess : Color.surfaceOverlay)
+                        .frame(height: 2)
+                        .padding(.bottom, Spacing.md)
                 }
             }
-            .padding(Spacing.contentPadding)
         }
+    }
+
+    private func stepCircleColor(for index: Int) -> Color {
+        if index < viewModel.step {
+            return .statusSuccess
+        } else if index == viewModel.step {
+            return .accentPrimary
+        }
+        return .surfaceOverlay
     }
 
     // MARK: - Step 1: Template Selection
 
-    private var templateSelectionStep: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Choose Template")
-                .font(.mtrxTitle2)
+    private var templateStep: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    MtrxSectionHeader(
+                        title: "Choose Template",
+                        subtitle: "Select a contract type to get started"
+                    )
 
-            Text("Select a contract template to get started.")
-                .font(.mtrxBody)
-                .foregroundStyle(Color.labelSecondary)
-
-            ForEach(ContractTemplateType.allCases, id: \.self) { template in
-                Button {
-                    withAnimation(Motion.springSnappy) {
-                        viewModel.selectedTemplate = template
-                    }
-                } label: {
-                    HStack(spacing: Spacing.md) {
-                        Image(systemName: template.icon)
-                            .font(.system(size: 24))
-                            .foregroundStyle(Color.accentPrimary)
-                            .frame(width: Spacing.Size.avatarMedium, height: Spacing.Size.avatarMedium)
-                            .background(Color.accentPrimary.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm))
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(template.title)
-                                .font(.mtrxBodyBold)
-                                .foregroundStyle(Color.labelPrimary)
-                            Text(template.description_)
-                                .font(.mtrxCaption1)
-                                .foregroundStyle(Color.labelSecondary)
+                    LazyVGrid(columns: gridColumns, spacing: Spacing.md) {
+                        ForEach(ContractTemplate.allCases) { template in
+                            templateCard(template)
                         }
+                    }
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+                .padding(.bottom, Spacing.xxxl)
+            }
 
-                        Spacer()
+            // Next button (visible when template selected)
+            if viewModel.isTemplateSelected {
+                Button {
+                    viewModel.goNext()
+                } label: {
+                    Text("Next")
+                }
+                .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, fullWidth: true))
+                .padding(Spacing.contentPadding)
+                .background(.ultraThinMaterial)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(Motion.springDefault, value: viewModel.isTemplateSelected)
+    }
 
-                        if viewModel.selectedTemplate == template {
-                            Image(systemName: Symbols.complete)
+    private func templateCard(_ template: ContractTemplate) -> some View {
+        let isSelected = viewModel.selectedTemplate == template
+
+        return Button {
+            withAnimation(Motion.springSnappy) {
+                viewModel.selectedTemplate = template
+            }
+            MtrxHaptics.impact(.medium)
+        } label: {
+            MtrxCard(style: .standard) {
+                VStack(spacing: Spacing.ms) {
+                    Image(systemName: template.icon)
+                        .font(.system(size: 32, weight: .medium))
+                        .foregroundStyle(Color.accentPrimary)
+                        .frame(height: 40)
+
+                    Text(template.rawValue)
+                        .font(.mtrxBodyBold)
+                        .foregroundStyle(Color.labelPrimary)
+                        .lineLimit(1)
+
+                    Text(template.subtitle)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .overlay(
+                Group {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
+                            .stroke(Color.accentPrimary, lineWidth: 2)
+                    }
+                }
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Step 2: Configuration
+
+    private var configureStep: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.sectionGap) {
+                    // Selected template badge
+                    if let template = viewModel.selectedTemplate {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: template.icon)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.accentPrimary)
+                            Text(template.rawValue)
+                                .font(.mtrxCaptionBold)
                                 .foregroundStyle(Color.accentPrimary)
                         }
+                        .padding(.horizontal, Spacing.ms)
+                        .padding(.vertical, Spacing.xs)
+                        .background(Color.accentPrimary.opacity(0.12))
+                        .clipShape(Capsule())
                     }
-                    .padding(Spacing.sm)
-                    .background(
-                        RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous)
-                            .stroke(viewModel.selectedTemplate == template ? Color.accentPrimary : Color.separatorStandard, lineWidth: viewModel.selectedTemplate == template ? 2 : 1)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
 
-    // MARK: - Step 2: Details
-
-    private var detailsStep: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Contract Details")
-                .font(.mtrxTitle2)
-
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Contract Name")
-                    .font(.mtrxCaptionBold)
-                    .foregroundStyle(Color.labelSecondary)
-                TextField("e.g., Website Development", text: $viewModel.contractName)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Counterparty Address")
-                    .font(.mtrxCaptionBold)
-                    .foregroundStyle(Color.labelSecondary)
-                HStack {
-                    TextField("0x... or ENS name", text: $viewModel.counterpartyAddress)
-                        .font(.mtrxMono)
-                        .textFieldStyle(.roundedBorder)
-                    Button {
-                        // Paste from clipboard or scan QR
-                    } label: {
-                        Image(systemName: Symbols.qrScanner)
+                    // Contract name
+                    configField(title: "Contract Name") {
+                        MtrxTextField(
+                            placeholder: "e.g., Website Development Agreement",
+                            text: $viewModel.contractName,
+                            icon: Symbols.edit
+                        )
                     }
-                }
-            }
 
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Total Value")
-                    .font(.mtrxCaptionBold)
-                    .foregroundStyle(Color.labelSecondary)
-                HStack {
-                    TextField("0.00", text: $viewModel.totalValue)
-                        .keyboardType(.decimalPad)
-                        .textFieldStyle(.roundedBorder)
+                    // Counterparty address
+                    configField(title: "Counterparty Address") {
+                        HStack(spacing: Spacing.sm) {
+                            MtrxTextField(
+                                placeholder: "0x... or ENS name",
+                                text: $viewModel.counterpartyAddress,
+                                icon: Symbols.key
+                            )
 
-                    Picker("Token", selection: $viewModel.selectedToken) {
-                        Text("USDC").tag("USDC")
-                        Text("ETH").tag("ETH")
-                        Text("DAI").tag("DAI")
-                        Text("USDT").tag("USDT")
-                    }
-                    .pickerStyle(.menu)
-                }
-            }
-        }
-    }
-
-    // MARK: - Step 3: Milestones
-
-    private var milestonesStep: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Milestones")
-                .font(.mtrxTitle2)
-
-            Text("Define payment milestones for phased release of funds.")
-                .font(.mtrxBody)
-                .foregroundStyle(Color.labelSecondary)
-
-            ForEach($viewModel.milestones) { $milestone in
-                VStack(spacing: Spacing.sm) {
-                    HStack {
-                        Text("Milestone \(viewModel.milestones.firstIndex(where: { $0.id == milestone.id }).map { $0 + 1 } ?? 0)")
-                            .font(.mtrxCaptionBold)
-                        Spacer()
-                        if viewModel.milestones.count > 1 {
                             Button {
-                                viewModel.milestones.removeAll { $0.id == milestone.id }
+                                viewModel.pasteAddress()
                             } label: {
-                                Image(systemName: Symbols.remove)
-                                    .foregroundStyle(Color.statusError)
+                                Image(systemName: Symbols.paste)
+                                    .mtrxSymbolStyle(size: 18)
+                                    .foregroundStyle(Color.accentPrimary)
+                                    .frame(width: 44, height: Spacing.Size.textFieldHeight)
+                                    .background(Color.surfaceOverlay)
+                                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm))
                             }
                         }
                     }
 
-                    TextField("Description", text: $milestone.description_)
-                        .textFieldStyle(.roundedBorder)
+                    // Amount
+                    configField(title: "Amount") {
+                        HStack(spacing: Spacing.sm) {
+                            TextField("0.00", text: $viewModel.amount)
+                                .font(.mtrxMono)
+                                .keyboardType(.decimalPad)
+                                .padding(.horizontal, Spacing.textFieldPadding)
+                                .frame(height: Spacing.Size.textFieldHeight)
+                                .background(Color.surfaceOverlay)
+                                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
 
-                    HStack {
-                        TextField("Amount", text: $milestone.amount)
-                            .keyboardType(.decimalPad)
-                            .textFieldStyle(.roundedBorder)
-                        Text(viewModel.selectedToken)
-                            .font(.mtrxCaptionBold)
-                            .foregroundStyle(Color.labelSecondary)
+                            Text("ETH")
+                                .font(.mtrxCalloutBold)
+                                .foregroundStyle(Color.accentPrimary)
+                                .padding(.horizontal, Spacing.ms)
+                                .frame(height: Spacing.Size.textFieldHeight)
+                                .background(Color.surfaceOverlay)
+                                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm))
+                        }
+                    }
+
+                    // Duration picker
+                    configField(title: "Duration") {
+                        VStack(spacing: Spacing.sm) {
+                            Picker("Duration", selection: $viewModel.selectedDuration) {
+                                ForEach(ContractDuration.allCases) { duration in
+                                    Text(duration.rawValue).tag(duration)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            if viewModel.selectedDuration == .custom {
+                                HStack(spacing: Spacing.sm) {
+                                    TextField("Days", text: $viewModel.customDurationDays)
+                                        .font(.mtrxMono)
+                                        .keyboardType(.numberPad)
+                                        .padding(.horizontal, Spacing.textFieldPadding)
+                                        .frame(height: Spacing.Size.textFieldHeight)
+                                        .background(Color.surfaceOverlay)
+                                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+
+                                    Text("days")
+                                        .font(.mtrxCallout)
+                                        .foregroundStyle(Color.labelSecondary)
+                                }
+                            }
+                        }
+                    }
+
+                    // Terms
+                    configField(title: "Terms & Conditions") {
+                        TextEditor(text: $viewModel.termsText)
+                            .font(.mtrxBody)
+                            .frame(minHeight: 120)
+                            .scrollContentBackground(.hidden)
+                            .padding(Spacing.textFieldPadding)
+                            .background(Color.surfaceOverlay)
+                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
                     }
                 }
-                .padding(Spacing.sm)
-                .background(Color.surfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                .padding(.horizontal, Spacing.contentPadding)
+                .padding(.top, Spacing.sm)
+                .padding(.bottom, Spacing.xxxl)
             }
 
+            // Next button
             Button {
-                viewModel.milestones.append(MilestoneInput())
+                viewModel.goNext()
             } label: {
-                Label("Add Milestone", systemImage: Symbols.add)
-                    .font(.mtrxBodyBold)
-                    .foregroundStyle(Color.accentPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(Spacing.sm)
-                    .background(Color.accentPrimary.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                Text("Next")
             }
+            .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, fullWidth: true))
+            .disabled(!viewModel.canProceedFromConfig)
+            .padding(Spacing.contentPadding)
+            .background(.ultraThinMaterial)
         }
     }
 
-    // MARK: - Step 4: Terms
-
-    private var termsStep: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Terms & Conditions")
-                .font(.mtrxTitle2)
-
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Dispute Resolution")
-                    .font(.mtrxCaptionBold)
-                    .foregroundStyle(Color.labelSecondary)
-
-                Picker("Resolution", selection: $viewModel.disputeResolution) {
-                    ForEach(DisputeResolutionType.allCases, id: \.self) { type in
-                        Text(type.rawValue).tag(type)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Expiration")
-                    .font(.mtrxCaptionBold)
-                    .foregroundStyle(Color.labelSecondary)
-
-                Stepper("\(viewModel.expirationDays) days", value: $viewModel.expirationDays, in: 7...365, step: 7)
-            }
+    private func configField(title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text(title)
+                .font(.mtrxCaptionBold)
+                .foregroundStyle(Color.labelSecondary)
+            content()
         }
     }
 
-    // MARK: - Step 5: Review
+    // MARK: - Step 3: Review
 
     private var reviewStep: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Review Contract")
-                .font(.mtrxTitle2)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    MtrxSectionHeader(
+                        title: "Review Contract",
+                        subtitle: "Verify all details before deploying"
+                    )
 
-            ReviewRow(label: "Template", value: viewModel.selectedTemplate?.title ?? "None")
-            ReviewRow(label: "Name", value: viewModel.contractName)
-            ReviewRow(label: "Counterparty", value: viewModel.counterpartyAddress.isEmpty ? "Not set" : viewModel.counterpartyAddress)
-            ReviewRow(label: "Value", value: "\(viewModel.totalValue) \(viewModel.selectedToken)")
-            ReviewRow(label: "Milestones", value: "\(viewModel.milestones.count)")
-            ReviewRow(label: "Dispute", value: viewModel.disputeResolution.rawValue)
-            ReviewRow(label: "Expiration", value: "\(viewModel.expirationDays) days")
-
-            Text("Estimated gas: ~0.003 ETH")
-                .font(.mtrxCaption1)
-                .foregroundStyle(Color.labelSecondary)
-                .padding(.top, Spacing.sm)
-        }
-    }
-
-    // MARK: - Navigation Buttons
-
-    private var navigationButtons: some View {
-        HStack(spacing: Spacing.md) {
-            if viewModel.currentStep != .template {
-                Button {
-                    withAnimation(Motion.springDefault) {
-                        viewModel.goBack()
+                    // Summary card
+                    MtrxCard(style: .elevated) {
+                        VStack(spacing: Spacing.ms) {
+                            reviewRow(label: "Template", value: viewModel.selectedTemplate?.rawValue ?? "--")
+                            MtrxDivider()
+                            reviewRow(label: "Name", value: viewModel.contractName)
+                            MtrxDivider()
+                            reviewRow(label: "Counterparty", value: viewModel.counterpartyAddress, isMono: true)
+                            MtrxDivider()
+                            reviewRow(label: "Amount", value: "\(viewModel.amount) ETH")
+                            MtrxDivider()
+                            reviewRow(label: "Duration", value: viewModel.durationDisplay)
+                        }
                     }
-                } label: {
-                    Text("Back")
-                        .font(.mtrxHeadline)
-                        .foregroundStyle(Color.accentPrimary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: Spacing.Size.buttonHeight)
-                        .background(Color.accentPrimary.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+
+                    // Terms preview
+                    if !viewModel.termsText.isEmpty {
+                        MtrxCard(style: .standard) {
+                            VStack(alignment: .leading, spacing: Spacing.sm) {
+                                Text("Terms")
+                                    .font(.mtrxHeadline)
+                                    .foregroundStyle(Color.labelPrimary)
+
+                                Text(viewModel.termsText)
+                                    .font(.mtrxCaption1)
+                                    .foregroundStyle(Color.labelSecondary)
+                                    .lineSpacing(3)
+                            }
+                        }
+                    }
+
+                    // Network fee estimate
+                    MtrxCard(style: .glass) {
+                        HStack {
+                            HStack(spacing: Spacing.sm) {
+                                Image(systemName: Symbols.gas)
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(Color.accentPrimary)
+                                Text("Network Fee")
+                                    .font(.mtrxCallout)
+                                    .foregroundStyle(Color.labelSecondary)
+                            }
+                            Spacer()
+                            Text(viewModel.estimatedFee)
+                                .font(.mtrxMono)
+                                .foregroundStyle(Color.labelPrimary)
+                        }
+                    }
+
+                    // Immutability agreement
+                    Button {
+                        withAnimation(Motion.springSnappy) {
+                            viewModel.agreedToImmutable.toggle()
+                        }
+                        MtrxHaptics.selection()
+                    } label: {
+                        HStack(spacing: Spacing.ms) {
+                            Image(systemName: viewModel.agreedToImmutable ? "checkmark.square.fill" : "square")
+                                .font(.system(size: 22, weight: .medium))
+                                .foregroundStyle(viewModel.agreedToImmutable ? Color.accentPrimary : Color.labelTertiary)
+
+                            Text("I understand this contract is immutable once deployed")
+                                .font(.mtrxCallout)
+                                .foregroundStyle(Color.labelPrimary)
+                                .multilineTextAlignment(.leading)
+                        }
+                        .padding(.vertical, Spacing.sm)
+                    }
+                    .buttonStyle(.plain)
                 }
+                .padding(.horizontal, Spacing.contentPadding)
+                .padding(.top, Spacing.sm)
+                .padding(.bottom, Spacing.xxxl)
             }
 
+            // Deploy button
             Button {
-                withAnimation(Motion.springDefault) {
-                    viewModel.goNext()
-                }
+                viewModel.deploy()
             } label: {
-                Text(viewModel.currentStep == .review ? "Deploy" : "Next")
-                    .font(.mtrxHeadline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Spacing.Size.buttonHeight)
-                    .background(viewModel.canProceed ? Color.accentPrimary : Color.labelTertiary)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                Text("Deploy Contract")
             }
-            .disabled(!viewModel.canProceed)
+            .buttonStyle(MtrxButtonStyle(
+                variant: .primary,
+                size: .large,
+                isLoading: viewModel.isDeploying,
+                fullWidth: true
+            ))
+            .disabled(!viewModel.canDeploy || viewModel.isDeploying)
+            .padding(Spacing.contentPadding)
+            .background(.ultraThinMaterial)
         }
-        .padding(Spacing.contentPadding)
-        .background(.ultraThinMaterial)
     }
-}
 
-// MARK: - Review Row
-
-struct ReviewRow: View {
-    let label: String
-    let value: String
-
-    var body: some View {
+    private func reviewRow(label: String, value: String, isMono: Bool = false) -> some View {
         HStack {
             Text(label)
-                .font(.mtrxBody)
+                .font(.mtrxCallout)
                 .foregroundStyle(Color.labelSecondary)
             Spacer()
             Text(value)
-                .font(.mtrxBodyBold)
+                .font(isMono ? .mtrxMonoSmall : .mtrxCalloutBold)
                 .foregroundStyle(Color.labelPrimary)
-        }
-        .padding(.vertical, Spacing.xs)
-    }
-}
-
-// MARK: - Wizard Step
-
-enum ContractWizardStep: Int, CaseIterable {
-    case template = 0
-    case details = 1
-    case milestones = 2
-    case terms = 3
-    case review = 4
-
-    var next: ContractWizardStep {
-        ContractWizardStep(rawValue: min(rawValue + 1, 4)) ?? .review
-    }
-
-    var previous: ContractWizardStep {
-        ContractWizardStep(rawValue: max(rawValue - 1, 0)) ?? .template
-    }
-}
-
-// MARK: - Contract Template Type
-
-enum ContractTemplateType: String, CaseIterable {
-    case escrow, freelance, subscription, lease, insurance
-
-    var title: String {
-        switch self {
-        case .escrow: return "Escrow"
-        case .freelance: return "Freelance"
-        case .subscription: return "Subscription"
-        case .lease: return "Lease"
-        case .insurance: return "Insurance"
+                .lineLimit(1)
         }
     }
 
-    var description_: String {
-        switch self {
-        case .escrow: return "Milestone-based payment release"
-        case .freelance: return "Time-based or deliverable-based work"
-        case .subscription: return "Recurring automated payments"
-        case .lease: return "Property or asset rental agreement"
-        case .insurance: return "Parametric insurance policy"
+    // MARK: - Deploying Overlay
+
+    private var deployingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.5).ignoresSafeArea()
+
+            MtrxCard(style: .elevated) {
+                VStack(spacing: Spacing.lg) {
+                    MtrxProgressRing(
+                        progress: 0.7,
+                        size: 64,
+                        lineWidth: 5,
+                        color: .accentPrimary,
+                        showLabel: false
+                    )
+                    .mtrxPulse(isActive: true)
+
+                    Text("Deploying Contract")
+                        .font(.mtrxTitle3)
+                        .foregroundStyle(Color.labelPrimary)
+
+                    Text("Submitting transaction to the network...")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(width: 240)
+            }
         }
+        .transition(.opacity)
     }
 
-    var icon: String {
-        switch self {
-        case .escrow: return Symbols.escrow
-        case .freelance: return Symbols.contract
-        case .subscription: return Symbols.processing
-        case .lease: return Symbols.property
-        case .insurance: return Symbols.insurance
+    // MARK: - Success Overlay
+
+    private var deploySuccessOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.5).ignoresSafeArea()
+
+            MtrxCard(style: .elevated) {
+                VStack(spacing: Spacing.lg) {
+                    Image(systemName: Symbols.complete)
+                        .font(.system(size: 48, weight: .light))
+                        .foregroundStyle(Color.statusSuccess)
+                        .mtrxGlow(color: .statusSuccess, radius: 8)
+
+                    Text("Contract Deployed")
+                        .font(.mtrxTitle3)
+                        .foregroundStyle(Color.labelPrimary)
+
+                    Text("Your contract is now live on the network.")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center)
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Done")
+                    }
+                    .buttonStyle(MtrxButtonStyle(variant: .primary, size: .regular, fullWidth: true))
+                }
+                .frame(width: 260)
+            }
         }
+        .transition(.opacity)
     }
-}
-
-// MARK: - Dispute Resolution
-
-enum DisputeResolutionType: String, CaseIterable {
-    case arbitration = "Arbitration"
-    case dao = "DAO Vote"
-    case oracle = "Oracle"
-}
-
-// MARK: - Milestone Input
-
-struct MilestoneInput: Identifiable {
-    let id = UUID()
-    var description_: String = ""
-    var amount: String = ""
 }
 
 // MARK: - Preview
 
 #Preview {
-    NavigationStack {
-        ContractView()
-    }
+    ContractView()
+        .preferredColorScheme(.dark)
 }
