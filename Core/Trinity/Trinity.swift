@@ -595,36 +595,72 @@ final class Trinity: ObservableObject {
     /// payments (17).
     private static let componentKeywords: [(id: Int, keywords: [String])] = [
         // Concept-first components (highest priority — these override verb matches)
-        (3,  ["nft", "nfts", "collectible", "collectable", "erc721", "erc-721", "jpeg", "art piece", "digital art"]),
-        (4,  ["rwa", "real world asset", "real-world asset", "tokenize property", "tokenise property", "real estate", "tokenize a house", "tokenise a house", "commodity token", "gold bar", "treasury bill"]),
-        (5,  ["decentralized identity", "decentralised identity", "did", "self sovereign", "self-sovereign", "kyc", "verify myself", "prove who i am"]),
-        (8,  ["attestation", "attest", "eas", "sign a statement", "verifiable credential", "vc"]),
-        (9,  ["agent identity", "ai agent", "my agent", "autonomous agent", "robot identity"]),
+        (3,  ["nft", "nfts", "collectible", "collectable", "erc721", "erc-721", "jpeg", "art piece", "digital art", "mint an nft", "buy an nft", "my nft collection"]),
+        (4,  ["rwa", "real world asset", "real-world asset", "tokenize property", "tokenise property", "real estate", "tokenize a house", "tokenise a house", "commodity token", "gold bar", "treasury bill", "tokenized assets", "my rwa holdings"]),
+        (5,  ["decentralized identity", "decentralised identity", "did", "self sovereign", "self-sovereign", "verify myself", "prove who i am", "web3 profile", "who am i on-chain"]),
+        (8,  ["attestation", "attest", "eas", "sign a statement", "my attestations", "issue credential", "verify claim"]),
+        (9,  ["agent identity", "ai agent", "my agent", "autonomous agent", "robot identity", "erc-8004", "agent on-chain", "register capability", "agent history"]),
         (10, ["agentic payment", "agent payment", "agent-to-agent", "autonomous payment", "ai pays", "agent pays"]),
-        (11, ["oracle", "price feed", "data feed", "chainlink feed", "weather data", "sports data", "off-chain data"]),
-        (12, ["supply chain", "provenance", "track shipment", "track my shipment", "track product", "where is my package", "batch number"]),
-        (13, ["insurance", "insure", "coverage", "cover my", "policy", "file a claim", "travel insurance", "renter", "flight delay"]),
-        (14, ["gaming", "tournament", "play to earn", "play-to-earn", "in-game", "video game", "leaderboard", "game asset"]),
-        (15, ["intellectual property", "ip rights", "trademark", "copyright", "patent", "license my work", "protect my art", "register my song"]),
+        (11, ["oracle", "price feed", "data feed", "chainlink feed", "weather data", "sports data", "off-chain data", "live price of", "subscribe to price feed"]),
+        (12, ["supply chain", "provenance", "track shipment", "track my shipment", "track product", "where is my package", "batch number", "track item", "verify provenance", "register item", "add checkpoint", "prove authenticity"]),
+        (13, ["insurance", "insure", "coverage", "cover my", "policy", "file a claim", "travel insurance", "renter", "flight delay", "protect my funds", "smart contract insurance", "my policies"]),
+        (14, ["gaming", "tournament", "play to earn", "play-to-earn", "in-game", "video game", "leaderboard", "game asset", "my game items", "buy game item", "connect my game"]),
+        (15, ["intellectual property", "ip rights", "trademark", "copyright", "patent", "license my work", "protect my art", "register my song", "register ip", "ip licensing", "copyright on-chain"]),
         (18, ["security token", "tokenized stock", "tokenised stock", "equity token", "bond token", "ipo", "regulation d", "reg d"]),
-        (22, ["fundraiser", "fundraising", "crowdfund", "campaign", "milestone release", "donation drive", "raise money", "kickstart"]),
-        (23, ["loyalty", "loyalty points", "points program", "tier", "silver tier", "gold tier", "platinum tier"]),
+        (22, ["fundraiser", "fundraising", "crowdfund", "campaign", "milestone release", "donation drive", "raise money", "kickstart", "back a project", "my campaigns"]),
+        (23, ["loyalty", "loyalty points", "points program", "tier", "silver tier", "gold tier", "platinum tier", "redeem points", "cashback", "brand rewards", "earn rewards", "my rewards"]),
         (25, ["cashback", "rebate", "cash back", "cash-back"]),
         (26, ["brand reward", "partner reward", "merchant reward", "coffee shop reward", "store reward"]),
-        (27, ["subscription", "subscribe", "recurring", "monthly plan", "yearly plan", "renewal", "cancel subscription"]),
+        (27, ["subscription", "subscribe", "recurring", "monthly plan", "yearly plan", "renewal", "cancel subscription", "my subscriptions", "subscription revenue", "create a subscription plan"]),
         (28, ["social", "post something", "social feed", "follow someone", "message someone", "encrypted chat", "social graph"]),
         (29, ["privacy", "private transfer", "private send", "zero knowledge", "zero-knowledge", "zk", "hide the amount", "anonymous"]),
-        (30, ["dispute", "arbitration", "resolve a dispute", "counterparty", "refund request", "they didn't deliver"]),
+        (30, ["dispute", "arbitration", "resolve a dispute", "counterparty", "refund request", "they didn't deliver", "open a dispute", "jury cases", "claim my winnings from dispute"]),
         (20, ["dashboard", "overview", "give me a summary", "my numbers", "kpi", "metric", "stats"]),
         (6,  ["dao", "join a dao", "create a dao", "dao proposal"]),
-        (19, ["governance", "vote on proposal", "proposal", "delegate my vote", "cast a vote"]),
-        (16, ["stake", "staking", "validator", "unstake", "staking reward"]),
-        (7,  ["stablecoin", "mint stablecoin", "usdc", "usdt", "dai", "pegged", "peg"]),
-        (2,  ["lending", "defi loan", "borrow against", "supply to aave", "supply to compound", "yield farm", "earn yield"]),
-        (21, ["swap", "dex", "trade tokens", "exchange tokens", "liquidity pool", "amm"]),
+        (19, ["governance", "vote on proposal", "proposal", "delegate my vote", "cast a vote", "active votes", "treasury"]),
+        (16, ["stake", "staking", "validator", "unstake", "staking reward", "earn rewards", "eth staking", "how much have i earned"]),
+        (7,  ["stablecoin", "mint stablecoin", "usdc", "usdt", "dai", "pegged", "peg", "swap usdc to dai", "stablecoin yield", "is usdc stable", "peg status", "depeg"]),
+        (2,  ["lending", "defi loan", "borrow against", "supply to aave", "supply to compound", "yield farm", "earn yield", "health factor", "how much can i borrow", "repay loan"]),
+        (21, ["swap", "dex", "trade tokens", "exchange tokens", "liquidity pool", "amm", "convert", "exchange", "trade"]),
         (24, ["marketplace", "list for sale", "auction", "sell it", "list it", "bid on"]),
-        (17, ["send money", "send payment", "pay", "wire", "remittance"]),
-        (1,  ["smart contract", "deploy contract", "contract template", "escrow contract", "multisig"]),
+        (17, ["send money", "send payment", "pay", "wire", "remittance", "transfer"]),
+        (1,  ["smart contract", "deploy contract", "contract template", "escrow contract", "multisig", "deploy", "create contract", "launch a token"]),
+
+        // Extended capabilities (31+) — New surface expansion
+        (31, ["bridge", "move to", "send to arbitrum", "send to base", "send to optimism", "transfer to base", "cross-chain", "bridge my eth", "move to base"]),
+        (32, ["portfolio", "my portfolio", "how am i doing", "my performance", "transaction history", "what have i bought", "portfolio breakdown", "my assets"]),
+        (33, ["price alert", "alert me when", "notify me if", "notify me when", "set an alarm for", "my alerts", "price alarm"]),
+        (34, ["ens", ".eth", "register ens", "get a .eth name", "my domains", "set my ens", "what does this address resolve to"]),
+        (35, ["streaming payment", "stream payment", "pay per second", "subscription stream", "recurring payment", "cancel my stream", "how much am i receiving"]),
+        (36, ["multi-sig", "multisig", "shared wallet", "approve transaction", "my multisig", "pending signatures", "create shared wallet"]),
+        (37, ["creator token", "social token", "fan tokens", "monetize", "launch my token", "how many holders do i have"]),
+        (38, ["airdrop", "vesting", "fair launch", "claim my tokens", "participate in launch", "token sale"]),
+        (39, ["message", "send a message to", "my messages", "open conversation with", "inbox", "chat with", "xmtp"]),
+        (40, ["perpetual", "long", "short eth", "leverage trading", "my positions", "close position", "take profit at", "open a long", "short"]),
+        (41, ["yield", "best yield", "highest apy", "where should i put my money", "yield farming", "auto-compound"]),
+        (42, ["liquidity", "add liquidity", "lp", "earn fees", "provide liquidity", "remove liquidity", "my lp positions"]),
+        (43, ["receive", "receive tokens", "my qr code", "share address", "show my address"]),
+        (44, ["deploy", "deploy contract", "create token", "launch nft collection", "deploy escrow", "create dao contract", "create vesting contract"]),
+
+        // Prompt 2 expanded capabilities (50+)
+        (50, ["verifiable credential", "my credentials", "issue a credential", "verify credential", "credential wallet", "digital certificate", "proof of membership"]),
+        (51, ["kyc", "verify my identity", "prove my age", "accredited investor proof", "privacy verification", "share my proof", "identity verification"]),
+        (52, ["reputation", "reputation score", "trust score", "how trusted am i", "check reputation of", "how do i improve my score", "my reputation"]),
+        (53, ["access control", "my roles", "grant access", "revoke access", "who has access to", "set permissions", "rbac"]),
+        (54, ["dao treasury", "treasury balance", "propose spending", "treasury transfer", "how much does the dao have"]),
+        (55, ["delegate", "delegate my votes", "delegate to", "undelegate", "who am i delegating to", "my voting power", "delegation"]),
+        (56, ["publish content", "create post", "my posts", "decentralized publishing", "post on-chain", "tip author"]),
+        (57, ["upload music", "my tracks", "royalty split", "play music", "music earnings", "claim my royalties", "music on-chain"]),
+        (58, ["register ip", "license my work", "intellectual property", "buy a license", "ip licensing", "copyright on-chain"]),
+        (59, ["my groups", "join group", "create a group", "find groups about", "token-gated community", "post to group"]),
+        (60, ["upcoming events", "buy a ticket", "create an event", "my tickets", "nft ticket", "check in attendee"]),
+        (61, ["follow", "my followers", "who am i following", "social feed", "activity from people i follow", "unfollow"]),
+        (62, ["upload file", "store on ipfs", "my files", "decentralized storage", "pin my file", "file cid", "share file", "filecoin"]),
+        (63, ["compute job", "gpu compute", "decentralized compute", "process this file", "ai inference job", "my jobs"]),
+        (64, ["oracle price", "chainlink", "live price of", "oracle data", "subscribe to price feed"]),
+        (65, ["query on-chain data", "index data", "run a query", "subgraph", "on-chain analytics", "find all transactions where"]),
+        (66, ["agent identity", "agent on-chain", "register capability", "agent history", "revoke agent", "erc-8004"]),
+        (67, ["on-chain subscription", "create a subscription plan", "my subscribers", "subscription revenue"]),
     ]
 
     /// Map a component ID back to a short plain-English label Trinity uses in
@@ -661,6 +697,38 @@ final class Trinity: ObservableObject {
         case 28: return "social post"
         case 29: return "private transfer"
         case 30: return "dispute"
+        case 31: return "bridge transfer"
+        case 32: return "portfolio"
+        case 33: return "price alert"
+        case 34: return "ENS domain"
+        case 35: return "streaming payment"
+        case 36: return "multi-sig wallet"
+        case 37: return "creator token"
+        case 38: return "token launch"
+        case 39: return "message"
+        case 40: return "perpetual position"
+        case 41: return "yield opportunity"
+        case 42: return "liquidity position"
+        case 43: return "receive address"
+        case 44: return "contract deployment"
+        case 50: return "verifiable credential"
+        case 51: return "identity verification"
+        case 52: return "reputation score"
+        case 53: return "access control"
+        case 54: return "DAO treasury"
+        case 55: return "vote delegation"
+        case 56: return "published content"
+        case 57: return "music track"
+        case 58: return "IP license"
+        case 59: return "community group"
+        case 60: return "event ticket"
+        case 61: return "social connection"
+        case 62: return "stored file"
+        case 63: return "compute job"
+        case 64: return "oracle price feed"
+        case 65: return "on-chain query"
+        case 66: return "agent identity"
+        case 67: return "on-chain subscription"
         default: return "action"
         }
     }
@@ -1116,6 +1184,399 @@ final class Trinity: ObservableObject {
               3. Evidence — screenshots, transaction hashes, messages, anything that backs your story
 
             Once filed, the other side has 7 days to respond. If they don't, the dispute is decided in your favour by default. Want to start filing?
+            """
+
+        case 31: // Bridge
+            return """
+            Bridging moves your tokens from one blockchain to another — for example, from Ethereum to Base. The tokens are the same, they just live on a different network.
+
+            Here's what I need:
+              1. Which token are you bridging? (ETH, USDC, etc.)
+              2. From which chain? (Ethereum, Base, Optimism, Arbitrum, Polygon)
+              3. To which chain?
+              4. How much?
+
+            I'll find the fastest, cheapest bridge route and show you the estimated arrival time and fee before you confirm. Where are you moving your tokens?
+            """
+
+        case 32: // Portfolio
+            return """
+            I'll pull up your complete portfolio — tokens, NFTs, DeFi positions, staking, and liquidity — all in one view with USD values.
+
+            I can show you:
+              • Total portfolio value and 24h/7d change
+              • Asset allocation breakdown
+              • Transaction history
+              • Performance over time with charts
+              • Top movers in your portfolio today
+
+            One moment while I gather everything.
+            """
+
+        case 33: // Price Alerts
+            return """
+            I can set up a price alert for you. Just tell me:
+              • Which token to watch
+              • Whether to notify you when it goes above or below a target price
+              • The target price
+
+            For example: "Alert me when ETH goes above $5,000" or "Notify me if BTC drops below $50,000."
+
+            I'll send you a push notification the moment it triggers. What alert do you want to set?
+            """
+
+        case 34: // ENS
+            return """
+            ENS names are human-readable addresses — like "yourname.eth" instead of a long string of numbers and letters. They work everywhere in Web3.
+
+            I can help you:
+              • Search for available names
+              • Register a new .eth name (1-year, 2-year, or 5-year options)
+              • View your owned domains and renewal dates
+              • Set your primary ENS name so it appears everywhere
+
+            What name would you like to search for?
+            """
+
+        case 35: // Streaming Payments
+            return """
+            A streaming payment sends money continuously — per second, per minute, or per hour — to a recipient. Think of it as a salary pipe or a subscription that flows in real time.
+
+            To set one up, I need:
+              1. Who receives the payment? (address or ENS)
+              2. Which token? (USDC is most common)
+              3. How much per month (I'll calculate the per-second rate)
+              4. How long should it run?
+
+            You can pause, resume, or cancel at any time. Ready to set up a stream?
+            """
+
+        case 36: // Multi-sig
+            return """
+            A multi-sig wallet requires multiple people to approve a transaction before it goes through — like needing two keys to open a safety deposit box.
+
+            I can:
+              • Create a new shared wallet (you pick the signers and how many need to agree)
+              • Show your existing shared wallets and pending transactions
+              • Help you approve or reject a pending transaction
+              • Propose a new transaction to the group
+
+            What would you like to do?
+            """
+
+        case 37: // Creator Tokens
+            return """
+            A creator token lets your fans invest in you directly. The price goes up as more people buy in, following a bonding curve — early supporters get the best deal.
+
+            To launch yours, I need:
+              1. A name and symbol for your token
+              2. An initial price
+              3. The bonding curve shape (linear, exponential, or sigmoid)
+
+            Once launched, fans can buy and sell your token, and you earn a small fee on every trade. Want to set one up?
+            """
+
+        case 38: // Token Launch
+            return """
+            I can help you launch a new token with a fair distribution. Options include:
+
+              • **Fair launch** — everyone buys at the same price during a time window
+              • **Airdrop** — distribute tokens to a list of addresses
+              • **Vesting schedule** — release tokens gradually over time
+
+            What type of launch are you planning?
+            """
+
+        case 39: // XMTP Messaging
+            return """
+            MTRX messaging is end-to-end encrypted — only you and the recipient can read the conversation. I can:
+              • Open your inbox
+              • Start a new conversation (just give me an address or ENS name)
+              • Show recent messages
+
+            Who would you like to message?
+            """
+
+        case 40: // Perpetuals / Derivatives
+            return """
+            Perpetual contracts let you trade with leverage — amplifying both gains and losses. Here's the plain-English version:
+
+              • **Long** = you profit when the price goes up
+              • **Short** = you profit when the price goes down
+              • **Leverage** = you control a bigger position than your deposit (e.g., 5x means $100 controls $500)
+
+            Important: if the price moves against you by enough, your position will be automatically closed and you lose your deposit. I'll always show you the exact liquidation price before you open a position.
+
+            What would you like to trade, and which direction?
+            """
+
+        case 41: // Yield
+            return """
+            I'll find the best yield opportunities for your assets. I scan across lending protocols, liquidity pools, staking, and vaults to rank them by:
+
+              • APY (how much you earn per year)
+              • Risk level (Conservative, Moderate, or Aggressive)
+              • Protocol safety (audit status, TVL, track record)
+
+            Want me to show opportunities for a specific token, or just the best yields overall?
+            """
+
+        case 42: // Liquidity
+            return """
+            Providing liquidity means depositing a pair of tokens (e.g., ETH + USDC) into a pool so others can trade against them. In return, you earn a share of every trade's fee.
+
+            Things to know:
+              • You earn fees proportional to your share of the pool
+              • There's a concept called "impermanent loss" — if one token's price moves a lot, you end up with less value than if you'd just held
+              • I'll show you the expected APR and impermanent loss risk before you commit
+
+            Which token pair are you interested in?
+            """
+
+        case 43: // Receive
+            return """
+            I'll show you your wallet address with a QR code so someone can send you tokens. You can:
+              • Copy your address
+              • Share it via iOS share sheet
+              • Choose which chain to receive on (Ethereum, Base, Optimism, Arbitrum)
+
+            Opening your receive view now.
+            """
+
+        case 44: // Contract Deployment
+            return """
+            I can deploy a smart contract for you from a library of pre-audited templates:
+
+              • **ERC-20** — Create a new token
+              • **ERC-721** — Launch an NFT collection
+              • **ERC-1155** — Multi-token contract
+              • **Multi-sig** — Shared wallet requiring multiple approvals
+              • **Escrow** — Hold funds until conditions are met
+              • **Vesting** — Release tokens on a schedule
+              • **Timelock** — Delay execution of transactions
+
+            This is a permanent on-chain action. I'll show you the full cost and run a safety check before deploying. Which template interests you?
+            """
+
+        case 50: // Verifiable Credentials
+            return """
+            Verifiable Credentials are tamper-proof digital certificates — degrees, licenses, memberships — that you own and control. No one can revoke them without your knowledge.
+
+            I can:
+              • Show your credentials wallet
+              • Issue a credential to someone
+              • Verify any credential by pasting or scanning it
+              • Share a credential with a specific service
+
+            What would you like to do?
+            """
+
+        case 51: // KYC
+            return """
+            Privacy-preserving identity verification — you prove you meet a requirement (age, jurisdiction, accreditation) without revealing the underlying data.
+
+            I can help you:
+              • Check what you've already verified
+              • Start a new verification (age, jurisdiction, accredited investor, human proof)
+              • Share your proof with specific services
+              • Revoke a service's access to your proof
+
+            Which verification do you need?
+            """
+
+        case 52: // Reputation
+            return """
+            Your on-chain reputation score reflects your activity across the ecosystem — transactions, governance participation, attestations, and time on-chain.
+
+            I can:
+              • Show your score and tier (New, Established, Trusted)
+              • Break down how your score is calculated
+              • Show specific actions that would raise your score
+              • Look up anyone else's reputation by address
+
+            Want to see your score?
+            """
+
+        case 53: // Access Control
+            return """
+            Access control lets you manage who can do what on your smart contracts and DAO resources.
+
+            I can:
+              • Show which roles you hold on which contracts
+              • Grant a role to someone (admin, operator, viewer, etc.)
+              • Revoke a role
+              • Show the audit log of access changes
+
+            Which contract or resource are we managing?
+            """
+
+        case 54: // DAO Treasury
+            return """
+            I can show you the DAO treasury — the shared funds controlled by governance. I can:
+              • Show the current balance and asset breakdown
+              • Review incoming and outgoing transfers
+              • Help you propose a spending request (which becomes a governance vote)
+              • Execute an approved transfer after the timelock passes
+
+            Which DAO's treasury would you like to look at?
+            """
+
+        case 55: // Delegation
+            return """
+            Delegating means handing your voting power to someone you trust, so they vote on your behalf.
+
+            I can:
+              • Show who you're currently delegating to
+              • Show who has delegated to you
+              • Delegate your votes to a new address
+              • Remove your delegation
+
+            Which token's voting power are we working with?
+            """
+
+        case 56: // Content Publishing
+            return """
+            Publish content to decentralized storage — it lives on-chain permanently, uncensorable, and under your control.
+
+            I can help you:
+              • Write and publish a post (title, body, optional images)
+              • Choose your storage layer (IPFS for free, Arweave for permanent)
+              • View your published content
+              • Tip another creator directly
+
+            What would you like to publish?
+            """
+
+        case 57: // Music
+            return """
+            The MTRX music layer lets artists upload tracks, set royalty splits with collaborators, and earn directly from every play.
+
+            I can help you:
+              • Upload a track with artwork and set the per-play price
+              • Configure royalty splits with collaborators
+              • Browse the catalog and play tracks
+              • Check your streaming earnings and claim them
+
+            What would you like to do?
+            """
+
+        case 58: // IP Licensing
+            return """
+            Register and license your intellectual property on-chain — patents, copyrights, trademarks, trade secrets — with a permanent timestamped record.
+
+            I can:
+              • Register new IP with evidence
+              • Issue licenses to others (commercial/non-commercial, exclusive/non-exclusive)
+              • Browse available IP licenses
+              • Show your IP portfolio
+
+            What kind of IP are we working with?
+            """
+
+        case 59: // Groups
+            return """
+            Token-gated groups are communities where membership is controlled by token holdings. I can:
+              • Show your current groups
+              • Help you discover and join new groups
+              • Create a new group with a token gate
+              • Post content to a group
+
+            Would you like to browse groups or create one?
+            """
+
+        case 60: // Events
+            return """
+            On-chain events use NFT tickets — verifiable, tradeable, and impossible to counterfeit. I can:
+              • Show upcoming events near you
+              • Buy a ticket (it arrives as an NFT in your wallet)
+              • Create your own event with NFT tickets
+              • Show your ticket collection
+
+            What are you looking for?
+            """
+
+        case 61: // Social Graph
+            return """
+            Your on-chain social graph — follows, followers, and connections that are portable across every platform. I can:
+              • Show who you're following and who follows you
+              • Show an activity feed from people you follow
+              • Suggest new connections based on shared interests
+              • Follow or unfollow any address
+
+            What would you like to see?
+            """
+
+        case 62: // Storage
+            return """
+            Decentralized storage keeps your files on IPFS or Filecoin instead of a corporate server. No one can take them down.
+
+            I can help you:
+              • Upload a file (choose IPFS for free, Filecoin for guaranteed persistence)
+              • View your stored files
+              • Pin a file to keep it available longer
+              • Share a file by its content hash (CID)
+
+            What would you like to store?
+            """
+
+        case 63: // Compute
+            return """
+            Decentralized compute lets you run jobs — ML inference, rendering, data processing — on a network of GPU providers. I can:
+              • Show available providers with pricing
+              • Submit a compute job
+              • Track your active jobs
+              • Download results when done
+
+            What kind of job do you need to run?
+            """
+
+        case 64: // Oracle (extended)
+            return """
+            Oracle price feeds deliver real-time market data to the blockchain. I can:
+              • Show available feeds (crypto, forex, commodities)
+              • Subscribe to live updates for any feed
+              • Show price history charts
+              • Create a price alert directly from any feed
+
+            Which asset's data are you looking for?
+            """
+
+        case 65: // Indexer
+            return """
+            The on-chain indexer lets you query blockchain data in plain English. Just describe what you're looking for and I'll translate it into a query.
+
+            For example:
+              • "Show all NFT mints by vitalik.eth in the last 7 days"
+              • "Find the top 10 wallets by ETH volume this week"
+              • "List all governance votes for Uniswap this month"
+
+            What data are you looking for?
+            """
+
+        case 66: // Agent Identity (extended)
+            return """
+            Your AI agent identity on-chain (ERC-8004) lets automated programs act on your behalf with defined permissions.
+
+            I can:
+              • Show your agent's profile and capabilities
+              • Register a new capability
+              • Review the agent's interaction history
+              • Emergency revoke all agent permissions
+
+            What would you like to do with your agent?
+            """
+
+        case 67: // On-chain Subscriptions
+            return """
+            On-chain subscriptions are recurring payments that run on the blockchain — transparent, cancellable any time, and without middlemen.
+
+            I can:
+              • Show your active subscriptions
+              • Subscribe to a new service
+              • Cancel an existing subscription
+              • If you're a creator: set up subscription offerings and view your revenue
+
+            What would you like to manage?
             """
 
         default:

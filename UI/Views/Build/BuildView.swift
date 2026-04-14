@@ -72,7 +72,7 @@ final class BuildViewModel: ObservableObject {
 enum BuildSegment: String, CaseIterable {
     case contracts = "My Contracts"
     case templates = "Templates"
-    case subscriptions = "Subscriptions"
+    case create = "Create"
 }
 
 // MARK: - Contract Status
@@ -124,8 +124,8 @@ struct BuildView: View {
                                 contractsView
                             case .templates:
                                 templatesView
-                            case .subscriptions:
-                                subscriptionsView
+                            case .create:
+                                createView
                             }
                         }
                     }
@@ -296,24 +296,104 @@ struct BuildView: View {
 
     // MARK: - Subscriptions View
 
-    private var subscriptionsView: some View {
+    private var createView: some View {
         ScrollView(.vertical, showsIndicators: false) {
             LazyVStack(spacing: Spacing.md) {
-                // Active subscriptions
-                ForEach(Array(viewModel.subscriptions.enumerated()), id: \.element.id) { index, subscription in
-                    SubscriptionCardView(subscription: subscription)
-                        .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
-                }
+                buildActionCard(
+                    icon: "doc.text.fill",
+                    title: "Deploy Contract",
+                    description: "Deploy from pre-audited templates — ERC-20, NFT, Escrow, Multi-sig, and more.",
+                    index: 0
+                )
+
+                buildActionCard(
+                    icon: "bitcoinsign.circle.fill",
+                    title: "Launch Token",
+                    description: "Fair launch with vesting schedules and airdrop distribution tools.",
+                    index: 1
+                )
+
+                buildActionCard(
+                    icon: "person.3.fill",
+                    title: "Create DAO",
+                    description: "Set up a decentralized organization with governance, treasury, and voting.",
+                    index: 2
+                )
+
+                buildActionCard(
+                    icon: "paperplane.fill",
+                    title: "Airdrop Distributor",
+                    description: "Batch distribute tokens to thousands of addresses in one transaction.",
+                    index: 3
+                )
+
+                buildActionCard(
+                    icon: "shippingbox.fill",
+                    title: "Supply Chain Registry",
+                    description: "Register and track items with immutable on-chain provenance records.",
+                    index: 4
+                )
+
+                buildActionCard(
+                    icon: "star.circle.fill",
+                    title: "Creator Token",
+                    description: "Launch a social token with a bonding curve for your community.",
+                    index: 5
+                )
+
+                buildActionCard(
+                    icon: "lock.shield.fill",
+                    title: "Multi-Sig Wallet",
+                    description: "Create a shared wallet requiring multiple approvals for transactions.",
+                    index: 6
+                )
+
+                buildActionCard(
+                    icon: "repeat.circle.fill",
+                    title: "Subscription Plan",
+                    description: "Create on-chain subscription offerings with tiered pricing.",
+                    index: 7
+                )
 
                 // Upgrade prompt
                 upgradePrompt
-                    .mtrxStaggeredAppearance(index: viewModel.subscriptions.count, isVisible: viewModel.contentAppeared)
+                    .mtrxStaggeredAppearance(index: 8, isVisible: viewModel.contentAppeared)
 
                 Spacer().frame(height: Spacing.xxl)
             }
             .padding(.horizontal, Spacing.contentPadding)
             .padding(.top, Spacing.sm)
         }
+    }
+
+    private func buildActionCard(icon: String, title: String, description: String, index: Int) -> some View {
+        MtrxCard(style: .standard, accentEdge: .leading) {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(Color.accentPrimary)
+                    .frame(width: 48, height: 48)
+                    .background(Color.accentPrimary.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.mtrxHeadline)
+                        .foregroundStyle(Color.labelPrimary)
+                    Text(description)
+                        .font(.mtrxCaption)
+                        .foregroundStyle(Color.labelSecondary)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.labelTertiary)
+            }
+        }
+        .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
     }
 
     // MARK: - Upgrade Prompt

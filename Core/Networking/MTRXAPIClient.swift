@@ -385,35 +385,34 @@ enum HTTPMethod: String {
 
 // MARK: - Backend Configuration
 //
-// MTRX_PRODUCTION_URL: Update this to the production gateway URL
-// before App Store submission. The gateway runs on neo-l4.
-// Format: https://yourdomain.com
-// This is read first, then MTRX_RUNTIME_URL env var, then localhost.
-//
-// TODO (manual): Set this after domain and SSL are configured on neo-l4.
+// MTRX Backend Configuration
+// Production gateway: https://openmatrix.io
+// Localhost fallback requires explicit MTRX_DEV_MODE=1 environment variable.
 private enum BackendConfig {
-    /// Production URL — update when domain and SSL are live on neo-l4.
-    /// Port 18790 is the Matrix gateway port.
-    static let productionURL: String? = nil // Set to "https://openmatrix.io" when live
+    /// Production gateway URL — always used on real devices.
+    static let productionURL = "https://openmatrix.io"
 
-    /// Resolved base URL — runtime override → production → environment variable → localhost
+    /// Resolved base URL — runtime override → production (default).
+    /// Localhost is only used when the MTRX_DEV_MODE environment variable is set.
     static var resolvedURL: String {
-        // 1. Runtime override (set by Neo or config)
+        // 1. Runtime override (set via Settings bundle or TestFlight config)
         if let runtime = UserDefaults.standard.string(forKey: "mtrx.backend.url"),
            !runtime.isEmpty {
             return runtime
         }
-        // 2. Compile-time production URL
-        if let prod = productionURL, !prod.isEmpty {
-            return prod
-        }
-        // 3. Environment variable (for CI and testing)
+        // 2. Environment variable override (CI and testing)
         if let env = ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"],
            !env.isEmpty {
             return env
         }
-        // 4. Localhost fallback (development only)
-        return "http://localhost:8000"
+        // 3. Dev-mode localhost — requires explicit opt-in via env var
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["MTRX_DEV_MODE"] == "1" {
+            return "http://localhost:8000"
+        }
+        #endif
+        // 4. Production URL — the default for all builds
+        return productionURL
     }
 }
 

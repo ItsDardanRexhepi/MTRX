@@ -108,8 +108,12 @@ enum DiscoverCategory: String, CaseIterable {
     case fundraisers = "Fundraisers"
     case daos = "DAOs"
     case defi = "DeFi"
+    case nfts = "NFTs"
+    case rwa = "RWA"
     case insurance = "Insurance"
     case gaming = "Gaming"
+    case events = "Events"
+    case music = "Music"
 
     var icon: String {
         switch self {
@@ -118,8 +122,12 @@ enum DiscoverCategory: String, CaseIterable {
         case .fundraisers: return Symbols.fundraiser
         case .daos: return Symbols.dao
         case .defi: return Symbols.chartLine
+        case .nfts: return "photo.artframe"
+        case .rwa: return "building.columns.fill"
         case .insurance: return Symbols.insurance
         case .gaming: return "gamecontroller.fill"
+        case .events: return "ticket.fill"
+        case .music: return "music.note"
         }
     }
 }
@@ -187,6 +195,22 @@ struct DiscoverView: View {
 
                 partnerSection
                     .mtrxStaggeredAppearance(index: 5, isVisible: viewModel.contentAppeared)
+
+                // Web3 discovery cards
+                portfolioCard
+                    .mtrxStaggeredAppearance(index: 6, isVisible: viewModel.contentAppeared)
+
+                yieldOpportunitiesSection
+                    .mtrxStaggeredAppearance(index: 7, isVisible: viewModel.contentAppeared)
+
+                activeGovernanceSection
+                    .mtrxStaggeredAppearance(index: 8, isVisible: viewModel.contentAppeared)
+
+                rwaSection
+                    .mtrxStaggeredAppearance(index: 9, isVisible: viewModel.contentAppeared)
+
+                recentActivitySection
+                    .mtrxStaggeredAppearance(index: 10, isVisible: viewModel.contentAppeared)
 
                 // Bottom padding for tab bar
                 Spacer().frame(height: Spacing.xxl)
@@ -338,6 +362,199 @@ struct DiscoverView: View {
                 .padding(.horizontal, Spacing.contentPadding)
             }
         }
+    }
+
+    // MARK: - Portfolio Card
+
+    private var portfolioCard: some View {
+        VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
+            MtrxSectionHeader(title: "Portfolio")
+                .padding(.horizontal, Spacing.contentPadding)
+
+            NavigationLink {
+                Text("Portfolio")
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Total Value")
+                            .font(.mtrxCaption)
+                            .foregroundStyle(Color.labelSecondary)
+                        Text("Loading...")
+                            .font(.mtrxTitle2)
+                            .foregroundStyle(Color.textPrimary)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("24h Change")
+                            .font(.mtrxCaption)
+                            .foregroundStyle(Color.labelSecondary)
+                        Text("—")
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.statusSuccess)
+                    }
+                }
+                .padding(Spacing.md)
+                .background(Color.surfaceOverlay)
+                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, Spacing.contentPadding)
+        }
+    }
+
+    // MARK: - Yield Opportunities Section
+
+    private var yieldOpportunitiesSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
+            MtrxSectionHeader(title: "Top Yield Opportunities")
+                .padding(.horizontal, Spacing.contentPadding)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Spacing.md) {
+                    yieldCard(name: "ETH Staking", apy: "4.2%", risk: "Conservative", color: .statusSuccess)
+                    yieldCard(name: "USDC Lending", apy: "6.8%", risk: "Conservative", color: .statusSuccess)
+                    yieldCard(name: "ETH-USDC LP", apy: "12.4%", risk: "Moderate", color: .statusWarning)
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+            }
+        }
+    }
+
+    private func yieldCard(name: String, apy: String, risk: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(name)
+                .font(.mtrxSubheadline)
+                .foregroundStyle(Color.textPrimary)
+            Text(apy)
+                .font(.mtrxTitle2)
+                .foregroundStyle(Color.accentPrimary)
+            Text(risk)
+                .font(.mtrxCaption)
+                .foregroundStyle(color)
+        }
+        .frame(width: 150)
+        .padding(Spacing.md)
+        .background(Color.surfaceOverlay)
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+    }
+
+    // MARK: - Active Governance Section
+
+    private var activeGovernanceSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
+            MtrxSectionHeader(title: "Active Proposals")
+                .padding(.horizontal, Spacing.contentPadding)
+
+            VStack(spacing: Spacing.sm) {
+                proposalRow(dao: "Uniswap", title: "Fee switch activation", endsIn: "2 days")
+                proposalRow(dao: "Aave", title: "Risk parameter update", endsIn: "5 days")
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+        }
+    }
+
+    private func proposalRow(dao: String, title: String, endsIn: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(dao)
+                    .font(.mtrxCaptionBold)
+                    .foregroundStyle(Color.accentPrimary)
+                Text(title)
+                    .font(.mtrxSubheadline)
+                    .foregroundStyle(Color.textPrimary)
+            }
+            Spacer()
+            Text("Ends in \(endsIn)")
+                .font(.mtrxCaption)
+                .foregroundStyle(Color.labelSecondary)
+        }
+        .padding(Spacing.md)
+        .background(Color.surfaceOverlay)
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+    }
+
+    // MARK: - RWA Section
+
+    private var rwaSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
+            MtrxSectionHeader(title: "Real World Assets")
+                .padding(.horizontal, Spacing.contentPadding)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Spacing.md) {
+                    rwaCard(name: "Treasury Bonds", apy: "5.1%", category: "Fixed Income", minInvestment: "$100")
+                    rwaCard(name: "Real Estate Fund", apy: "8.3%", category: "Property", minInvestment: "$500")
+                    rwaCard(name: "Gold Token", apy: "—", category: "Commodity", minInvestment: "$50")
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+            }
+        }
+    }
+
+    private func rwaCard(name: String, apy: String, category: String, minInvestment: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(category)
+                .font(.mtrxCaption)
+                .foregroundStyle(Color.accentPrimary)
+            Text(name)
+                .font(.mtrxSubheadline)
+                .foregroundStyle(Color.textPrimary)
+            HStack {
+                Text("APY: \(apy)")
+                    .font(.mtrxCaption)
+                    .foregroundStyle(Color.labelSecondary)
+                Spacer()
+                Text("Min: \(minInvestment)")
+                    .font(.mtrxCaption)
+                    .foregroundStyle(Color.labelSecondary)
+            }
+        }
+        .frame(width: 180)
+        .padding(Spacing.md)
+        .background(Color.surfaceOverlay)
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+    }
+
+    // MARK: - Recent Activity Section
+
+    private var recentActivitySection: some View {
+        VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
+            MtrxSectionHeader(title: "Recent Activity")
+                .padding(.horizontal, Spacing.contentPadding)
+
+            VStack(spacing: Spacing.xs) {
+                activityRow(type: "Swap", detail: "0.5 ETH → 900 USDC", time: "2 min ago", icon: "arrow.triangle.2.circlepath")
+                activityRow(type: "Stake", detail: "1.0 ETH staked", time: "1 hour ago", icon: "lock.fill")
+                activityRow(type: "Received", detail: "250 USDC from vitalik.eth", time: "3 hours ago", icon: "arrow.down.circle.fill")
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+        }
+    }
+
+    private func activityRow(type: String, detail: String, time: String, icon: String) -> some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundStyle(Color.accentPrimary)
+                .frame(width: 32, height: 32)
+                .background(Color.accentPrimary.opacity(0.12))
+                .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 1) {
+                Text(type)
+                    .font(.mtrxCaptionBold)
+                    .foregroundStyle(Color.textPrimary)
+                Text(detail)
+                    .font(.mtrxCaption)
+                    .foregroundStyle(Color.labelSecondary)
+            }
+            Spacer()
+            Text(time)
+                .font(.mtrxCaption)
+                .foregroundStyle(Color.labelTertiary)
+        }
+        .padding(Spacing.sm)
+        .background(Color.surfaceOverlay)
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
     }
 
     // MARK: - Timer
