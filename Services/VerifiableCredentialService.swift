@@ -1,0 +1,60 @@
+import Foundation
+
+// MARK: - Models
+
+struct VerifiableCredential: Codable, Identifiable {
+    let id: String
+    let type: String
+    let issuerDID: String
+    let subjectDID: String
+    let claims: [String: String]
+    let issuanceDate: Date
+    let expirationDate: Date?
+    let proof: String?
+    let status: String
+}
+
+struct CredentialVerificationResult: Codable {
+    let isValid: Bool
+    let issuer: String
+    let subject: String
+    let expiresAt: Date?
+    let revokedAt: Date?
+    let reason: String?
+}
+
+// MARK: - Service
+
+@MainActor
+final class VerifiableCredentialService {
+
+    static let shared = VerifiableCredentialService()
+    private let api = MTRXAPIClient.shared
+
+    private init() {}
+
+    func getCredentials(address: String) async throws -> [VerifiableCredential] {
+        try await api.get("/credentials", queryItems: [
+            URLQueryItem(name: "address", value: address)
+        ])
+    }
+
+    func issueCredential(recipient: String, type: String, claims: [String: String], expiryDate: Date?) async throws -> VerifiableCredential {
+        struct IssueBody: Codable {
+            let recipient: String
+            let type: String
+            let claims: [String: String]
+            let expiryDate: Date?
+        }
+        let body = IssueBody(recipient: recipient, type: type, claims: claims, expiryDate: expiryDate)
+        return try await api.post("/credentials", body: body)
+    }
+
+    func verifyCredential(credentialId: String) async throws -> CredentialVerificationResult {
+        try await api.get("/credentials/\(credentialId)/verify")
+    }
+
+    func revokeCredential(credentialId: String) async throws -> TransactionResult {
+        try await api.post("/credentials/\(credentialId)/revoke", body: nil as String?)
+    }
+}
