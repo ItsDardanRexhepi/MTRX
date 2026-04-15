@@ -79,13 +79,13 @@ final class CoreMLManager {
     /// Runs inference on a loaded model with the given feature provider.
     func predict(model: TrinityModel, input: MLFeatureProvider) async throws -> MLFeatureProvider {
         let mlModel = try await loadModel(model)
-        return try mlModel.prediction(from: input)
+        return try await mlModel.prediction(from: input)
     }
 
     /// Batch prediction for multiple inputs.
     func batchPredict(model: TrinityModel, inputs: MLBatchProvider) async throws -> MLBatchProvider {
         let mlModel = try await loadModel(model)
-        return try mlModel.predictions(from: inputs)
+        return try await mlModel.predictions(from: inputs, options: MLPredictionOptions())
     }
 
     // MARK: - Model Compilation

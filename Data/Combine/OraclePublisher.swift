@@ -32,7 +32,7 @@ struct PriceFeedData: Equatable, Identifiable {
 
 // MARK: - Attestation Data
 
-struct AttestationData: Equatable, Identifiable {
+struct PublisherAttestationData: Equatable, Identifiable {
     let id: String
     let attester: String
     let subject: String
@@ -107,7 +107,7 @@ final class OraclePublisher: ObservableObject {
     let priceFeeds: AnyPublisher<PriceFeedData, Never>
 
     /// Emits attestation updates.
-    let attestationUpdates: AnyPublisher<AttestationData, Never>
+    let attestationUpdates: AnyPublisher<PublisherAttestationData, Never>
 
     /// Emits cross-chain message data.
     let crossChainData: AnyPublisher<CrossChainData, Never>
@@ -121,7 +121,7 @@ final class OraclePublisher: ObservableObject {
     // MARK: - Internal Subjects
 
     private let priceFeedSubject = PassthroughSubject<PriceFeedData, Never>()
-    private let attestationSubject = PassthroughSubject<AttestationData, Never>()
+    private let attestationSubject = PassthroughSubject<PublisherAttestationData, Never>()
     private let crossChainSubject = PassthroughSubject<CrossChainData, Never>()
 
     // MARK: - Configuration
@@ -278,7 +278,7 @@ final class OraclePublisher: ObservableObject {
     }
 
     /// Injects an attestation update for testing purposes.
-    func injectAttestationUpdate(_ data: AttestationData) {
+    func injectAttestationUpdate(_ data: PublisherAttestationData) {
         attestationSubject.send(data)
     }
 }

@@ -24,7 +24,7 @@ final class WalletOrderTracking {
             "orderType": "ecommerce",
             "status": status.rawValue,
             "merchant": ["displayName": merchant],
-            "orderManagementURL": "https://opnmatrx.com/orders/\(orderId)",
+            "orderManagementURL": "https://openmatrix-ai.com/orders/\(orderId)",
             "lineItems": [["title": description]]
         ]
         return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()

@@ -291,7 +291,7 @@ struct DisputeCreateRequest: Encodable {
 
 // MARK: - Transaction Result (common across components)
 
-struct TransactionResult: Decodable {
+struct APITransactionResult: Decodable {
     let txHash: String?
     let status: String
     let blockNumber: Int?
@@ -383,39 +383,6 @@ enum HTTPMethod: String {
     case delete = "DELETE"
 }
 
-// MARK: - Backend Configuration
-//
-// MTRX Backend Configuration
-// Production gateway: https://openmatrix.io
-// Localhost fallback requires explicit MTRX_DEV_MODE=1 environment variable.
-private enum BackendConfig {
-    /// Production gateway URL — always used on real devices.
-    static let productionURL = "https://openmatrix.io"
-
-    /// Resolved base URL — runtime override → production (default).
-    /// Localhost is only used when the MTRX_DEV_MODE environment variable is set.
-    static var resolvedURL: String {
-        // 1. Runtime override (set via Settings bundle or TestFlight config)
-        if let runtime = UserDefaults.standard.string(forKey: "mtrx.backend.url"),
-           !runtime.isEmpty {
-            return runtime
-        }
-        // 2. Environment variable override (CI and testing)
-        if let env = ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"],
-           !env.isEmpty {
-            return env
-        }
-        // 3. Dev-mode localhost — requires explicit opt-in via env var
-        #if DEBUG
-        if ProcessInfo.processInfo.environment["MTRX_DEV_MODE"] == "1" {
-            return "http://localhost:8000"
-        }
-        #endif
-        // 4. Production URL — the default for all builds
-        return productionURL
-    }
-}
-
 // MARK: - MTRXAPIClient
 
 final class MTRXAPIClient: @unchecked Sendable {
@@ -455,23 +422,10 @@ final class MTRXAPIClient: @unchecked Sendable {
 
     // MARK: - Init
 
-    /// Set the production URL at runtime without recompiling.
-    /// Call from AppDelegate before MTRXAPIClient.shared is first accessed.
-    static func setProductionURL(_ url: String) {
-        UserDefaults.standard.set(url, forKey: "mtrx.backend.url")
-    }
-
-    /// The runtime-configured production URL, if any.
-    static var runtimeURL: String? {
-        UserDefaults.standard.string(forKey: "mtrx.backend.url")
-    }
-
     init(baseURL: String? = nil, session: URLSession? = nil) {
-        self.baseURL = baseURL ?? BackendConfig.resolvedURL
-
-        #if DEBUG
-        print("[MTRXAPIClient] Backend URL: \(self.baseURL)")
-        #endif
+        self.baseURL = baseURL
+            ?? ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"]
+            ?? "https://openmatrix-ai.com"
 
         if let session {
             // Tests (and any caller that wants to stub transport) can inject
@@ -822,11 +776,12 @@ final class MTRXAPIClient: @unchecked Sendable {
         context: String = "",
         conversationHistory: [[String: String]] = []
     ) async throws -> AgentChatResponse {
-        let body: [String: Any] = [
-            "message": message,
-            "agent": agent,
-            "session_id": bridgeSessionId ?? "default",
-        ]
+        struct BridgeChatBody: Encodable {
+            let message: String
+            let agent: String
+            let session_id: String
+        }
+        let body = BridgeChatBody(message: message, agent: agent, session_id: bridgeSessionId ?? "default")
         let result: BridgeResponse<BridgeChatData> = try await post(
             path: "/bridge/v1/chat", body: body
         )
@@ -880,7 +835,8 @@ final class MTRXAPIClient: @unchecked Sendable {
     }
 
     func defiRepay(loanId: String, amount: Double) async throws -> [String: AnyCodableValue] {
-        try await post(path: "/api/v1/defi/repay", body: ["loan_id": loanId, "amount": amount] as [String: Any])
+        struct DefiRepayBody: Encodable { let loan_id: String; let amount: Double }
+        return try await post(path: "/api/v1/defi/repay", body: DefiRepayBody(loan_id: loanId, amount: amount))
     }
 
     func defiListPools() async throws -> [DeFiPoolResponse] {
@@ -1585,11 +1541,12 @@ final class MTRXAPIClient: @unchecked Sendable {
         _ action: String,
         params: [String: AnyCodableValue] = [:]
     ) async throws -> [String: AnyCodableValue] {
-        let body: [String: Any] = [
-            "action": action,
-            "params": params,
-            "session_id": bridgeSessionId ?? "default",
-        ]
+        struct BridgeActionBody: Encodable {
+            let action: String
+            let params: [String: AnyCodableValue]
+            let session_id: String
+        }
+        let body = BridgeActionBody(action: action, params: params, session_id: bridgeSessionId ?? "default")
         return try await postRaw(path: "/bridge/v1/action", body: body)
     }
 

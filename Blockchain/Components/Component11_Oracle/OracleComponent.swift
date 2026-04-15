@@ -20,13 +20,13 @@ struct PriceFeed {
     let pair: String // e.g., "ETH/USD"
     let price: Double
     let decimals: Int
-    let source: OracleSource
+    let source: ComponentOracleSource
     let updatedAt: Date
     let roundId: UInt64
     let confidence: Double
 }
 
-enum OracleSource: String {
+enum ComponentOracleSource: String {
     case chainlink, uniswapTWAP, custom, aggregated
 }
 
@@ -41,7 +41,7 @@ struct OracleFeedConfig {
     let feedId: String
     let pair: String
     let contractAddress: String
-    let source: OracleSource
+    let source: ComponentOracleSource
     let heartbeatSeconds: TimeInterval
     let deviationThreshold: Double
     let isActive: Bool

@@ -539,9 +539,9 @@ final class Trinity: ObservableObject {
         if let outcome = outcome {
             switch outcome {
             case .execute(let ctx):
-                parts.append("Scoring engine: EXECUTE approved. \(ctx.summary)")
+                parts.append("Scoring engine: EXECUTE approved. Confidence: \(ctx.confidence)")
             case .probe(let questions):
-                parts.append("Scoring engine: PROBE needed. Questions: \(questions.map { $0.text }.joined(separator: "; "))")
+                parts.append("Scoring engine: PROBE needed. Questions: \(questions.map { $0.question }.joined(separator: "; "))")
             case .ask(let prompt, let options):
                 parts.append("Scoring engine: ASK user. Prompt: \(prompt), Options: \(options.joined(separator: ", "))")
             case .defer_(let reason, _):
@@ -1732,7 +1732,7 @@ final class Trinity: ObservableObject {
                 for question in questions.prefix(3) {
                     actions.append(SuggestedAction(
                         title: "Answer",
-                        description: question.text,
+                        description: question.question,
                         action: "probe:\(question.id)"
                     ))
                 }
@@ -1782,7 +1782,7 @@ final class Trinity: ObservableObject {
         case .execute:
             return text
         case .probe(let questions):
-            let probeText = questions.map { "- \($0.text)" }.joined(separator: "\n")
+            let probeText = questions.map { "- \($0.question)" }.joined(separator: "\n")
             return "\(text)\n\nBefore I proceed, I need a few more details:\n\(probeText)"
         case .ask(let prompt, let options):
             let optionsText = options.map { "- \($0)" }.joined(separator: "\n")

@@ -20,7 +20,7 @@ struct UserContext: Sendable {
     let portfolioState: PortfolioSnapshot?
     let recentTransactions: [TransactionSnapshot]
     let deviceState: DeviceState
-    let preferences: UserPreferences
+    let preferences: TrinityUserPreferences
 
     /// A relevance-scored summary of the most important context items.
     var highlightedContext: [ContextHighlight] {
@@ -119,7 +119,7 @@ struct DeviceState: Sendable {
     let screenBrightness: Double?
 }
 
-struct UserPreferences: Sendable {
+struct TrinityUserPreferences: Sendable {
     let language: String
     let currency: String
     let riskTolerance: Double
@@ -192,7 +192,7 @@ final class TrinityContext {
 
         let timeContext = buildTimeContext()
         let deviceState = fetchDeviceState()
-        let preferences = loadUserPreferences()
+        let preferences = loadTrinityUserPreferences()
 
         let context = UserContext(
             timestamp: Date(),
@@ -291,9 +291,9 @@ final class TrinityContext {
         )
     }
 
-    private func loadUserPreferences() -> UserPreferences {
+    private func loadTrinityUserPreferences() -> TrinityUserPreferences {
         // TODO: Load from UserDefaults or SwiftData
-        return UserPreferences(
+        return TrinityUserPreferences(
             language: Locale.current.language.languageCode?.identifier ?? "en",
             currency: Locale.current.currency?.identifier ?? "USD",
             riskTolerance: 0.5,

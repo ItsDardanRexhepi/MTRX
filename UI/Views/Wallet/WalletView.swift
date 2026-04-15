@@ -290,7 +290,7 @@ struct WalletView: View {
         .padding(.bottom, Spacing.sm)
     }
 
-    private var sortedTokens: [TokenBalance] {
+    private var sortedTokens: [AppTokenBalance] {
         switch tokenSortOrder {
         case .byValue:
             return walletManager.tokens.sorted { $0.valueUSD > $1.valueUSD }
@@ -301,7 +301,7 @@ struct WalletView: View {
         }
     }
 
-    private func tokenRow(_ token: TokenBalance) -> some View {
+    private func tokenRow(_ token: AppTokenBalance) -> some View {
         HStack(spacing: Spacing.ms) {
             MtrxAvatar(text: token.symbol, color: token.iconColor, size: Spacing.Size.avatarMedium)
 

@@ -3,6 +3,7 @@
 // On-device NLP preprocessing before every Trinity response
 
 import NaturalLanguage
+import CoreML
 import Foundation
 
 // MARK: - Natural Language Processor

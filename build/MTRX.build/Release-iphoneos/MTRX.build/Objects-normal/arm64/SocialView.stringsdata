@@ -1,0 +1,192 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Views/Social/SocialView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Social",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 215
+        }
+      },
+      {
+        "comment": "",
+        "key": "New Post",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 320
+        }
+      },
+      {
+        "comment": "",
+        "key": "Attach Proof",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 308
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 324
+        }
+      },
+      {
+        "comment": "",
+        "key": "Publish",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 328
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your Voting Power",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 393
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delegated To",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 402
+        }
+      },
+      {
+        "comment": "",
+        "key": "Past Proposals",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 433
+        }
+      },
+      {
+        "comment": "",
+        "key": "  %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 547
+        }
+      },
+      {
+        "comment": "",
+        "key": "Show less",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 582
+        }
+      },
+      {
+        "comment": "",
+        "key": "Read more",
+        "location": {
+          "startingColumn": 53,
+          "startingLine": 582
+        }
+      },
+      {
+        "comment": "",
+        "key": "View on-chain proof",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 599
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 657
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 672
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 685
+        }
+      },
+      {
+        "comment": "",
+        "key": "For %lld%%",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 771
+        }
+      },
+      {
+        "comment": "",
+        "key": "Against %lld%%",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 775
+        }
+      },
+      {
+        "comment": "",
+        "key": "Quorum",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 791
+        }
+      },
+      {
+        "comment": "",
+        "key": "Reached",
+        "location": {
+          "startingColumn": 63,
+          "startingLine": 794
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%%",
+        "location": {
+          "startingColumn": 75,
+          "startingLine": 794
+        }
+      },
+      {
+        "comment": "",
+        "key": "Voted",
+        "location": {
+          "startingColumn": 54,
+          "startingLine": 805
+        }
+      },
+      {
+        "comment": "",
+        "key": "Vote",
+        "location": {
+          "startingColumn": 64,
+          "startingLine": 805
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 882
+        }
+      }
+    ]
+  },
+  "version": 1
+}

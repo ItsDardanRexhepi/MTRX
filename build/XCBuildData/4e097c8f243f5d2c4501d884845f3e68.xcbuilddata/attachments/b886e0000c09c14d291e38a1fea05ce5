@@ -1,0 +1,1001 @@
+{
+  "" : {
+    "const-values" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRX-primary.swiftconstvalues",
+    "dependencies" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRX-primary.d",
+    "diagnostics" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRX-primary.dia",
+    "emit-module-dependencies" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRX-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRX-primary-emit-module.dia",
+    "pch" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRX-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRX-primary.swiftdeps"
+  },
+  "/Users/dardan/MTRX/Apple/AR/RealityComposer.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/RealityComposer.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/RealityComposer.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/RealityComposer.o"
+  },
+  "/Users/dardan/MTRX/Apple/AR/RealityKitManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/RealityKitManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/RealityKitManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/RealityKitManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/AppIntents/PortfolioIntent.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PortfolioIntent.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PortfolioIntent.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PortfolioIntent.o"
+  },
+  "/Users/dardan/MTRX/Apple/AppIntents/ShortcutsProvider.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ShortcutsProvider.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ShortcutsProvider.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ShortcutsProvider.o"
+  },
+  "/Users/dardan/MTRX/Apple/AppIntents/TransactionIntent.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TransactionIntent.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TransactionIntent.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TransactionIntent.o"
+  },
+  "/Users/dardan/MTRX/Apple/AppIntents/TrinityIntents.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityIntents.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityIntents.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityIntents.o"
+  },
+  "/Users/dardan/MTRX/Apple/Awareness/ContextAssembler.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContextAssembler.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContextAssembler.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContextAssembler.o"
+  },
+  "/Users/dardan/MTRX/Apple/Awareness/FocusFilterHandler.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FocusFilterHandler.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FocusFilterHandler.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FocusFilterHandler.o"
+  },
+  "/Users/dardan/MTRX/Apple/Awareness/HealthKitManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HealthKitManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HealthKitManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HealthKitManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Awareness/HealthKitUI.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HealthKitUI.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HealthKitUI.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HealthKitUI.o"
+  },
+  "/Users/dardan/MTRX/Apple/Awareness/LocationManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LocationManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LocationManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LocationManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Awareness/SensorFusion.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SensorFusion.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SensorFusion.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SensorFusion.o"
+  },
+  "/Users/dardan/MTRX/Apple/Awareness/WeatherManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WeatherManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WeatherManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WeatherManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/CloudKit/CloudKitSync.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CloudKitSync.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CloudKitSync.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CloudKitSync.o"
+  },
+  "/Users/dardan/MTRX/Apple/CloudKit/iCloudKeychainManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/iCloudKeychainManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/iCloudKeychainManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/iCloudKeychainManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Computation/AccelerateManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AccelerateManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AccelerateManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AccelerateManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Computation/CoreImageProcessor.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CoreImageProcessor.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CoreImageProcessor.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CoreImageProcessor.o"
+  },
+  "/Users/dardan/MTRX/Apple/Computation/PDFManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PDFManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PDFManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PDFManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Computation/SpotlightManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SpotlightManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SpotlightManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SpotlightManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Computation/VisionScanner.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/VisionScanner.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/VisionScanner.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/VisionScanner.o"
+  },
+  "/Users/dardan/MTRX/Apple/Connectivity/BluetoothManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BluetoothManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BluetoothManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BluetoothManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Connectivity/CarPlaySceneDelegate.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CarPlaySceneDelegate.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CarPlaySceneDelegate.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CarPlaySceneDelegate.o"
+  },
+  "/Users/dardan/MTRX/Apple/Connectivity/MultipeerManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MultipeerManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MultipeerManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MultipeerManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Connectivity/NFCManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NFCManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NFCManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NFCManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Connectivity/NetworkManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NetworkManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NetworkManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NetworkManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Gaming/GameKitManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GameKitManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GameKitManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GameKitManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Gaming/SpriteKitBridge.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SpriteKitBridge.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SpriteKitBridge.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SpriteKitBridge.o"
+  },
+  "/Users/dardan/MTRX/Apple/HomeKit/HomeKitManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HomeKitManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HomeKitManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HomeKitManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Intelligence/CoreMLManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CoreMLManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CoreMLManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CoreMLManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Intelligence/CreateMLPipeline.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CreateMLPipeline.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CreateMLPipeline.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CreateMLPipeline.o"
+  },
+  "/Users/dardan/MTRX/Apple/Intelligence/MetalAccelerator.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MetalAccelerator.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MetalAccelerator.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MetalAccelerator.o"
+  },
+  "/Users/dardan/MTRX/Apple/Intelligence/MetalPerformanceShaders.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MetalPerformanceShaders.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MetalPerformanceShaders.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MetalPerformanceShaders.o"
+  },
+  "/Users/dardan/MTRX/Apple/Intelligence/NaturalLanguageProcessor.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NaturalLanguageProcessor.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NaturalLanguageProcessor.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NaturalLanguageProcessor.o"
+  },
+  "/Users/dardan/MTRX/Apple/Intelligence/SpeechTranscriber.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SpeechTranscriber.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SpeechTranscriber.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SpeechTranscriber.o"
+  },
+  "/Users/dardan/MTRX/Apple/Interaction/ContactsManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContactsManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContactsManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContactsManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Interaction/EventKitManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/EventKitManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/EventKitManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/EventKitManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Interaction/GroupActivitySession.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GroupActivitySession.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GroupActivitySession.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GroupActivitySession.o"
+  },
+  "/Users/dardan/MTRX/Apple/Interaction/MapKitManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MapKitManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MapKitManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MapKitManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Interaction/PhotosManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PhotosManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PhotosManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PhotosManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Interaction/SharePlayManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SharePlayManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SharePlayManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SharePlayManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Payments/MerchantConfig.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MerchantConfig.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MerchantConfig.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MerchantConfig.o"
+  },
+  "/Users/dardan/MTRX/Apple/Payments/PassKitManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PassKitManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PassKitManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PassKitManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Payments/WalletOrderTracking.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WalletOrderTracking.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WalletOrderTracking.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WalletOrderTracking.o"
+  },
+  "/Users/dardan/MTRX/Apple/Presence/ActivityKitManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ActivityKitManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ActivityKitManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ActivityKitManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Presence/HapticsManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HapticsManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HapticsManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HapticsManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Presence/LiveActivityView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LiveActivityView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LiveActivityView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LiveActivityView.o"
+  },
+  "/Users/dardan/MTRX/Apple/Presence/NotificationManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NotificationManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NotificationManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NotificationManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Presence/PushKitHandler.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PushKitHandler.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PushKitHandler.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PushKitHandler.o"
+  },
+  "/Users/dardan/MTRX/Apple/Presence/VoiceManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/VoiceManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/VoiceManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/VoiceManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Privacy/NetworkExtensionManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NetworkExtensionManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NetworkExtensionManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NetworkExtensionManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Privacy/SKAdNetworkManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SKAdNetworkManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SKAdNetworkManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SKAdNetworkManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Privacy/ScreenTimeManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ScreenTimeManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ScreenTimeManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ScreenTimeManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Security/AppAttestManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AppAttestManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AppAttestManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AppAttestManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Security/AuthServicesManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AuthServicesManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AuthServicesManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AuthServicesManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Security/DeviceCheckManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DeviceCheckManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DeviceCheckManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DeviceCheckManager.o"
+  },
+  "/Users/dardan/MTRX/Apple/Security/KeychainManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/KeychainManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/KeychainManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/KeychainManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Attestation/AttestationQueue.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AttestationQueue.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AttestationQueue.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AttestationQueue.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Attestation/EASManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/EASManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/EASManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/EASManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Attestation/ProofGenerator.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ProofGenerator.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ProofGenerator.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ProofGenerator.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component01_ContractConversion/ContractConversion.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractConversion.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractConversion.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractConversion.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component02_DeFiLending/DeFiLending.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DeFiLending.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DeFiLending.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DeFiLending.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component03_NFT/NFTManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NFTManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NFTManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NFTManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component04_RWA/RWATokenization.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/RWATokenization.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/RWATokenization.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/RWATokenization.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component05_Identity/IdentityManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/IdentityManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/IdentityManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/IdentityManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component06_DAO/DAOManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DAOManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DAOManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DAOManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component07_Stablecoin/StablecoinManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StablecoinManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StablecoinManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StablecoinManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component08_Attestation/AttestationComponent.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AttestationComponent.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AttestationComponent.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AttestationComponent.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component09_AgentIdentity/AgentIdentity.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentIdentity.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentIdentity.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentIdentity.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component10_AgenticPayments/AgenticPayments.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgenticPayments.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgenticPayments.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgenticPayments.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component11_Oracle/OracleComponent.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OracleComponent.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OracleComponent.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OracleComponent.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component12_SupplyChain/SupplyChainManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SupplyChainManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SupplyChainManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SupplyChainManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component13_Insurance/InsuranceManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/InsuranceManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/InsuranceManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/InsuranceManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component14_Gaming/GamingManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GamingManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GamingManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GamingManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component15_IP/IPManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/IPManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/IPManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/IPManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component16_Staking/StakingManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StakingManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StakingManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StakingManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component17_Payments/PaymentsManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PaymentsManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PaymentsManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PaymentsManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component18_Securities/SecuritiesManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SecuritiesManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SecuritiesManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SecuritiesManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component19_Governance/GovernanceManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GovernanceManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GovernanceManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GovernanceManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component20_Dashboard/DashboardManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DashboardManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DashboardManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DashboardManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component21_DEX/DEXManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DEXManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DEXManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DEXManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component22_Fundraising/FundraisingManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FundraisingManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FundraisingManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FundraisingManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component23_Loyalty/LoyaltyManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LoyaltyManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LoyaltyManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LoyaltyManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component24_Marketplace/MarketplaceManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MarketplaceManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MarketplaceManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MarketplaceManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component25_Cashback/CashbackManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CashbackManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CashbackManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CashbackManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component26_BrandRewards/BrandRewardsManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BrandRewardsManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BrandRewardsManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BrandRewardsManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component27_Subscriptions/SubscriptionsManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionsManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionsManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionsManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component28_Social/SocialManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SocialManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SocialManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SocialManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component29_Privacy/PrivacyManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PrivacyManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PrivacyManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PrivacyManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Components/Component30_DisputeResolution/DisputeManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DisputeManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DisputeManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DisputeManager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Wallet/BaseNetwork.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BaseNetwork.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BaseNetwork.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BaseNetwork.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Wallet/ERC4337Manager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ERC4337Manager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ERC4337Manager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ERC4337Manager.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Wallet/GasSponsorship.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GasSponsorship.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GasSponsorship.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GasSponsorship.o"
+  },
+  "/Users/dardan/MTRX/Blockchain/Wallet/WalletCreation.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WalletCreation.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WalletCreation.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WalletCreation.o"
+  },
+  "/Users/dardan/MTRX/Config/Secrets.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Secrets.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Secrets.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Secrets.o"
+  },
+  "/Users/dardan/MTRX/Core/Blockchain/BlockchainBridge.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BlockchainBridge.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BlockchainBridge.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BlockchainBridge.o"
+  },
+  "/Users/dardan/MTRX/Core/Morpheus/Morpheus.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Morpheus.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Morpheus.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Morpheus.o"
+  },
+  "/Users/dardan/MTRX/Core/Morpheus/MorpheusInterventions.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusInterventions.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusInterventions.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusInterventions.o"
+  },
+  "/Users/dardan/MTRX/Core/Morpheus/MorpheusThreshold.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusThreshold.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusThreshold.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusThreshold.o"
+  },
+  "/Users/dardan/MTRX/Core/Morpheus/MorpheusTriggers.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusTriggers.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusTriggers.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusTriggers.o"
+  },
+  "/Users/dardan/MTRX/Core/Morpheus/MorpheusVoice.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusVoice.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusVoice.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MorpheusVoice.o"
+  },
+  "/Users/dardan/MTRX/Core/Networking/DemoDataProvider.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DemoDataProvider.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DemoDataProvider.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DemoDataProvider.o"
+  },
+  "/Users/dardan/MTRX/Core/Networking/MTRXAPIClient.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRXAPIClient.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRXAPIClient.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRXAPIClient.o"
+  },
+  "/Users/dardan/MTRX/Core/Omniversal/DecisionLog.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DecisionLog.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DecisionLog.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DecisionLog.o"
+  },
+  "/Users/dardan/MTRX/Core/Omniversal/HardRules.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HardRules.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HardRules.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HardRules.o"
+  },
+  "/Users/dardan/MTRX/Core/Omniversal/Outcomes.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Outcomes.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Outcomes.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Outcomes.o"
+  },
+  "/Users/dardan/MTRX/Core/Omniversal/TimeSensitivity.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TimeSensitivity.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TimeSensitivity.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TimeSensitivity.o"
+  },
+  "/Users/dardan/MTRX/Core/Oracle/CoordinationIntelligence.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CoordinationIntelligence.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CoordinationIntelligence.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CoordinationIntelligence.o"
+  },
+  "/Users/dardan/MTRX/Core/Oracle/DardanAdvisory.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DardanAdvisory.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DardanAdvisory.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DardanAdvisory.o"
+  },
+  "/Users/dardan/MTRX/Core/Oracle/Oracle.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Oracle.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Oracle.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Oracle.o"
+  },
+  "/Users/dardan/MTRX/Core/Oracle/OracleVoice.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OracleVoice.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OracleVoice.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OracleVoice.o"
+  },
+  "/Users/dardan/MTRX/Core/Oracle/PatternIntelligence.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PatternIntelligence.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PatternIntelligence.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PatternIntelligence.o"
+  },
+  "/Users/dardan/MTRX/Core/Oracle/ProbabilityArchitecture.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ProbabilityArchitecture.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ProbabilityArchitecture.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ProbabilityArchitecture.o"
+  },
+  "/Users/dardan/MTRX/Core/Oracle/StrategicForesight.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StrategicForesight.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StrategicForesight.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StrategicForesight.o"
+  },
+  "/Users/dardan/MTRX/Core/Oracle/ThreatDetection.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ThreatDetection.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ThreatDetection.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ThreatDetection.o"
+  },
+  "/Users/dardan/MTRX/Core/Packager/MTRXPackager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRXPackager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRXPackager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRXPackager.o"
+  },
+  "/Users/dardan/MTRX/Core/RexhepiFW/Engine.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Engine.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Engine.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Engine.o"
+  },
+  "/Users/dardan/MTRX/Core/RexhepiFW/Gates.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Gates.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Gates.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Gates.o"
+  },
+  "/Users/dardan/MTRX/Core/Security/AgentAccessControl.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentAccessControl.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentAccessControl.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentAccessControl.o"
+  },
+  "/Users/dardan/MTRX/Core/Security/CrashReporter.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CrashReporter.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CrashReporter.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CrashReporter.o"
+  },
+  "/Users/dardan/MTRX/Core/Subscription/FeatureGate.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FeatureGate.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FeatureGate.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FeatureGate.o"
+  },
+  "/Users/dardan/MTRX/Core/Subscription/PlatformFeeDisclosure.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PlatformFeeDisclosure.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PlatformFeeDisclosure.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PlatformFeeDisclosure.o"
+  },
+  "/Users/dardan/MTRX/Core/Subscription/StoreKitManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StoreKitManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StoreKitManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StoreKitManager.o"
+  },
+  "/Users/dardan/MTRX/Core/Subscription/SubscriptionTier.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionTier.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionTier.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionTier.o"
+  },
+  "/Users/dardan/MTRX/Core/Subscription/TrialManager.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrialManager.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrialManager.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrialManager.o"
+  },
+  "/Users/dardan/MTRX/Core/Temporal/TemporalContext.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TemporalContext.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TemporalContext.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TemporalContext.o"
+  },
+  "/Users/dardan/MTRX/Core/Trinity/Trinity.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Trinity.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Trinity.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Trinity.o"
+  },
+  "/Users/dardan/MTRX/Core/Trinity/TrinityContext.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityContext.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityContext.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityContext.o"
+  },
+  "/Users/dardan/MTRX/Core/Trinity/TrinityInference.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityInference.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityInference.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityInference.o"
+  },
+  "/Users/dardan/MTRX/Core/Trinity/TrinityMemory.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityMemory.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityMemory.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityMemory.o"
+  },
+  "/Users/dardan/MTRX/Core/Trinity/TrinityOnboarding.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityOnboarding.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityOnboarding.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityOnboarding.o"
+  },
+  "/Users/dardan/MTRX/Core/Trinity/TrinityVoice.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityVoice.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityVoice.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityVoice.o"
+  },
+  "/Users/dardan/MTRX/Data/Cache/CloudKitStore.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CloudKitStore.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CloudKitStore.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CloudKitStore.o"
+  },
+  "/Users/dardan/MTRX/Data/Cache/SwiftDataStore.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SwiftDataStore.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SwiftDataStore.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SwiftDataStore.o"
+  },
+  "/Users/dardan/MTRX/Data/Combine/BlockchainPublisher.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BlockchainPublisher.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BlockchainPublisher.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BlockchainPublisher.o"
+  },
+  "/Users/dardan/MTRX/Data/Combine/CollateralPublisher.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CollateralPublisher.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CollateralPublisher.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/CollateralPublisher.o"
+  },
+  "/Users/dardan/MTRX/Data/Combine/HealthPublisher.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HealthPublisher.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HealthPublisher.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/HealthPublisher.o"
+  },
+  "/Users/dardan/MTRX/Data/Combine/OraclePublisher.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OraclePublisher.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OraclePublisher.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OraclePublisher.o"
+  },
+  "/Users/dardan/MTRX/Data/Combine/PortfolioPublisher.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PortfolioPublisher.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PortfolioPublisher.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PortfolioPublisher.o"
+  },
+  "/Users/dardan/MTRX/Data/Models/ContractModel.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractModel.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractModel.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractModel.o"
+  },
+  "/Users/dardan/MTRX/Data/Models/TransactionModel.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TransactionModel.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TransactionModel.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TransactionModel.o"
+  },
+  "/Users/dardan/MTRX/Data/Models/TrinityMemoryModel.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityMemoryModel.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityMemoryModel.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TrinityMemoryModel.o"
+  },
+  "/Users/dardan/MTRX/Data/Models/UserModel.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/UserModel.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/UserModel.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/UserModel.o"
+  },
+  "/Users/dardan/MTRX/Extensions/ComponentRegistry.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ComponentRegistry.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ComponentRegistry.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ComponentRegistry.o"
+  },
+  "/Users/dardan/MTRX/Extensions/ExtensionHost.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionHost.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionHost.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionHost.o"
+  },
+  "/Users/dardan/MTRX/Extensions/ExtensionPermissions.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionPermissions.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionPermissions.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionPermissions.o"
+  },
+  "/Users/dardan/MTRX/Extensions/ExtensionRegistry.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionRegistry.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionRegistry.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionRegistry.o"
+  },
+  "/Users/dardan/MTRX/Extensions/ExtensionSandbox.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionSandbox.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionSandbox.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionSandbox.o"
+  },
+  "/Users/dardan/MTRX/Extensions/ExtensionVetting.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionVetting.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionVetting.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExtensionVetting.o"
+  },
+  "/Users/dardan/MTRX/UI/Accessibility/DynamicTypeSupport.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DynamicTypeSupport.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DynamicTypeSupport.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DynamicTypeSupport.o"
+  },
+  "/Users/dardan/MTRX/UI/Accessibility/SwitchControlSupport.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SwitchControlSupport.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SwitchControlSupport.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SwitchControlSupport.o"
+  },
+  "/Users/dardan/MTRX/UI/Accessibility/VoiceOverSupport.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/VoiceOverSupport.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/VoiceOverSupport.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/VoiceOverSupport.o"
+  },
+  "/Users/dardan/MTRX/UI/App/AppDelegate.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AppDelegate.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AppDelegate.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AppDelegate.o"
+  },
+  "/Users/dardan/MTRX/UI/App/MTRXApp.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRXApp.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRXApp.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MTRXApp.o"
+  },
+  "/Users/dardan/MTRX/UI/App/SceneDelegate.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SceneDelegate.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SceneDelegate.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SceneDelegate.o"
+  },
+  "/Users/dardan/MTRX/UI/Components/MtrxComponents.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MtrxComponents.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MtrxComponents.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MtrxComponents.o"
+  },
+  "/Users/dardan/MTRX/UI/Design/Colors.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Colors.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Colors.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Colors.o"
+  },
+  "/Users/dardan/MTRX/UI/Design/Motion.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Motion.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Motion.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Motion.o"
+  },
+  "/Users/dardan/MTRX/UI/Design/Spacing.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Spacing.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Spacing.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Spacing.o"
+  },
+  "/Users/dardan/MTRX/UI/Design/Symbols.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Symbols.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Symbols.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Symbols.o"
+  },
+  "/Users/dardan/MTRX/UI/Design/Typography.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Typography.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Typography.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/Typography.o"
+  },
+  "/Users/dardan/MTRX/UI/Notifications/ContractNotification.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractNotification.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractNotification.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractNotification.o"
+  },
+  "/Users/dardan/MTRX/UI/Notifications/DisputeNotification.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DisputeNotification.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DisputeNotification.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DisputeNotification.o"
+  },
+  "/Users/dardan/MTRX/UI/Notifications/InsuranceNotification.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/InsuranceNotification.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/InsuranceNotification.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/InsuranceNotification.o"
+  },
+  "/Users/dardan/MTRX/UI/Notifications/LiquidationNotification.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LiquidationNotification.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LiquidationNotification.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LiquidationNotification.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Account/AccountView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AccountView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AccountView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AccountView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Account/PrivacyView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PrivacyView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PrivacyView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PrivacyView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Account/SettingsView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SettingsView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SettingsView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SettingsView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Account/SubscriptionStatusView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionStatusView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionStatusView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionStatusView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Account/SubscriptionView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SubscriptionView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Account/UpgradeView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/UpgradeView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/UpgradeView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/UpgradeView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Account/WalletView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WalletView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WalletView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/WalletView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Agent/AgentConversationView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentConversationView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentConversationView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentConversationView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Agent/AgentConversationViewModel.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentConversationViewModel.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentConversationViewModel.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/AgentConversationViewModel.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Build/BuildView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BuildView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BuildView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/BuildView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Build/ContractView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Build/DAOView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DAOView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DAOView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DAOView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Discover/DiscoverView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DiscoverView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DiscoverView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DiscoverView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Discover/FundraiserView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FundraiserView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FundraiserView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/FundraiserView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Discover/MarketplaceView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MarketplaceView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MarketplaceView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MarketplaceView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Home/DashboardView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DashboardView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DashboardView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/DashboardView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Home/ExploreToggle.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExploreToggle.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExploreToggle.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ExploreToggle.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Launch/LaunchView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LaunchView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LaunchView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/LaunchView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Notifications/NotificationCenterView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NotificationCenterView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NotificationCenterView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/NotificationCenterView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Onboarding/OnboardingView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OnboardingView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OnboardingView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/OnboardingView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Search/SearchView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SearchView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SearchView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SearchView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Social/GovernanceView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GovernanceView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GovernanceView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GovernanceView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Social/MessagingView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MessagingView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MessagingView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/MessagingView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Social/SocialView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SocialView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SocialView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SocialView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Wallet/ReceiveView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ReceiveView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ReceiveView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ReceiveView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Wallet/SendView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SendView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SendView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SendView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Wallet/StakingView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StakingView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StakingView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/StakingView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Wallet/SwapView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SwapView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SwapView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/SwapView.o"
+  },
+  "/Users/dardan/MTRX/UI/Views/Wallet/TokenDetailView.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TokenDetailView.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TokenDetailView.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/TokenDetailView.o"
+  },
+  "/Users/dardan/MTRX/UI/Widgets/ContractsWidget.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractsWidget.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractsWidget.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/ContractsWidget.o"
+  },
+  "/Users/dardan/MTRX/UI/Widgets/PaymentsWidget.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PaymentsWidget.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PaymentsWidget.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PaymentsWidget.o"
+  },
+  "/Users/dardan/MTRX/UI/Widgets/PortfolioWidget.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PortfolioWidget.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PortfolioWidget.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PortfolioWidget.o"
+  },
+  "/Users/dardan/MTRX/UI/Widgets/PositionsWidget.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PositionsWidget.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PositionsWidget.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/PositionsWidget.o"
+  },
+  "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/dardan/MTRX/build/MTRX.build/Release-iphoneos/MTRX.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}

@@ -2,7 +2,7 @@
 // MTRX Apple Integration — Awareness
 // Trinity adapts behavior based on user's Focus mode
 
-import Intents
+import AppIntents
 
 // MARK: - Trinity Focus Filter
 

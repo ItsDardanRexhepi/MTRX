@@ -28,6 +28,21 @@ struct AgentConversationView: View {
                 // Agent header
                 agentHeader
 
+                // Offline indicator
+                if viewModel.isOffline {
+                    HStack(spacing: Spacing.xs) {
+                        Image(systemName: "wifi.slash")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("Running locally")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, Spacing.md)
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial)
+                }
+
                 // Messages
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -102,7 +117,7 @@ struct AgentConversationView: View {
     private func scrollToBottom(proxy: ScrollViewProxy, anchor: UnitPoint = .bottom) {
         if let last = viewModel.messages.last {
             withAnimation(Motion.springSnappy) {
-                proxy.scrollTo(viewModel.isTyping ? "typingIndicator" : last.id, anchor: anchor)
+                proxy.scrollTo(viewModel.isTyping ? AnyHashable("typingIndicator") : AnyHashable(last.id), anchor: anchor)
             }
         }
     }

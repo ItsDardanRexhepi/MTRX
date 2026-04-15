@@ -11,7 +11,7 @@ import Combine
 
 protocol GamingDelegate: AnyObject {
     func gaming(_ manager: GamingManager, gameRegistered game: GameRegistration)
-    func gaming(_ manager: GamingManager, vettingAdvanced game: GameRegistration, stage: VettingStage)
+    func gaming(_ manager: GamingManager, vettingAdvanced game: GameRegistration, stage: GamingVettingStage)
     func gaming(_ manager: GamingManager, milestoneFunded milestone: FundingMilestone)
     func gaming(_ manager: GamingManager, revenueDistributed share: RevenueShare)
     func gaming(_ manager: GamingManager, assetMinted asset: GameAssetERC1155)
@@ -23,15 +23,15 @@ enum GameStatus: String, Codable, CaseIterable {
     case submitted, underReview, approved, rejected, live, suspended
 }
 
-enum VettingStage: Int, Codable, CaseIterable {
+enum GamingVettingStage: Int, Codable, CaseIterable {
     case technicalAudit = 0
     case contentReview = 1
     case complianceCheck = 2
     case communityFeedback = 3
     case finalApproval = 4
 
-    var next: VettingStage? {
-        VettingStage(rawValue: rawValue + 1)
+    var next: GamingVettingStage? {
+        GamingVettingStage(rawValue: rawValue + 1)
     }
 }
 
@@ -42,7 +42,7 @@ struct GameRegistration: Identifiable, Codable {
     let metadataURI: String
     let submissionTimestamp: Date
     var status: GameStatus
-    var vettingStage: VettingStage?
+    var vettingStage: GamingVettingStage?
     var contractAddress: String?
 }
 

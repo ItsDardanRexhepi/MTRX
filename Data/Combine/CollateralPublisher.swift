@@ -130,7 +130,7 @@ struct CollateralThresholds {
 // MARK: - Morpheus Trigger
 
 /// Represents a trigger event for the Morpheus emergency system.
-struct MorpheusTrigger: Equatable {
+struct CollateralMorpheusTrigger: Equatable {
     let positionId: String
     let protocolName: String
     let healthFactor: Double
@@ -153,7 +153,7 @@ final class CollateralPublisher: ObservableObject {
     let alerts = PassthroughSubject<CollateralAlert, Never>()
 
     /// Morpheus emergency triggers for critically unhealthy positions.
-    let morpheusTriggers = PassthroughSubject<MorpheusTrigger, Never>()
+    let morpheusTriggers = PassthroughSubject<CollateralMorpheusTrigger, Never>()
 
     /// Aggregate health score across all positions (0.0 = critical, 1.0 = healthy).
     let aggregateHealth = CurrentValueSubject<Double, Never>(1.0)
@@ -285,7 +285,7 @@ final class CollateralPublisher: ObservableObject {
 
                 // Trigger Morpheus for critical positions
                 if position.healthFactor <= thresholds.morpheusTrigger {
-                    let trigger = MorpheusTrigger(
+                    let trigger = CollateralMorpheusTrigger(
                         positionId: position.id,
                         protocolName: position.protocolName,
                         healthFactor: position.healthFactor,

@@ -1,0 +1,40 @@
+{
+  "source": "/Users/dardan/MTRX/Core/Subscription/PlatformFeeDisclosure.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Platform Fee Disclosure",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 23
+        }
+      },
+      {
+        "comment": "",
+        "key": "NeoSafe: 0x46fF...8Ec5",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 47
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 66
+        }
+      },
+      {
+        "comment": "",
+        "key": "I Understand",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 57
+        }
+      }
+    ]
+  },
+  "version": 1
+}

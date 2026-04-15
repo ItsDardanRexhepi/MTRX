@@ -13,7 +13,7 @@ final class BuildViewModel: ObservableObject {
     // MARK: - Published State
 
     @Published var contracts: [ContractListItem] = []
-    @Published var templates: [ContractTemplate] = []
+    @Published var templates: [BuildContractTemplate] = []
     @Published var subscriptions: [SubscriptionItem] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
@@ -51,7 +51,7 @@ final class BuildViewModel: ObservableObject {
         try? await Task.sleep(nanoseconds: 1_000_000_000)
 
         contracts = ContractListItem.sampleData
-        templates = ContractTemplate.sampleData
+        templates = BuildContractTemplate.sampleData
         subscriptions = SubscriptionItem.sampleData
 
         isLoading = false
@@ -77,7 +77,7 @@ enum BuildSegment: String, CaseIterable {
 
 // MARK: - Contract Status
 
-enum ContractStatus: String {
+enum BuildContractStatus: String {
     case active = "Active"
     case pending = "Pending"
     case completed = "Completed"
@@ -656,7 +656,7 @@ struct ContractDetailView: View {
 // MARK: - Template Card View
 
 struct TemplateCardView: View {
-    let template: ContractTemplate
+    let template: BuildContractTemplate
     @State private var isPressed: Bool = false
 
     var body: some View {
@@ -793,7 +793,7 @@ struct ContractListItem: Identifiable {
     let counterparty: String
     let value: String
     let valueNumeric: Double
-    let status: ContractStatus
+    let status: BuildContractStatus
     let typeIcon: String
     let createdDate: String
     let actionLabel: String
@@ -857,22 +857,22 @@ struct ContractListItem: Identifiable {
     ]
 }
 
-struct ContractTemplate: Identifiable {
+struct BuildContractTemplate: Identifiable {
     let id = UUID()
     let name: String
     let description_: String
     let icon: String
     let accentColor: Color
 
-    static let sampleData: [ContractTemplate] = [
-        ContractTemplate(name: "Escrow", description_: "Milestone-based escrow with conditional release", icon: Symbols.escrow, accentColor: .accentPrimary),
-        ContractTemplate(name: "Freelance", description_: "Time or deliverable based freelance agreement", icon: Symbols.contract, accentColor: .statusInfo),
-        ContractTemplate(name: "Subscription", description_: "Recurring payment streams with auto-renewal", icon: Symbols.processing, accentColor: .purple),
-        ContractTemplate(name: "Revenue Share", description_: "Automatic revenue splitting between parties", icon: Symbols.chartPie, accentColor: .statusSuccess),
-        ContractTemplate(name: "Joint Ownership", description_: "Shared asset ownership with governance rules", icon: Symbols.property, accentColor: .orange),
-        ContractTemplate(name: "Loan Agreement", description_: "Collateralized lending with flexible terms", icon: Symbols.fee, accentColor: .accentTertiary),
-        ContractTemplate(name: "Fundraiser", description_: "Campaign-based fundraising with milestones", icon: Symbols.fundraiser, accentColor: .pink),
-        ContractTemplate(name: "DAO", description_: "Decentralized governance with treasury management", icon: Symbols.dao, accentColor: .accentSecondary),
+    static let sampleData: [BuildContractTemplate] = [
+        BuildContractTemplate(name: "Escrow", description_: "Milestone-based escrow with conditional release", icon: Symbols.escrow, accentColor: .accentPrimary),
+        BuildContractTemplate(name: "Freelance", description_: "Time or deliverable based freelance agreement", icon: Symbols.contract, accentColor: .statusInfo),
+        BuildContractTemplate(name: "Subscription", description_: "Recurring payment streams with auto-renewal", icon: Symbols.processing, accentColor: .purple),
+        BuildContractTemplate(name: "Revenue Share", description_: "Automatic revenue splitting between parties", icon: Symbols.chartPie, accentColor: .statusSuccess),
+        BuildContractTemplate(name: "Joint Ownership", description_: "Shared asset ownership with governance rules", icon: Symbols.property, accentColor: .orange),
+        BuildContractTemplate(name: "Loan Agreement", description_: "Collateralized lending with flexible terms", icon: Symbols.fee, accentColor: .accentTertiary),
+        BuildContractTemplate(name: "Fundraiser", description_: "Campaign-based fundraising with milestones", icon: Symbols.fundraiser, accentColor: .pink),
+        BuildContractTemplate(name: "DAO", description_: "Decentralized governance with treasury management", icon: Symbols.dao, accentColor: .accentSecondary),
     ]
 }
 

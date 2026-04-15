@@ -176,12 +176,14 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let listening = CPVoiceControlState(
             identifier: "listening",
             titleVariants: ["Listening..."],
-            image: UIImage(systemName: "mic.fill") ?? UIImage()
+            image: UIImage(systemName: "mic.fill") ?? UIImage(),
+            repeats: true
         )
         let processing = CPVoiceControlState(
             identifier: "processing",
             titleVariants: ["Processing..."],
-            image: UIImage(systemName: "brain") ?? UIImage()
+            image: UIImage(systemName: "brain") ?? UIImage(),
+            repeats: true
         )
         let template = CPVoiceControlTemplate(voiceControlStates: [listening, processing])
         interfaceController?.presentTemplate(template, animated: true, completion: nil)

@@ -551,7 +551,7 @@ final class MTRXPackager: @unchecked Sendable {
             )
         } else {
             return try package(
-                EmptyBody(),
+                PackagerEmptyBody(),
                 for: request.componentId,
                 method: request.method,
                 subpath: request.subpath,
@@ -1324,7 +1324,7 @@ final class MTRXPackager: @unchecked Sendable {
                                     ComponentRequest(
                                         componentId: op.componentId,
                                         method: HTTPMethod(rawValue: op.method) ?? .post,
-                                        body: op.bodyData.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }.map { AnyEncodableWrapper($0) },
+                                        body: op.bodyData.flatMap { try? JSONDecoder().decode([String: AnyCodableValue].self, from: $0) },
                                         idempotencyKey: op.idempotencyKey
                                     ),
                                     priority: .high
@@ -1363,7 +1363,7 @@ final class MTRXPackager: @unchecked Sendable {
         }
 
         return try package(
-            EmptyBody(),
+            PackagerEmptyBody(),
             for: componentId,
             method: .get,
             queryItems: queryItems
@@ -1373,7 +1373,7 @@ final class MTRXPackager: @unchecked Sendable {
     /// Build a GET request for a specific resource within a component.
     func buildDetailRequest(componentId: Int, resourceId: String) throws -> URLRequest {
         return try package(
-            EmptyBody(),
+            PackagerEmptyBody(),
             for: componentId,
             method: .get,
             subpath: resourceId
@@ -1383,7 +1383,7 @@ final class MTRXPackager: @unchecked Sendable {
     /// Build a DELETE request for a specific resource.
     func buildDeleteRequest(componentId: Int, resourceId: String) throws -> URLRequest {
         return try package(
-            EmptyBody(),
+            PackagerEmptyBody(),
             for: componentId,
             method: .delete,
             subpath: resourceId
@@ -1434,7 +1434,7 @@ final class MTRXPackager: @unchecked Sendable {
     /// wallet linking, dashboard reads, etc.
     func packageBridgeRequest<T: Encodable>(
         route: BridgeRoute,
-        body: T? = Optional<EmptyBody>.none,
+        body: T? = Optional<PackagerEmptyBody>.none,
         queryItems: [URLQueryItem]? = nil,
         idempotencyKey: String? = nil
     ) throws -> URLRequest {
@@ -1483,7 +1483,7 @@ final class MTRXPackager: @unchecked Sendable {
     ) throws -> URLRequest {
         return try packageBridgeRequest(
             route: route,
-            body: Optional<EmptyBody>.none,
+            body: Optional<PackagerEmptyBody>.none,
             queryItems: queryItems,
             idempotencyKey: idempotencyKey
         )
@@ -1672,13 +1672,13 @@ private struct AnyEncodableWrapper: Encodable {
     }
 }
 
-// MARK: - EmptyBody
+// MARK: - PackagerEmptyBody
 
 /// Placeholder body for GET/DELETE requests that still need to pass through
 /// the generic pipeline. Not marked `private` so the default-argument
 /// expression on ``MTRXPackager/packageBridgeRequest(route:body:queryItems:idempotencyKey:)``
 /// can reference it from outside this file.
-struct EmptyBody: Encodable {}
+struct PackagerEmptyBody: Encodable {}
 
 // MARK: - AnyCodableValue Extension
 

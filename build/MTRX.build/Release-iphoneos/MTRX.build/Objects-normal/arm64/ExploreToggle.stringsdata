@@ -1,0 +1,16 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Views/Home/ExploreToggle.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "View mode",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 33
+        }
+      }
+    ]
+  },
+  "version": 1
+}

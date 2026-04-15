@@ -95,7 +95,12 @@ final class ListIntentHandler: NSObject, INCreateTaskListIntentHandling {
                         INTask(
                             title: INSpeakableString(spokenPhrase: token),
                             status: .notCompleted,
-                            taskType: .notCompletable
+                            taskType: .notCompletable,
+                            spatialEventTrigger: nil,
+                            temporalEventTrigger: nil,
+                            createdDateComponents: nil,
+                            modifiedDateComponents: nil,
+                            identifier: nil
                         )
                     },
                     groupName: INSpeakableString(spokenPhrase: "MTRX Watchlists"),

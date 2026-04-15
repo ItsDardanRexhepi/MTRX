@@ -6,8 +6,8 @@
 // trial detection, and subscription lifecycle.
 //
 // Product IDs (configured in App Store Connect):
-//   com.opnmatrx.mtrx.pro.monthly        — Pro tier, 3-day free trial
-//   com.opnmatrx.mtrx.enterprise.monthly — Enterprise tier, 3-day free trial
+//   com.opnmatrx.mtrx.pro.monthly        — $4.99/month with 3-day free trial
+//   com.opnmatrx.mtrx.enterprise.monthly — $19.99/month with 3-day free trial
 //
 // Both paid tiers offer a 3-day introductory offer (free trial) configured
 // as a "Pay as you go" introductory offer in App Store Connect.
@@ -91,9 +91,12 @@ final class StoreKitManager {
 
     // MARK: Product IDs
 
+    static let proProductId = "com.opnmatrx.mtrx.pro.monthly"
+    static let enterpriseProductId = "com.opnmatrx.mtrx.enterprise.monthly"
+
     private let productIds: Set<String> = [
-        "com.opnmatrx.mtrx.pro.monthly",
-        "com.opnmatrx.mtrx.enterprise.monthly",
+        StoreKitManager.proProductId,
+        StoreKitManager.enterpriseProductId,
     ]
 
     // MARK: Transaction Listener
@@ -114,7 +117,7 @@ final class StoreKitManager {
     // MARK: - Load Products
 
     /// Load subscription products from the App Store.
-    func loadProducts() async throws {
+    func loadProductsThrowing() async throws {
         let storeProducts = try await Product.products(for: productIds)
         // Sort: Pro first, then Enterprise
         products = storeProducts.sorted { ($0.price as NSDecimalNumber).doubleValue < ($1.price as NSDecimalNumber).doubleValue }
@@ -271,6 +274,28 @@ final class StoreKitManager {
             }
         }
         return nil
+    }
+
+    // MARK: - Trial Purchase
+
+    /// Start a free trial for a product if the user is eligible.
+    @MainActor
+    func startTrialIfEligible(for productId: String) async {
+        guard let tier = tierForProductId(productId), let product = product(for: tier) else { return }
+        do {
+            _ = try await purchase(tier)
+        } catch {
+            print("Trial purchase failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Non-throwing product loader for convenience.
+    func loadProducts() async {
+        do {
+            try await loadProductsThrowing()
+        } catch {
+            print("Failed to load products: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Restore Purchases

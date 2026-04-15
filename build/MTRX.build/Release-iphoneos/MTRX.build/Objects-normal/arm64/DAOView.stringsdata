@@ -1,0 +1,168 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Views/Build/DAOView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Governance",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 264
+        }
+      },
+      {
+        "comment": "",
+        "key": "Past Proposals",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 356
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 360
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delegated To",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 507
+        }
+      },
+      {
+        "comment": "",
+        "key": "Voting Power",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 518
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delegate to Self",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 537
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%% For",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 670
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%% Against",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 677
+        }
+      },
+      {
+        "comment": "",
+        "key": "by %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 691
+        }
+      },
+      {
+        "comment": "",
+        "key": "Vote",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 698
+        }
+      },
+      {
+        "comment": "",
+        "key": "by %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 726
+        }
+      },
+      {
+        "comment": "",
+        "key": "#%lld",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 717
+        }
+      },
+      {
+        "comment": "",
+        "key": "#%lld",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 757
+        }
+      },
+      {
+        "comment": "",
+        "key": "Proposer",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 776
+        }
+      },
+      {
+        "comment": "",
+        "key": "Time Remaining",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 786
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your Vote Weight",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 857
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cast Vote",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 881
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 930
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld voted",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 938
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delegate",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 948
+        }
+      }
+    ]
+  },
+  "version": 1
+}

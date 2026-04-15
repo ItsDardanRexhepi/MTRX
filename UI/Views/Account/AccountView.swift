@@ -28,7 +28,7 @@ struct AccountView: View {
                 .padding(.top, Spacing.sm)
                 .padding(.bottom, Spacing.xxl)
             }
-            .background(MtrxGradientBackground(.primary))
+            .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Account")
             .navigationBarTitleDisplayMode(.inline)
             .refreshable {
@@ -46,9 +46,9 @@ struct AccountView: View {
             .navigationDestination(for: AccountNavDestination.self) { destination in
                 switch destination {
                 case .wallet:
-                    WalletView()
+                    AccountWalletView()
                 case .staking:
-                    StakingPlaceholderView()
+                    StakingView()
                 case .governance:
                     GovernanceView()
                 case .messaging:
@@ -60,7 +60,7 @@ struct AccountView: View {
                 case .subscription:
                     SubscriptionView()
                 case .notifications:
-                    NotificationCenterPlaceholderView()
+                    NotificationCenterView()
                 }
             }
         }
@@ -407,54 +407,6 @@ struct QuickActionCard: View {
             }
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Placeholder Views
-
-struct StakingPlaceholderView: View {
-    var body: some View {
-        ZStack {
-            MtrxGradientBackground(.primary)
-            VStack(spacing: Spacing.lg) {
-                Image(systemName: Symbols.stake)
-                    .font(.system(size: 48, weight: .light))
-                    .foregroundStyle(Color.accentPrimary)
-                Text("Staking & DeFi")
-                    .font(.mtrxTitle2)
-                    .foregroundStyle(Color.labelPrimary)
-                Text("Manage your staking positions, liquidity pools, and DeFi strategies.")
-                    .font(.mtrxBody)
-                    .foregroundStyle(Color.labelSecondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 280)
-            }
-        }
-        .navigationTitle("Staking & DeFi")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-struct NotificationCenterPlaceholderView: View {
-    var body: some View {
-        ZStack {
-            MtrxGradientBackground(.primary)
-            VStack(spacing: Spacing.lg) {
-                Image(systemName: Symbols.notification)
-                    .font(.system(size: 48, weight: .light))
-                    .foregroundStyle(Color.statusInfo)
-                Text("Notifications")
-                    .font(.mtrxTitle2)
-                    .foregroundStyle(Color.labelPrimary)
-                Text("Transaction alerts, governance updates, and social activity will appear here.")
-                    .font(.mtrxBody)
-                    .foregroundStyle(Color.labelSecondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 280)
-            }
-        }
-        .navigationTitle("Notifications")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

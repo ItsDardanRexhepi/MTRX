@@ -1,0 +1,192 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Views/Build/BuildView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Build",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 140
+        }
+      },
+      {
+        "comment": "",
+        "key": "Unlock Pro Features",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 330
+        }
+      },
+      {
+        "comment": "",
+        "key": "Get unlimited contracts, priority execution, and advanced analytics with MTRX Pro.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 334
+        }
+      },
+      {
+        "comment": "",
+        "key": "Upgrade to Pro",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 343
+        }
+      },
+      {
+        "comment": "",
+        "key": "Value",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 400
+        }
+      },
+      {
+        "comment": "",
+        "key": "Created",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 411
+        }
+      },
+      {
+        "comment": "",
+        "key": "Raise Dispute?",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 565
+        }
+      },
+      {
+        "comment": "",
+        "key": "Contract Value",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 474
+        }
+      },
+      {
+        "comment": "",
+        "key": "Milestones",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 486
+        }
+      },
+      {
+        "comment": "",
+        "key": "Milestone %lld",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 496
+        }
+      },
+      {
+        "comment": "",
+        "key": "$%lld",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 502
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sign Contract",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 526
+        }
+      },
+      {
+        "comment": "",
+        "key": "Execute Milestone",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 542
+        }
+      },
+      {
+        "comment": "",
+        "key": "View on Chain",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 549
+        }
+      },
+      {
+        "comment": "",
+        "key": "Raise Dispute",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 556
+        }
+      },
+      {
+        "comment": "",
+        "key": "Raise Dispute",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 566
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 569
+        }
+      },
+      {
+        "comment": "",
+        "key": "This will initiate a formal dispute process on-chain.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 571
+        }
+      },
+      {
+        "comment": "",
+        "key": "Use Template",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 615
+        }
+      },
+      {
+        "comment": "",
+        "key": "Renewal",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 664
+        }
+      },
+      {
+        "comment": "",
+        "key": "Usage",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 676
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%%",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 687
+        }
+      },
+      {
+        "comment": "",
+        "key": "Manage",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 698
+        }
+      }
+    ]
+  },
+  "version": 1
+}

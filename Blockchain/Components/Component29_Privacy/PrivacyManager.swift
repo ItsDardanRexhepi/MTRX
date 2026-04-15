@@ -44,11 +44,11 @@ struct ZKProof: Codable {
     let proofData: String
     let publicInputs: [String]
     let verificationKey: String
-    let proofType: ProofType
+    let proofType: ZKProofType
     let generatedAt: Date
 }
 
-enum ProofType: String, Codable {
+enum ZKProofType: String, Codable {
     case groth16, plonk, stark, bulletproofs
 }
 

@@ -39,13 +39,13 @@ struct AgentPayment {
     let amount: UInt64
     let token: String
     let purpose: String
-    let status: PaymentStatus
+    let status: AgenticPaymentStatus
     let authorizedAt: Date?
     let executedAt: Date?
     let transactionHash: String?
 }
 
-enum PaymentStatus: String {
+enum AgenticPaymentStatus: String {
     case pending, authorized, executed, rejected, failed, refunded
 }
 

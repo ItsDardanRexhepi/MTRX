@@ -124,6 +124,41 @@ enum Feature: String, CaseIterable {
     case prioritySupport              // Priority support channel
     case customComponentDev           // Custom component development
 
+    /// Human-readable display name for UI.
+    var displayName: String {
+        switch self {
+        case .contractConversions: return "Contract Conversions"
+        case .contractDeployments: return "Contract Deployments"
+        case .nftMints: return "NFT Mints"
+        case .nftCollections: return "NFT Collections"
+        case .monthlyLoanVolume: return "Monthly Loan Volume"
+        case .activeLoans: return "Active Loans"
+        case .marketplaceListings: return "Marketplace Listings"
+        case .insurancePolicies: return "Insurance Policies"
+        case .insuranceCoverage: return "Insurance Coverage"
+        case .governanceVotes: return "Governance Votes"
+        case .governanceProposals: return "Governance Proposals"
+        case .securitiesTrades: return "Securities Trades"
+        case .attestationsPerMonth: return "Attestations"
+        case .agentsRegistered: return "Agents Registered"
+        case .daosCreated: return "DAOs Created"
+        case .fundraisingCampaigns: return "Fundraising Campaigns"
+        case .rwaAssets: return "RWA Assets"
+        case .priorityTrinity: return "Priority Trinity"
+        case .extendedContextMemory: return "Extended Memory"
+        case .advancedDashboard: return "Advanced Dashboard"
+        case .customAgentSkills: return "Custom Skills"
+        case .earlyAccessComponents: return "Early Access"
+        case .teamAccounts: return "Team Accounts"
+        case .whiteLabelBranding: return "White Label"
+        case .advancedGovernanceTools: return "Governance Tools"
+        case .enterpriseAnalytics: return "Enterprise Analytics"
+        case .apiAccess: return "API Access"
+        case .prioritySupport: return "Priority Support"
+        case .customComponentDev: return "Custom Components"
+        }
+    }
+
     /// The minimum tier required to access this feature.
     var minimumTier: SubscriptionTier {
         switch self {

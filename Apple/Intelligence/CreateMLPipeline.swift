@@ -115,7 +115,7 @@ final class CreateMLPipeline {
         let outputURL = modelOutputDirectory.appendingPathComponent("TxClassifier_\(sessionId).mlmodel")
         try classifier.write(to: outputURL)
 
-        let compiledURL = try MLModel.compileModel(at: outputURL)
+        let compiledURL = try await MLModel.compileModel(at: outputURL)
         let modelConfig = MLModelConfiguration()
         modelConfig.computeUnits = .all
         return try MLModel(contentsOf: compiledURL, configuration: modelConfig)
@@ -152,7 +152,7 @@ final class CreateMLPipeline {
         let outputURL = modelOutputDirectory.appendingPathComponent("PricePredictor_\(sessionId).mlmodel")
         try regressor.write(to: outputURL)
 
-        let compiledURL = try MLModel.compileModel(at: outputURL)
+        let compiledURL = try await MLModel.compileModel(at: outputURL)
         return try MLModel(contentsOf: compiledURL)
     }
 
@@ -192,7 +192,7 @@ final class CreateMLPipeline {
         let outputURL = modelOutputDirectory.appendingPathComponent("IntentClassifier_\(sessionId).mlmodel")
         try classifier.write(to: outputURL)
 
-        let compiledURL = try MLModel.compileModel(at: outputURL)
+        let compiledURL = try await MLModel.compileModel(at: outputURL)
         return try MLModel(contentsOf: compiledURL)
     }
 

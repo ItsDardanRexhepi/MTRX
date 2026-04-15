@@ -66,7 +66,7 @@ enum CampaignFilter: String, CaseIterable, Identifiable {
 
 // MARK: - Campaign Status
 
-enum CampaignStatus: String {
+enum FundraiserCampaignStatus: String {
     case active    = "Active"
     case completed = "Completed"
 
@@ -97,7 +97,7 @@ struct Campaign: Identifiable {
     let goal: Double
     let backerCount: Int
     let daysRemaining: Int
-    let status: CampaignStatus
+    let status: FundraiserCampaignStatus
     let isOwnCampaign: Bool
     let milestones: [CampaignMilestone]
     let rewardTiers: [RewardTier]

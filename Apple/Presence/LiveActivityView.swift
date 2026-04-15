@@ -52,7 +52,7 @@ struct LockScreenLiveActivityView: View {
                 .fill(statusColor)
                 .frame(width: 12, height: 12)
                 .overlay {
-                    if context.state.status == .confirming {
+                    if context.state.status == "confirming" {
                         Circle()
                             .stroke(statusColor.opacity(0.5), lineWidth: 2)
                             .scaleEffect(1.5)
@@ -64,7 +64,7 @@ struct LockScreenLiveActivityView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
-                Text("\(context.state.amount) \(context.state.symbol)")
+                Text("\(context.state.amount) \(context.state.token)")
                     .font(.headline)
                     .fontWeight(.semibold)
             }
@@ -76,8 +76,8 @@ struct LockScreenLiveActivityView: View {
                     .font(.caption)
                     .foregroundStyle(statusColor)
 
-                if context.state.status == .confirming {
-                    Text("\(context.state.confirmations)/\(context.state.requiredConfirmations)")
+                if context.state.status == "confirming" {
+                    Text(context.state.currentStep)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -99,28 +99,22 @@ struct LockScreenLiveActivityView: View {
     }
 
     private var progress: Double {
-        guard context.state.requiredConfirmations > 0 else { return context.state.status == .confirmed ? 1.0 : 0.0 }
-        return Double(context.state.confirmations) / Double(context.state.requiredConfirmations)
+        context.state.progressPercent / 100.0
     }
 
     private var statusColor: Color {
         switch context.state.status {
-        case .pending: return .orange
-        case .confirming: return .blue
-        case .confirmed: return .green
-        case .failed: return .red
-        case .cancelled: return .gray
+        case "pending": return .orange
+        case "confirming": return .blue
+        case "confirmed": return .green
+        case "failed": return .red
+        case "cancelled": return .gray
+        default: return .gray
         }
     }
 
     private var statusLabel: String {
-        switch context.state.status {
-        case .pending: return "Pending"
-        case .confirming: return "Confirming"
-        case .confirmed: return "Confirmed"
-        case .failed: return "Failed"
-        case .cancelled: return "Cancelled"
-        }
+        context.state.status.capitalized
     }
 }
 
@@ -131,7 +125,7 @@ struct CompactLeadingView: View {
 
     var body: some View {
         Image(systemName: "arrow.triangle.2.circlepath")
-            .foregroundStyle(state.status == .confirmed ? .green : .blue)
+            .foregroundStyle(state.status == "confirmed" ? .green : .blue)
     }
 }
 
@@ -139,7 +133,7 @@ struct CompactTrailingView: View {
     let state: MTRXTransactionAttributes.ContentState
 
     var body: some View {
-        Text("\(state.confirmations)/\(state.requiredConfirmations)")
+        Text(state.currentStep)
             .font(.caption2)
             .fontWeight(.medium)
             .monospacedDigit()
@@ -150,8 +144,8 @@ struct MinimalView: View {
     let state: MTRXTransactionAttributes.ContentState
 
     var body: some View {
-        Image(systemName: state.status == .confirmed ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
-            .foregroundStyle(state.status == .confirmed ? .green : .blue)
+        Image(systemName: state.status == "confirmed" ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
+            .foregroundStyle(state.status == "confirmed" ? .green : .blue)
     }
 }
 
@@ -164,7 +158,7 @@ struct ExpandedLeadingView: View {
             Text(attributes.transactionType.capitalized)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            Text(attributes.chainName)
+            Text(attributes.transactionId)
                 .font(.caption)
                 .fontWeight(.medium)
         }
@@ -179,7 +173,7 @@ struct ExpandedTrailingView: View {
             Text("\(state.amount)")
                 .font(.headline)
                 .fontWeight(.bold)
-            Text(state.symbol)
+            Text(state.token)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -190,8 +184,8 @@ struct ExpandedCenterView: View {
     let state: MTRXTransactionAttributes.ContentState
 
     var body: some View {
-        if let counterparty = state.counterparty {
-            Text("To: \(counterparty)")
+        if !state.counterparty.isEmpty {
+            Text("To: \(state.counterparty)")
                 .font(.caption)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -210,14 +204,14 @@ struct ExpandedBottomView: View {
                     Capsule()
                         .fill(.quaternary)
                     Capsule()
-                        .fill(state.status == .confirmed ? .green : .blue)
+                        .fill(state.status == "confirmed" ? .green : .blue)
                         .frame(width: geometry.size.width * progress)
                 }
             }
             .frame(height: 4)
 
             HStack {
-                Text("\(state.confirmations) of \(state.requiredConfirmations) confirmations")
+                Text(state.currentStep)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
@@ -233,7 +227,6 @@ struct ExpandedBottomView: View {
     }
 
     private var progress: Double {
-        guard state.requiredConfirmations > 0 else { return state.status == .confirmed ? 1.0 : 0.0 }
-        return Double(state.confirmations) / Double(state.requiredConfirmations)
+        state.progressPercent / 100.0
     }
 }

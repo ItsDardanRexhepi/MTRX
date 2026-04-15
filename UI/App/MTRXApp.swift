@@ -193,8 +193,8 @@ class AppState: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var currentDestination: NavigationDestination?
     @Published var currentUserID: String = ""
-    @Published var displayName: String = ""
-    @Published var walletAddress: String = ""
+    @Published var displayName: String = DemoDataProvider.ensName
+    @Published var walletAddress: String = DemoDataProvider.walletAddress
     @Published var joinDate: Date = Date()
     @Published var notificationCount: Int = 0
 
@@ -226,11 +226,14 @@ class AppState: ObservableObject {
 
 class WalletManager: ObservableObject {
     @Published var isConnected: Bool = false
-    @Published var balance: Decimal = 0
-    @Published var tokens: [TokenBalance] = TokenBalance.sampleData
+    @Published var balance: Decimal = Decimal(DemoDataProvider.ethBalance * DemoDataProvider.ethPrice)
+    @Published var walletAddress: String = DemoDataProvider.walletAddress
+    @Published var ensName: String = DemoDataProvider.ensName
+    @Published var tokens: [AppTokenBalance] = AppTokenBalance.sampleData
     @Published var nfts: [NFTItem] = NFTItem.sampleData
     @Published var transactions: [TransactionItem] = TransactionItem.sampleData
     @Published var defiPositions: [DeFiPositionItem] = DeFiPositionItem.sampleData
+    @Published var needsRefresh: Bool = false
 
     var totalPortfolioValue: Double {
         tokens.reduce(0) { $0 + $1.valueUSD }
@@ -241,6 +244,10 @@ class WalletManager: ObservableObject {
 
     func reconnectIfNeeded() { }
     func persistState() { }
+
+    func refreshOnForeground() {
+        needsRefresh = true
+    }
 }
 
 // MARK: - Trinity Engine
@@ -251,7 +258,7 @@ class TrinityEngine: ObservableObject {
 
 // MARK: - Sample Data Models
 
-struct TokenBalance: Identifiable {
+struct AppTokenBalance: Identifiable {
     let id = UUID()
     let symbol: String
     let name: String
@@ -262,13 +269,13 @@ struct TokenBalance: Identifiable {
 
     var valueUSD: Double { balance * priceUSD }
 
-    static let sampleData: [TokenBalance] = [
-        TokenBalance(symbol: "ETH", name: "Ethereum", balance: 2.4531, priceUSD: 3245.67, change24h: 3.12, iconColor: .blue),
-        TokenBalance(symbol: "USDC", name: "USD Coin", balance: 1250.00, priceUSD: 1.00, change24h: 0.01, iconColor: .green),
-        TokenBalance(symbol: "MTRX", name: "Matrix Token", balance: 50000, priceUSD: 0.0234, change24h: 12.45, iconColor: .accentPrimary),
-        TokenBalance(symbol: "WBTC", name: "Wrapped Bitcoin", balance: 0.0521, priceUSD: 67890.12, change24h: -1.23, iconColor: .orange),
-        TokenBalance(symbol: "LINK", name: "Chainlink", balance: 125.5, priceUSD: 14.56, change24h: 5.67, iconColor: .blue),
-        TokenBalance(symbol: "UNI", name: "Uniswap", balance: 89.2, priceUSD: 7.82, change24h: -0.45, iconColor: .pink),
+    static let sampleData: [AppTokenBalance] = [
+        AppTokenBalance(symbol: "ETH", name: "Ethereum", balance: 2.4531, priceUSD: 3245.67, change24h: 3.12, iconColor: .blue),
+        AppTokenBalance(symbol: "USDC", name: "USD Coin", balance: 1250.00, priceUSD: 1.00, change24h: 0.01, iconColor: .green),
+        AppTokenBalance(symbol: "MTRX", name: "Matrix Token", balance: 50000, priceUSD: 0.0234, change24h: 12.45, iconColor: .accentPrimary),
+        AppTokenBalance(symbol: "WBTC", name: "Wrapped Bitcoin", balance: 0.0521, priceUSD: 67890.12, change24h: -1.23, iconColor: .orange),
+        AppTokenBalance(symbol: "LINK", name: "Chainlink", balance: 125.5, priceUSD: 14.56, change24h: 5.67, iconColor: .blue),
+        AppTokenBalance(symbol: "UNI", name: "Uniswap", balance: 89.2, priceUSD: 7.82, change24h: -0.45, iconColor: .pink),
     ]
 }
 

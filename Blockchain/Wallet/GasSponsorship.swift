@@ -29,7 +29,7 @@ struct SponsorshipPolicy: Codable {
     let allowedContracts: [String]?
     let allowedMethods: [String]?
     let userTier: UserTier
-    let isActive: Bool
+    var isActive: Bool
 }
 
 enum UserTier: String, Codable {

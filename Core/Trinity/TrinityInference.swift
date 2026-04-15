@@ -118,7 +118,7 @@ final class TrinityInference {
             try model.prediction(from: featureProvider)
         }.value
         let elapsedNs = DispatchTime.now().uptimeNanoseconds &- started.uptimeNanoseconds
-        let latencyMs = Int((Double(elapsedNs) / 1_000_000.0).rounded())
+        let latencyMs = Double(elapsedNs) / 1_000_000.0
 
         // Parse output features
         let output = parseOutput(prediction)

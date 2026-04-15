@@ -1,0 +1,124 @@
+{
+  "source": "/Users/dardan/MTRX/Apple/Awareness/FocusFilterHandler.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Trinity Focus Mode",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 12
+        }
+      },
+      {
+        "comment": "",
+        "key": "Adjust Trinity's behavior based on your Focus mode",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 13
+        }
+      },
+      {
+        "comment": "",
+        "key": "Trinity: %@",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 36
+        }
+      },
+      {
+        "comment": "",
+        "key": "Quiet Mode",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 37
+        }
+      },
+      {
+        "comment": "",
+        "key": "Allow Transaction Alerts"
+      },
+      {
+        "comment": "",
+        "key": "Allow Price Alerts"
+      },
+      {
+        "comment": "",
+        "key": "Persona Override"
+      },
+      {
+        "comment": "",
+        "key": "Alert Level",
+        "location": {
+          "startingColumn": 71,
+          "startingLine": 66
+        }
+      },
+      {
+        "comment": "",
+        "key": "Critical Only",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 68
+        }
+      },
+      {
+        "comment": "",
+        "key": "Important",
+        "location": {
+          "startingColumn": 21,
+          "startingLine": 69
+        }
+      },
+      {
+        "comment": "",
+        "key": "Normal",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 70
+        }
+      },
+      {
+        "comment": "",
+        "key": "All",
+        "location": {
+          "startingColumn": 15,
+          "startingLine": 71
+        }
+      },
+      {
+        "comment": "",
+        "key": "Persona",
+        "location": {
+          "startingColumn": 71,
+          "startingLine": 83
+        }
+      },
+      {
+        "comment": "",
+        "key": "Trinity",
+        "location": {
+          "startingColumn": 19,
+          "startingLine": 85
+        }
+      },
+      {
+        "comment": "",
+        "key": "Morpheus",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 86
+        }
+      },
+      {
+        "comment": "",
+        "key": "Oracle",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 87
+        }
+      }
+    ]
+  },
+  "version": 1
+}

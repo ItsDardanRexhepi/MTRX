@@ -195,7 +195,7 @@ struct NotificationCenterView: View {
 
     var body: some View {
         ZStack {
-            MtrxGradientBackground(.subtle)
+            MtrxGradientBackground(style: .subtle)
 
             VStack(spacing: 0) {
                 filterBar

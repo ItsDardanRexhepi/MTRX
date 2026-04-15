@@ -1,0 +1,32 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Components/MtrxComponents.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "%lld%%",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 556
+        }
+      },
+      {
+        "comment": "",
+        "key": "Try Again",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 670
+        }
+      },
+      {
+        "comment": "",
+        "key": "Something went wrong",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 660
+        }
+      }
+    ]
+  },
+  "version": 1
+}

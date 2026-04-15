@@ -8,10 +8,13 @@ import SwiftUI
 // MARK: - Token Detail View
 
 struct TokenDetailView: View {
-    let token: TokenBalance
+    let token: AppTokenBalance
 
-    @State private var selectedPeriod: ChartPeriod = .oneDay
+    @State private var isLoading: Bool = true
+    @State private var selectedPeriod: TokenChartPeriod = .oneDay
     @State private var showCopiedToast: Bool = false
+    @State private var showAlert: Bool = false
+    @State private var alertMessage: String = ""
 
     private let contractAddress = "0x4F9e...8B2c7D1a3E5f"
     private let avgBuyPrice = "$3,102.45"
@@ -19,16 +22,22 @@ struct TokenDetailView: View {
     // MARK: - Body
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: Spacing.sectionGap) {
-                priceHeaderSection
-                chartSection
-                holdingsCard
-                quickActionsRow
-                marketDataCard
-                recentTransactionsSection
+        Group {
+            if isLoading {
+                MtrxLoadingView(rows: 6)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: Spacing.sectionGap) {
+                        priceHeaderSection
+                        chartSection
+                        holdingsCard
+                        quickActionsRow
+                        marketDataCard
+                        recentTransactionsSection
+                    }
+                    .padding(.vertical, Spacing.contentPadding)
+                }
             }
-            .padding(.vertical, Spacing.contentPadding)
         }
         .background(MtrxGradientBackground(style: .primary))
         .navigationTitle(token.name)
@@ -38,6 +47,21 @@ struct TokenDetailView: View {
                 MtrxToast(message: "Address copied", icon: Symbols.copy, style: .success)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .padding(.bottom, Spacing.xl)
+            }
+        }
+        .alert("MTRX", isPresented: $showAlert) {
+            Button("OK") {}
+        } message: {
+            Text(alertMessage)
+        }
+        .onAppear {
+            Task {
+                try? await Task.sleep(for: .seconds(0.8))
+                await MainActor.run {
+                    withAnimation(Motion.springDefault) {
+                        isLoading = false
+                    }
+                }
             }
         }
     }
@@ -74,7 +98,7 @@ struct TokenDetailView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Spacing.sm) {
-                    ForEach(ChartPeriod.allCases) { period in
+                    ForEach(TokenChartPeriod.allCases) { period in
                         MtrxChip(
                             label: period.label,
                             isSelected: selectedPeriod == period
@@ -148,15 +172,18 @@ struct TokenDetailView: View {
         HStack(spacing: Spacing.xl) {
             quickActionButton(icon: Symbols.send, label: "Send") {
                 MtrxHaptics.impact(.medium)
-                print("Navigate to Send \(token.symbol)")
+                alertMessage = "Send \(token.symbol) flow coming soon"
+                showAlert = true
             }
             quickActionButton(icon: Symbols.receive, label: "Receive") {
                 MtrxHaptics.impact(.medium)
-                print("Navigate to Receive \(token.symbol)")
+                alertMessage = "Receive \(token.symbol) - share your wallet address"
+                showAlert = true
             }
             quickActionButton(icon: Symbols.swap, label: "Swap") {
                 MtrxHaptics.impact(.medium)
-                print("Navigate to Swap \(token.symbol)")
+                alertMessage = "Swap \(token.symbol) flow coming soon"
+                showAlert = true
             }
         }
         .frame(maxWidth: .infinity)
@@ -273,7 +300,8 @@ struct TokenDetailView: View {
     private var recentTransactionsSection: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             MtrxSectionHeader(title: "Recent Transactions", action: {
-                print("Navigate to all transactions")
+                alertMessage = "Full transaction history coming soon"
+                showAlert = true
             })
             .padding(.horizontal, Spacing.contentPadding)
 
@@ -282,7 +310,8 @@ struct TokenDetailView: View {
                     ForEach(Array(recentTxItems.enumerated()), id: \.element.id) { index, tx in
                         Button {
                             MtrxHaptics.selection()
-                            print("Navigate to transaction: \(tx.title)")
+                            alertMessage = "Transaction details: \(tx.title)"
+                            showAlert = true
                         } label: {
                             transactionRow(tx)
                         }
@@ -340,7 +369,7 @@ struct TokenDetailView: View {
 
 // MARK: - Chart Period
 
-private enum ChartPeriod: String, CaseIterable, Identifiable {
+private enum TokenChartPeriod: String, CaseIterable, Identifiable {
     case oneHour = "1H"
     case oneDay = "1D"
     case oneWeek = "1W"
@@ -427,7 +456,7 @@ private extension Date {
 
 #Preview {
     NavigationStack {
-        TokenDetailView(token: TokenBalance.sampleData[0])
+        TokenDetailView(token: AppTokenBalance.sampleData[0])
     }
     .preferredColorScheme(.dark)
 }

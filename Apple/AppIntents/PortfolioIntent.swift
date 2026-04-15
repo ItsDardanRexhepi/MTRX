@@ -37,7 +37,7 @@ struct PortfolioSummaryIntent: AppIntent {
         )
     }
 
-    private func formatPortfolioSummary(_ portfolio: PortfolioSnapshot) -> String {
+    private func formatPortfolioSummary(_ portfolio: IntentPortfolioSnapshot) -> String {
         var lines: [String] = []
         lines.append("Portfolio Value: $\(portfolio.totalValueUSD)")
         lines.append("24h Change: \(portfolio.changePercent24h >= 0 ? "+" : "")\(portfolio.changePercent24h)%")
@@ -136,7 +136,7 @@ enum PortfolioAlertType: String, AppEnum {
 
 // MARK: - Portfolio Data Models
 
-struct PortfolioSnapshot {
+struct IntentPortfolioSnapshot {
     let totalValueUSD: String
     let changePercent24h: Double
     let topHoldings: [TokenHolding]
@@ -155,8 +155,8 @@ struct TokenHolding {
 final class PortfolioAggregator {
     static let shared = PortfolioAggregator()
 
-    func fetchSummary(period: PortfolioPeriod, includeDeFi: Bool) async throws -> PortfolioSnapshot {
-        return PortfolioSnapshot(
+    func fetchSummary(period: PortfolioPeriod, includeDeFi: Bool) async throws -> IntentPortfolioSnapshot {
+        return IntentPortfolioSnapshot(
             totalValueUSD: "0.00",
             changePercent24h: 0.0,
             topHoldings: [],

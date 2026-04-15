@@ -89,7 +89,7 @@ final class AppAttestManager {
 
     /// Verifies a blockchain transaction by generating a device-bound assertion
     /// and sending it alongside the transaction to the MTRX backend.
-    func verifyTransaction(_ transaction: MTRXTransaction) async throws -> AttestationResult {
+    func verifyTransaction(_ transaction: MTRXTransaction) async throws -> AppAttestResult {
         let request = TransactionAssertionRequest(
             transactionId: transaction.id,
             chainId: transaction.chainId,
@@ -148,7 +148,7 @@ struct MTRXTransaction {
 
 // MARK: - Attestation Result
 
-struct AttestationResult {
+struct AppAttestResult {
     let isValid: Bool
     let riskAssessment: RiskAssessment
     let serverTimestamp: Date
@@ -163,9 +163,9 @@ struct AttestationResult {
 final class MTRXAttestationAPI {
     static let shared = MTRXAttestationAPI()
 
-    func submitAssertion(keyId: String, assertion: String, request: TransactionAssertionRequest) async throws -> AttestationResult {
+    func submitAssertion(keyId: String, assertion: String, request: TransactionAssertionRequest) async throws -> AppAttestResult {
         // Server-side verification with Apple's attestation infrastructure
-        return AttestationResult(
+        return AppAttestResult(
             isValid: true,
             riskAssessment: .low,
             serverTimestamp: Date()

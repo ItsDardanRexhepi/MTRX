@@ -1,3 +1,4 @@
+import SwiftUI
 import ManagedSettings
 import FamilyControls
 import DeviceActivity

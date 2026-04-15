@@ -1,0 +1,272 @@
+{
+  "source": "/Users/dardan/MTRX/Core/Networking/DemoDataProvider.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Time Period",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Include DeFi Positions",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Token Symbol",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Token Symbol",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Alert Type",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Threshold Value",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Transaction Type",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Recipient Address",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Amount",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Token",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Network",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Token",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Spender Contract",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Amount (0 = unlimited)",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Count",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Network",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Question",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 123
+        }
+      },
+      {
+        "comment": "",
+        "key": "Persona",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 127
+        }
+      },
+      {
+        "comment": "",
+        "key": "Recipient",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 153
+        }
+      },
+      {
+        "comment": "",
+        "key": "Amount",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 156
+        }
+      },
+      {
+        "comment": "",
+        "key": "Token",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 158
+        }
+      },
+      {
+        "comment": "",
+        "key": "Network",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "From Token",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "To Token",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Amount",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Token",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Amount",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Protocol",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Alert Level",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Allow Transaction Alerts",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Allow Price Alerts",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Quiet Mode",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Persona Override",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 188
+        }
+      }
+    ]
+  },
+  "version": 1
+}

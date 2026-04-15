@@ -1,0 +1,24 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Views/Launch/LaunchView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "MTRX",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 86
+        }
+      },
+      {
+        "comment": "",
+        "key": "M",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 72
+        }
+      }
+    ]
+  },
+  "version": 1
+}

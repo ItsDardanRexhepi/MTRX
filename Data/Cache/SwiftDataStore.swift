@@ -102,7 +102,7 @@ final class SwiftDataStore: ObservableObject {
 
     /// Inserts a model and saves immediately.
     func insert<T: PersistentModel>(_ model: T) throws {
-        guard let ctx = mainContext else { throw StoreError.notReady }
+        guard let ctx = mainContext else { throw DataStoreError.notReady }
         ctx.insert(model)
         try ctx.save()
         Task { await refreshCounts() }
@@ -110,7 +110,7 @@ final class SwiftDataStore: ObservableObject {
 
     /// Deletes a model and saves immediately.
     func delete<T: PersistentModel>(_ model: T) throws {
-        guard let ctx = mainContext else { throw StoreError.notReady }
+        guard let ctx = mainContext else { throw DataStoreError.notReady }
         ctx.delete(model)
         try ctx.save()
         Task { await refreshCounts() }
@@ -118,13 +118,13 @@ final class SwiftDataStore: ObservableObject {
 
     /// Fetches models matching a descriptor on the main context.
     func fetch<T: PersistentModel>(_ descriptor: FetchDescriptor<T>) throws -> [T] {
-        guard let ctx = mainContext else { throw StoreError.notReady }
+        guard let ctx = mainContext else { throw DataStoreError.notReady }
         return try ctx.fetch(descriptor)
     }
 
     /// Saves any pending changes on the main context.
     func save() throws {
-        guard let ctx = mainContext else { throw StoreError.notReady }
+        guard let ctx = mainContext else { throw DataStoreError.notReady }
         try ctx.save()
     }
 
@@ -132,7 +132,7 @@ final class SwiftDataStore: ObservableObject {
 
     /// Performs a batch insert on a background context and merges changes.
     func batchInsert<T: PersistentModel>(_ models: [T]) async throws {
-        guard let ctx = backgroundContext() else { throw StoreError.notReady }
+        guard let ctx = backgroundContext() else { throw DataStoreError.notReady }
         for model in models {
             ctx.insert(model)
         }
@@ -143,7 +143,7 @@ final class SwiftDataStore: ObservableObject {
     /// Deletes all records of a given type.  **Destructive** — intended for
     /// developer tools and account-reset flows only.
     func deleteAll<T: PersistentModel>(ofType type: T.Type) async throws {
-        guard let ctx = backgroundContext() else { throw StoreError.notReady }
+        guard let ctx = backgroundContext() else { throw DataStoreError.notReady }
         let descriptor = FetchDescriptor<T>()
         let records = try ctx.fetch(descriptor)
         for record in records {
@@ -164,7 +164,7 @@ final class SwiftDataStore: ObservableObject {
     /// Prunes Trinity memories whose effective confidence has dropped below
     /// their category threshold.
     func pruneTrinityMemories() async throws {
-        guard let ctx = backgroundContext() else { throw StoreError.notReady }
+        guard let ctx = backgroundContext() else { throw DataStoreError.notReady }
         let candidates = try ctx.fetch(TrinityMemoryRecord.pruningCandidates())
         for memory in candidates where memory.shouldPrune {
             memory.deactivate()
@@ -214,7 +214,7 @@ final class SwiftDataStore: ObservableObject {
 
     /// Destroys all local data. Used during sign-out and account deletion.
     func resetAllData() async throws {
-        guard let ctx = backgroundContext() else { throw StoreError.notReady }
+        guard let ctx = backgroundContext() else { throw DataStoreError.notReady }
 
         let users = try ctx.fetch(FetchDescriptor<UserProfile>())
         users.forEach { ctx.delete($0) }
@@ -235,7 +235,7 @@ final class SwiftDataStore: ObservableObject {
 
 // MARK: - Store Error
 
-enum StoreError: LocalizedError {
+enum DataStoreError: LocalizedError {
     case notReady
     case migrationFailed(String)
     case corruptedData

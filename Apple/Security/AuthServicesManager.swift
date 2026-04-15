@@ -140,7 +140,7 @@ extension AuthServicesManager: ASAuthorizationControllerDelegate {
                 fullName: nil,
                 identityToken: nil,
                 authorizationCode: nil,
-                realUserStatus: .unknown,
+                realUserStatus: .unsupported,
                 isPrivateRelay: false
             )
             authContinuation?.resume(returning: result)
@@ -166,7 +166,7 @@ struct AppleSignInResult {
     let fullName: PersonNameComponents?
     let identityToken: Data?
     let authorizationCode: Data?
-    let realUserStatus: ASAuthorizationAppleIDProvider.CredentialState
+    let realUserStatus: ASUserDetectionStatus
     let isPrivateRelay: Bool
 
     var identityTokenString: String? {
@@ -179,7 +179,7 @@ struct AppleSignInResult {
         return String(data: code, encoding: .utf8)
     }
 
-    init(userId: String, email: String?, fullName: PersonNameComponents?, identityToken: Data?, authorizationCode: Data?, realUserStatus: ASAuthorizationAppleIDProvider.CredentialState, isPrivateRelay: Bool) {
+    init(userId: String, email: String?, fullName: PersonNameComponents?, identityToken: Data?, authorizationCode: Data?, realUserStatus: ASUserDetectionStatus, isPrivateRelay: Bool) {
         self.userId = userId
         self.email = email
         self.fullName = fullName

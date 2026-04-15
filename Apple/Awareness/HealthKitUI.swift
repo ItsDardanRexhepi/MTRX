@@ -125,7 +125,7 @@ struct HealthMetricCard: View {
     let unit: String
     let icon: String
     let color: Color
-    let trend: MetricTrend
+    let trend: HealthMetricTrend
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -350,7 +350,7 @@ struct ContextAdjustmentRow: View {
 
 // MARK: - Metric Trend
 
-struct MetricTrend {
+struct HealthMetricTrend {
     let direction: Direction
     let description: String
 
@@ -384,8 +384,8 @@ final class HealthDashboardViewModel: ObservableObject {
     @Published var sleepSummary: HealthKitManager.SleepSummary?
     @Published var activitySummary: HealthKitManager.ActivitySummary?
     @Published var stressLevel: HealthKitManager.StressLevel = .low
-    @Published var heartRateTrend = MetricTrend(direction: .stable, description: "Stable")
-    @Published var hrvTrend = MetricTrend(direction: .stable, description: "Stable")
+    @Published var heartRateTrend = HealthMetricTrend(direction: .stable, description: "Stable")
+    @Published var hrvTrend = HealthMetricTrend(direction: .stable, description: "Stable")
     @Published var latestSnapshot: HealthKitManager.HealthSnapshot?
 
     func loadData() async {

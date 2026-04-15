@@ -1,0 +1,48 @@
+{
+  "source": "/Users/dardan/MTRX/UI/App/MTRXApp.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Discover",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 122
+        }
+      },
+      {
+        "comment": "",
+        "key": "Build",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 128
+        }
+      },
+      {
+        "comment": "",
+        "key": "Home",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 134
+        }
+      },
+      {
+        "comment": "",
+        "key": "Social",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 140
+        }
+      },
+      {
+        "comment": "",
+        "key": "Account",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 146
+        }
+      }
+    ]
+  },
+  "version": 1
+}

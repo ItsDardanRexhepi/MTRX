@@ -26,7 +26,7 @@ struct InsurancePolicy: Identifiable, Codable {
     let startDate: Date
     let endDate: Date
     var status: PolicyStatus
-    let triggerConditions: [TriggerCondition]
+    let triggerConditions: [InsuranceTriggerCondition]
     let contractAddress: String?
 }
 
@@ -38,7 +38,7 @@ enum PolicyStatus: String, Codable {
     case pending, active, claimFiled, claimApproved, paidOut, expired, cancelled
 }
 
-struct TriggerCondition: Codable {
+struct InsuranceTriggerCondition: Codable {
     let parameter: String
     let comparison: ComparisonOp
     let threshold: Double
@@ -117,7 +117,7 @@ final class InsuranceManager: ObservableObject {
 
     // MARK: - Policy Management
 
-    func createPolicy(holder: String, type: PolicyType, coverage: Double, premium: Double, premiumToken: String, duration: TimeInterval, conditions: [TriggerCondition]) async throws -> InsurancePolicy {
+    func createPolicy(holder: String, type: PolicyType, coverage: Double, premium: Double, premiumToken: String, duration: TimeInterval, conditions: [InsuranceTriggerCondition]) async throws -> InsurancePolicy {
         guard premium >= coverage * 0.001 else {
             throw InsuranceError.premiumInsufficient
         }
@@ -220,14 +220,14 @@ final class InsuranceManager: ObservableObject {
 
     // MARK: - Oracle Monitoring
 
-    func checkTriggerConditions(policyId: String, oracleValue: Double) -> Bool {
+    func checkInsuranceTriggerConditions(policyId: String, oracleValue: Double) -> Bool {
         guard let policy = policyStore[policyId] else { return false }
         return policy.triggerConditions.contains { evaluateCondition($0, actualValue: oracleValue) }
     }
 
     // MARK: - Private
 
-    private func evaluateCondition(_ condition: TriggerCondition, actualValue: Double) -> Bool {
+    private func evaluateCondition(_ condition: InsuranceTriggerCondition, actualValue: Double) -> Bool {
         switch condition.comparison {
         case .greaterThan: return actualValue > condition.threshold
         case .lessThan: return actualValue < condition.threshold

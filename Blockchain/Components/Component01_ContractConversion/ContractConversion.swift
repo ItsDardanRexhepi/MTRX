@@ -14,7 +14,7 @@ protocol ContractConversionDelegate: AnyObject {
 
 protocol LegalParserProvider {
     func parseAgreement(_ text: String) -> [LegalClause]
-    func extractParties(_ text: String) -> [ContractParty]
+    func extractParties(_ text: String) -> [ConversionContractParty]
     func identifyTerms(_ text: String) -> [ContractTerm]
 }
 
@@ -43,7 +43,7 @@ enum ConditionOperator: String {
     case equals, greaterThan, lessThan, before, after, contains
 }
 
-struct ContractParty {
+struct ConversionContractParty {
     let name: String
     let role: String
     let address: String?
@@ -60,7 +60,7 @@ struct ContractTerm {
 struct SmartContractSpec {
     let contractId: String
     let sourceAgreement: String
-    let parties: [ContractParty]
+    let parties: [ConversionContractParty]
     let clauses: [ConvertedClause]
     let deploymentConfig: DeploymentConfig
     let createdAt: Date

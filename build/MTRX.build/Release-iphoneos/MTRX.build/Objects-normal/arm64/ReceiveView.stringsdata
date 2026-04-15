@@ -1,0 +1,48 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Views/Wallet/ReceiveView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "M",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 79
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your %@ Address",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 111
+        }
+      },
+      {
+        "comment": "",
+        "key": "Network",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 154
+        }
+      },
+      {
+        "comment": "",
+        "key": "Only send supported tokens on %@ to this address",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Share Address",
+        "location": {
+          "startingColumn": 19,
+          "startingLine": 204
+        }
+      }
+    ]
+  },
+  "version": 1
+}

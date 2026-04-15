@@ -137,6 +137,10 @@ enum DiscoverCategory: String, CaseIterable {
 struct DiscoverView: View {
     @StateObject private var viewModel = DiscoverViewModel()
     @State private var autoAdvanceTimer: Timer?
+    @State private var showAlert = false
+    @State private var alertTitle = ""
+    @State private var alertMessage = ""
+    @State private var selectedFeaturedItem: FeaturedItem?
 
     var body: some View {
         NavigationStack {
@@ -157,6 +161,9 @@ struct DiscoverView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         MtrxHaptics.impact(.light)
+                        alertTitle = "Filters"
+                        alertMessage = "Advanced filters coming soon"
+                        showAlert = true
                     } label: {
                         Image(systemName: Symbols.filter)
                             .foregroundStyle(Color.accentPrimary)
@@ -170,6 +177,51 @@ struct DiscoverView: View {
         }
         .onDisappear {
             stopAutoAdvance()
+        }
+        .alert(alertTitle, isPresented: $showAlert) {
+            Button("OK") {}
+        } message: {
+            Text(alertMessage)
+        }
+        .sheet(item: $selectedFeaturedItem) { item in
+            NavigationStack {
+                ScrollView {
+                    VStack(spacing: Spacing.sectionGap) {
+                        RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous)
+                            .fill(item.gradient)
+                            .frame(height: 200)
+                            .overlay {
+                                VStack {
+                                    MtrxBadge(text: item.badge, style: .accent)
+                                    Spacer()
+                                }
+                                .padding(Spacing.lg)
+                            }
+                            .padding(.horizontal, Spacing.contentPadding)
+
+                        VStack(spacing: Spacing.sm) {
+                            Text(item.title)
+                                .font(.mtrxTitle1)
+                                .foregroundStyle(Color.labelPrimary)
+                            Text(item.subtitle)
+                                .font(.mtrxBody)
+                                .foregroundStyle(Color.labelSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.horizontal, Spacing.contentPadding)
+                    }
+                    .padding(.top, Spacing.md)
+                }
+                .background(MtrxGradientBackground(style: .primary))
+                .navigationTitle(item.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { selectedFeaturedItem = nil }
+                    }
+                }
+            }
+            .presentationDetents([.large])
         }
     }
 
@@ -264,7 +316,9 @@ struct DiscoverView: View {
             } else {
                 TabView(selection: $viewModel.currentFeaturedIndex) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        FeaturedCardView(item: item)
+                        FeaturedCardView(item: item, onExplore: {
+                            selectedFeaturedItem = item
+                        })
                             .padding(.horizontal, Spacing.contentPadding)
                             .tag(index)
                     }
@@ -294,6 +348,9 @@ struct DiscoverView: View {
         return VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
             MtrxSectionHeader(title: "Trending", action: {
                 MtrxHaptics.impact(.light)
+                alertTitle = "Trending"
+                alertMessage = "Showing all trending listings"
+                showAlert = true
             })
             .padding(.horizontal, Spacing.contentPadding)
 
@@ -328,6 +385,9 @@ struct DiscoverView: View {
         return VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
             MtrxSectionHeader(title: "Active Fundraisers", action: {
                 MtrxHaptics.impact(.light)
+                alertTitle = "Fundraisers"
+                alertMessage = "Showing all active fundraisers"
+                showAlert = true
             })
             .padding(.horizontal, Spacing.contentPadding)
 
@@ -335,7 +395,11 @@ struct DiscoverView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: Spacing.md) {
                         ForEach(fundraisers) { fundraiser in
-                            FundraiserCardView(fundraiser: fundraiser)
+                            FundraiserCardView(fundraiser: fundraiser, onBack: {
+                                alertTitle = fundraiser.title
+                                alertMessage = "Backing \(fundraiser.title) - contribution flow coming soon"
+                                showAlert = true
+                            })
                         }
                     }
                     .padding(.horizontal, Spacing.contentPadding)
@@ -577,6 +641,7 @@ struct DiscoverView: View {
 
 struct FeaturedCardView: View {
     let item: FeaturedItem
+    var onExplore: (() -> Void)? = nil
     @State private var parallaxOffset: CGFloat = 0
 
     var body: some View {
@@ -635,6 +700,7 @@ struct FeaturedCardView: View {
 
                     Button {
                         MtrxHaptics.impact(.medium)
+                        onExplore?()
                     } label: {
                         Text("Explore")
                     }
@@ -706,6 +772,7 @@ struct TrendingListingRow: View {
 
 struct FundraiserCardView: View {
     let fundraiser: FundraiserItem
+    var onBack: (() -> Void)? = nil
     @State private var isPressed: Bool = false
 
     var body: some View {
@@ -772,6 +839,7 @@ struct FundraiserCardView: View {
 
                     Button {
                         MtrxHaptics.impact(.medium)
+                        onBack?()
                     } label: {
                         Text("Back")
                     }

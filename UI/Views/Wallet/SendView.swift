@@ -17,8 +17,10 @@ struct SendView: View {
     @State private var showReview: Bool = false
     @State private var isVisible: Bool = false
     @State private var showTokenPicker: Bool = false
+    @State private var showQRAlert: Bool = false
+    @State private var showSendConfirmation: Bool = false
 
-    private var selectedToken: TokenBalance {
+    private var selectedToken: AppTokenBalance {
         guard walletManager.tokens.indices.contains(selectedTokenIndex) else {
             return walletManager.tokens[0]
         }
@@ -72,6 +74,16 @@ struct SendView: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
+        .alert("QR Scanner", isPresented: $showQRAlert) {
+            Button("OK") {}
+        } message: {
+            Text("QR Scanner requires camera permission. Paste an address instead.")
+        }
+        .alert("Transaction Sent", isPresented: $showSendConfirmation) {
+            Button("Done") { dismiss() }
+        } message: {
+            Text("Successfully sent \(amountText) \(selectedToken.symbol)")
+        }
     }
 
     // MARK: - Form Section
@@ -212,7 +224,7 @@ struct SendView: View {
 
                 Button {
                     MtrxHaptics.impact(.light)
-                    print("[MTRX] QR scanner tapped")
+                    showQRAlert = true
                 } label: {
                     Image(systemName: Symbols.qrScanner)
                         .font(.system(size: 14, weight: .medium))
@@ -341,8 +353,7 @@ struct SendView: View {
             VStack(spacing: Spacing.ms) {
                 Button {
                     MtrxHaptics.success()
-                    print("[MTRX] Send confirmed: \(amountText) \(selectedToken.symbol) to \(recipientAddress)")
-                    dismiss()
+                    showSendConfirmation = true
                 } label: {
                     Text("Confirm & Send")
                 }

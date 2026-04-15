@@ -1,0 +1,128 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Views/Account/SubscriptionView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Subscription",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 92
+        }
+      },
+      {
+        "comment": "",
+        "key": "Renews May 10, 2026",
+        "location": {
+          "startingColumn": 47,
+          "startingLine": 134
+        }
+      },
+      {
+        "comment": "",
+        "key": "Upgrade for premium features",
+        "location": {
+          "startingColumn": 71,
+          "startingLine": 134
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld/%lld contracts used",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 145
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%%",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 151
+        }
+      },
+      {
+        "comment": "",
+        "key": "Current Plan",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 242
+        }
+      },
+      {
+        "comment": "",
+        "key": "Upgrade",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 252
+        }
+      },
+      {
+        "comment": "",
+        "key": "Subscribe",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 266
+        }
+      },
+      {
+        "comment": "",
+        "key": "Try Pro Free for 3 Days",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 292
+        }
+      },
+      {
+        "comment": "",
+        "key": "No charge until trial ends",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 296
+        }
+      },
+      {
+        "comment": "",
+        "key": "Start Free Trial",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 307
+        }
+      },
+      {
+        "comment": "",
+        "key": "Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. Payment will be charged to your Apple ID account. You can manage and cancel your subscriptions in your App Store account settings.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 334
+        }
+      },
+      {
+        "comment": "",
+        "key": "Restore Purchases",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 343
+        }
+      },
+      {
+        "comment": "",
+        "key": "View Plans",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 398
+        }
+      },
+      {
+        "comment": "",
+        "key": "Maybe Later",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 403
+        }
+      }
+    ]
+  },
+  "version": 1
+}

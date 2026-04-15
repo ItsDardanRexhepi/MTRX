@@ -28,7 +28,7 @@ struct DAOConfig {
     let createdAt: Date
 }
 
-struct Proposal {
+struct DAOProposal {
     let proposalId: String
     let daoId: String
     let proposer: String
@@ -38,7 +38,7 @@ struct Proposal {
     let votesFor: UInt64
     let votesAgainst: UInt64
     let votesAbstain: UInt64
-    let status: ProposalStatus
+    let status: DAOProposalStatus
     let createdAt: Date
     let votingEndsAt: Date
     let executionETA: Date?
@@ -51,7 +51,7 @@ struct ProposalAction {
     let description: String
 }
 
-enum ProposalStatus: String {
+enum DAOProposalStatus: String {
     case pending, active, defeated, succeeded, queued, executed, canceled, expired
 }
 
@@ -100,7 +100,7 @@ final class DAOManager {
 
     private let erc4337Manager: ERC4337Manager
     private var daos: [String: DAOConfig] = [:]
-    private var proposals: [String: Proposal] = [:]
+    private var proposals: [String: DAOProposal] = [:]
     private var votes: [String: [Vote]] = [:] // proposalId -> votes
     private let processingQueue = DispatchQueue(label: "com.mtrx.dao", qos: .userInitiated)
 
@@ -127,12 +127,12 @@ final class DAOManager {
     // MARK: - Proposals
 
     /// Create a new proposal
-    func createProposal(daoId: String, proposer: String, title: String, description: String, actions: [ProposalAction], completion: @escaping (Result<Proposal, DAOError>) -> Void) {
+    func createProposal(daoId: String, proposer: String, title: String, description: String, actions: [ProposalAction], completion: @escaping (Result<DAOProposal, DAOError>) -> Void) {
         guard let dao = daos[daoId] else {
             completion(.failure(.daoNotFound))
             return
         }
-        let proposal = Proposal(
+        let proposal = DAOProposal(
             proposalId: UUID().uuidString, daoId: daoId, proposer: proposer,
             title: title, description: description, actions: actions,
             votesFor: 0, votesAgainst: 0, votesAbstain: 0, status: .active,
@@ -177,7 +177,7 @@ final class DAOManager {
         case .against: votesAgainst += weight
         case .abstain: votesAbstain += weight
         }
-        proposal = Proposal(
+        proposal = DAOProposal(
             proposalId: proposal.proposalId, daoId: proposal.daoId, proposer: proposal.proposer,
             title: proposal.title, description: proposal.description, actions: proposal.actions,
             votesFor: votesFor, votesAgainst: votesAgainst, votesAbstain: votesAbstain,
@@ -206,6 +206,6 @@ final class DAOManager {
     // MARK: - Query
 
     func getDAO(id: String) -> DAOConfig? { return daos[id] }
-    func getProposals(daoId: String) -> [Proposal] { return proposals.values.filter { $0.daoId == daoId } }
+    func getProposals(daoId: String) -> [DAOProposal] { return proposals.values.filter { $0.daoId == daoId } }
     func getVotes(proposalId: String) -> [Vote] { return votes[proposalId] ?? [] }
 }

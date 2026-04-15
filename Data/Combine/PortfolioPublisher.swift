@@ -66,7 +66,7 @@ struct NFTPosition: Equatable, Identifiable {
 
 // MARK: - Portfolio Snapshot
 
-struct PortfolioSnapshot: Equatable {
+struct PublisherPortfolioSnapshot: Equatable {
     let totalValueUSD: Decimal
     let tokenPositions: [TokenPosition]
     let defiPositions: [DeFiPosition]
@@ -116,7 +116,7 @@ struct ProfitAndLoss: Equatable {
 
 // MARK: - Portfolio Alert
 
-struct PortfolioAlert: Identifiable, Equatable {
+struct PublisherPortfolioAlert: Identifiable, Equatable {
     let id: UUID
     let type: AlertType
     let message: String
@@ -153,13 +153,13 @@ final class PortfolioPublisher: ObservableObject {
     // MARK: - Publishers
 
     /// Current portfolio snapshot with all positions.
-    let portfolio = CurrentValueSubject<PortfolioSnapshot?, Never>(nil)
+    let portfolio = CurrentValueSubject<PublisherPortfolioSnapshot?, Never>(nil)
 
     /// Real-time P&L for all tracked periods.
     let profitAndLoss = CurrentValueSubject<[ProfitAndLoss], Never>([])
 
     /// Portfolio alerts for significant events.
-    let alerts = PassthroughSubject<PortfolioAlert, Never>()
+    let alerts = PassthroughSubject<PublisherPortfolioAlert, Never>()
 
     /// Individual position updates.
     let positionUpdates = PassthroughSubject<TokenPosition, Never>()
@@ -196,7 +196,7 @@ final class PortfolioPublisher: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var refreshTimer: AnyCancellable?
-    private var previousSnapshot: PortfolioSnapshot?
+    private var previousSnapshot: PublisherPortfolioSnapshot?
 
     // MARK: - Dependencies
 
@@ -267,7 +267,7 @@ final class PortfolioPublisher: ObservableObject {
 
     // MARK: - Private: Snapshot Building
 
-    private func buildSnapshot() async -> PortfolioSnapshot {
+    private func buildSnapshot() async -> PublisherPortfolioSnapshot {
         async let tokens = fetchTokenPositions()
         async let defi = fetchDeFiPositions()
         async let nfts = fetchNFTPositions()
@@ -280,7 +280,7 @@ final class PortfolioPublisher: ObservableObject {
             + defiResults.reduce(.zero) { $0 + $1.netValue }
             + nftResults.reduce(.zero) { $0 + $1.estimatedValueUSD }
 
-        return PortfolioSnapshot(
+        return PublisherPortfolioSnapshot(
             totalValueUSD: totalValue,
             tokenPositions: tokenResults,
             defiPositions: defiResults,
@@ -333,13 +333,13 @@ final class PortfolioPublisher: ObservableObject {
 
     // MARK: - Private: Alerts
 
-    private func checkAlerts(current: PortfolioSnapshot, previousValue: Decimal) {
+    private func checkAlerts(current: PublisherPortfolioSnapshot, previousValue: Decimal) {
         guard previousValue > 0 else { return }
 
         let changePercent = Double(truncating: ((current.totalValueUSD - previousValue) / previousValue * 100) as NSDecimalNumber)
 
         if abs(changePercent) >= alertThresholds.largeMovementPercent {
-            let alert = PortfolioAlert(
+            let alert = PublisherPortfolioAlert(
                 id: UUID(),
                 type: .largeMovement,
                 message: "Portfolio moved \(String(format: "%.1f", changePercent))% since last check",
@@ -353,7 +353,7 @@ final class PortfolioPublisher: ObservableObject {
         for position in current.defiPositions {
             if let healthFactor = position.healthFactor {
                 if healthFactor < alertThresholds.healthFactorCritical {
-                    alerts.send(PortfolioAlert(
+                    alerts.send(PublisherPortfolioAlert(
                         id: UUID(),
                         type: .liquidationRisk,
                         message: "Liquidation risk on \(position.protocol_): health factor \(String(format: "%.2f", healthFactor))",
@@ -362,7 +362,7 @@ final class PortfolioPublisher: ObservableObject {
                         relatedPositionId: position.id
                     ))
                 } else if healthFactor < alertThresholds.healthFactorWarning {
-                    alerts.send(PortfolioAlert(
+                    alerts.send(PublisherPortfolioAlert(
                         id: UUID(),
                         type: .healthFactorWarning,
                         message: "Low health factor on \(position.protocol_): \(String(format: "%.2f", healthFactor))",
@@ -377,7 +377,7 @@ final class PortfolioPublisher: ObservableObject {
 
     // MARK: - Private: P&L
 
-    private func updatePnL(snapshot: PortfolioSnapshot) {
+    private func updatePnL(snapshot: PublisherPortfolioSnapshot) {
         // Placeholder: Computes P&L across all tracked periods using historical snapshots.
         // In production, this queries a local time-series database of portfolio values.
     }

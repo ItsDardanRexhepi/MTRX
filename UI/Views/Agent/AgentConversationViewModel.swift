@@ -34,6 +34,7 @@ final class AgentConversationViewModel: ObservableObject {
     @Published var isTyping = false
     @Published var activeAgent: AgentAccessControl.ActiveAgent = .trinity
     @Published var showFirstBoot = false
+    @Published var isOffline: Bool = false
 
     private let accessControl = AgentAccessControl.shared
     private let morpheus = MorpheusInterventions.shared
@@ -184,11 +185,12 @@ final class AgentConversationViewModel: ObservableObject {
                     text: apiResponse.text,
                     role: .agent,
                     agentName: agentName,
-                    suggestedActions: apiResponse.suggestedActions
+                    suggestedActions: (apiResponse.suggestedActions ?? []).map { SuggestedAction(title: $0.label, description: $0.label, action: $0.action) }
                 ))
                 isTyping = false
             } catch {
                 // API unavailable — fall back to local response generation
+                isOffline = true
                 let response = generateResponse(
                     text: text,
                     agent: agent,

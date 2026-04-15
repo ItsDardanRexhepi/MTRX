@@ -3,7 +3,7 @@ import SwiftUI
 /// App Clip preview for marketplace listings — item details, seller reputation, price
 struct AppClipMarketplace: View {
     let listingId: String
-    @State private var listing: MarketplaceListing?
+    @State private var listing: AppClipMarketplaceListing?
 
     var body: some View {
         ScrollView {
@@ -37,8 +37,8 @@ struct AppClipMarketplace: View {
             }
         }
         .navigationTitle("Marketplace")
-        .task { listing = MarketplaceListing(title: "Digital Art #\(listingId)", description_: "Verified NFT listing", price: "0.5 ETH", sellerRating: 4.8) }
+        .task { listing = AppClipMarketplaceListing(title: "Digital Art #\(listingId)", description_: "Verified NFT listing", price: "0.5 ETH", sellerRating: 4.8) }
     }
 }
 
-struct MarketplaceListing { let title: String; let description_: String; let price: String; let sellerRating: Double }
+struct AppClipMarketplaceListing { let title: String; let description_: String; let price: String; let sellerRating: Double }

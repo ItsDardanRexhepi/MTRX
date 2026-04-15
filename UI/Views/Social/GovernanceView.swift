@@ -172,7 +172,7 @@ struct GovernanceView: View {
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.bottom, Spacing.xxl)
             }
-            .background(MtrxGradientBackground(.primary))
+            .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Governance")
             .sheet(isPresented: $viewModel.showVoteSheet) {
                 voteSheet
@@ -215,6 +215,14 @@ struct GovernanceView: View {
     private var activeProposalsSection: some View {
         VStack(spacing: Spacing.ms) {
             MtrxSectionHeader(title: "Active Proposals")
+
+            if viewModel.activeProposals.isEmpty {
+                MtrxEmptyState(
+                    icon: Symbols.dao,
+                    title: "No Active Proposals",
+                    message: "There are no governance proposals open for voting right now. Check back soon."
+                )
+            }
 
             ForEach(viewModel.activeProposals) { proposal in
                 proposalCard(proposal)

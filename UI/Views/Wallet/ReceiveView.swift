@@ -13,7 +13,8 @@ struct ReceiveView: View {
     @State private var showCopied: Bool = false
     @State private var isVisible: Bool = false
 
-    private let walletAddress = "0x7a3F9c2B1d8E4f6A5b0C9D2e1F8a3B6c4D7E0f2A"
+    private let walletAddress = DemoDataProvider.walletAddress
+    private let ensName = DemoDataProvider.ensName
 
     var body: some View {
         NavigationStack {
@@ -103,6 +104,10 @@ struct ReceiveView: View {
 
     private var addressSection: some View {
         VStack(spacing: Spacing.sm) {
+            Text(ensName)
+                .font(.mtrxHeadline)
+                .foregroundStyle(Color.labelPrimary)
+
             Text("Your \(selectedNetwork.name) Address")
                 .font(.mtrxCaptionBold)
                 .foregroundStyle(Color.labelSecondary)

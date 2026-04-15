@@ -143,7 +143,7 @@ final class RexhepiEngine: ScoringEngine {
     }
 
     func evaluateGate(_ gate: Gate, for request: DecisionRequest) async throws -> GateEvaluation {
-        guard let evaluator = gateEvaluators[gate] else {
+        guard var evaluator = gateEvaluators[gate] else {
             throw EngineError.missingEvaluator(gate)
         }
 

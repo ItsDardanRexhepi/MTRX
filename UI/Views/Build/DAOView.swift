@@ -9,7 +9,7 @@ import SwiftUI
 
 @MainActor
 final class DAOViewModel: ObservableObject {
-    @Published var proposals: [GovernanceProposal] = []
+    @Published var proposals: [DAOGovernanceProposal] = []
     @Published var treasuryAssets: [TreasuryToken] = []
     @Published var treasuryTransactions: [TreasuryTx] = []
     @Published var delegates: [DelegateInfo] = []
@@ -17,7 +17,7 @@ final class DAOViewModel: ObservableObject {
     @Published var isLoading: Bool = false
 
     // Voting
-    @Published var selectedProposal: GovernanceProposal?
+    @Published var selectedProposal: DAOGovernanceProposal?
     @Published var showVoteSheet: Bool = false
     @Published var selectedVoteChoice: GovernanceVoteChoice?
     @Published var isVoting: Bool = false
@@ -37,11 +37,11 @@ final class DAOViewModel: ObservableObject {
     }
 
     // Active / Past split
-    var activeProposals: [GovernanceProposal] {
+    var activeProposals: [DAOGovernanceProposal] {
         proposals.filter { $0.status == .active }
     }
 
-    var pastProposals: [GovernanceProposal] {
+    var pastProposals: [DAOGovernanceProposal] {
         proposals.filter { $0.status != .active }
     }
 
@@ -53,7 +53,7 @@ final class DAOViewModel: ObservableObject {
 
         try? await Task.sleep(nanoseconds: 800_000_000)
 
-        proposals = GovernanceProposal.sampleData
+        proposals = DAOGovernanceProposal.sampleData
         treasuryAssets = TreasuryToken.sampleData
         treasuryTransactions = TreasuryTx.sampleData
         delegates = DelegateInfo.sampleData
@@ -70,7 +70,7 @@ final class DAOViewModel: ObservableObject {
 
     // MARK: - Vote
 
-    func openVoteSheet(for proposal: GovernanceProposal) {
+    func openVoteSheet(for proposal: DAOGovernanceProposal) {
         selectedProposal = proposal
         selectedVoteChoice = nil
         showVoteSheet = true
@@ -162,7 +162,7 @@ enum GovernanceOutcome: String {
 
 // MARK: - Data Models
 
-struct GovernanceProposal: Identifiable {
+struct DAOGovernanceProposal: Identifiable {
     let id = UUID()
     let number: Int
     let title: String
@@ -179,13 +179,13 @@ struct GovernanceProposal: Identifiable {
     var againstPercentage: Double { totalVotes > 0 ? Double(votesAgainst) / Double(totalVotes) : 0 }
     var quorumProgress: Double { Double(totalVotes) / Double(max(quorumRequired, 1)) }
 
-    static let sampleData: [GovernanceProposal] = [
-        GovernanceProposal(number: 47, title: "Treasury Diversification into ETH", description_: "Diversify 20% of the treasury holdings into ETH to reduce stablecoin concentration risk. The conversion would happen over 4 weeks via TWAP orders to minimize slippage. This strengthens our position during market volatility.", proposer: "alice.eth", status: .active, votesFor: 680, votesAgainst: 220, quorumRequired: 1000, timeRemaining: "2d 14h"),
-        GovernanceProposal(number: 46, title: "Developer Grant Program Q2", description_: "Allocate $100K from treasury for quarterly developer grants. Funds will support open-source tooling, protocol integrations, and security audits. Grant committee of 5 delegates will review applications.", proposer: "bob.eth", status: .active, votesFor: 450, votesAgainst: 350, quorumRequired: 1000, timeRemaining: "5d 8h"),
-        GovernanceProposal(number: 45, title: "Reduce Protocol Fee to 0.25%", description_: "Lower the base protocol fee from 0.3% to 0.25% to increase competitiveness and attract more volume. Modeling shows the reduced fee would be offset by higher transaction volume within 3 months.", proposer: "carol.eth", status: .active, votesFor: 520, votesAgainst: 180, quorumRequired: 800, timeRemaining: "12h"),
-        GovernanceProposal(number: 44, title: "Launch Staking Rewards V2", description_: "Upgrade the staking rewards mechanism to include tiered bonuses for long-term stakers. 30-day lock: 1x, 90-day lock: 1.5x, 180-day lock: 2.5x multiplier.", proposer: "dave.eth", status: .passed, votesFor: 890, votesAgainst: 110, quorumRequired: 800, timeRemaining: "Ended"),
-        GovernanceProposal(number: 43, title: "Add Insurance Pool Coverage", description_: "Create a dedicated insurance pool funded by 5% of protocol revenue. Coverage would protect users against smart contract exploits up to $500K per incident.", proposer: "alice.eth", status: .rejected, votesFor: 320, votesAgainst: 480, quorumRequired: 800, timeRemaining: "Ended"),
-        GovernanceProposal(number: 42, title: "Governance Minimum Threshold", description_: "Raise the minimum token threshold to submit a proposal from 100 MTRX to 500 MTRX to reduce spam proposals and improve governance signal quality.", proposer: "frank.eth", status: .quorumNotMet, votesFor: 200, votesAgainst: 150, quorumRequired: 800, timeRemaining: "Ended"),
+    static let sampleData: [DAOGovernanceProposal] = [
+        DAOGovernanceProposal(number: 47, title: "Treasury Diversification into ETH", description_: "Diversify 20% of the treasury holdings into ETH to reduce stablecoin concentration risk. The conversion would happen over 4 weeks via TWAP orders to minimize slippage. This strengthens our position during market volatility.", proposer: "alice.eth", status: .active, votesFor: 680, votesAgainst: 220, quorumRequired: 1000, timeRemaining: "2d 14h"),
+        DAOGovernanceProposal(number: 46, title: "Developer Grant Program Q2", description_: "Allocate $100K from treasury for quarterly developer grants. Funds will support open-source tooling, protocol integrations, and security audits. Grant committee of 5 delegates will review applications.", proposer: "bob.eth", status: .active, votesFor: 450, votesAgainst: 350, quorumRequired: 1000, timeRemaining: "5d 8h"),
+        DAOGovernanceProposal(number: 45, title: "Reduce Protocol Fee to 0.25%", description_: "Lower the base protocol fee from 0.3% to 0.25% to increase competitiveness and attract more volume. Modeling shows the reduced fee would be offset by higher transaction volume within 3 months.", proposer: "carol.eth", status: .active, votesFor: 520, votesAgainst: 180, quorumRequired: 800, timeRemaining: "12h"),
+        DAOGovernanceProposal(number: 44, title: "Launch Staking Rewards V2", description_: "Upgrade the staking rewards mechanism to include tiered bonuses for long-term stakers. 30-day lock: 1x, 90-day lock: 1.5x, 180-day lock: 2.5x multiplier.", proposer: "dave.eth", status: .passed, votesFor: 890, votesAgainst: 110, quorumRequired: 800, timeRemaining: "Ended"),
+        DAOGovernanceProposal(number: 43, title: "Add Insurance Pool Coverage", description_: "Create a dedicated insurance pool funded by 5% of protocol revenue. Coverage would protect users against smart contract exploits up to $500K per incident.", proposer: "alice.eth", status: .rejected, votesFor: 320, votesAgainst: 480, quorumRequired: 800, timeRemaining: "Ended"),
+        DAOGovernanceProposal(number: 42, title: "Governance Minimum Threshold", description_: "Raise the minimum token threshold to submit a proposal from 100 MTRX to 500 MTRX to reduce spam proposals and improve governance signal quality.", proposer: "frank.eth", status: .quorumNotMet, votesFor: 200, votesAgainst: 150, quorumRequired: 800, timeRemaining: "Ended"),
     ]
 }
 
@@ -336,7 +336,7 @@ struct DAOView: View {
                         .padding(.horizontal, Spacing.contentPadding)
 
                     ForEach(Array(viewModel.activeProposals.enumerated()), id: \.element.id) { index, proposal in
-                        ProposalCardView(proposal: proposal) {
+                        DAOProposalCardView(proposal: proposal) {
                             viewModel.openVoteSheet(for: proposal)
                         }
                         .padding(.horizontal, Spacing.contentPadding)
@@ -612,8 +612,8 @@ struct DAOView: View {
 
 // MARK: - Proposal Card
 
-struct ProposalCardView: View {
-    let proposal: GovernanceProposal
+struct DAOProposalCardView: View {
+    let proposal: DAOGovernanceProposal
     let onVote: () -> Void
 
     var body: some View {
@@ -707,7 +707,7 @@ struct ProposalCardView: View {
 // MARK: - Past Proposal Row
 
 struct PastProposalRow: View {
-    let proposal: GovernanceProposal
+    let proposal: DAOGovernanceProposal
 
     var body: some View {
         MtrxCard(style: .outlined) {
@@ -739,7 +739,7 @@ struct PastProposalRow: View {
 // MARK: - Vote Sheet
 
 struct VoteSheet: View {
-    let proposal: GovernanceProposal
+    let proposal: DAOGovernanceProposal
     @ObservedObject var viewModel: DAOViewModel
     @Environment(\.dismiss) private var dismiss
 

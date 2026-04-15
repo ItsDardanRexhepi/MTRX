@@ -25,14 +25,14 @@ struct SwapView: View {
 
     // MARK: - Derived State
 
-    private var fromToken: TokenBalance {
+    private var fromToken: AppTokenBalance {
         guard walletManager.tokens.indices.contains(fromTokenIndex) else {
             return walletManager.tokens[0]
         }
         return walletManager.tokens[fromTokenIndex]
     }
 
-    private var toToken: TokenBalance {
+    private var toToken: AppTokenBalance {
         guard walletManager.tokens.indices.contains(toTokenIndex) else {
             return walletManager.tokens[1]
         }
@@ -275,7 +275,7 @@ struct SwapView: View {
 
     // MARK: - Token Selector Button
 
-    private func tokenSelectorButton(token: TokenBalance, showPicker: Binding<Bool>) -> some View {
+    private func tokenSelectorButton(token: AppTokenBalance, showPicker: Binding<Bool>) -> some View {
         Button {
             MtrxHaptics.selection()
             withAnimation(Motion.springSnappy) {

@@ -1,0 +1,40 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Widgets/PositionsWidget.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "No active positions",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 79
+        }
+      },
+      {
+        "comment": "",
+        "key": "Positions",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 67
+        }
+      },
+      {
+        "comment": "",
+        "key": "Positions",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 128
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your open DeFi and staking positions.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 129
+        }
+      }
+    ]
+  },
+  "version": 1
+}

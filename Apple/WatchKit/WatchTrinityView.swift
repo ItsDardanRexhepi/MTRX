@@ -10,7 +10,7 @@ struct WatchTrinityView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
                     ForEach(viewModel.messages) { message in
-                        MessageBubble(message: message)
+                        WatchMessageBubble(message: message)
                             .id(message.id)
                     }
                 }
@@ -33,7 +33,7 @@ struct WatchTrinityView: View {
     }
 }
 
-struct MessageBubble: View {
+struct WatchMessageBubble: View {
     let message: WatchMessage
 
     var body: some View {

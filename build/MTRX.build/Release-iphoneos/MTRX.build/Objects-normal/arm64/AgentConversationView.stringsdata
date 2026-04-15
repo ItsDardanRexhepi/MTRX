@@ -1,0 +1,120 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Views/Agent/AgentConversationView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Running locally",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 36
+        }
+      },
+      {
+        "comment": "",
+        "key": "Hi, my name is Trinity",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 226
+        }
+      },
+      {
+        "comment": "",
+        "key": "Welcome to the world of MTRX, I'll be by your side the entire time if you need me",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 230
+        }
+      },
+      {
+        "comment": "",
+        "key": "Ask Trinity...",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 295
+        }
+      },
+      {
+        "comment": "",
+        "key": "Morpheus",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 488
+        }
+      },
+      {
+        "comment": "",
+        "key": "Continue",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 515
+        }
+      },
+      {
+        "comment": "",
+        "key": "M",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 482
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 501
+        }
+      },
+      {
+        "comment": "",
+        "key": "I understand. Proceed.",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 507
+        }
+      },
+      {
+        "comment": "",
+        "key": "Access Permanently Revoked",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 560
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your access to MTRX has been permanently revoked due to unauthorized activity.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 564
+        }
+      },
+      {
+        "comment": "",
+        "key": "This message will disappear in %lld seconds.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 570
+        }
+      },
+      {
+        "comment": "",
+        "key": "A user has been permanently removed from MTRX.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 610
+        }
+      },
+      {
+        "comment": "",
+        "key": "M",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 605
+        }
+      }
+    ]
+  },
+  "version": 1
+}

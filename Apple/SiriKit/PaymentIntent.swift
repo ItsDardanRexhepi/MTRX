@@ -28,7 +28,7 @@ final class PaymentIntentHandler: NSObject, INSendPaymentIntentHandling {
             if let contact = resolvedContact {
                 completion(.success(with: contact))
             } else {
-                completion(.unsupported(forReason: .noAccount))
+                completion(.unsupported())
             }
         }
     }
@@ -42,7 +42,7 @@ final class PaymentIntentHandler: NSObject, INSendPaymentIntentHandling {
 
         // Validate amount is within Siri transaction limits
         if amount <= 0 {
-            completion(.unsupported(forReason: .amountsDoNotMatch))
+            completion(.unsupported())
             return
         }
 
@@ -145,7 +145,8 @@ final class PaymentIntentHandler: NSObject, INSendPaymentIntentHandling {
             currencyAmount: amount,
             paymentMethod: INPaymentMethod(type: .unknown, name: "Ethereum", identificationHint: nil, icon: nil),
             note: "TX: \(transactionHash)",
-            status: status
+            status: status,
+            feeAmount: nil
         )
     }
 }

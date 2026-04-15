@@ -18,7 +18,7 @@ struct Dispute: Identifiable, Codable {
     let category: DisputeCategory
     let filedAt: Date
     var status: DisputeStatus
-    var evidence: [Evidence]
+    var evidence: [DisputeEvidence]
     var arbitratorAddress: String?
     let stakeAmount: Double
     let stakeToken: String
@@ -36,7 +36,7 @@ enum DisputeStatus: String, Codable {
     case deliberation, resolved, appealed, expired
 }
 
-struct Evidence: Identifiable, Codable {
+struct DisputeEvidence: Identifiable, Codable {
     let id: String
     let disputeId: String
     let submittedBy: String
@@ -138,7 +138,7 @@ final class DisputeManager: ObservableObject {
 
     // MARK: - Evidence
 
-    func submitEvidence(disputeId: String, submitter: String, type: EvidenceType, contentHash: String, description: String, attestationId: String? = nil) async throws -> Evidence {
+    func submitEvidence(disputeId: String, submitter: String, type: EvidenceType, contentHash: String, description: String, attestationId: String? = nil) async throws -> DisputeEvidence {
         guard var dispute = disputeStore[disputeId] else {
             throw DisputeError.disputeNotFound(disputeId)
         }
@@ -149,7 +149,7 @@ final class DisputeManager: ObservableObject {
             throw DisputeError.notPartyToDispute
         }
 
-        let evidence = Evidence(
+        let evidence = DisputeEvidence(
             id: UUID().uuidString, disputeId: disputeId,
             submittedBy: submitter, type: type,
             contentHash: contentHash, description: description,

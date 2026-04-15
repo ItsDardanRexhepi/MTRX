@@ -91,7 +91,7 @@ struct DashboardPanel: Identifiable, Codable {
     let id: String
     let component: ComponentIdentifier
     let title: String               // plain English
-    let summary: String             // plain English description
+    var summary: String             // plain English description
     var isVisible: Bool             // activity-based visibility
     var lastActivityDate: Date?
     var metrics: [DashboardMetric]
@@ -101,10 +101,10 @@ struct DashboardMetric: Identifiable, Codable {
     let id: String
     let label: String               // plain English
     let value: String
-    let trend: MetricTrend?
+    let trend: DashboardMetricTrend?
 }
 
-enum MetricTrend: String, Codable {
+enum DashboardMetricTrend: String, Codable {
     case up, down, stable
 }
 
@@ -112,12 +112,12 @@ struct DashboardAlert: Identifiable, Codable {
     let id: String
     let component: ComponentIdentifier
     let message: String
-    let severity: AlertSeverity
+    let severity: DashboardAlertSeverity
     let timestamp: Date
     var isRead: Bool
 }
 
-enum AlertSeverity: String, Codable {
+enum DashboardAlertSeverity: String, Codable {
     case info, warning, critical
 }
 
@@ -248,7 +248,7 @@ final class DashboardManager: ObservableObject {
 
     // MARK: - Alerts
 
-    func addAlert(component: ComponentIdentifier, message: String, severity: AlertSeverity) async {
+    func addAlert(component: ComponentIdentifier, message: String, severity: DashboardAlertSeverity) async {
         let alert = DashboardAlert(
             id: UUID().uuidString,
             component: component,

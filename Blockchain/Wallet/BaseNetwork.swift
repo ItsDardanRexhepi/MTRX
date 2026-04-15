@@ -8,8 +8,8 @@ import Foundation
 // MARK: - Protocols
 
 protocol NetworkProvider {
-    func sendRPCRequest(_ request: JSONRPCRequest, completion: @escaping (Result<JSONRPCResponse, NetworkError>) -> Void)
-    func subscribe(to event: String, completion: @escaping (Result<Data, NetworkError>) -> Void) -> String
+    func sendRPCRequest(_ request: JSONRPCRequest, completion: @escaping (Result<JSONRPCResponse, BlockchainNetworkError>) -> Void)
+    func subscribe(to event: String, completion: @escaping (Result<Data, BlockchainNetworkError>) -> Void) -> String
     func unsubscribe(subscriptionId: String)
 }
 
@@ -78,7 +78,7 @@ struct BlockInfo {
     let baseFeePerGas: UInt64
 }
 
-enum NetworkError: Error, LocalizedError {
+enum BlockchainNetworkError: Error, LocalizedError {
     case connectionFailed(reason: String)
     case requestTimeout
     case invalidResponse
@@ -184,7 +184,7 @@ final class BaseNetwork {
     // MARK: - Connection Management
 
     /// Connect to Base network
-    func connect(completion: @escaping (Result<Void, NetworkError>) -> Void) {
+    func connect(completion: @escaping (Result<Void, BlockchainNetworkError>) -> Void) {
         connectionState = .connecting
 
         // Verify chain ID
@@ -220,7 +220,7 @@ final class BaseNetwork {
     // MARK: - RPC Methods
 
     /// Get the current chain ID
-    func getChainId(completion: @escaping (Result<UInt64, NetworkError>) -> Void) {
+    func getChainId(completion: @escaping (Result<UInt64, BlockchainNetworkError>) -> Void) {
         let request = buildRequest(method: "eth_chainId", params: [])
         sendRequest(request) { result in
             switch result {
@@ -238,7 +238,7 @@ final class BaseNetwork {
     }
 
     /// Get the latest block number
-    func getBlockNumber(completion: @escaping (Result<UInt64, NetworkError>) -> Void) {
+    func getBlockNumber(completion: @escaping (Result<UInt64, BlockchainNetworkError>) -> Void) {
         let request = buildRequest(method: "eth_blockNumber", params: [])
         sendRequest(request) { [weak self] result in
             switch result {
@@ -257,7 +257,7 @@ final class BaseNetwork {
     }
 
     /// Get ETH balance for an address
-    func getBalance(address: String, completion: @escaping (Result<UInt64, NetworkError>) -> Void) {
+    func getBalance(address: String, completion: @escaping (Result<UInt64, BlockchainNetworkError>) -> Void) {
         let request = buildRequest(method: "eth_getBalance", params: [.string(address), .string("latest")])
         sendRequest(request) { result in
             switch result {
@@ -275,7 +275,7 @@ final class BaseNetwork {
     }
 
     /// Get current gas price
-    func getGasPrice(completion: @escaping (Result<UInt64, NetworkError>) -> Void) {
+    func getGasPrice(completion: @escaping (Result<UInt64, BlockchainNetworkError>) -> Void) {
         let request = buildRequest(method: "eth_gasPrice", params: [])
         sendRequest(request) { [weak self] result in
             switch result {
@@ -294,7 +294,7 @@ final class BaseNetwork {
     }
 
     /// Send a raw transaction
-    func sendRawTransaction(signedTx: String, completion: @escaping (Result<String, NetworkError>) -> Void) {
+    func sendRawTransaction(signedTx: String, completion: @escaping (Result<String, BlockchainNetworkError>) -> Void) {
         let request = buildRequest(method: "eth_sendRawTransaction", params: [.string(signedTx)])
         sendRequest(request) { result in
             switch result {
@@ -313,7 +313,7 @@ final class BaseNetwork {
     }
 
     /// Call a contract method (read-only)
-    func ethCall(to: String, data: String, completion: @escaping (Result<String, NetworkError>) -> Void) {
+    func ethCall(to: String, data: String, completion: @escaping (Result<String, BlockchainNetworkError>) -> Void) {
         let callObject: JSONRPCRequest.RPCParam = .dict(["to": to, "data": data])
         let request = buildRequest(method: "eth_call", params: [callObject, .string("latest")])
         sendRequest(request) { result in
@@ -331,13 +331,13 @@ final class BaseNetwork {
     }
 
     /// Get transaction receipt
-    func getTransactionReceipt(txHash: String, completion: @escaping (Result<JSONRPCResponse, NetworkError>) -> Void) {
+    func getTransactionReceipt(txHash: String, completion: @escaping (Result<JSONRPCResponse, BlockchainNetworkError>) -> Void) {
         let request = buildRequest(method: "eth_getTransactionReceipt", params: [.string(txHash)])
         sendRequest(request, completion: completion)
     }
 
     /// Get contract code at address
-    func getCode(address: String, completion: @escaping (Result<String, NetworkError>) -> Void) {
+    func getCode(address: String, completion: @escaping (Result<String, BlockchainNetworkError>) -> Void) {
         let request = buildRequest(method: "eth_getCode", params: [.string(address), .string("latest")])
         sendRequest(request) { result in
             switch result {
@@ -399,7 +399,7 @@ final class BaseNetwork {
         return JSONRPCRequest(method: method, params: params, id: requestIdCounter)
     }
 
-    private func sendRequest(_ request: JSONRPCRequest, retryCount: Int = 0, completion: @escaping (Result<JSONRPCResponse, NetworkError>) -> Void) {
+    private func sendRequest(_ request: JSONRPCRequest, retryCount: Int = 0, completion: @escaping (Result<JSONRPCResponse, BlockchainNetworkError>) -> Void) {
         networkQueue.async { [weak self] in
             guard let self = self else { return }
 

@@ -137,7 +137,7 @@ extension NFCManager: NFCTagReaderSessionDelegate {
 
             self?.scanContinuation?.resume(returning: payload)
             self?.scanContinuation = nil
-            session.invalidate(errorMessage: nil)
+            session.invalidate(errorMessage: "")
         }
     }
 

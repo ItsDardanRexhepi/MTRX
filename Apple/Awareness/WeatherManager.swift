@@ -148,8 +148,8 @@ final class WeatherManager {
                 severity: severity,
                 event: alert.summary,
                 headline: alert.summary,
-                description: alert.detailsURL?.absoluteString ?? "",
-                effectiveDate: alert.metadata.issueDate,
+                description: alert.detailsURL.absoluteString,
+                effectiveDate: alert.metadata.date,
                 expirationDate: alert.metadata.expirationDate,
                 affectedRegion: alert.region ?? "Unknown"
             )

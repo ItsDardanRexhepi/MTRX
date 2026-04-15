@@ -1,0 +1,144 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Views/Onboarding/OnboardingView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Sign In Error",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 62
+        }
+      },
+      {
+        "comment": "",
+        "key": "OK",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 63
+        }
+      },
+      {
+        "comment": "",
+        "key": "MTRX",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 160
+        }
+      },
+      {
+        "comment": "",
+        "key": "The Future of Finance",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 164
+        }
+      },
+      {
+        "comment": "",
+        "key": "Decentralized everything. AI-powered.\nBuilt for you.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 174
+        }
+      },
+      {
+        "comment": "",
+        "key": "Continue",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 221
+        }
+      },
+      {
+        "comment": "",
+        "key": "Get Started",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 250
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sign in to create your wallet and\nstart exploring MTRX.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 254
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ Ready",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 272
+        }
+      },
+      {
+        "comment": "",
+        "key": "By continuing, you agree to our Terms of Service\nand Privacy Policy",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 315
+        }
+      },
+      {
+        "comment": "",
+        "key": "Setting up your account...",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 290
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sign in with Apple",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 304
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your Wallet",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 370
+        }
+      },
+      {
+        "comment": "",
+        "key": "WALLET ADDRESS",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 382
+        }
+      },
+      {
+        "comment": "",
+        "key": "Secured by Secure Enclave",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 398
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ enabled",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 426
+        }
+      },
+      {
+        "comment": "",
+        "key": "Enter MTRX",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 443
+        }
+      }
+    ]
+  },
+  "version": 1
+}

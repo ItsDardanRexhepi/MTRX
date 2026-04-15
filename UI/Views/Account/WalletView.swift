@@ -221,9 +221,16 @@ final class WalletViewModel: ObservableObject {
 
 // MARK: - Main View
 
-struct WalletView: View {
+struct AccountWalletView: View {
     @StateObject private var viewModel = WalletViewModel()
     @State private var selectedTab = 0
+    @State private var showStaking = false
+    @State private var selectedToken: TokenInfo?
+    @State private var showDefiAlert = false
+    @State private var showLoadMoreAlert = false
+    @State private var showBrowseAlert = false
+    @State private var showSwapAlert = false
+    @State private var showErrorAlert = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -245,11 +252,19 @@ struct WalletView: View {
         .sheet(isPresented: $viewModel.showReceiveSheet) {
             receiveSheet
         }
-        .alert("Error", isPresented: .constant(viewModel.errorMessage != nil && !viewModel.tokens.isEmpty)) {
-            Button("OK") { viewModel.errorMessage = nil }
-        } message: {
-            Text(viewModel.errorMessage ?? "")
+        .sheet(isPresented: $showStaking) {
+            NavigationStack {
+                StakingView()
+                    .environmentObject(WalletManager())
+            }
         }
+        .sheet(item: $selectedToken) { token in
+            tokenDetailSheet(token)
+        }
+        .alert("MTRX", isPresented: $showDefiAlert) { Button("OK") {} } message: { Text("Position details coming soon") }
+        .alert("MTRX", isPresented: $showLoadMoreAlert) { Button("OK") {} } message: { Text("All recent transactions are displayed") }
+        .alert("MTRX", isPresented: $showBrowseAlert) { Button("OK") {} } message: { Text("Visit Discover tab") }
+        .alert("MTRX", isPresented: $showSwapAlert) { Button("OK") {} } message: { Text("Token swap coming soon") }
         .task {
             await viewModel.loadPortfolio()
         }
@@ -295,6 +310,22 @@ struct WalletView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - Token Detail Sheet
+
+    private func tokenDetailSheet(_ token: TokenInfo) -> some View {
+        NavigationStack {
+            TokenDetailView(token: AppTokenBalance(
+                symbol: token.symbol,
+                name: token.name,
+                balance: Double(token.balance) ?? 0,
+                priceUSD: 0,
+                change24h: token.priceChange,
+                iconColor: .accentPrimary
+            ))
+        }
+        .presentationDetents([.large])
+    }
+
     // MARK: - Portfolio Header
 
     private var portfolioHeader: some View {
@@ -338,7 +369,7 @@ struct WalletView: View {
             }
 
             Button {
-                // Future: swap flow
+                showSwapAlert = true
             } label: {
                 VStack(spacing: 6) {
                     Image(systemName: Symbols.swap)
@@ -386,28 +417,34 @@ struct WalletView: View {
                 emptySection(icon: Symbols.token, title: "No Tokens", subtitle: "Your token balances will appear here.")
             } else {
                 ForEach(viewModel.tokens) { token in
-                    HStack {
-                        Circle()
-                            .fill(Color.accentColor.opacity(0.15))
-                            .frame(width: 36, height: 36)
-                            .overlay {
-                                Text(String(token.symbol.prefix(1)))
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(.accentColor)
-                            }
+                    Button {
+                        selectedToken = token
+                    } label: {
+                        HStack {
+                            Circle()
+                                .fill(Color.accentPrimary.opacity(0.15))
+                                .frame(width: 36, height: 36)
+                                .overlay {
+                                    Text(String(token.symbol.prefix(1)))
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(Color.accentPrimary)
+                                }
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(token.symbol).font(.subheadline.weight(.semibold))
-                            Text(token.name).font(.caption).foregroundColor(.labelSecondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(token.symbol).font(.subheadline.weight(.semibold))
+                                Text(token.name).font(.caption).foregroundColor(Color.labelSecondary)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(token.value).font(.subheadline.weight(.medium))
+                                Text(token.balance)
+                                    .font(.caption)
+                                    .foregroundColor(Color.labelSecondary)
+                            }
                         }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text(token.value).font(.subheadline.weight(.medium))
-                            Text(token.balance)
-                                .font(.caption)
-                                .foregroundColor(.labelSecondary)
-                        }
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .padding(.horizontal)
                     .padding(.vertical, 10)
                 }
@@ -432,7 +469,7 @@ struct WalletView: View {
                                 .overlay {
                                     Image(systemName: Symbols.nft)
                                         .font(.largeTitle)
-                                        .foregroundStyle(.labelTertiary)
+                                        .foregroundStyle(Color.labelTertiary)
                                 }
 
                             Text(nft.name)
@@ -440,7 +477,7 @@ struct WalletView: View {
                                 .lineLimit(1)
                             Text(nft.collection)
                                 .font(.caption2)
-                                .foregroundColor(.labelSecondary)
+                                .foregroundColor(Color.labelSecondary)
                                 .lineLimit(1)
                         }
                     }
@@ -458,27 +495,33 @@ struct WalletView: View {
                 emptySection(icon: Symbols.stake, title: "No DeFi Positions", subtitle: "Your lending, borrowing, and staking positions will appear here.")
             } else {
                 ForEach(viewModel.defiPositions) { pos in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(pos.protocol_).font(.subheadline.weight(.semibold))
-                            Spacer()
-                            Text(pos.value).font(.subheadline.weight(.medium))
-                        }
-                        HStack {
-                            Text("Collateral: \(pos.collateralRatio)")
-                                .foregroundColor(pos.healthColor)
-                            if !pos.apy.isEmpty {
-                                Text("APY: \(pos.apy)")
-                                    .foregroundColor(.statusSuccess)
+                    Button {
+                        showDefiAlert = true
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(pos.protocol_).font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Text(pos.value).font(.subheadline.weight(.medium))
                             }
-                            Spacer()
-                            Text(pos.type).font(.caption).foregroundColor(.labelSecondary)
+                            HStack {
+                                Text("Collateral: \(pos.collateralRatio)")
+                                    .foregroundColor(pos.healthColor)
+                                if !pos.apy.isEmpty {
+                                    Text("APY: \(pos.apy)")
+                                        .foregroundColor(.statusSuccess)
+                                }
+                                Spacer()
+                                Text(pos.type).font(.caption).foregroundColor(Color.labelSecondary)
+                            }
+                            .font(.caption)
                         }
-                        .font(.caption)
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(12)
+                        .contentShape(Rectangle())
                     }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(12)
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -500,12 +543,12 @@ struct WalletView: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(tx.description_).lineLimit(1).font(.subheadline)
-                            Text(tx.date).font(.caption).foregroundColor(.labelSecondary)
+                            Text(tx.date).font(.caption).foregroundColor(Color.labelSecondary)
                         }
                         Spacer()
                         Text(tx.amount)
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(tx.isIncoming ? .priceUp : .primary)
+                            .foregroundStyle(tx.isIncoming ? Color.priceUp : Color.primary)
                     }
                     .padding(.vertical, 8)
                     .padding(.horizontal)
@@ -522,12 +565,12 @@ struct WalletView: View {
         VStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 36))
-                .foregroundStyle(.labelTertiary)
+                .foregroundStyle(Color.labelTertiary)
             Text(title)
                 .font(.subheadline.weight(.semibold))
             Text(subtitle)
                 .font(.caption)
-                .foregroundStyle(.labelSecondary)
+                .foregroundStyle(Color.labelSecondary)
                 .multilineTextAlignment(.center)
         }
         .padding(.vertical, 40)
@@ -597,7 +640,7 @@ struct WalletView: View {
             VStack(spacing: 24) {
                 Image(systemName: Symbols.qrCode)
                     .font(.system(size: 120))
-                    .foregroundStyle(.accentColor)
+                    .foregroundStyle(Color.accentPrimary)
                     .padding()
 
                 Text("Scan to receive funds")
@@ -637,6 +680,6 @@ struct WalletView: View {
 
 #Preview("Wallet") {
     NavigationStack {
-        WalletView()
+        AccountWalletView()
     }
 }

@@ -1,0 +1,56 @@
+{
+  "source": "/Users/dardan/MTRX/Apple/AppIntents/ShortcutsProvider.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Ask Trinity",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 21
+        }
+      },
+      {
+        "comment": "",
+        "key": "Check Portfolio",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 32
+        }
+      },
+      {
+        "comment": "",
+        "key": "Send Payment",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 43
+        }
+      },
+      {
+        "comment": "",
+        "key": "Gas Price",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 53
+        }
+      },
+      {
+        "comment": "",
+        "key": "Swap Tokens",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 63
+        }
+      },
+      {
+        "comment": "",
+        "key": "Transaction History",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 73
+        }
+      }
+    ]
+  },
+  "version": 1
+}

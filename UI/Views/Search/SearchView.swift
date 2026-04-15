@@ -13,6 +13,8 @@ struct SearchView: View {
     @State private var recentSearches: [String] = ["ETH", "Uniswap", "Escrow Contract"]
     @State private var debouncedText: String = ""
     @State private var searchTask: Task<Void, Never>?
+    @State private var showAlert = false
+    @State private var alertMessage = ""
 
     // MARK: - Body
 
@@ -55,6 +57,11 @@ struct SearchView: View {
                         debouncedText = newValue
                     }
                 }
+            }
+            .alert("MTRX", isPresented: $showAlert) {
+                Button("OK") {}
+            } message: {
+                Text(alertMessage)
             }
         }
     }
@@ -190,7 +197,8 @@ struct SearchView: View {
             ForEach(filteredTokens) { token in
                 Button {
                     MtrxHaptics.selection()
-                    print("Navigate to token: \(token.symbol)")
+                    alertMessage = "Opening \(token.name) (\(token.symbol))"
+                    showAlert = true
                 } label: {
                     HStack(spacing: Spacing.ms) {
                         MtrxAvatar(text: token.symbol, color: token.iconColor, size: Spacing.Size.avatarSmall)
@@ -242,7 +250,8 @@ struct SearchView: View {
             ForEach(filteredContracts) { contract in
                 Button {
                     MtrxHaptics.selection()
-                    print("Navigate to contract: \(contract.name)")
+                    alertMessage = "Opening contract: \(contract.name)"
+                    showAlert = true
                 } label: {
                     HStack(spacing: Spacing.ms) {
                         Image(systemName: contract.icon)
@@ -287,7 +296,8 @@ struct SearchView: View {
             ForEach(filteredUsers) { user in
                 Button {
                     MtrxHaptics.selection()
-                    print("Navigate to user: \(user.displayName)")
+                    alertMessage = "Opening profile: \(user.displayName)"
+                    showAlert = true
                 } label: {
                     HStack(spacing: Spacing.ms) {
                         MtrxAvatar(text: user.displayName, color: user.avatarColor, size: Spacing.Size.avatarSmall)
@@ -327,7 +337,8 @@ struct SearchView: View {
             ForEach(filteredMarketplace) { item in
                 Button {
                     MtrxHaptics.selection()
-                    print("Navigate to marketplace item: \(item.name)")
+                    alertMessage = "Opening marketplace item: \(item.name)"
+                    showAlert = true
                 } label: {
                     HStack(spacing: Spacing.ms) {
                         Image(systemName: Symbols.marketplace)

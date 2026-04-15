@@ -1,0 +1,128 @@
+{
+  "source": "/Users/dardan/MTRX/UI/Views/Social/GovernanceView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Governance",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 176
+        }
+      },
+      {
+        "comment": "",
+        "key": "by %@",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 250
+        }
+      },
+      {
+        "comment": "",
+        "key": "Quorum",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 276
+        }
+      },
+      {
+        "comment": "",
+        "key": "Reached",
+        "location": {
+          "startingColumn": 63,
+          "startingLine": 279
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%% of target",
+        "location": {
+          "startingColumn": 75,
+          "startingLine": 279
+        }
+      },
+      {
+        "comment": "",
+        "key": "Vote",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 301
+        }
+      },
+      {
+        "comment": "",
+        "key": "For %lld%%",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 318
+        }
+      },
+      {
+        "comment": "",
+        "key": "Against %lld%%",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 324
+        }
+      },
+      {
+        "comment": "",
+        "key": "History",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 361
+        }
+      },
+      {
+        "comment": "",
+        "key": "by %@",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 385
+        }
+      },
+      {
+        "comment": "",
+        "key": "by %@",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 418
+        }
+      },
+      {
+        "comment": "",
+        "key": "Choose your vote",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 433
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your Vote Weight",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 447
+        }
+      },
+      {
+        "comment": "",
+        "key": "Vote submitted successfully",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 466
+        }
+      },
+      {
+        "comment": "",
+        "key": "Confirm Vote",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 476
+        }
+      }
+    ]
+  },
+  "version": 1
+}

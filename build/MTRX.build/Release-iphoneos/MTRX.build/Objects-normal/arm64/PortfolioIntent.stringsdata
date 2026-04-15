@@ -1,0 +1,160 @@
+{
+  "source": "/Users/dardan/MTRX/Apple/AppIntents/PortfolioIntent.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Check Portfolio",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 10
+        }
+      },
+      {
+        "comment": "",
+        "key": "Get a summary of your MTRX portfolio including holdings, P&L, and allocation",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 11
+        }
+      },
+      {
+        "comment": "",
+        "key": "Include DeFi Positions"
+      },
+      {
+        "comment": "",
+        "key": "Get Token Price",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 59
+        }
+      },
+      {
+        "comment": "",
+        "key": "Check the current price of any token",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 60
+        }
+      },
+      {
+        "comment": "",
+        "key": "Token Symbol"
+      },
+      {
+        "comment": "",
+        "key": "Set Portfolio Alert",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 75
+        }
+      },
+      {
+        "comment": "",
+        "key": "Set a price or percentage change alert for a token",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 76
+        }
+      },
+      {
+        "comment": "",
+        "key": "Token Symbol"
+      },
+      {
+        "comment": "",
+        "key": "Threshold Value"
+      },
+      {
+        "comment": "",
+        "key": "Time Period",
+        "location": {
+          "startingColumn": 71,
+          "startingLine": 110
+        }
+      },
+      {
+        "comment": "",
+        "key": "Today",
+        "location": {
+          "startingColumn": 17,
+          "startingLine": 112
+        }
+      },
+      {
+        "comment": "",
+        "key": "This Week",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 113
+        }
+      },
+      {
+        "comment": "",
+        "key": "This Month",
+        "location": {
+          "startingColumn": 17,
+          "startingLine": 114
+        }
+      },
+      {
+        "comment": "",
+        "key": "This Year",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 115
+        }
+      },
+      {
+        "comment": "",
+        "key": "All Time",
+        "location": {
+          "startingColumn": 19,
+          "startingLine": 116
+        }
+      },
+      {
+        "comment": "",
+        "key": "Alert Type",
+        "location": {
+          "startingColumn": 71,
+          "startingLine": 128
+        }
+      },
+      {
+        "comment": "",
+        "key": "Price Above",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 130
+        }
+      },
+      {
+        "comment": "",
+        "key": "Price Below",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 131
+        }
+      },
+      {
+        "comment": "",
+        "key": "Change Above",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 132
+        }
+      },
+      {
+        "comment": "",
+        "key": "Change Below",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 133
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -8,12 +8,12 @@ final class SKAdNetworkManager {
     }
 
     /// Update postback conversion value for aggregated reporting only
-    func updateConversionValue(_ value: Int) async {
+    func updateConversionValue(_ value: Int) async throws {
         if #available(iOS 16.1, *) {
             // Fine + coarse conversion values, no user-level data
-            await SKAdNetwork.updatePostbackConversionValue(value, coarseValue: coarseValue(from: value))
+            try await SKAdNetwork.updatePostbackConversionValue(value, coarseValue: coarseValue(from: value))
         } else {
-            SKAdNetwork.updatePostbackConversionValue(value)
+            try await SKAdNetwork.updatePostbackConversionValue(value)
         }
     }
 

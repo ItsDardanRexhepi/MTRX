@@ -165,7 +165,7 @@ struct TransactionEstimate {
 
 // MARK: - Transaction Record
 
-struct TransactionRecord {
+struct IntentTransactionRecord {
     let type: TransactionType
     let amount: String
     let token: String
@@ -205,7 +205,7 @@ final class TransactionExecutor {
 final class TransactionHistoryStore {
     static let shared = TransactionHistoryStore()
 
-    func recent(count: Int, network: BlockchainNetwork?) async throws -> [TransactionRecord] {
+    func recent(count: Int, network: BlockchainNetwork?) async throws -> [IntentTransactionRecord] {
         return []
     }
 }
