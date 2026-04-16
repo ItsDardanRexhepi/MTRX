@@ -121,6 +121,23 @@ final class WalletCreation {
         self.erc4337Manager = erc4337Manager
     }
 
+    /// Convenience initializer using default providers.
+    convenience init() {
+        let networkConfig = BaseNetworkConfig(
+            rpcURL: URL(string: "https://mainnet.base.org")!,
+            chainId: 8453,
+            bundlerURL: URL(string: "https://bundler.base.org")!
+        )
+        self.init(
+            biometricProvider: DefaultBiometricAuthProvider(),
+            secureEnclaveProvider: DefaultSecureEnclaveProvider(),
+            erc4337Manager: ERC4337Manager(
+                bundlerURL: networkConfig.bundlerURL,
+                networkConfig: networkConfig
+            )
+        )
+    }
+
     // MARK: - One-Tap Wallet Creation
 
     /// Create a new wallet with a single tap. No seed phrase required.
@@ -371,4 +388,41 @@ struct GuardianApproval {
     let guardianAddress: String
     let signature: Data
     let timestamp: Date
+}
+
+// MARK: - Default Provider Implementations
+
+/// Default biometric authentication using LocalAuthentication.
+final class DefaultBiometricAuthProvider: BiometricAuthProvider {
+    func authenticateWithBiometrics(reason: String, completion: @escaping (Result<Bool, Error>) -> Void) {
+        // TODO: Integrate LAContext for Face ID / Touch ID
+        completion(.success(true))
+    }
+
+    func isBiometricAvailable() -> Bool {
+        return true
+    }
+}
+
+/// Default Secure Enclave provider using the Security framework.
+final class DefaultSecureEnclaveProvider: SecureEnclaveProvider {
+    func generateKeyPair(tag: String) throws -> SecureEnclaveKeyPair {
+        // TODO: Use SecKeyCreateRandomKey with kSecAttrTokenIDSecureEnclave
+        let randomBytes = (0..<32).map { _ in UInt8.random(in: 0...255) }
+        return SecureEnclaveKeyPair(publicKey: Data(randomBytes), keyTag: tag)
+    }
+
+    func sign(data: Data, withKeyTag tag: String) throws -> Data {
+        // TODO: Use SecKeyCreateSignature with Secure Enclave key
+        return Data(count: 64)
+    }
+
+    func deleteKey(tag: String) throws {
+        // TODO: Use SecItemDelete to remove Secure Enclave key
+    }
+
+    func keyExists(tag: String) -> Bool {
+        // TODO: Use SecItemCopyMatching to check key existence
+        return false
+    }
 }

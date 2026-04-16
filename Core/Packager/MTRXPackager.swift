@@ -2,7 +2,7 @@
 //  MTRXPackager.swift
 //  MTRX
 //
-//  Mobile conversion layer bridging the 30-component Python runtime to the iOS app.
+//  Mobile conversion layer bridging the 221-capability Python runtime (/api/v1/capabilities) to the iOS app.
 //  Handles type conversion, request packaging, response unpacking, transaction
 //  serialization, context assembly, batch operations, offline queuing, and event streams.
 //
@@ -1396,7 +1396,7 @@ final class MTRXPackager: @unchecked Sendable {
     // ``/bridge/v1/*`` that the Matrix iOS shell uses for session-level
     // operations: creating/resuming a chat session, linking a wallet,
     // sending Trinity an action, and reading the dashboard. These don't
-    // correspond to a single 30-component slot, so they bypass the
+    // correspond to a single component slot, so they bypass the
     // component registry and build raw URLs against the gateway base URL.
     //
     // Each helper packages a Swift ``Encodable`` body (or an empty body for
@@ -1430,7 +1430,7 @@ final class MTRXPackager: @unchecked Sendable {
 
     /// Build a ``/bridge/v1/<route>`` request, optionally with a JSON body
     /// and query items. Used for everything the Matrix shell needs to do
-    /// that isn't a 30-component call — session lifecycle, chat turns,
+    /// that isn't a component call — session lifecycle, chat turns,
     /// wallet linking, dashboard reads, etc.
     func packageBridgeRequest<T: Encodable>(
         route: BridgeRoute,
@@ -1591,7 +1591,7 @@ final class MTRXPackager: @unchecked Sendable {
         )
     }
 
-    /// Fetch the list of all 30 components currently served by the
+    /// Fetch the list of components currently served by the
     /// gateway, along with their health status. Used by the shell on boot
     /// to gate parts of the UI behind server availability.
     func packageBridgeComponentsList() throws -> URLRequest {

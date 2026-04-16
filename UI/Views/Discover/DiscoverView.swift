@@ -47,7 +47,7 @@ final class DiscoverViewModel: ObservableObject {
 
     var filteredFundraisers: [FundraiserItem] {
         var result = activeFundraisers
-        if selectedCategory != .all && selectedCategory != .fundraisers {
+        if selectedCategory != .all && selectedCategory != .markets {
             return []
         }
         if !searchText.isEmpty {
@@ -102,32 +102,91 @@ final class DiscoverViewModel: ObservableObject {
 
 // MARK: - Discover Category
 
-enum DiscoverCategory: String, CaseIterable {
-    case all = "All"
-    case marketplace = "Marketplace"
-    case fundraisers = "Fundraisers"
-    case daos = "DAOs"
-    case defi = "DeFi"
-    case nfts = "NFTs"
-    case rwa = "RWA"
-    case insurance = "Insurance"
-    case gaming = "Gaming"
-    case events = "Events"
-    case music = "Music"
+/// Discoverable categories on the Discover tab.
+///
+/// Aligned with the backend capability catalog (21 categories at
+/// `runtime/capabilities/catalog.py`). Each case maps to a `category`
+/// value returned by `GET /api/v1/capabilities/categories`, so the tab
+/// can filter against the live registry with no translation layer.
+enum DiscoverCategory: String, CaseIterable, Identifiable {
+    case all
+    case contracts
+    case defi
+    case defiAdvanced = "defi_advanced"
+    case nft
+    case nftFinance = "nft_finance"
+    case identity
+    case governance
+    case social
+    case creator
+    case payments
+    case bridging
+    case staking
+    case privacy
+    case oracles
+    case storage
+    case compute
+    case realWorld = "real_world"
+    case markets
+    case security
+    case gaming
+    case infra
 
+    var id: String { rawValue }
+
+    /// Human-friendly label shown on the filter chip.
+    var displayName: String {
+        switch self {
+        case .all:           return "All"
+        case .contracts:     return "Contracts"
+        case .defi:          return "DeFi"
+        case .defiAdvanced:  return "DeFi Advanced"
+        case .nft:           return "NFTs"
+        case .nftFinance:    return "NFT Finance"
+        case .identity:      return "Identity"
+        case .governance:    return "Governance"
+        case .social:        return "Social"
+        case .creator:       return "Creator"
+        case .payments:      return "Payments"
+        case .bridging:      return "Cross-chain"
+        case .staking:       return "Staking"
+        case .privacy:       return "Privacy"
+        case .oracles:       return "Oracles"
+        case .storage:       return "Storage"
+        case .compute:       return "Compute"
+        case .realWorld:     return "Real-World"
+        case .markets:       return "Markets"
+        case .security:      return "Security"
+        case .gaming:        return "Gaming"
+        case .infra:         return "Infra"
+        }
+    }
+
+    /// SF Symbol name used in the chip and detail views.
     var icon: String {
         switch self {
-        case .all: return Symbols.globe
-        case .marketplace: return Symbols.marketplace
-        case .fundraisers: return Symbols.fundraiser
-        case .daos: return Symbols.dao
-        case .defi: return Symbols.chartLine
-        case .nfts: return "photo.artframe"
-        case .rwa: return "building.columns.fill"
-        case .insurance: return Symbols.insurance
-        case .gaming: return "gamecontroller.fill"
-        case .events: return "ticket.fill"
-        case .music: return "music.note"
+        case .all:           return Symbols.globe
+        case .contracts:     return "doc.text.fill"
+        case .defi:          return Symbols.chartLine
+        case .defiAdvanced:  return "chart.bar.xaxis"
+        case .nft:           return "photo.artframe"
+        case .nftFinance:    return "dollarsign.square"
+        case .identity:      return "person.text.rectangle"
+        case .governance:    return Symbols.dao
+        case .social:        return "bubble.left.and.bubble.right"
+        case .creator:       return "music.note"
+        case .payments:      return "creditcard"
+        case .bridging:      return "arrow.left.arrow.right"
+        case .staking:       return "lock.square.stack"
+        case .privacy:       return "lock.shield"
+        case .oracles:       return "antenna.radiowaves.left.and.right"
+        case .storage:       return "externaldrive"
+        case .compute:       return "cpu"
+        case .realWorld:     return "building.2"
+        case .markets:       return Symbols.marketplace
+        case .security:      return "key.fill"
+        case .gaming:        return "gamecontroller.fill"
+        case .infra:         return "server.rack"
         }
     }
 }
@@ -445,7 +504,7 @@ struct DiscoverView: View {
                             .foregroundStyle(Color.labelSecondary)
                         Text("Loading...")
                             .font(.mtrxTitle2)
-                            .foregroundStyle(Color.textPrimary)
+                            .foregroundStyle(Color.labelPrimary)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 4) {
@@ -488,7 +547,7 @@ struct DiscoverView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(name)
                 .font(.mtrxSubheadline)
-                .foregroundStyle(Color.textPrimary)
+                .foregroundStyle(Color.labelPrimary)
             Text(apy)
                 .font(.mtrxTitle2)
                 .foregroundStyle(Color.accentPrimary)
@@ -525,7 +584,7 @@ struct DiscoverView: View {
                     .foregroundStyle(Color.accentPrimary)
                 Text(title)
                     .font(.mtrxSubheadline)
-                    .foregroundStyle(Color.textPrimary)
+                    .foregroundStyle(Color.labelPrimary)
             }
             Spacer()
             Text("Ends in \(endsIn)")
@@ -562,7 +621,7 @@ struct DiscoverView: View {
                 .foregroundStyle(Color.accentPrimary)
             Text(name)
                 .font(.mtrxSubheadline)
-                .foregroundStyle(Color.textPrimary)
+                .foregroundStyle(Color.labelPrimary)
             HStack {
                 Text("APY: \(apy)")
                     .font(.mtrxCaption)
@@ -606,7 +665,7 @@ struct DiscoverView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(type)
                     .font(.mtrxCaptionBold)
-                    .foregroundStyle(Color.textPrimary)
+                    .foregroundStyle(Color.labelPrimary)
                 Text(detail)
                     .font(.mtrxCaption)
                     .foregroundStyle(Color.labelSecondary)

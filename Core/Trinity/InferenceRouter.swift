@@ -8,6 +8,17 @@
 
 import Foundation
 
+// MARK: - Foundation Models Stub (iOS 26+ API not available in current SDK)
+// When building with Xcode 26.5+ targeting iOS 26+, replace with real FoundationModels import.
+
+class FoundationModelsEngine {
+    static var isAvailable: Bool { false }
+    func resetSession() {}
+    func respond(to prompt: String, context: String? = nil, instructions: String? = nil) async throws -> String {
+        return "On-device inference not available on this iOS version."
+    }
+}
+
 // MARK: - Inference Source
 
 /// Identifies where a response was generated.
@@ -92,7 +103,7 @@ final class InferenceRouter {
     /// Whether on-device Foundation Models inference is available.
     var isOnDeviceAvailable: Bool {
         if #available(iOS 26, macOS 26, *) {
-            return FoundationModelsEngine.isAvailable
+            return false // FoundationModelsEngine requires iOS 26+
         }
         return false
     }

@@ -124,6 +124,7 @@
 		2C2F75F30DC83DFCF03ABC36 /* Trinity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFF96992C806F1C71DA62AA9 /* Trinity.swift */; };
 		38DF83846716948FCD76E00A /* TrinityContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1548AC16FA18DE18C2C75BB0 /* TrinityContext.swift */; };
 		6FE334EA4A067D887EF29482 /* TrinityInference.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFAA998AAAE225A5C3EAA311 /* TrinityInference.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* InferenceRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E7F8091A2B3C4D5E6F7081 /* InferenceRouter.swift */; };
 		8FDB97C917600EE5E67F5FC2 /* TrinityMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4582920DFDFC0DA3626F2721 /* TrinityMemory.swift */; };
 		62FAC55E617F667AD41A8888 /* TrinityOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2759C58AB663C339E456B92C /* TrinityOnboarding.swift */; };
 		E377B4EEFA479196721CF3B8 /* TrinityVoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE1556D0ED645AD7617836AD /* TrinityVoice.swift */; };
@@ -349,6 +350,7 @@
 		FFF96992C806F1C71DA62AA9 /* Trinity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trinity.swift"; sourceTree = "<group>"; };
 		1548AC16FA18DE18C2C75BB0 /* TrinityContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrinityContext.swift"; sourceTree = "<group>"; };
 		FFAA998AAAE225A5C3EAA311 /* TrinityInference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrinityInference.swift"; sourceTree = "<group>"; };
+		D6E7F8091A2B3C4D5E6F7081 /* InferenceRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "InferenceRouter.swift"; path = "Core/Trinity/InferenceRouter.swift"; sourceTree = SOURCE_ROOT; };
 		4582920DFDFC0DA3626F2721 /* TrinityMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrinityMemory.swift"; sourceTree = "<group>"; };
 		2759C58AB663C339E456B92C /* TrinityOnboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrinityOnboarding.swift"; sourceTree = "<group>"; };
 		FE1556D0ED645AD7617836AD /* TrinityVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrinityVoice.swift"; sourceTree = "<group>"; };
@@ -1626,6 +1628,7 @@
 				2C2F75F30DC83DFCF03ABC36 /* Trinity.swift */,
 				38DF83846716948FCD76E00A /* TrinityContext.swift */,
 				6FE334EA4A067D887EF29482 /* TrinityInference.swift */,
+				A1B2C3D4E5F60718293A4B5C /* InferenceRouter.swift */,
 				8FDB97C917600EE5E67F5FC2 /* TrinityMemory.swift */,
 				62FAC55E617F667AD41A8888 /* TrinityOnboarding.swift */,
 				E377B4EEFA479196721CF3B8 /* TrinityVoice.swift */,

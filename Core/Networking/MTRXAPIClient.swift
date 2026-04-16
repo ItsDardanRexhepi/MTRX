@@ -1644,6 +1644,114 @@ final class MTRXAPIClient: @unchecked Sendable {
             path: "/bridge/v1/push/register", body: body
         )
     }
+
+    // MARK: - Capability Catalog (221 capabilities across 21 categories)
+    //
+    // These endpoints let the app discover every Web3 capability the
+    // gateway can perform (not just the 30 legacy component endpoints).
+    // Capabilities are the fine-grained unit: each has an id, category,
+    // params schema, and a paymaster flag. The backend catalog lives at
+    // runtime/capabilities/catalog.py.
+
+    /// List every capability in the registry, optionally filtered by
+    /// category ("defi", "nft", "staking", ...), min_tier, or
+    /// availability. Returns the full catalog entry for each.
+    func listCapabilities(
+        category: String? = nil,
+        minTier: String? = nil,
+        availableOnly: Bool = false
+    ) async throws -> CapabilityList {
+        var items: [URLQueryItem] = []
+        if let category { items.append(URLQueryItem(name: "category", value: category)) }
+        if let minTier { items.append(URLQueryItem(name: "min_tier", value: minTier)) }
+        if availableOnly { items.append(URLQueryItem(name: "available", value: "1")) }
+        return try await get(path: "/api/v1/capabilities", queryItems: items)
+    }
+
+    /// List the 21 capability categories (each returns name, icon, count).
+    func listCapabilityCategories() async throws -> CapabilityCategoriesResponse {
+        try await get(path: "/api/v1/capabilities/categories")
+    }
+
+    /// Get the full descriptor for a single capability by id.
+    func getCapability(id: String) async throws -> CapabilityDetail {
+        try await get(path: "/api/v1/capabilities/\(id)")
+    }
+
+    /// Invoke a capability by id with the given params. The backend
+    /// resolves the capability to its service+method and dispatches.
+    /// Platform-sponsored gas is automatic for `uses_paymaster: true`.
+    func invokeCapability(id: String, params: [String: AnyCodableValue] = [:]) async throws -> CapabilityInvokeResponse {
+        let body = CapabilityInvokeBody(params: params)
+        return try await post(path: "/api/v1/capabilities/\(id)/invoke", body: body)
+    }
+}
+
+// MARK: - Capability Catalog Models
+
+/// A single capability descriptor as returned by the backend catalog.
+struct Capability: Codable, Identifiable, Hashable {
+    let id: String
+    let name: String
+    let category: String
+    let subcategory: String?
+    let description: String?
+    let service: String?
+    let method: String?
+    let action: String?
+    let minTier: String?
+    let usesPaymaster: Bool?
+    let stateModifying: Bool?
+    let protocol_: String?
+    let available: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, category, subcategory, description
+        case service, method, action
+        case minTier = "min_tier"
+        case usesPaymaster = "uses_paymaster"
+        case stateModifying = "state_modifying"
+        case protocol_ = "protocol"
+        case available
+    }
+}
+
+/// One of the 21 top-level categories.
+struct CapabilityCategory: Codable, Identifiable, Hashable {
+    let id: String
+    let name: String
+    let icon: String?
+    let count: Int?
+}
+
+struct CapabilityList: Decodable {
+    let capabilities: [Capability]
+    let count: Int
+}
+
+struct CapabilityCategoriesResponse: Decodable {
+    let categories: [CapabilityCategory]
+}
+
+struct CapabilityDetail: Decodable {
+    let capability: Capability
+}
+
+struct CapabilityInvokeBody: Encodable {
+    let params: [String: AnyCodableValue]
+}
+
+struct CapabilityInvokeResponse: Decodable {
+    let status: String
+    let capabilityId: String?
+    let action: String?
+    let result: [String: AnyCodableValue]?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case capabilityId = "capability_id"
+        case action, result
+    }
 }
 
 // MARK: - Bridge Response Models

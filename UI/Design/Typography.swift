@@ -71,6 +71,7 @@ extension Font {
     // MARK: - Caption
 
     /// Primary caption — SF Pro, 12pt
+    static let mtrxCaption: Font = .system(.caption, design: .default, weight: .regular)
     static let mtrxCaption1: Font = .system(.caption, design: .default, weight: .regular)
 
     /// Secondary caption — SF Pro, 11pt
