@@ -84,7 +84,12 @@ final class NaturalLanguageProcessor {
     // MARK: - Initialization
 
     private init() {
-        sentimentPredictor = try? NLModel(mlModel: CoreMLManager.shared.loadedModelCount > 0 ? CoreMLManager.TrinityModel.sentimentAnalysis as! MLModel : NLModel.self as! MLModel)
+        // Sentiment analysis stays nil unless a real CoreML model is wired in
+        // via CoreMLManager. The previous one-liner cast a TrinityModel enum
+        // case (and an NLModel metatype) to MLModel — both were guaranteed
+        // crashes the moment .shared was first accessed. We now lazy-load
+        // properly when (and if) a real model is registered.
+        sentimentPredictor = nil
         entityRecognizer = NLTagger(tagSchemes: [.nameType, .tokenType, .lexicalClass])
         tokenizer = NLTokenizer(unit: .word)
         languageRecognizer = NLLanguageRecognizer()

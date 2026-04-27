@@ -62,10 +62,11 @@ actor DecisionLog {
     // MARK: - Initialization
 
     init(storageDirectory: URL? = nil, maxEntriesInMemory: Int = 10_000) {
-        let directory = storageDirectory ?? FileManager.default.urls(
+        let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
-        ).first!.appendingPathComponent("MTRX/DecisionLog")
+        ).first ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        let directory = storageDirectory ?? appSupport.appendingPathComponent("MTRX/DecisionLog")
 
         self.storageURL = directory.appendingPathComponent("decision_log.json")
         self.maxEntriesInMemory = maxEntriesInMemory

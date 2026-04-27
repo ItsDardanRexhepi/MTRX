@@ -45,10 +45,11 @@ final class TrinityInference {
     // MARK: - Initialization
 
     init(modelDirectory: URL? = nil) {
-        self.modelDirectory = modelDirectory ?? FileManager.default.urls(
+        let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
-        ).first!.appendingPathComponent("MTRX/Models")
+        ).first ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        self.modelDirectory = modelDirectory ?? appSupport.appendingPathComponent("MTRX/Models")
     }
 
     // MARK: - Model Loading
