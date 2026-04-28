@@ -10,6 +10,9 @@ enum SocialTab: String, CaseIterable {
     case feed = "Feed"
     case governance = "Governance"
     case messaging = "Messaging"
+    case groups = "Groups"
+    case network = "Network"
+    case live = "Live"
 }
 
 // MARK: - Feed Filters
@@ -200,6 +203,10 @@ final class SocialViewModel: ObservableObject {
 struct SocialView: View {
     @StateObject private var viewModel = SocialViewModel()
     @State private var appeared = false
+    @State private var showProofPicker = false
+    @State private var commentingOnPost: SocialPostDisplay? = nil
+    @State private var postActionTarget: SocialPostDisplay? = nil
+    @State private var actionFeedback: String? = nil
 
     var body: some View {
         NavigationStack {
@@ -211,11 +218,63 @@ struct SocialView: View {
                 .background(MtrxGradientBackground(style: .primary))
 
                 composeButton
+
+                if let feedback = actionFeedback {
+                    VStack {
+                        Spacer()
+                        MtrxToast(message: feedback)
+                            .padding(.bottom, Spacing.xxl)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
             .navigationTitle("Social")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $viewModel.isComposerPresented) {
                 composeSheet
+            }
+            .sheet(isPresented: $showProofPicker) {
+                ProofPickerSheet { selection in
+                    showProofPicker = false
+                    showFeedback("Attached \(selection)")
+                }
+                .presentationDetents([.medium])
+            }
+            .sheet(item: $commentingOnPost) { post in
+                CommentComposerSheet(post: post)
+                    .presentationDetents([.large])
+            }
+            .confirmationDialog(
+                "Post options",
+                isPresented: Binding(
+                    get: { postActionTarget != nil },
+                    set: { if !$0 { postActionTarget = nil } }
+                ),
+                titleVisibility: .hidden
+            ) {
+                Button("Report post", role: .destructive) {
+                    showFeedback("Post reported")
+                    postActionTarget = nil
+                }
+                Button("Hide from feed") {
+                    showFeedback("Post hidden")
+                    postActionTarget = nil
+                }
+                Button("Block user", role: .destructive) {
+                    showFeedback("User blocked")
+                    postActionTarget = nil
+                }
+                Button("Copy link") {
+                    if let post = postActionTarget {
+                        UIPasteboard.general.string = "https://openmatrix-ai.com/p/\(post.id)"
+                    }
+                    showFeedback("Link copied")
+                    postActionTarget = nil
+                }
+                Button("Cancel", role: .cancel) {
+                    postActionTarget = nil
+                }
             }
         }
         .onAppear {
@@ -225,33 +284,47 @@ struct SocialView: View {
         }
     }
 
+    private func showFeedback(_ message: String) {
+        withAnimation(Motion.springDefault) {
+            actionFeedback = message
+        }
+        MtrxHaptics.success()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            withAnimation(Motion.springDefault) {
+                actionFeedback = nil
+            }
+        }
+    }
+
     // MARK: - Tab Selector
 
     private var tabSelector: some View {
-        HStack(spacing: Spacing.xs) {
-            ForEach(SocialTab.allCases, id: \.self) { tab in
-                Button {
-                    withAnimation(Motion.springSnappy) {
-                        viewModel.selectedTab = tab
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Spacing.xs) {
+                ForEach(SocialTab.allCases, id: \.self) { tab in
+                    Button {
+                        withAnimation(Motion.springSnappy) {
+                            viewModel.selectedTab = tab
+                        }
+                        MtrxHaptics.selection()
+                    } label: {
+                        Text(tab.rawValue)
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(viewModel.selectedTab == tab ? .white : Color.labelSecondary)
+                            .padding(.horizontal, Spacing.md)
+                            .padding(.vertical, Spacing.sm)
+                            .background(
+                                viewModel.selectedTab == tab
+                                ? Capsule().fill(Color.accentPrimary)
+                                : Capsule().fill(Color.surfaceOverlay)
+                            )
                     }
-                    MtrxHaptics.selection()
-                } label: {
-                    Text(tab.rawValue)
-                        .font(.mtrxCaptionBold)
-                        .foregroundStyle(viewModel.selectedTab == tab ? .white : Color.labelSecondary)
-                        .padding(.horizontal, Spacing.md)
-                        .padding(.vertical, Spacing.sm)
-                        .background(
-                            viewModel.selectedTab == tab
-                            ? Capsule().fill(Color.accentPrimary)
-                            : Capsule().fill(Color.surfaceOverlay)
-                        )
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.vertical, Spacing.sm)
         }
-        .padding(.horizontal, Spacing.contentPadding)
-        .padding(.vertical, Spacing.sm)
         .background(Color.backgroundPrimary)
     }
 
@@ -266,6 +339,12 @@ struct SocialView: View {
             governanceSection
         case .messaging:
             messagingSection
+        case .groups:
+            GroupsView()
+        case .network:
+            SocialGraphView()
+        case .live:
+            StreamingView()
         }
     }
 
@@ -304,7 +383,10 @@ struct SocialView: View {
                     .font(.mtrxBody)
 
                 HStack {
-                    Button {} label: {
+                    Button {
+                        showProofPicker = true
+                        MtrxHaptics.impact(.light)
+                    } label: {
                         Label("Attach Proof", systemImage: Symbols.link)
                             .font(.mtrxCaptionBold)
                     }
@@ -344,7 +426,9 @@ struct SocialView: View {
                         PostCardView(
                             post: post,
                             onLike: { viewModel.toggleLike(postId: post.id) },
-                            onRepost: { viewModel.toggleRepost(postId: post.id) }
+                            onRepost: { viewModel.toggleRepost(postId: post.id) },
+                            onMenu: { postActionTarget = post },
+                            onComment: { commentingOnPost = post }
                         )
                         .mtrxStaggeredAppearance(index: index, isVisible: appeared)
                     }
@@ -498,6 +582,8 @@ struct PostCardView: View {
     let post: SocialPostDisplay
     var onLike: () -> Void = {}
     var onRepost: () -> Void = {}
+    var onMenu: () -> Void = {}
+    var onComment: () -> Void = {}
 
     @State private var isExpanded = false
     @State private var likeScale: CGFloat = 1.0
@@ -552,7 +638,10 @@ struct PostCardView: View {
 
             Spacer()
 
-            Button {} label: {
+            Button {
+                onMenu()
+                MtrxHaptics.impact(.light)
+            } label: {
                 Image(systemName: Symbols.more)
                     .font(.system(size: 16))
                     .foregroundStyle(Color.labelTertiary)
@@ -677,7 +766,10 @@ struct PostCardView: View {
             .buttonStyle(.plain)
 
             // Comment
-            Button {} label: {
+            Button {
+                onComment()
+                MtrxHaptics.impact(.light)
+            } label: {
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: "bubble.left")
                         .font(.system(size: 16, weight: .medium))
@@ -692,13 +784,17 @@ struct PostCardView: View {
             Spacer()
 
             // Share
-            Button {} label: {
+            ShareLink(item: postShareURL) {
                 Image(systemName: Symbols.share)
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Color.labelTertiary)
             }
             .buttonStyle(.plain)
         }
+    }
+
+    private var postShareURL: URL {
+        URL(string: "https://openmatrix-ai.com/p/\(post.id)") ?? URL(string: "https://openmatrix-ai.com")!
     }
 
     // MARK: Helpers
@@ -903,6 +999,223 @@ struct MessageThreadRow: View {
         if hours < 24 { return "\(hours)h" }
         let days = hours / 24
         return "\(days)d"
+    }
+}
+
+// MARK: - Proof Picker Sheet
+
+struct ProofPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    var onSelect: (String) -> Void
+
+    private let options: [(label: String, icon: String, kind: String)] = [
+        ("Attach transaction hash", Symbols.transaction, "transaction"),
+        ("Attach contract address", Symbols.contract, "contract"),
+        ("Attach NFT", Symbols.nft, "NFT")
+    ]
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: Spacing.md) {
+                MtrxCard(style: .standard) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(options.enumerated()), id: \.offset) { index, option in
+                            Button {
+                                onSelect(option.kind)
+                                MtrxHaptics.selection()
+                            } label: {
+                                HStack(spacing: Spacing.ms) {
+                                    Image(systemName: option.icon)
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundStyle(Color.accentPrimary)
+                                        .frame(width: 28, height: 28)
+                                    Text(option.label)
+                                        .font(.mtrxBody)
+                                        .foregroundStyle(Color.labelPrimary)
+                                    Spacer()
+                                    Image(systemName: Symbols.forward)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(Color.labelTertiary)
+                                }
+                                .padding(.vertical, Spacing.sm)
+                            }
+                            .buttonStyle(.plain)
+
+                            if index < options.count - 1 {
+                                MtrxDivider()
+                            }
+                        }
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(Spacing.contentPadding)
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("Attach Proof")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundStyle(Color.labelSecondary)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Comment Composer Sheet
+
+struct CommentComposerSheet: View {
+    let post: SocialPostDisplay
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: String = ""
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Spacing.md) {
+                        // Original post snippet
+                        MtrxCard(style: .glass) {
+                            HStack(alignment: .top, spacing: Spacing.sm) {
+                                MtrxAvatar(
+                                    text: post.avatarInitials,
+                                    color: post.avatarColor,
+                                    size: Spacing.Size.avatarSmall
+                                )
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: Spacing.xs) {
+                                        Text(post.displayName)
+                                            .font(.mtrxCalloutBold)
+                                            .foregroundStyle(Color.labelPrimary)
+                                        Text(post.handle)
+                                            .font(.mtrxCaption1)
+                                            .foregroundStyle(Color.labelSecondary)
+                                    }
+                                    Text(post.body)
+                                        .font(.mtrxCaption1)
+                                        .foregroundStyle(Color.labelSecondary)
+                                        .lineLimit(3)
+                                }
+                            }
+                        }
+
+                        Text("\(post.commentCount) comments")
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(Color.labelSecondary)
+                            .padding(.top, Spacing.sm)
+
+                        // Placeholder comments
+                        ForEach(placeholderComments(for: post), id: \.id) { comment in
+                            CommentRow(comment: comment)
+                        }
+                    }
+                    .padding(Spacing.contentPadding)
+                }
+                .background(MtrxGradientBackground(style: .primary))
+
+                MtrxDivider()
+
+                // Composer
+                HStack(spacing: Spacing.sm) {
+                    MtrxTextField(
+                        placeholder: "Add a comment…",
+                        text: $draft,
+                        icon: "bubble.left"
+                    )
+
+                    Button {
+                        MtrxHaptics.success()
+                        draft = ""
+                        dismiss()
+                    } label: {
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .buttonStyle(MtrxButtonStyle(variant: .primary, size: .compact))
+                    .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .padding(Spacing.contentPadding)
+                .background(Color.backgroundPrimary)
+            }
+            .navigationTitle("Comments")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                        .foregroundStyle(Color.labelSecondary)
+                }
+            }
+        }
+    }
+
+    private func placeholderComments(for post: SocialPostDisplay) -> [PlaceholderComment] {
+        let templates: [(String, String, String, Color)] = [
+            ("Maya Reyes", "@maya.eth", "MR", .accentPrimary),
+            ("Theo Lin", "@theo_dev", "TL", .statusInfo),
+            ("Aisha Khan", "@aisha.base", "AK", .accentTertiary),
+            ("DeFi Daily", "@defidaily", "DD", .statusSuccess),
+            ("Crypto Curious", "@curious42", "CC", .labelTertiary)
+        ]
+        let bodies = [
+            "This is huge for the ecosystem.",
+            "Have you seen the gas costs lately though?",
+            "Following — interested to see how this plays out.",
+            "Big if true. Source on the audit?",
+            "Reposting to my thread."
+        ]
+        let count = max(1, min(post.commentCount, 5))
+        return (0..<count).map { i in
+            let t = templates[i % templates.count]
+            return PlaceholderComment(
+                id: "\(post.id)-c\(i)",
+                displayName: t.0,
+                handle: t.1,
+                avatarInitials: t.2,
+                avatarColor: t.3,
+                body: bodies[i % bodies.count]
+            )
+        }
+    }
+}
+
+struct PlaceholderComment: Identifiable {
+    let id: String
+    let displayName: String
+    let handle: String
+    let avatarInitials: String
+    let avatarColor: Color
+    let body: String
+}
+
+struct CommentRow: View {
+    let comment: PlaceholderComment
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.sm) {
+            MtrxAvatar(
+                text: comment.avatarInitials,
+                color: comment.avatarColor,
+                size: Spacing.Size.avatarSmall
+            )
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: Spacing.xs) {
+                    Text(comment.displayName)
+                        .font(.mtrxCalloutBold)
+                        .foregroundStyle(Color.labelPrimary)
+                    Text(comment.handle)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelTertiary)
+                }
+                Text(comment.body)
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding(.vertical, Spacing.xs)
     }
 }
 

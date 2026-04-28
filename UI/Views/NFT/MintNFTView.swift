@@ -8,7 +8,7 @@ import PhotosUI
 
 // MARK: - Attribute Pair
 
-struct NFTAttribute: Identifiable {
+struct MintNFTAttribute: Identifiable {
     let id = UUID()
     var key: String
     var value: String
@@ -20,7 +20,7 @@ struct NFTAttribute: Identifiable {
 class MintNFTViewModel: ObservableObject {
     @Published var name: String = ""
     @Published var description: String = ""
-    @Published var attributes: [NFTAttribute] = [NFTAttribute(key: "", value: "")]
+    @Published var attributes: [MintNFTAttribute] = [MintNFTAttribute(key: "", value: "")]
     @Published var royaltyPercentage: Double = 5.0
     @Published var selectedPhotoItem: PhotosPickerItem?
     @Published var selectedImage: UIImage?
@@ -37,7 +37,7 @@ class MintNFTViewModel: ObservableObject {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    var validAttributes: [NFTAttribute] {
+    var validAttributes: [MintNFTAttribute] {
         attributes.filter {
             !$0.key.trimmingCharacters(in: .whitespaces).isEmpty &&
             !$0.value.trimmingCharacters(in: .whitespaces).isEmpty
@@ -57,20 +57,20 @@ class MintNFTViewModel: ObservableObject {
     }
 
     func addAttribute() {
-        attributes.append(NFTAttribute(key: "", value: ""))
+        attributes.append(MintNFTAttribute(key: "", value: ""))
     }
 
     func removeAttribute(at offsets: IndexSet) {
         attributes.remove(atOffsets: offsets)
         if attributes.isEmpty {
-            attributes.append(NFTAttribute(key: "", value: ""))
+            attributes.append(MintNFTAttribute(key: "", value: ""))
         }
     }
 
     func removeAttribute(id: UUID) {
         attributes.removeAll { $0.id == id }
         if attributes.isEmpty {
-            attributes.append(NFTAttribute(key: "", value: ""))
+            attributes.append(MintNFTAttribute(key: "", value: ""))
         }
     }
 

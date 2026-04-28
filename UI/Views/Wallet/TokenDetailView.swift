@@ -10,11 +10,14 @@ import SwiftUI
 struct TokenDetailView: View {
     let token: AppTokenBalance
 
+    @EnvironmentObject var walletManager: WalletManager
     @State private var isLoading: Bool = true
     @State private var selectedPeriod: TokenChartPeriod = .oneDay
     @State private var showCopiedToast: Bool = false
     @State private var showAlert: Bool = false
     @State private var alertMessage: String = ""
+    @State private var showSendSheet: Bool = false
+    @State private var showSwapSheet: Bool = false
 
     private let contractAddress = "0x4F9e...8B2c7D1a3E5f"
     private let avgBuyPrice = "$3,102.45"
@@ -53,6 +56,14 @@ struct TokenDetailView: View {
             Button("OK") {}
         } message: {
             Text(alertMessage)
+        }
+        .sheet(isPresented: $showSendSheet) {
+            SendView()
+                .environmentObject(walletManager)
+        }
+        .sheet(isPresented: $showSwapSheet) {
+            SwapView()
+                .environmentObject(walletManager)
         }
         .onAppear {
             Task {
@@ -172,8 +183,7 @@ struct TokenDetailView: View {
         HStack(spacing: Spacing.xl) {
             quickActionButton(icon: Symbols.send, label: "Send") {
                 MtrxHaptics.impact(.medium)
-                alertMessage = "Send \(token.symbol) flow coming soon"
-                showAlert = true
+                showSendSheet = true
             }
             quickActionButton(icon: Symbols.receive, label: "Receive") {
                 MtrxHaptics.impact(.medium)
@@ -182,8 +192,7 @@ struct TokenDetailView: View {
             }
             quickActionButton(icon: Symbols.swap, label: "Swap") {
                 MtrxHaptics.impact(.medium)
-                alertMessage = "Swap \(token.symbol) flow coming soon"
-                showAlert = true
+                showSwapSheet = true
             }
         }
         .frame(maxWidth: .infinity)
@@ -299,10 +308,19 @@ struct TokenDetailView: View {
 
     private var recentTransactionsSection: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            MtrxSectionHeader(title: "Recent Transactions", action: {
-                alertMessage = "Full transaction history coming soon"
-                showAlert = true
-            })
+            HStack {
+                Text("Recent Transactions")
+                    .font(.mtrxHeadline)
+                    .foregroundStyle(Color.labelPrimary)
+                Spacer()
+                NavigationLink {
+                    TokenTransactionHistoryView(token: token)
+                } label: {
+                    Text("View All")
+                        .font(.mtrxCaptionBold)
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
             .padding(.horizontal, Spacing.contentPadding)
 
             MtrxCard(style: .standard) {
@@ -452,11 +470,93 @@ private extension Date {
     }
 }
 
+// MARK: - Token Transaction History View
+
+struct TokenTransactionHistoryView: View {
+    let token: AppTokenBalance
+
+    private var transactions: [TransactionItem] {
+        // Take up to 10 sample transactions; if fewer exist, repeat to reach 10.
+        let sample = TransactionItem.sampleData
+        guard !sample.isEmpty else { return [] }
+        var items: [TransactionItem] = []
+        var index = 0
+        while items.count < 10 {
+            items.append(sample[index % sample.count])
+            index += 1
+        }
+        return items
+    }
+
+    var body: some View {
+        Group {
+            if transactions.isEmpty {
+                MtrxEmptyState(
+                    icon: Symbols.transaction,
+                    title: "No Transactions",
+                    message: "\(token.symbol) transactions will appear here once you start moving funds."
+                )
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: Spacing.sm) {
+                        MtrxCard(style: .standard) {
+                            VStack(spacing: 0) {
+                                ForEach(Array(transactions.enumerated()), id: \.offset) { index, tx in
+                                    historyRow(tx)
+                                    if index < transactions.count - 1 {
+                                        MtrxDivider()
+                                            .padding(.leading, 44)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, Spacing.contentPadding)
+                    }
+                    .padding(.vertical, Spacing.contentPadding)
+                }
+            }
+        }
+        .background(MtrxGradientBackground(style: .primary))
+        .navigationTitle("\(token.symbol) History")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func historyRow(_ tx: TransactionItem) -> some View {
+        HStack(spacing: Spacing.ms) {
+            Image(systemName: tx.icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(tx.iconColor)
+                .frame(width: 32, height: 32)
+                .background(tx.iconColor.opacity(0.12))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tx.title)
+                    .font(.mtrxBodyBold)
+                    .foregroundStyle(Color.labelPrimary)
+                Text(tx.timestamp.formatted(date: .abbreviated, time: .shortened))
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelSecondary)
+            }
+
+            Spacer()
+
+            Text(tx.amount)
+                .font(.mtrxMono)
+                .foregroundStyle(Color.labelPrimary)
+                .lineLimit(1)
+        }
+        .padding(.vertical, Spacing.sm)
+        .contentShape(Rectangle())
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
     NavigationStack {
         TokenDetailView(token: AppTokenBalance.sampleData[0])
+            .environmentObject(WalletManager())
     }
     .preferredColorScheme(.dark)
 }

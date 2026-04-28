@@ -226,10 +226,10 @@ struct AccountWalletView: View {
     @State private var selectedTab = 0
     @State private var showStaking = false
     @State private var selectedToken: TokenInfo?
-    @State private var showDefiAlert = false
+    @State private var selectedDefiPosition: DeFiPositionInfo?
     @State private var showLoadMoreAlert = false
     @State private var showBrowseAlert = false
-    @State private var showSwapAlert = false
+    @State private var showSwapSheet = false
     @State private var showErrorAlert = false
 
     var body: some View {
@@ -261,10 +261,17 @@ struct AccountWalletView: View {
         .sheet(item: $selectedToken) { token in
             tokenDetailSheet(token)
         }
-        .alert("MTRX", isPresented: $showDefiAlert) { Button("OK") {} } message: { Text("Position details coming soon") }
+        .sheet(item: $selectedDefiPosition) { position in
+            DeFiPositionDetailSheet(position: position)
+        }
+        .sheet(isPresented: $showSwapSheet) {
+            NavigationStack {
+                SwapView()
+                    .environmentObject(WalletManager())
+            }
+        }
         .alert("MTRX", isPresented: $showLoadMoreAlert) { Button("OK") {} } message: { Text("All recent transactions are displayed") }
         .alert("MTRX", isPresented: $showBrowseAlert) { Button("OK") {} } message: { Text("Visit Discover tab") }
-        .alert("MTRX", isPresented: $showSwapAlert) { Button("OK") {} } message: { Text("Token swap coming soon") }
         .task {
             await viewModel.loadPortfolio()
         }
@@ -322,6 +329,7 @@ struct AccountWalletView: View {
                 change24h: token.priceChange,
                 iconColor: .accentPrimary
             ))
+            .environmentObject(WalletManager())
         }
         .presentationDetents([.large])
     }
@@ -369,7 +377,7 @@ struct AccountWalletView: View {
             }
 
             Button {
-                showSwapAlert = true
+                showSwapSheet = true
             } label: {
                 VStack(spacing: 6) {
                     Image(systemName: Symbols.swap)
@@ -496,7 +504,7 @@ struct AccountWalletView: View {
             } else {
                 ForEach(viewModel.defiPositions) { pos in
                     Button {
-                        showDefiAlert = true
+                        selectedDefiPosition = pos
                     } label: {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
@@ -675,6 +683,122 @@ struct AccountWalletView: View {
             }
         }
         .presentationDetents([.medium])
+    }
+}
+
+// MARK: - DeFi Position Detail Sheet
+
+struct DeFiPositionDetailSheet: View {
+    let position: DeFiPositionInfo
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: Spacing.sectionGap) {
+                    headerCard
+                    detailsCard
+                    rewardsCard
+                    actionsCard
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+                .padding(.vertical, Spacing.contentPadding)
+            }
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("Position Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private var headerCard: some View {
+        MtrxCard(style: .glass) {
+            VStack(spacing: Spacing.md) {
+                ZStack {
+                    Circle()
+                        .fill(Color.accentPrimary.opacity(0.15))
+                        .frame(width: 64, height: 64)
+                    Image(systemName: Symbols.stake)
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                }
+
+                Text(position.protocol_)
+                    .font(.mtrxTitle2)
+                    .foregroundStyle(Color.labelPrimary)
+
+                Text(position.type)
+                    .font(.mtrxSubheadline)
+                    .foregroundStyle(Color.labelSecondary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var detailsCard: some View {
+        MtrxCard(style: .glass) {
+            VStack(spacing: Spacing.md) {
+                detailRow(label: "Deposited", value: position.value, font: .mtrxBodyBold)
+                MtrxDivider()
+                detailRow(label: "APY", value: position.apy.isEmpty ? "—" : position.apy, font: .mtrxMono, valueColor: .statusSuccess)
+                MtrxDivider()
+                detailRow(label: "Collateral Ratio", value: position.collateralRatio, font: .mtrxMono, valueColor: position.healthColor)
+            }
+        }
+    }
+
+    private var rewardsCard: some View {
+        MtrxCard(style: .glass) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("Accrued Rewards")
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelSecondary)
+                Text("$24.81")
+                    .font(.mtrxMonoLarge)
+                    .foregroundStyle(Color.statusSuccess)
+                Text("Auto-compounded daily")
+                    .font(.mtrxCaption2)
+                    .foregroundStyle(Color.labelTertiary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var actionsCard: some View {
+        VStack(spacing: Spacing.sm) {
+            Button {
+                MtrxHaptics.impact(.medium)
+                dismiss()
+            } label: {
+                Text("Boost APY")
+            }
+            .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, fullWidth: true))
+
+            Button {
+                MtrxHaptics.impact(.light)
+                dismiss()
+            } label: {
+                Text("Withdraw")
+            }
+            .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .large, fullWidth: true))
+        }
+    }
+
+    private func detailRow(label: String, value: String, font: Font, valueColor: Color = .labelPrimary) -> some View {
+        HStack {
+            Text(label)
+                .font(.mtrxSubheadline)
+                .foregroundStyle(Color.labelSecondary)
+            Spacer()
+            Text(value)
+                .font(font)
+                .foregroundStyle(valueColor)
+        }
     }
 }
 

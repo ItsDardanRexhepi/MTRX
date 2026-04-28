@@ -172,13 +172,13 @@ struct MusicTrack: Identifiable {
         [
             MusicTrack(title: "Decentralized Dreams", artist: "CryptoBeats", plays: 12450, pricePerPlay: 0.001, royaltySplits: [RoyaltySplit(name: "CryptoBeats", percentage: 80), RoyaltySplit(name: "Producer X", percentage: 20)], earnings: 12.45, duration: 234, uploadDate: Calendar.current.date(byAdding: .month, value: -2, to: Date()) ?? Date()),
             MusicTrack(title: "Block by Block", artist: "HashHarmony", plays: 8920, pricePerPlay: 0.002, royaltySplits: [RoyaltySplit(name: "HashHarmony", percentage: 70), RoyaltySplit(name: "Lyricist A", percentage: 15), RoyaltySplit(name: "Mixer B", percentage: 15)], earnings: 17.84, duration: 198, uploadDate: Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()),
-            MusicTrack(title: "Consensus", artist: "NodeVibes", plays: 5340, pricePerPlay: 0.0015, royaltySplits: [RoyaltySplit(name: "NodeVibes", percentage: 100)], earnings: 8.01, duration: 276, uploadDate: Calendar.current.date(byAdding: .week, value: -2, to: Date()) ?? Date()),
+            MusicTrack(title: "Consensus", artist: "NodeVibes", plays: 5340, pricePerPlay: 0.0015, royaltySplits: [RoyaltySplit(name: "NodeVibes", percentage: 100)], earnings: 8.01, duration: 276, uploadDate: Calendar.current.date(byAdding: .weekOfYear, value: -2, to: Date()) ?? Date()),
         ]
     }
 
     static var sampleMine: [MusicTrack] {
         [
-            MusicTrack(title: "My First Track", artist: "You", plays: 42, pricePerPlay: 0.001, royaltySplits: [RoyaltySplit(name: "You", percentage: 100)], earnings: 0.042, duration: 180, uploadDate: Calendar.current.date(byAdding: .week, value: -1, to: Date()) ?? Date()),
+            MusicTrack(title: "My First Track", artist: "You", plays: 42, pricePerPlay: 0.001, royaltySplits: [RoyaltySplit(name: "You", percentage: 100)], earnings: 0.042, duration: 180, uploadDate: Calendar.current.date(byAdding: .weekOfYear, value: -1, to: Date()) ?? Date()),
         ]
     }
 }

@@ -11,7 +11,7 @@ final class VerifiableCredentialViewModel: ObservableObject {
 
     // MARK: - Published State
 
-    @Published var credentials: [VerifiableCredential] = []
+    @Published var credentials: [CredentialUIModel] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isEmpty: Bool = false
@@ -27,7 +27,7 @@ final class VerifiableCredentialViewModel: ObservableObject {
     // Verify
     @Published var verifyInput: String = ""
     @Published var isVerifying: Bool = false
-    @Published var verificationResult: VerificationResult?
+    @Published var verificationResult: CredentialVerification?
 
     // Share
     @Published var showShareSheet: Bool = false
@@ -45,7 +45,7 @@ final class VerifiableCredentialViewModel: ObservableObject {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             guard let self else { return }
-            self.credentials = VerifiableCredential.sampleData
+            self.credentials = CredentialUIModel.sampleData
             self.isEmpty = self.credentials.isEmpty
             self.isLoading = false
         }
@@ -63,7 +63,7 @@ final class VerifiableCredentialViewModel: ObservableObject {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             guard let self else { return }
-            let newCred = VerifiableCredential(
+            let newCred = CredentialUIModel(
                 id: UUID().uuidString,
                 issuer: "did:mtrx:self",
                 recipient: self.issueRecipient,
@@ -93,7 +93,7 @@ final class VerifiableCredentialViewModel: ObservableObject {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
             guard let self else { return }
-            self.verificationResult = VerificationResult(
+            self.verificationResult = CredentialVerification(
                 isValid: true,
                 issuer: "did:mtrx:0x1a2b...9z",
                 subject: "did:mtrx:0xfe32...7d",
@@ -108,7 +108,7 @@ final class VerifiableCredentialViewModel: ObservableObject {
 
     // MARK: - Share
 
-    func shareCredential(_ credential: VerifiableCredential) {
+    func shareCredential(_ credential: CredentialUIModel) {
         sharePayload = "mtrx://credential/\(credential.id)?issuer=\(credential.issuer)&type=\(credential.type)"
         showShareSheet = true
     }
@@ -134,7 +134,7 @@ final class VerifiableCredentialViewModel: ObservableObject {
 
 // MARK: - Models
 
-struct VerifiableCredential: Identifiable {
+struct CredentialUIModel: Identifiable {
     let id: String
     let issuer: String
     let recipient: String
@@ -166,11 +166,11 @@ struct VerifiableCredential: Identifiable {
         }
     }
 
-    static var sampleData: [VerifiableCredential] {
+    static var sampleData: [CredentialUIModel] {
         [
-            VerifiableCredential(id: "vc-001", issuer: "did:mtrx:0x1a2b...9z", recipient: "did:mtrx:self", type: "Identity", claims: ["name": "User", "country": "US"], issuedDate: Calendar.current.date(byAdding: .month, value: -6, to: Date()) ?? Date(), expiryDate: Calendar.current.date(byAdding: .month, value: 6, to: Date()) ?? Date(), status: .valid),
-            VerifiableCredential(id: "vc-002", issuer: "did:mtrx:0xaa11...bb", recipient: "did:mtrx:self", type: "Education", claims: ["degree": "B.S. Computer Science", "institution": "MIT"], issuedDate: Calendar.current.date(byAdding: .year, value: -2, to: Date()) ?? Date(), expiryDate: Calendar.current.date(byAdding: .year, value: 8, to: Date()) ?? Date(), status: .valid),
-            VerifiableCredential(id: "vc-003", issuer: "did:mtrx:0xcc22...dd", recipient: "did:mtrx:self", type: "Membership", claims: ["org": "DeFi Alliance", "tier": "Gold"], issuedDate: Calendar.current.date(byAdding: .month, value: -14, to: Date()) ?? Date(), expiryDate: Calendar.current.date(byAdding: .month, value: -2, to: Date()) ?? Date(), status: .expired),
+            CredentialUIModel(id: "vc-001", issuer: "did:mtrx:0x1a2b...9z", recipient: "did:mtrx:self", type: "Identity", claims: ["name": "User", "country": "US"], issuedDate: Calendar.current.date(byAdding: .month, value: -6, to: Date()) ?? Date(), expiryDate: Calendar.current.date(byAdding: .month, value: 6, to: Date()) ?? Date(), status: .valid),
+            CredentialUIModel(id: "vc-002", issuer: "did:mtrx:0xaa11...bb", recipient: "did:mtrx:self", type: "Education", claims: ["degree": "B.S. Computer Science", "institution": "MIT"], issuedDate: Calendar.current.date(byAdding: .year, value: -2, to: Date()) ?? Date(), expiryDate: Calendar.current.date(byAdding: .year, value: 8, to: Date()) ?? Date(), status: .valid),
+            CredentialUIModel(id: "vc-003", issuer: "did:mtrx:0xcc22...dd", recipient: "did:mtrx:self", type: "Membership", claims: ["org": "DeFi Alliance", "tier": "Gold"], issuedDate: Calendar.current.date(byAdding: .month, value: -14, to: Date()) ?? Date(), expiryDate: Calendar.current.date(byAdding: .month, value: -2, to: Date()) ?? Date(), status: .expired),
         ]
     }
 }
@@ -181,7 +181,7 @@ struct ClaimPair: Identifiable {
     var value: String = ""
 }
 
-struct VerificationResult {
+struct CredentialVerification {
     let isValid: Bool
     let issuer: String
     let subject: String
@@ -287,7 +287,7 @@ struct VerifiableCredentialView: View {
         .listStyle(.insetGrouped)
     }
 
-    private func credentialRow(_ credential: VerifiableCredential) -> some View {
+    private func credentialRow(_ credential: CredentialUIModel) -> some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             HStack {
                 Image(systemName: credential.status.icon)
@@ -508,7 +508,7 @@ struct VerifiableCredentialView: View {
         }
     }
 
-    private func verificationResultCard(_ result: VerificationResult) -> some View {
+    private func verificationResultCard(_ result: CredentialVerification) -> some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack {
                 Image(systemName: result.isValid ? "checkmark.seal.fill" : "xmark.seal.fill")

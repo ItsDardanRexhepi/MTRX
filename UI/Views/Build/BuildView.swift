@@ -4,6 +4,7 @@
 // Smart contract management hub — contracts, templates, and subscriptions.
 
 import SwiftUI
+import SafariServices
 
 // MARK: - Build ViewModel
 
@@ -20,6 +21,15 @@ final class BuildViewModel: ObservableObject {
     @Published var selectedSegment: BuildSegment = .contracts
     @Published var showCreateContract: Bool = false
     @Published var contentAppeared: Bool = false
+    @Published var showContractFilter: Bool = false
+    @Published var statusFilters: Set<BuildContractStatus> = [.active, .pending, .completed, .disputed]
+    @Published var showDeployContract: Bool = false
+    @Published var showLaunchToken: Bool = false
+    @Published var showCreateDAO: Bool = false
+    @Published var showUpgrade: Bool = false
+    @Published var showPublishContent: Bool = false
+    @Published var showCreatorHub: Bool = false
+    @Published var selectedTemplate: BuildContractTemplate? = nil
 
     // MARK: - Computed Stats
 
@@ -142,6 +152,7 @@ struct BuildView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        viewModel.showContractFilter = true
                         MtrxHaptics.impact(.light)
                     } label: {
                         Image(systemName: Symbols.filter)
@@ -150,6 +161,47 @@ struct BuildView: View {
                 }
             }
             .sheet(isPresented: $viewModel.showCreateContract) {
+                NavigationStack {
+                    ContractView()
+                }
+            }
+            .sheet(isPresented: $viewModel.showContractFilter) {
+                ContractFilterSheet(selected: $viewModel.statusFilters)
+                    .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $viewModel.showDeployContract) {
+                NavigationStack {
+                    DeployContractView()
+                }
+            }
+            .sheet(isPresented: $viewModel.showLaunchToken) {
+                NavigationStack {
+                    ContractView()
+                }
+            }
+            .sheet(isPresented: $viewModel.showCreateDAO) {
+                NavigationStack {
+                    DAOView()
+                }
+            }
+            .sheet(isPresented: $viewModel.showUpgrade) {
+                UpgradeView(
+                    blockedFeature: .contractDeployments,
+                    currentUsage: 3,
+                    limit: 3
+                )
+            }
+            .sheet(isPresented: $viewModel.showPublishContent) {
+                NavigationStack {
+                    ContentPublishingView()
+                }
+            }
+            .sheet(isPresented: $viewModel.showCreatorHub) {
+                NavigationStack {
+                    CreatorView()
+                }
+            }
+            .sheet(item: $viewModel.selectedTemplate) { template in
                 NavigationStack {
                     ContractView()
                 }
@@ -284,8 +336,11 @@ struct BuildView: View {
         ScrollView(.vertical, showsIndicators: false) {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.md) {
                 ForEach(Array(viewModel.templates.enumerated()), id: \.element.id) { index, template in
-                    TemplateCardView(template: template)
-                        .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
+                    TemplateCardView(template: template) {
+                        viewModel.selectedTemplate = template
+                        MtrxHaptics.impact(.medium)
+                    }
+                    .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
                 }
             }
             .padding(.horizontal, Spacing.contentPadding)
@@ -304,60 +359,104 @@ struct BuildView: View {
                     title: "Deploy Contract",
                     description: "Deploy from pre-audited templates — ERC-20, NFT, Escrow, Multi-sig, and more.",
                     index: 0
-                )
+                ) {
+                    viewModel.showDeployContract = true
+                    MtrxHaptics.impact(.medium)
+                }
 
                 buildActionCard(
                     icon: "bitcoinsign.circle.fill",
                     title: "Launch Token",
                     description: "Fair launch with vesting schedules and airdrop distribution tools.",
                     index: 1
-                )
+                ) {
+                    viewModel.showLaunchToken = true
+                    MtrxHaptics.impact(.medium)
+                }
 
                 buildActionCard(
                     icon: "person.3.fill",
                     title: "Create DAO",
                     description: "Set up a decentralized organization with governance, treasury, and voting.",
                     index: 2
-                )
+                ) {
+                    viewModel.showCreateDAO = true
+                    MtrxHaptics.impact(.medium)
+                }
 
                 buildActionCard(
                     icon: "paperplane.fill",
                     title: "Airdrop Distributor",
                     description: "Batch distribute tokens to thousands of addresses in one transaction.",
                     index: 3
-                )
+                ) {
+                    viewModel.showLaunchToken = true
+                    MtrxHaptics.impact(.medium)
+                }
 
                 buildActionCard(
                     icon: "shippingbox.fill",
                     title: "Supply Chain Registry",
                     description: "Register and track items with immutable on-chain provenance records.",
                     index: 4
-                )
+                ) {
+                    viewModel.showCreateContract = true
+                    MtrxHaptics.impact(.medium)
+                }
 
                 buildActionCard(
                     icon: "star.circle.fill",
                     title: "Creator Token",
                     description: "Launch a social token with a bonding curve for your community.",
                     index: 5
-                )
+                ) {
+                    viewModel.showLaunchToken = true
+                    MtrxHaptics.impact(.medium)
+                }
 
                 buildActionCard(
                     icon: "lock.shield.fill",
                     title: "Multi-Sig Wallet",
                     description: "Create a shared wallet requiring multiple approvals for transactions.",
                     index: 6
-                )
+                ) {
+                    viewModel.showDeployContract = true
+                    MtrxHaptics.impact(.medium)
+                }
 
                 buildActionCard(
                     icon: "repeat.circle.fill",
                     title: "Subscription Plan",
                     description: "Create on-chain subscription offerings with tiered pricing.",
                     index: 7
-                )
+                ) {
+                    viewModel.showCreateContract = true
+                    MtrxHaptics.impact(.medium)
+                }
+
+                buildActionCard(
+                    icon: "doc.richtext.fill",
+                    title: "Publish Content",
+                    description: "Publish articles, posts, and media on-chain with permanent provenance.",
+                    index: 8
+                ) {
+                    viewModel.showPublishContent = true
+                    MtrxHaptics.impact(.medium)
+                }
+
+                buildActionCard(
+                    icon: "sparkles",
+                    title: "Creator Hub",
+                    description: "Manage your creator presence — channels, monetization, and audience.",
+                    index: 9
+                ) {
+                    viewModel.showCreatorHub = true
+                    MtrxHaptics.impact(.medium)
+                }
 
                 // Upgrade prompt
                 upgradePrompt
-                    .mtrxStaggeredAppearance(index: 8, isVisible: viewModel.contentAppeared)
+                    .mtrxStaggeredAppearance(index: 10, isVisible: viewModel.contentAppeared)
 
                 Spacer().frame(height: Spacing.xxl)
             }
@@ -366,33 +465,44 @@ struct BuildView: View {
         }
     }
 
-    private func buildActionCard(icon: String, title: String, description: String, index: Int) -> some View {
-        MtrxCard(style: .standard, accentEdge: .leading) {
-            HStack(spacing: Spacing.md) {
-                Image(systemName: icon)
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(Color.accentPrimary)
-                    .frame(width: 48, height: 48)
-                    .background(Color.accentPrimary.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    private func buildActionCard(
+        icon: String,
+        title: String,
+        description: String,
+        index: Int,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            MtrxCard(style: .standard, accentEdge: .leading) {
+                HStack(spacing: Spacing.md) {
+                    Image(systemName: icon)
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundStyle(Color.accentPrimary)
+                        .frame(width: 48, height: 48)
+                        .background(Color.accentPrimary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.mtrxHeadline)
-                        .foregroundStyle(Color.labelPrimary)
-                    Text(description)
-                        .font(.mtrxCaption)
-                        .foregroundStyle(Color.labelSecondary)
-                        .lineLimit(2)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.labelPrimary)
+                            .multilineTextAlignment(.leading)
+                        Text(description)
+                            .font(.mtrxCaption)
+                            .foregroundStyle(Color.labelSecondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.labelTertiary)
                 }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.labelTertiary)
             }
         }
+        .buttonStyle(.plain)
         .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
     }
 
@@ -418,6 +528,7 @@ struct BuildView: View {
                 }
 
                 Button {
+                    viewModel.showUpgrade = true
                     MtrxHaptics.impact(.medium)
                 } label: {
                     Text("Upgrade to Pro")
@@ -526,6 +637,7 @@ struct ContractDetailView: View {
     @State private var isSigningContract: Bool = false
     @State private var isExecuting: Bool = false
     @State private var showDisputeConfirm: Bool = false
+    @State private var explorerURL: URL? = nil
 
     var body: some View {
         ScrollView {
@@ -625,7 +737,13 @@ struct ContractDetailView: View {
                         .disabled(isExecuting)
                     }
 
-                    Button { } label: {
+                    Button {
+                        let address = explorerAddress
+                        if let url = URL(string: "https://basescan.org/address/\(address)") {
+                            explorerURL = url
+                            MtrxHaptics.impact(.light)
+                        }
+                    } label: {
                         Label("View on Chain", systemImage: Symbols.externalLink)
                     }
                     .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .regular, fullWidth: true))
@@ -650,13 +768,40 @@ struct ContractDetailView: View {
         } message: {
             Text("This will initiate a formal dispute process on-chain.")
         }
+        .sheet(item: $explorerURL) { url in
+            BuildSafariView(url: url)
+                .ignoresSafeArea()
+        }
     }
+
+    private var explorerAddress: String {
+        // Use counterparty if it looks like an address; otherwise fall back to a placeholder
+        let raw = contract.counterparty
+        if raw.hasPrefix("0x") {
+            // Strip ellipsis truncation if present
+            return raw.replacingOccurrences(of: "...", with: "")
+        }
+        return "0x0000000000000000000000000000000000000000"
+    }
+}
+
+// MARK: - Build Safari View Wrapper
+
+struct BuildSafariView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }
 
 // MARK: - Template Card View
 
 struct TemplateCardView: View {
     let template: BuildContractTemplate
+    var onUse: () -> Void = {}
     @State private var isPressed: Bool = false
 
     var body: some View {
@@ -689,9 +834,7 @@ struct TemplateCardView: View {
                 Spacer(minLength: 0)
 
                 // Use Template button
-                Button {
-                    MtrxHaptics.impact(.medium)
-                } label: {
+                Button(action: onUse) {
                     Text("Use Template")
                 }
                 .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .compact, fullWidth: true))
@@ -891,6 +1034,79 @@ struct SubscriptionItem: Identifiable {
         SubscriptionItem(name: "Data Oracle Feed", tier: "Standard", amount: "$12/mo", nextDate: "Apr 28, 2026", icon: Symbols.link, tierColor: .statusInfo, usagePercent: 0.45),
         SubscriptionItem(name: "Contract Analytics", tier: "Free", amount: "$0/mo", nextDate: "N/A", icon: Symbols.chartBar, tierColor: .labelTertiary, usagePercent: 0.92),
     ]
+}
+
+// MARK: - Contract Filter Sheet
+
+struct ContractFilterSheet: View {
+    @Binding var selected: Set<BuildContractStatus>
+    @Environment(\.dismiss) private var dismiss
+
+    private let allStatuses: [BuildContractStatus] = [.active, .pending, .completed, .disputed]
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: Spacing.md) {
+                MtrxCard(style: .standard) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(allStatuses.enumerated()), id: \.offset) { index, status in
+                            Toggle(isOn: binding(for: status)) {
+                                HStack(spacing: Spacing.ms) {
+                                    Image(systemName: status.icon)
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundStyle(status.color)
+                                        .frame(width: 28, height: 28)
+
+                                    Text(status.rawValue)
+                                        .font(.mtrxBody)
+                                        .foregroundStyle(Color.labelPrimary)
+                                }
+                            }
+                            .tint(Color.accentPrimary)
+                            .padding(.vertical, Spacing.sm)
+
+                            if index < allStatuses.count - 1 {
+                                MtrxDivider()
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    selected = Set(allStatuses)
+                    MtrxHaptics.selection()
+                } label: {
+                    Text("Reset Filters")
+                }
+                .buttonStyle(MtrxButtonStyle(variant: .ghost, size: .compact))
+
+                Spacer()
+            }
+            .padding(Spacing.contentPadding)
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("Filter Contracts")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
+        }
+    }
+
+    private func binding(for status: BuildContractStatus) -> Binding<Bool> {
+        Binding(
+            get: { selected.contains(status) },
+            set: { isOn in
+                if isOn {
+                    selected.insert(status)
+                } else {
+                    selected.remove(status)
+                }
+            }
+        )
+    }
 }
 
 // MARK: - Preview

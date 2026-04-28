@@ -508,11 +508,10 @@ struct OnboardingView: View {
                     // users get the same address
                     let key = "com.mtrx.walletAddress." + (self.signInResult?.userId ?? "")
                     UserDefaults.standard.set(wallet.address, forKey: key)
-                case .failure(let error):
+                case .failure:
                     // Wallet creation failed — generate a deterministic
                     // address as emergency fallback so onboarding doesn't
-                    // get stuck. Log the error for debugging.
-                    print("[WalletCreation] Failed: \(error). Using deterministic fallback.")
+                    // get stuck.
                     self.walletAddress = self.generateDeterministicAddress(
                         from: self.signInResult?.userId ?? UUID().uuidString
                     )

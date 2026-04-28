@@ -11,9 +11,9 @@ final class LicensingViewModel: ObservableObject {
 
     // MARK: - Published State
 
-    @Published var myIP: [IPAsset] = []
+    @Published var myIP: [LicensingIPAsset] = []
     @Published var myLicenses: [License] = []
-    @Published var marketplace: [IPAsset] = []
+    @Published var marketplace: [LicensingIPAsset] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isEmpty: Bool = false
@@ -21,7 +21,7 @@ final class LicensingViewModel: ObservableObject {
     // Register IP
     @Published var registerName: String = ""
     @Published var registerDescription: String = ""
-    @Published var registerType: IPType = .patent
+    @Published var registerType: LicensingIPType = .patent
     @Published var registerFee: String = "0.1"
     @Published var isRegistering: Bool = false
     @Published var registerSuccess: Bool = false
@@ -31,11 +31,11 @@ final class LicensingViewModel: ObservableObject {
     @Published var licenseScope: LicenseScope = .commercial
     @Published var licenseDuration: Int = 12
     @Published var licensePrice: String = "0.05"
-    @Published var selectedIPForLicense: IPAsset?
+    @Published var selectedIPForLicense: LicensingIPAsset?
     @Published var showIssueLicenseSheet: Bool = false
     @Published var isIssuingLicense: Bool = false
 
-    let ipTypes: [IPType] = IPType.allCases
+    let ipTypes: [LicensingIPType] = LicensingIPType.allCases
     let licenseScopes: [LicenseScope] = LicenseScope.allCases
 
     // MARK: - Load
@@ -46,9 +46,9 @@ final class LicensingViewModel: ObservableObject {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
             guard let self else { return }
-            self.myIP = IPAsset.sampleMine
+            self.myIP = LicensingIPAsset.sampleMine
             self.myLicenses = License.sampleData
-            self.marketplace = IPAsset.sampleMarketplace
+            self.marketplace = LicensingIPAsset.sampleMarketplace
             self.isEmpty = self.myIP.isEmpty && self.myLicenses.isEmpty
             self.isLoading = false
         }
@@ -66,7 +66,7 @@ final class LicensingViewModel: ObservableObject {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             guard let self else { return }
-            let asset = IPAsset(
+            let asset = LicensingIPAsset(
                 name: self.registerName,
                 description: self.registerDescription,
                 type: self.registerType,
@@ -85,7 +85,7 @@ final class LicensingViewModel: ObservableObject {
 
     // MARK: - Issue License
 
-    func openIssueLicense(for ip: IPAsset) {
+    func openIssueLicense(for ip: LicensingIPAsset) {
         selectedIPForLicense = ip
         showIssueLicenseSheet = true
     }
@@ -126,7 +126,7 @@ final class LicensingViewModel: ObservableObject {
 
 // MARK: - Models
 
-enum IPType: String, CaseIterable {
+enum LicensingIPType: String, CaseIterable {
     case patent = "Patent"
     case trademark = "Trademark"
     case copyright = "Copyright"
@@ -160,28 +160,28 @@ enum LicenseScope: String, CaseIterable {
     }
 }
 
-struct IPAsset: Identifiable {
+struct LicensingIPAsset: Identifiable {
     let id = UUID()
     let name: String
     let description: String
-    let type: IPType
+    let type: LicensingIPType
     let owner: String
     let registeredDate: Date
     var licenseCount: Int
     let registrationFee: Double
 
-    static var sampleMine: [IPAsset] {
+    static var sampleMine: [LicensingIPAsset] {
         [
-            IPAsset(name: "MTRX Protocol Specification", description: "Core protocol specification for decentralized matrix operations.", type: .patent, owner: "You", registeredDate: Calendar.current.date(byAdding: .month, value: -4, to: Date()) ?? Date(), licenseCount: 3, registrationFee: 0.5),
-            IPAsset(name: "MTRX Logo", description: "Registered trademark for the MTRX brand identity.", type: .trademark, owner: "You", registeredDate: Calendar.current.date(byAdding: .month, value: -6, to: Date()) ?? Date(), licenseCount: 1, registrationFee: 0.2),
+            LicensingIPAsset(name: "MTRX Protocol Specification", description: "Core protocol specification for decentralized matrix operations.", type: .patent, owner: "You", registeredDate: Calendar.current.date(byAdding: .month, value: -4, to: Date()) ?? Date(), licenseCount: 3, registrationFee: 0.5),
+            LicensingIPAsset(name: "MTRX Logo", description: "Registered trademark for the MTRX brand identity.", type: .trademark, owner: "You", registeredDate: Calendar.current.date(byAdding: .month, value: -6, to: Date()) ?? Date(), licenseCount: 1, registrationFee: 0.2),
         ]
     }
 
-    static var sampleMarketplace: [IPAsset] {
+    static var sampleMarketplace: [LicensingIPAsset] {
         [
-            IPAsset(name: "ZK Circuit Library", description: "Optimized zero-knowledge proof circuits for identity verification.", type: .patent, owner: "zkLabs.eth", registeredDate: Calendar.current.date(byAdding: .month, value: -2, to: Date()) ?? Date(), licenseCount: 15, registrationFee: 1.0),
-            IPAsset(name: "DeFi UI Kit", description: "Professional UI component library for DeFi applications.", type: .design, owner: "designDAO.eth", registeredDate: Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date(), licenseCount: 42, registrationFee: 0.3),
-            IPAsset(name: "Oracle Algorithm v2", description: "Price oracle aggregation algorithm with MEV resistance.", type: .tradeSecret, owner: "oraclePro.eth", registeredDate: Calendar.current.date(byAdding: .week, value: -3, to: Date()) ?? Date(), licenseCount: 8, registrationFee: 2.0),
+            LicensingIPAsset(name: "ZK Circuit Library", description: "Optimized zero-knowledge proof circuits for identity verification.", type: .patent, owner: "zkLabs.eth", registeredDate: Calendar.current.date(byAdding: .month, value: -2, to: Date()) ?? Date(), licenseCount: 15, registrationFee: 1.0),
+            LicensingIPAsset(name: "DeFi UI Kit", description: "Professional UI component library for DeFi applications.", type: .design, owner: "designDAO.eth", registeredDate: Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date(), licenseCount: 42, registrationFee: 0.3),
+            LicensingIPAsset(name: "Oracle Algorithm v2", description: "Price oracle aggregation algorithm with MEV resistance.", type: .tradeSecret, owner: "oraclePro.eth", registeredDate: Calendar.current.date(byAdding: .weekOfYear, value: -3, to: Date()) ?? Date(), licenseCount: 8, registrationFee: 2.0),
         ]
     }
 }
@@ -197,7 +197,7 @@ struct License: Identifiable {
     static var sampleData: [License] {
         [
             License(ipName: "ZK Circuit Library", scope: .commercial, licensor: "zkLabs.eth", grantedDate: Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date(), expiryDate: Calendar.current.date(byAdding: .month, value: 11, to: Date()) ?? Date()),
-            License(ipName: "DeFi UI Kit", scope: .nonExclusive, licensor: "designDAO.eth", grantedDate: Calendar.current.date(byAdding: .week, value: -2, to: Date()) ?? Date(), expiryDate: Calendar.current.date(byAdding: .month, value: 10, to: Date()) ?? Date()),
+            License(ipName: "DeFi UI Kit", scope: .nonExclusive, licensor: "designDAO.eth", grantedDate: Calendar.current.date(byAdding: .weekOfYear, value: -2, to: Date()) ?? Date(), expiryDate: Calendar.current.date(byAdding: .month, value: 10, to: Date()) ?? Date()),
         ]
     }
 }
@@ -298,7 +298,7 @@ struct LicensingView: View {
         }
     }
 
-    private func ipRow(_ ip: IPAsset, showLicenseButton: Bool) -> some View {
+    private func ipRow(_ ip: LicensingIPAsset, showLicenseButton: Bool) -> some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             HStack {
                 Image(systemName: ip.type.icon)

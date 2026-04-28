@@ -540,7 +540,6 @@ struct SwapView: View {
             VStack(spacing: Spacing.ms) {
                 Button {
                     MtrxHaptics.success()
-                    print("[MTRX] Swap confirmed: \(fromAmountText) \(fromToken.symbol) -> \(formatSwapAmount(toAmount)) \(toToken.symbol)")
                     dismiss()
                 } label: {
                     Text("Confirm Swap")

@@ -20,7 +20,7 @@ final class DeployContractViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var deployedAddress: String?
     @Published var showConfirmation: Bool = false
-    @Published var gasEstimate: GasEstimate?
+    @Published var gasEstimate: DeployGasEstimate?
     @Published var contentAppeared: Bool = false
     @Published var searchText: String = ""
 
@@ -53,7 +53,7 @@ final class DeployContractViewModel: ObservableObject {
         try? await Task.sleep(nanoseconds: 800_000_000)
 
         templates = DeployTemplate.sampleData
-        gasEstimate = GasEstimate(
+        gasEstimate = DeployGasEstimate(
             estimatedGwei: 24,
             estimatedUSD: 12.48,
             maxGwei: 32,
@@ -382,7 +382,7 @@ struct DeployContractView: View {
 
     // MARK: - Gas Estimate
 
-    private func gasEstimateSection(_ gas: GasEstimate) -> some View {
+    private func gasEstimateSection(_ gas: DeployGasEstimate) -> some View {
         MtrxCard(style: .standard) {
             VStack(spacing: Spacing.ms) {
                 HStack {
@@ -721,7 +721,7 @@ struct TemplateParameter: Identifiable {
     }
 }
 
-struct GasEstimate {
+struct DeployGasEstimate {
     let estimatedGwei: Int
     let estimatedUSD: Double
     let maxGwei: Int

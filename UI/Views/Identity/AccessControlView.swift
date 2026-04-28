@@ -50,7 +50,7 @@ final class AccessControlViewModel: ObservableObject {
 
     // MARK: - Grant
 
-    func grantRole() {
+    func submitGrant() {
         guard !grantContract.isEmpty, !grantAddress.isEmpty else {
             errorMessage = "Contract and address are required."
             return
@@ -366,7 +366,7 @@ struct AccessControlView: View {
 
             Section {
                 Button {
-                    viewModel.grantRole()
+                    viewModel.submitGrant()
                 } label: {
                     HStack {
                         Spacer()

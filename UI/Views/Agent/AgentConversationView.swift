@@ -18,6 +18,8 @@ struct AgentConversationView: View {
 
     @State private var isListening = false
     @State private var appeared = false
+    @State private var showAgentIdentity = false
+    @State private var showSearch = false
 
     var body: some View {
         ZStack {
@@ -110,6 +112,12 @@ struct AgentConversationView: View {
                 appeared = true
             }
         }
+        .sheet(isPresented: $showAgentIdentity) {
+            AgentIdentityView()
+        }
+        .sheet(isPresented: $showSearch) {
+            SearchView()
+        }
     }
 
     // MARK: - Scroll Helper
@@ -126,7 +134,8 @@ struct AgentConversationView: View {
 
     private var agentHeader: some View {
         HStack(spacing: Spacing.ms) {
-            // Agent avatar — gradient circle with initial
+            // Agent avatar — gradient circle with initial.
+            // Long-press opens the AgentIdentityView sheet.
             ZStack {
                 Circle()
                     .fill(
@@ -162,6 +171,18 @@ struct AgentConversationView: View {
 
             Spacer()
 
+            // Search button — opens SearchView sheet
+            Button {
+                MtrxHaptics.impact(.light)
+                showSearch = true
+            } label: {
+                Image(systemName: Symbols.search)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Color.labelSecondary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+
             // Market hours badge
             MtrxBadge(
                 text: TemporalContext.shared.currentData().isMarketOpen ? "Markets Open" : "Markets Closed",
@@ -171,6 +192,11 @@ struct AgentConversationView: View {
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.ms)
         .background(.ultraThinMaterial)
+        .contentShape(Rectangle())
+        .onLongPressGesture(minimumDuration: 0.5) {
+            MtrxHaptics.impact(.medium)
+            showAgentIdentity = true
+        }
     }
 
     private var agentGradientColors: [Color] {
@@ -271,9 +297,9 @@ struct AgentConversationView: View {
     }
 
     private func insertQuickAction(_ text: String) {
-        MtrxHaptics.selection()
+        MtrxHaptics.impact(.light)
         viewModel.inputText = text
-        isInputFocused = true
+        viewModel.sendMessage()
     }
 
     // MARK: - Input Bar

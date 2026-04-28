@@ -189,17 +189,44 @@ enum DiscoverCategory: String, CaseIterable, Identifiable {
         case .infra:         return "server.rack"
         }
     }
+
+    /// Whether this category routes to a dedicated hub view when tapped.
+    var hasHubView: Bool {
+        switch self {
+        case .bridging, .compute, .gaming, .creator, .oracles,
+             .realWorld, .payments, .storage, .markets, .defiAdvanced:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+// MARK: - DeFi Sub-Destination
+
+/// Sub-destinations for the "Browse DeFi" section on Discover.
+enum DeFiSubDestination: String, Hashable, Identifiable {
+    case lending
+    case liquidity
+    case yield
+
+    var id: String { rawValue }
 }
 
 // MARK: - Discover View
 
 struct DiscoverView: View {
+    @EnvironmentObject var walletManager: WalletManager
     @StateObject private var viewModel = DiscoverViewModel()
     @State private var autoAdvanceTimer: Timer?
     @State private var showAlert = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
     @State private var selectedFeaturedItem: FeaturedItem?
+    @State private var pushedCategory: DiscoverCategory?
+    @State private var pushedDeFi: DeFiSubDestination?
+    @State private var showFilters = false
+    @State private var backingFundraiser: FundraiserItem?
 
     var body: some View {
         NavigationStack {
@@ -220,14 +247,18 @@ struct DiscoverView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         MtrxHaptics.impact(.light)
-                        alertTitle = "Filters"
-                        alertMessage = "Advanced filters coming soon"
-                        showAlert = true
+                        showFilters = true
                     } label: {
                         Image(systemName: Symbols.filter)
                             .foregroundStyle(Color.accentPrimary)
                     }
                 }
+            }
+            .navigationDestination(item: $pushedCategory) { category in
+                categoryDestination(for: category)
+            }
+            .navigationDestination(item: $pushedDeFi) { destination in
+                defiDestination(for: destination)
             }
         }
         .task {
@@ -282,6 +313,12 @@ struct DiscoverView: View {
             }
             .presentationDetents([.large])
         }
+        .sheet(isPresented: $showFilters) {
+            DiscoverFiltersSheet()
+        }
+        .sheet(item: $backingFundraiser) { fundraiser in
+            BackFundraiserSheet(fundraiser: fundraiser)
+        }
     }
 
     // MARK: - Content View
@@ -320,8 +357,11 @@ struct DiscoverView: View {
                 rwaSection
                     .mtrxStaggeredAppearance(index: 9, isVisible: viewModel.contentAppeared)
 
-                recentActivitySection
+                defiBrowseSection
                     .mtrxStaggeredAppearance(index: 10, isVisible: viewModel.contentAppeared)
+
+                recentActivitySection
+                    .mtrxStaggeredAppearance(index: 11, isVisible: viewModel.contentAppeared)
 
                 // Bottom padding for tab bar
                 Spacer().frame(height: Spacing.xxl)
@@ -351,14 +391,128 @@ struct DiscoverView: View {
                         icon: category.icon,
                         isSelected: viewModel.selectedCategory == category
                     ) {
-                        withAnimation(Motion.springSnappy) {
-                            viewModel.selectedCategory = category
-                        }
                         MtrxHaptics.selection()
+                        // If this category has a dedicated hub view, push it.
+                        // Otherwise fall back to the existing filter behavior.
+                        if category.hasHubView {
+                            pushedCategory = category
+                        } else {
+                            withAnimation(Motion.springSnappy) {
+                                viewModel.selectedCategory = category
+                            }
+                        }
                     }
                 }
             }
             .padding(.horizontal, Spacing.contentPadding)
+        }
+    }
+
+    // MARK: - Category Destination
+
+    @ViewBuilder
+    private func categoryDestination(for category: DiscoverCategory) -> some View {
+        switch category {
+        case .bridging:
+            BridgeView()
+        case .compute:
+            ComputeView()
+        case .gaming:
+            GamingView()
+        case .creator:
+            MusicView()
+        case .oracles:
+            OraclesView()
+        case .realWorld:
+            RWAView()
+        case .payments:
+            StablecoinView()
+        case .storage:
+            StorageView()
+        case .markets:
+            TradingView()
+        case .defiAdvanced:
+            YieldView()
+        default:
+            EmptyView()
+        }
+    }
+
+    // MARK: - DeFi Sub-Destination
+
+    @ViewBuilder
+    private func defiDestination(for destination: DeFiSubDestination) -> some View {
+        switch destination {
+        case .lending:
+            LendingView()
+        case .liquidity:
+            LiquidityView()
+        case .yield:
+            YieldView()
+        }
+    }
+
+    // MARK: - DeFi Browse Section
+
+    private var defiBrowseSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
+            MtrxSectionHeader(title: "Browse DeFi")
+                .padding(.horizontal, Spacing.contentPadding)
+
+            VStack(spacing: Spacing.sm) {
+                Button {
+                    MtrxHaptics.selection()
+                    pushedDeFi = .lending
+                } label: {
+                    defiBrowseRow(icon: "fee", systemName: "banknote.fill", title: "Lending", subtitle: "Borrow and lend assets")
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    MtrxHaptics.selection()
+                    pushedDeFi = .liquidity
+                } label: {
+                    defiBrowseRow(icon: "drop", systemName: "drop.fill", title: "Liquidity Pools", subtitle: "Provide liquidity, earn fees")
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    MtrxHaptics.selection()
+                    pushedDeFi = .yield
+                } label: {
+                    defiBrowseRow(icon: "chart", systemName: "chart.line.uptrend.xyaxis", title: "Yield Farming", subtitle: "Optimize returns across protocols")
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+        }
+    }
+
+    private func defiBrowseRow(icon: String, systemName: String, title: String, subtitle: String) -> some View {
+        MtrxCard(style: .standard) {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: systemName)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(Color.accentPrimary)
+                    .frame(width: 40, height: 40)
+                    .background(Color.accentPrimary.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.mtrxHeadline)
+                        .foregroundStyle(Color.labelPrimary)
+                    Text(subtitle)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: Symbols.forward)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.labelTertiary)
+            }
         }
     }
 
@@ -455,9 +609,7 @@ struct DiscoverView: View {
                     HStack(spacing: Spacing.md) {
                         ForEach(fundraisers) { fundraiser in
                             FundraiserCardView(fundraiser: fundraiser, onBack: {
-                                alertTitle = fundraiser.title
-                                alertMessage = "Backing \(fundraiser.title) - contribution flow coming soon"
-                                showAlert = true
+                                backingFundraiser = fundraiser
                             })
                         }
                     }
@@ -502,7 +654,7 @@ struct DiscoverView: View {
                         Text("Total Value")
                             .font(.mtrxCaption)
                             .foregroundStyle(Color.labelSecondary)
-                        Text("Loading...")
+                        Text(walletManager.totalPortfolioValue, format: .currency(code: "USD"))
                             .font(.mtrxTitle2)
                             .foregroundStyle(Color.labelPrimary)
                     }
@@ -511,9 +663,9 @@ struct DiscoverView: View {
                         Text("24h Change")
                             .font(.mtrxCaption)
                             .foregroundStyle(Color.labelSecondary)
-                        Text("—")
+                        Text(String(format: "%@%.2f%%", walletManager.portfolioChange24h >= 0 ? "+" : "", walletManager.portfolioChange24h))
                             .font(.mtrxHeadline)
-                            .foregroundStyle(Color.statusSuccess)
+                            .foregroundStyle(walletManager.portfolioChange24h >= 0 ? Color.statusSuccess : Color.statusError)
                     }
                 }
                 .padding(Spacing.md)
@@ -1123,8 +1275,253 @@ struct PartnerItem: Identifiable {
     ]
 }
 
+// MARK: - Discover Filters Sheet
+
+struct DiscoverFiltersSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    enum SortOption: String, CaseIterable, Identifiable {
+        case trending = "Trending"
+        case newest = "Newest"
+        case topRated = "Top Rated"
+
+        var id: String { rawValue }
+    }
+
+    @State private var freeTierOnly: Bool = false
+    @State private var availableNow: Bool = false
+    @State private var sortOption: SortOption = .trending
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: Spacing.sectionGap) {
+                    MtrxCard(style: .glass) {
+                        VStack(spacing: Spacing.md) {
+                            Toggle(isOn: $freeTierOnly) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Free tier only")
+                                        .font(.mtrxBodyBold)
+                                        .foregroundStyle(Color.labelPrimary)
+                                    Text("Hide listings with paid plans")
+                                        .font(.mtrxCaption1)
+                                        .foregroundStyle(Color.labelSecondary)
+                                }
+                            }
+                            .tint(Color.accentPrimary)
+
+                            MtrxDivider()
+
+                            Toggle(isOn: $availableNow) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Available now")
+                                        .font(.mtrxBodyBold)
+                                        .foregroundStyle(Color.labelPrimary)
+                                    Text("Hide listings with waitlists")
+                                        .font(.mtrxCaption1)
+                                        .foregroundStyle(Color.labelSecondary)
+                                }
+                            }
+                            .tint(Color.accentPrimary)
+                        }
+                    }
+
+                    MtrxCard(style: .glass) {
+                        VStack(alignment: .leading, spacing: Spacing.sm) {
+                            Text("Sort by")
+                                .font(.mtrxCaptionBold)
+                                .foregroundStyle(Color.labelSecondary)
+
+                            Picker("Sort", selection: $sortOption) {
+                                ForEach(SortOption.allCases) { option in
+                                    Text(option.rawValue).tag(option)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                    }
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+                .padding(.vertical, Spacing.contentPadding)
+            }
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("Filters")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        MtrxHaptics.impact(.light)
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+// MARK: - Back Fundraiser Sheet
+
+struct BackFundraiserSheet: View {
+    let fundraiser: FundraiserItem
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var amountText: String = ""
+
+    private let presets: [Int] = [25, 50, 100, 250]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: Spacing.sectionGap) {
+                    headerCard
+                    progressCard
+                    amountCard
+                    trinityNote
+                    payButton
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+                .padding(.vertical, Spacing.contentPadding)
+            }
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("Back Project")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private var headerCard: some View {
+        MtrxCard(style: .glass) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text(fundraiser.title)
+                    .font(.mtrxTitle2)
+                    .foregroundStyle(Color.labelPrimary)
+                Text(fundraiser.description_)
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var progressCard: some View {
+        MtrxCard(style: .glass) {
+            VStack(spacing: Spacing.sm) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Raised")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelTertiary)
+                        Text(fundraiser.raisedFormatted)
+                            .font(.mtrxMonoMedium)
+                            .foregroundStyle(Color.accentPrimary)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Goal")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelTertiary)
+                        Text(fundraiser.goalFormatted)
+                            .font(.mtrxMonoMedium)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+                }
+
+                ProgressView(value: fundraiser.progress)
+                    .tint(Color.accentPrimary)
+
+                HStack {
+                    Image(systemName: Symbols.clock)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.labelSecondary)
+                    Text(fundraiser.daysLeft)
+                        .font(.mtrxCaptionBold)
+                        .foregroundStyle(Color.labelSecondary)
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    private var amountCard: some View {
+        MtrxCard(style: .glass) {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                Text("Contribution")
+                    .font(.mtrxCaptionBold)
+                    .foregroundStyle(Color.labelSecondary)
+
+                HStack {
+                    Text("$")
+                        .font(.mtrxMonoLarge)
+                        .foregroundStyle(Color.labelSecondary)
+                    TextField("0", text: $amountText)
+                        .font(.mtrxMonoLarge)
+                        .foregroundStyle(Color.labelPrimary)
+                        .keyboardType(.decimalPad)
+                }
+                .padding(Spacing.md)
+                .background(Color.surfaceOverlay)
+                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+
+                HStack(spacing: Spacing.sm) {
+                    ForEach(presets, id: \.self) { preset in
+                        Button {
+                            MtrxHaptics.selection()
+                            amountText = "\(preset)"
+                        } label: {
+                            Text("$\(preset)")
+                                .font(.mtrxCaptionBold)
+                                .foregroundStyle(Color.accentPrimary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, Spacing.sm)
+                                .background(Color.accentPrimary.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var trinityNote: some View {
+        MtrxCard(style: .standard) {
+            HStack(alignment: .top, spacing: Spacing.sm) {
+                Image(systemName: Symbols.escrow)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.accentPrimary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Trinity-secured escrow")
+                        .font(.mtrxCaptionBold)
+                        .foregroundStyle(Color.labelPrimary)
+                    Text("Your contribution is held in a smart contract escrow until the fundraiser milestones are met. Funds are auto-refunded if the goal isn't reached.")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                }
+            }
+        }
+    }
+
+    private var payButton: some View {
+        Button {
+            MtrxHaptics.success()
+            dismiss()
+        } label: {
+            Text("Pay")
+        }
+        .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, fullWidth: true))
+        .disabled(amountText.isEmpty)
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
     DiscoverView()
+        .environmentObject(WalletManager())
 }

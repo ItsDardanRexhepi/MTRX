@@ -172,7 +172,7 @@ struct GroupPost: Identifiable {
         [
             GroupPost(author: "alice.eth", content: "Just deployed a new yield aggregator on mainnet. Looking for beta testers.", timestamp: Calendar.current.date(byAdding: .hour, value: -1, to: Date()) ?? Date()),
             GroupPost(author: "bob.eth", content: "Has anyone looked into the new EIP for account abstraction? Thoughts?", timestamp: Calendar.current.date(byAdding: .hour, value: -3, to: Date()) ?? Date()),
-            GroupPost(author: "carol.eth", content: "Great discussion at the governance call today. Summary coming soon.", timestamp: Calendar.current.date(byAdding: .hour, value: -6, to: Date()) ?? Date()),
+            GroupPost(author: "carol.eth", content: "This group's discussions and proposals appear here.\nJoin the conversation to see member updates and active votes.", timestamp: Calendar.current.date(byAdding: .hour, value: -6, to: Date()) ?? Date()),
         ]
     }
 }

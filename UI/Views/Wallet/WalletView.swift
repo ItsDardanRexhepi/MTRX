@@ -158,7 +158,6 @@ struct WalletView: View {
             }
             quickActionButton(icon: Symbols.stake, label: "Stake") {
                 MtrxHaptics.impact(.medium)
-                print("[MTRX] Stake tapped")
             }
         }
         .padding(.vertical, Spacing.lg)
@@ -242,7 +241,6 @@ struct WalletView: View {
                 ForEach(Array(sorted.enumerated()), id: \.element.id) { index, token in
                     Button {
                         MtrxHaptics.impact(.light)
-                        print("[MTRX] Token detail: \(token.symbol)")
                     } label: {
                         tokenRow(token)
                     }
@@ -363,7 +361,7 @@ struct WalletView: View {
                     message: "Your collected NFTs and digital assets will appear here.",
                     actionLabel: "Browse Marketplace"
                 ) {
-                    print("[MTRX] Browse marketplace tapped")
+                    // No-op: navigate to marketplace handled elsewhere.
                 }
             } else {
                 LazyVGrid(
@@ -376,7 +374,6 @@ struct WalletView: View {
                     ForEach(Array(walletManager.nfts.enumerated()), id: \.element.id) { index, nft in
                         Button {
                             MtrxHaptics.impact(.light)
-                            print("[MTRX] NFT detail: \(nft.name)")
                         } label: {
                             nftCard(nft)
                         }
@@ -520,7 +517,6 @@ struct WalletView: View {
 
                     Button {
                         MtrxHaptics.impact(.light)
-                        print("[MTRX] Manage \(position.protocol_)")
                     } label: {
                         Text("Manage")
                     }
@@ -582,7 +578,6 @@ struct WalletView: View {
 
             Button {
                 MtrxHaptics.impact(.light)
-                print("[MTRX] Load more transactions")
             } label: {
                 Text("Load More")
             }

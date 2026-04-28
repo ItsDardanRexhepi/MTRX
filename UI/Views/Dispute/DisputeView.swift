@@ -1,19 +1,19 @@
 // DisputeView.swift
 // MTRX
 //
-// Dispute resolution — create disputes, view active cases, jury voting, claim winnings.
+// DisputeCase resolution — create disputes, view active cases, jury voting, claim winnings.
 
 import SwiftUI
 
-// MARK: - Dispute ViewModel
+// MARK: - DisputeCase ViewModel
 
 @MainActor
 final class DisputeViewModel: ObservableObject {
 
     // MARK: - Published State
 
-    @Published var activeDisputes: [Dispute] = []
-    @Published var juryCases: [Dispute] = []
+    @Published var activeDisputes: [DisputeCase] = []
+    @Published var juryCases: [DisputeCase] = []
     @Published var selectedSegment: DisputeSegment = .myDisputes
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
@@ -51,8 +51,8 @@ final class DisputeViewModel: ObservableObject {
 
         try? await Task.sleep(nanoseconds: 800_000_000)
 
-        activeDisputes = Dispute.sampleMyDisputes
-        juryCases = Dispute.sampleJuryCases
+        activeDisputes = DisputeCase.sampleMyDisputes
+        juryCases = DisputeCase.sampleJuryCases
         isLoading = false
 
         withAnimation(Motion.springDefault) {
@@ -66,7 +66,7 @@ final class DisputeViewModel: ObservableObject {
 
         try? await Task.sleep(nanoseconds: 2_000_000_000)
 
-        let newDispute = Dispute(
+        let newDispute = DisputeCase(
             counterparty: counterpartyAddress,
             description_: disputeDescription,
             stakeAmount: Double(stakeAmount) ?? 0,
@@ -84,7 +84,7 @@ final class DisputeViewModel: ObservableObject {
         MtrxHaptics.success()
     }
 
-    func vote(for dispute: Dispute, inFavor: Bool) {
+    func vote(for dispute: DisputeCase, inFavor: Bool) {
         if let index = juryCases.firstIndex(where: { $0.id == dispute.id }) {
             if inFavor {
                 juryCases[index].votesFor += 1
@@ -113,14 +113,14 @@ final class DisputeViewModel: ObservableObject {
     }
 }
 
-// MARK: - Dispute Segment
+// MARK: - DisputeCase Segment
 
 enum DisputeSegment: String, CaseIterable {
     case myDisputes = "My Disputes"
     case jury = "Jury Duty"
 }
 
-// MARK: - Dispute View
+// MARK: - DisputeCase View
 
 struct DisputeView: View {
     @StateObject private var viewModel = DisputeViewModel()
@@ -220,7 +220,7 @@ struct DisputeView: View {
                     icon: Symbols.dispute,
                     title: "No Disputes",
                     message: "You have no active disputes. Tap + to raise one if needed.",
-                    actionLabel: "Create Dispute"
+                    actionLabel: "Create DisputeCase"
                 ) {
                     viewModel.showCreateForm = true
                 }
@@ -270,7 +270,7 @@ struct DisputeView: View {
         .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.lg)
     }
 
-    private func disputeCard(_ dispute: Dispute) -> some View {
+    private func disputeCard(_ dispute: DisputeCase) -> some View {
         MtrxCard(style: .standard, accentEdge: .leading) {
             VStack(spacing: Spacing.ms) {
                 HStack {
@@ -356,7 +356,7 @@ struct DisputeView: View {
         }
     }
 
-    private func juryCaseCard(_ dispute: Dispute) -> some View {
+    private func juryCaseCard(_ dispute: DisputeCase) -> some View {
         MtrxCard(style: .elevated) {
             VStack(spacing: Spacing.ms) {
                 HStack {
@@ -443,13 +443,13 @@ struct DisputeView: View {
         }
     }
 
-    // MARK: - Create Dispute Sheet
+    // MARK: - Create DisputeCase Sheet
 
     private var createDisputeSheet: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: Spacing.lg) {
-                    MtrxSheetHeader(title: "Create Dispute", subtitle: "Raise a formal on-chain dispute") {
+                    MtrxSheetHeader(title: "Create DisputeCase", subtitle: "Raise a formal on-chain dispute") {
                         viewModel.showCreateForm = false
                     }
 
@@ -495,7 +495,7 @@ struct DisputeView: View {
                         MtrxHaptics.impact(.medium)
                         Task { await viewModel.submitDispute() }
                     } label: {
-                        Label("Submit Dispute", systemImage: Symbols.dispute)
+                        Label("Submit DisputeCase", systemImage: Symbols.dispute)
                     }
                     .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, isLoading: viewModel.isSubmitting, fullWidth: true))
                     .disabled(!viewModel.canSubmitDispute || viewModel.isSubmitting)
@@ -529,12 +529,12 @@ struct DisputeView: View {
 
 // MARK: - Data Models
 
-struct Dispute: Identifiable {
+struct DisputeCase: Identifiable {
     let id = UUID()
     let counterparty: String
     let description_: String
     let stakeAmount: Double
-    var status: DisputeStatus
+    var status: DisputeUIStatus
     var votesFor: Int
     var votesAgainst: Int
     let deadline: Date
@@ -548,19 +548,19 @@ struct Dispute: Identifiable {
         return hours < 24
     }
 
-    static let sampleMyDisputes: [Dispute] = [
-        Dispute(counterparty: "0x5678...9abc", description_: "Vendor failed to deliver contracted services within the agreed timeline", stakeAmount: 0.5, status: .active, votesFor: 3, votesAgainst: 1, deadline: Calendar.current.date(byAdding: .day, value: 3, to: Date())!, wonByUser: false, isJuryCase: false),
-        Dispute(counterparty: "0xabcd...ef01", description_: "Smart contract audit was incomplete and missed critical vulnerabilities", stakeAmount: 1.2, status: .pending, votesFor: 0, votesAgainst: 0, deadline: Calendar.current.date(byAdding: .day, value: 7, to: Date())!, wonByUser: false, isJuryCase: false),
-        Dispute(counterparty: "0x1234...5678", description_: "Payment dispute for completed milestone deliverables", stakeAmount: 0.8, status: .resolved, votesFor: 5, votesAgainst: 2, deadline: Calendar.current.date(byAdding: .day, value: -2, to: Date())!, wonByUser: true, isJuryCase: false),
+    static let sampleMyDisputes: [DisputeCase] = [
+        DisputeCase(counterparty: "0x5678...9abc", description_: "Vendor failed to deliver contracted services within the agreed timeline", stakeAmount: 0.5, status: .active, votesFor: 3, votesAgainst: 1, deadline: Calendar.current.date(byAdding: .day, value: 3, to: Date())!, wonByUser: false, isJuryCase: false),
+        DisputeCase(counterparty: "0xabcd...ef01", description_: "Smart contract audit was incomplete and missed critical vulnerabilities", stakeAmount: 1.2, status: .pending, votesFor: 0, votesAgainst: 0, deadline: Calendar.current.date(byAdding: .day, value: 7, to: Date())!, wonByUser: false, isJuryCase: false),
+        DisputeCase(counterparty: "0x1234...5678", description_: "Payment dispute for completed milestone deliverables", stakeAmount: 0.8, status: .resolved, votesFor: 5, votesAgainst: 2, deadline: Calendar.current.date(byAdding: .day, value: -2, to: Date())!, wonByUser: true, isJuryCase: false),
     ]
 
-    static let sampleJuryCases: [Dispute] = [
-        Dispute(counterparty: "0xaaaa...bbbb vs 0xcccc...dddd", description_: "Dispute over NFT collection royalty payments not being distributed", stakeAmount: 2.0, status: .active, votesFor: 4, votesAgainst: 3, deadline: Calendar.current.date(byAdding: .day, value: 2, to: Date())!, wonByUser: false, isJuryCase: true),
-        Dispute(counterparty: "0xeeee...ffff vs 0x1111...2222", description_: "DAO treasury mismanagement allegation", stakeAmount: 5.0, status: .active, votesFor: 1, votesAgainst: 0, deadline: Calendar.current.date(byAdding: .day, value: 5, to: Date())!, wonByUser: false, isJuryCase: true),
+    static let sampleJuryCases: [DisputeCase] = [
+        DisputeCase(counterparty: "0xaaaa...bbbb vs 0xcccc...dddd", description_: "DisputeCase over NFT collection royalty payments not being distributed", stakeAmount: 2.0, status: .active, votesFor: 4, votesAgainst: 3, deadline: Calendar.current.date(byAdding: .day, value: 2, to: Date())!, wonByUser: false, isJuryCase: true),
+        DisputeCase(counterparty: "0xeeee...ffff vs 0x1111...2222", description_: "DAO treasury mismanagement allegation", stakeAmount: 5.0, status: .active, votesFor: 1, votesAgainst: 0, deadline: Calendar.current.date(byAdding: .day, value: 5, to: Date())!, wonByUser: false, isJuryCase: true),
     ]
 }
 
-enum DisputeStatus {
+enum DisputeUIStatus {
     case pending, active, resolved, rejected
 
     var label: String {
