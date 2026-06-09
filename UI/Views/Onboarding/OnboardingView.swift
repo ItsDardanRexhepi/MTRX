@@ -126,97 +126,101 @@ struct OnboardingView: View {
     // MARK: - Welcome Page
 
     private var welcomePage: some View {
+        // Scrollable content + pinned button: fits every screen size.
         VStack(spacing: 0) {
-            Spacer()
-                .frame(height: Spacing.xxxl)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    Spacer(minLength: Spacing.xl)
 
-            // Animated MTRX logo with cyan glow
-            ZStack {
-                // Outer glow rings
-                Circle()
-                    .stroke(Color.accentPrimary.opacity(glowPulse ? 0.15 : 0.05), lineWidth: 2)
-                    .frame(width: 140, height: 140)
-                    .scaleEffect(glowPulse ? 1.2 : 1.0)
+                    // Animated MTRX logo with cyan glow
+                    ZStack {
+                        // Outer glow rings
+                        Circle()
+                            .stroke(Color.accentPrimary.opacity(glowPulse ? 0.15 : 0.05), lineWidth: 2)
+                            .frame(width: 140, height: 140)
+                            .scaleEffect(glowPulse ? 1.2 : 1.0)
 
-                Circle()
-                    .stroke(Color.accentPrimary.opacity(glowPulse ? 0.08 : 0.02), lineWidth: 1)
-                    .frame(width: 180, height: 180)
-                    .scaleEffect(glowPulse ? 1.15 : 1.0)
+                        Circle()
+                            .stroke(Color.accentPrimary.opacity(glowPulse ? 0.08 : 0.02), lineWidth: 1)
+                            .frame(width: 180, height: 180)
+                            .scaleEffect(glowPulse ? 1.15 : 1.0)
 
-                // Logo background
-                Circle()
-                    .fill(Color.accentPrimary.opacity(0.12))
-                    .frame(width: 110, height: 110)
+                        // Logo background
+                        Circle()
+                            .fill(Color.accentPrimary.opacity(0.12))
+                            .frame(width: 110, height: 110)
 
-                Image(systemName: "cube.fill")
-                    .font(.system(size: 52, weight: .thin))
-                    .foregroundStyle(LinearGradient.mtrxPrimary)
-                    .mtrxGlow(color: .accentPrimary, radius: 16)
-            }
-            .mtrxScaleIn(isVisible: logoAppeared)
+                        Image(systemName: "cube.fill")
+                            .font(.system(size: 52, weight: .thin))
+                            .foregroundStyle(LinearGradient.mtrxPrimary)
+                            .mtrxGlow(color: .accentPrimary, radius: 16)
+                    }
+                    .frame(height: 190)
+                    .mtrxScaleIn(isVisible: logoAppeared)
 
-            Spacer()
-                .frame(height: Spacing.lg)
+                    Spacer(minLength: Spacing.lg)
 
-            // Headline
-            VStack(spacing: Spacing.sm) {
-                Text("MTRX")
-                    .font(.mtrxDisplayLarge)
-                    .foregroundStyle(Color.labelPrimary)
+                    // Headline
+                    VStack(spacing: Spacing.sm) {
+                        Text("MTRX")
+                            .font(.mtrxDisplayLarge)
+                            .foregroundStyle(Color.labelPrimary)
 
-                Text("The Future of Finance")
-                    .font(.mtrxTitle1)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.accentPrimary, .accentSecondary],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                        Text("The Future of Finance")
+                            .font(.mtrxTitle1)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.accentPrimary, .accentSecondary],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .minimumScaleFactor(0.8)
+                            .lineLimit(1)
+
+                        Text("Decentralized everything. AI-powered.\nBuilt for you.")
+                            .font(.mtrxBody)
+                            .foregroundStyle(Color.labelSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, Spacing.xl)
+                            .padding(.top, Spacing.xs)
+                    }
+                    .mtrxFadeInFromBottom(isVisible: headlineAppeared, delay: 0.2)
+
+                    Spacer(minLength: Spacing.xl)
+
+                    // Feature cards with staggered animation
+                    VStack(spacing: Spacing.md) {
+                        OnboardingFeatureCard(
+                            icon: Symbols.trinityActive,
+                            iconColor: .trinityPrimary,
+                            title: "Trinity AI",
+                            subtitle: "Your intelligent financial companion that learns and adapts"
                         )
-                    )
+                        .mtrxStaggeredAppearance(index: 0, isVisible: cardsAppeared)
 
-                Text("Decentralized everything. AI-powered.\nBuilt for you.")
-                    .font(.mtrxBody)
-                    .foregroundStyle(Color.labelSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, Spacing.xl)
-                    .padding(.top, Spacing.xs)
+                        OnboardingFeatureCard(
+                            icon: Symbols.contract,
+                            iconColor: .accentPrimary,
+                            title: "Smart Contracts",
+                            subtitle: "Create, deploy, and manage contracts with natural language"
+                        )
+                        .mtrxStaggeredAppearance(index: 1, isVisible: cardsAppeared)
+
+                        OnboardingFeatureCard(
+                            icon: Symbols.swap,
+                            iconColor: .accentSecondary,
+                            title: "DeFi & Beyond",
+                            subtitle: "Swap, stake, lend, and earn across protocols"
+                        )
+                        .mtrxStaggeredAppearance(index: 2, isVisible: cardsAppeared)
+                    }
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.bottom, Spacing.lg)
+                }
             }
-            .mtrxFadeInFromBottom(isVisible: headlineAppeared, delay: 0.2)
 
-            Spacer()
-                .frame(height: Spacing.xxl)
-
-            // Feature cards with staggered animation
-            VStack(spacing: Spacing.md) {
-                OnboardingFeatureCard(
-                    icon: Symbols.trinityActive,
-                    iconColor: .trinityPrimary,
-                    title: "Trinity AI",
-                    subtitle: "Your intelligent financial companion that learns and adapts"
-                )
-                .mtrxStaggeredAppearance(index: 0, isVisible: cardsAppeared)
-
-                OnboardingFeatureCard(
-                    icon: Symbols.contract,
-                    iconColor: .accentPrimary,
-                    title: "Smart Contracts",
-                    subtitle: "Create, deploy, and manage contracts with natural language"
-                )
-                .mtrxStaggeredAppearance(index: 1, isVisible: cardsAppeared)
-
-                OnboardingFeatureCard(
-                    icon: Symbols.swap,
-                    iconColor: .accentSecondary,
-                    title: "DeFi & Beyond",
-                    subtitle: "Swap, stake, lend, and earn across protocols"
-                )
-                .mtrxStaggeredAppearance(index: 2, isVisible: cardsAppeared)
-            }
-            .padding(.horizontal, Spacing.lg)
-
-            Spacer()
-
-            // Continue button
+            // Continue button — pinned, never scrolls offscreen
             Button {
                 MtrxHaptics.impact(.light)
                 currentPage = .signIn
@@ -225,6 +229,7 @@ struct OnboardingView: View {
             }
             .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, fullWidth: true))
             .padding(.horizontal, Spacing.lg)
+            .padding(.top, Spacing.sm)
             .padding(.bottom, Spacing.xxl)
         }
         .onAppear {
@@ -241,8 +246,7 @@ struct OnboardingView: View {
 
     private var signInPage: some View {
         VStack(spacing: 0) {
-            Spacer()
-                .frame(height: Spacing.xxxl + Spacing.xl)
+            Spacer(minLength: Spacing.xl)
 
             VStack(spacing: Spacing.ms) {
                 Image(systemName: "cube.fill")
@@ -261,8 +265,7 @@ struct OnboardingView: View {
                     .padding(.horizontal, Spacing.xl)
             }
 
-            Spacer()
-                .frame(height: Spacing.xxl)
+            Spacer(minLength: Spacing.lg)
 
             // Biometric indicator
             if biometricType != .none {
@@ -329,8 +332,7 @@ struct OnboardingView: View {
 
     private var walletSetupPage: some View {
         VStack(spacing: 0) {
-            Spacer()
-                .frame(height: Spacing.xxxl + Spacing.lg)
+            Spacer(minLength: Spacing.xl)
 
             // Wallet creation animation
             ZStack {
