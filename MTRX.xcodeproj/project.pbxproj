@@ -260,6 +260,8 @@
 		7886CD59F565A7EE82647088 /* YieldView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCBAE36CDCE93D7ABFF07953 /* YieldView.swift */; };
 		388C20527F1400A78851C9A7 /* IndexerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95BA9D4BA5CE8E0FA5AFDF92 /* IndexerView.swift */; };
 		D5391041EA7638C026739C26 /* StablecoinView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A8A0F6A5A8EF122AECBBBD /* StablecoinView.swift */; };
+		1862D2F9A98B4227244F2B5D /* PendingIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02AE6782C800C57BB6B48C19 /* PendingIntent.swift */; };
+		354C1A418EDECABAAE91E966 /* IntentQueueService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD6F05763125332E2E905F3 /* IntentQueueService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -524,6 +526,8 @@
 		CCBAE36CDCE93D7ABFF07953 /* YieldView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "YieldView.swift"; path = "UI/Views/DeFi/YieldView.swift"; sourceTree = SOURCE_ROOT; };
 		95BA9D4BA5CE8E0FA5AFDF92 /* IndexerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IndexerView.swift"; path = "UI/Views/Indexer/IndexerView.swift"; sourceTree = SOURCE_ROOT; };
 		C5A8A0F6A5A8EF122AECBBBD /* StablecoinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "StablecoinView.swift"; path = "UI/Views/Stablecoin/StablecoinView.swift"; sourceTree = SOURCE_ROOT; };
+		02AE6782C800C57BB6B48C19 /* PendingIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PendingIntent.swift"; path = "Models/PendingIntent.swift"; sourceTree = SOURCE_ROOT; };
+		3CD6F05763125332E2E905F3 /* IntentQueueService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IntentQueueService.swift"; path = "Services/IntentQueueService.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1565,6 +1569,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1862D2F9A98B4227244F2B5D /* PendingIntent.swift in Sources */,
+				354C1A418EDECABAAE91E966 /* IntentQueueService.swift in Sources */,
 				9BF0AD02F7618D478E76D23A /* CreatorView.swift in Sources */,
 				BF7D32F17C28143D1160EDFF /* MusicView.swift in Sources */,
 				9A2CB3D7A63FBCC0BB7FE9F4 /* GamingView.swift in Sources */,
