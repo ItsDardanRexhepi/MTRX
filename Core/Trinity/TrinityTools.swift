@@ -18,6 +18,19 @@ import Foundation
 import FoundationModels
 #endif
 
+// MARK: - Tool Networking
+
+/// Short-timeout session for all tool networking — one stalled request
+/// must never eat the model's tool-call execution window.
+enum TrinityToolNet {
+    static let session: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 5
+        config.timeoutIntervalForResource = 8
+        return URLSession(configuration: config)
+    }()
+}
+
 #if canImport(FoundationModels)
 
 // MARK: - Weather Tool
@@ -41,12 +54,14 @@ struct TrinityWeatherTool: Tool {
         do {
             let place: (lat: Double, lon: Double, label: String)
             if let city = arguments.city, !city.isEmpty {
+                print("[Trinity.weather] explicit city: \(city)")
                 guard let geocoded = try await Self.geocode(city: city) else {
                     return "Couldn't find a city called \(city)."
                 }
                 place = geocoded
             } else if let located = await TrinityLocationProvider.shared.coordinates(maxWait: 4) {
                 // Precise GPS fix (or a recently cached one).
+                print("[Trinity.weather] CL fix: \(located.latitude), \(located.longitude)")
                 let label = await Self.placeName(for: located) ?? "your current location"
                 place = (located.latitude, located.longitude, label)
             } else if let approx = await TrinityLocationProvider.approximateByIP() {
@@ -54,8 +69,19 @@ struct TrinityWeatherTool: Tool {
                 // granted yet) — use the network connection's city-level
                 // location so the user still gets an answer. Fast (~1s)
                 // and reliable whenever the device is online.
+                print("[Trinity.weather] IP fallback: \(approx.label)")
                 place = (approx.latitude, approx.longitude, approx.label)
+            } else if !(await TrinityLocationProvider.servicesEnabled()) {
+                print("[Trinity.weather] FAIL: Location Services globally off, IP failed")
+                return """
+                Location Services are turned off for this whole iPhone, and \
+                the network lookup also failed. Tell the user to turn on \
+                Location Services in Settings > Privacy & Security > Location \
+                Services, or ask which city they want weather for. Do NOT \
+                pick or guess a city yourself.
+                """
             } else if await TrinityLocationProvider.shared.isAuthorizationDenied {
+                print("[Trinity.weather] FAIL: permission denied, IP failed")
                 return """
                 Location permission is denied for this app. Tell the user to \
                 enable it in Settings > Privacy & Security > Location Services \
@@ -63,6 +89,7 @@ struct TrinityWeatherTool: Tool {
                 or guess a city yourself.
                 """
             } else {
+                print("[Trinity.weather] FAIL: no CL fix, no IP result")
                 return """
                 The user's location is unavailable right now. Tell them you \
                 can't see their location and ask which city they want weather \
@@ -71,25 +98,39 @@ struct TrinityWeatherTool: Tool {
             }
 
             let weather = try await Self.fetchWeather(lat: place.lat, lon: place.lon)
+            print("[Trinity.weather] OK: \(place.label)")
             return "Weather for \(place.label): \(weather)"
         } catch {
+            print("[Trinity.weather] ERROR: \(error)")
             return "Weather lookup failed: \(error.localizedDescription)"
         }
     }
 
     /// Reverse-geocode to a human place name so the answer names the
     /// user's real city rather than leaving the model room to guess.
+    /// Hard 3s cap — a slow geocoder must not stall the tool window.
     private static func placeName(for coordinate: CLLocationCoordinate2D) async -> String? {
-        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        guard let mark = try? await CLGeocoder().reverseGeocodeLocation(location).first else {
-            return nil
+        await withTaskGroup(of: String?.self) { group in
+            group.addTask {
+                let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+                guard let mark = try? await CLGeocoder().reverseGeocodeLocation(location).first else {
+                    return nil
+                }
+                let city = mark.locality ?? mark.subAdministrativeArea ?? mark.administrativeArea
+                guard let city else { return nil }
+                if let region = mark.administrativeArea, region != city {
+                    return "\(city), \(region)"
+                }
+                return city
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
         }
-        let city = mark.locality ?? mark.subAdministrativeArea ?? mark.administrativeArea
-        guard let city else { return nil }
-        if let region = mark.administrativeArea, region != city {
-            return "\(city), \(region)"
-        }
-        return city
     }
 
     // MARK: Open-Meteo
@@ -100,7 +141,7 @@ struct TrinityWeatherTool: Tool {
             URLQueryItem(name: "name", value: city),
             URLQueryItem(name: "count", value: "1"),
         ]
-        let (data, _) = try await URLSession.shared.data(from: comps.url!)
+        let (data, _) = try await TrinityToolNet.session.data(from: comps.url!)
         struct Geo: Decodable {
             struct Hit: Decodable { let latitude: Double; let longitude: Double; let name: String; let country: String? }
             let results: [Hit]?
@@ -122,7 +163,7 @@ struct TrinityWeatherTool: Tool {
             URLQueryItem(name: "timezone", value: "auto"),
             URLQueryItem(name: "forecast_days", value: "1"),
         ]
-        let (data, _) = try await URLSession.shared.data(from: comps.url!)
+        let (data, _) = try await TrinityToolNet.session.data(from: comps.url!)
         struct Forecast: Decodable {
             struct Current: Decodable {
                 let temperature_2m: Double
@@ -206,7 +247,7 @@ struct TrinityWebSearchTool: Tool {
             URLQueryItem(name: "no_html", value: "1"),
             URLQueryItem(name: "skip_disambig", value: "1"),
         ]
-        let (data, _) = try await URLSession.shared.data(from: comps.url!)
+        let (data, _) = try await TrinityToolNet.session.data(from: comps.url!)
         struct IA: Decodable { let AbstractText: String?; let Answer: String? }
         let ia = try JSONDecoder().decode(IA.self, from: data)
         if let answer = ia.Answer, !answer.isEmpty { return answer }
@@ -226,7 +267,7 @@ struct TrinityWebSearchTool: Tool {
             URLQueryItem(name: "limit", value: "1"),
             URLQueryItem(name: "format", value: "json"),
         ]
-        if let (data, _) = try? await URLSession.shared.data(from: search.url!),
+        if let (data, _) = try? await TrinityToolNet.session.data(from: search.url!),
            let parsed = try? JSONSerialization.jsonObject(with: data) as? [Any],
            parsed.count > 1,
            let titles = parsed[1] as? [String] {
@@ -249,7 +290,7 @@ struct TrinityWebSearchTool: Tool {
                 }
                 let query: Query?
             }
-            if let (data, _) = try? await URLSession.shared.data(from: fullText.url!) {
+            if let (data, _) = try? await TrinityToolNet.session.data(from: fullText.url!) {
                 title = (try? JSONDecoder().decode(SearchResponse.self, from: data))?
                     .query?.search.first?.title
             }
@@ -260,7 +301,7 @@ struct TrinityWebSearchTool: Tool {
         // …then pull that page's summary.
         let escaped = title.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? title
         let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(escaped)")!
-        let (summaryData, _) = try await URLSession.shared.data(from: url)
+        let (summaryData, _) = try await TrinityToolNet.session.data(from: url)
         struct Summary: Decodable { let extract: String? }
         return try JSONDecoder().decode(Summary.self, from: summaryData).extract
     }
@@ -319,7 +360,7 @@ struct TrinityCryptoPriceTool: Tool {
                 URLQueryItem(name: "vs_currencies", value: "usd"),
                 URLQueryItem(name: "include_24hr_change", value: "true"),
             ]
-            let (data, _) = try await URLSession.shared.data(from: comps.url!)
+            let (data, _) = try await TrinityToolNet.session.data(from: comps.url!)
             guard let parsed = try JSONSerialization.jsonObject(with: data) as? [String: [String: Double]],
                   let entry = parsed[id],
                   let price = entry["usd"] else {
@@ -346,7 +387,7 @@ struct TrinityCryptoPriceTool: Tool {
 
         var comps = URLComponents(string: "https://api.coingecko.com/api/v3/search")!
         comps.queryItems = [URLQueryItem(name: "query", value: query)]
-        let (data, _) = try await URLSession.shared.data(from: comps.url!)
+        let (data, _) = try await TrinityToolNet.session.data(from: comps.url!)
         struct SearchResult: Decodable {
             struct Coin: Decodable { let id: String }
             let coins: [Coin]
@@ -412,9 +453,17 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
     /// `maxWait` is short for in-conversation tool calls (the model
     /// abandons a tool that blocks too long) and long for `warmUp`.
     func coordinates(maxWait: TimeInterval = 4) async -> CLLocationCoordinate2D? {
+        // Master switch off → no dialog, no fix, ever. Skip straight to
+        // the persisted fallback. (Must be read off the main thread.)
+        guard await Self.servicesEnabled() else {
+            print("[Trinity.location] Location Services globally OFF")
+            return Self.persistedFix()
+        }
+
         let live: CLLocationCoordinate2D? = await withCheckedContinuation { cont in
             DispatchQueue.main.async {
                 let manager = self.managerOnMain()
+                print("[Trinity.location] auth=\(manager.authorizationStatus.rawValue) cached=\(String(describing: manager.location?.timestamp))")
 
                 // A fix from the last few minutes is plenty for weather.
                 if let recent = manager.location,
@@ -465,6 +514,12 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
         waiting.forEach { $0.resume(returning: coordinate) }
     }
 
+    /// Whether the iPhone-wide Location Services switch is on. Read off
+    /// the main thread — the system call can block.
+    static func servicesEnabled() async -> Bool {
+        await Task.detached { CLLocationManager.locationServicesEnabled() }.value
+    }
+
     /// Ask for when-in-use authorization — shows the system dialog when
     /// status is undetermined — and resolve once the user decides.
     /// The single safe entry point for permission prompts (onboarding,
@@ -510,7 +565,10 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
     static func approximateByIP() async -> ApproximateLocation? {
         // Keyless HTTPS providers, tried in order; either one suffices.
         if let hit = await ipWhoIs() { return hit }
-        return await ipApiCo()
+        print("[Trinity.location] ipwho.is failed — trying ipapi.co")
+        if let hit = await ipApiCo() { return hit }
+        print("[Trinity.location] ipapi.co failed too — no IP location")
+        return nil
     }
 
     private static func ipWhoIs() async -> ApproximateLocation? {
@@ -522,7 +580,7 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
             let region: String?
         }
         guard let url = URL(string: "https://ipwho.is/"),
-              let (data, _) = try? await URLSession.shared.data(from: url),
+              let (data, _) = try? await TrinityToolNet.session.data(from: url),
               let who = try? JSONDecoder().decode(Who.self, from: data),
               who.success != false,
               let lat = who.latitude, let lon = who.longitude else { return nil }
@@ -539,7 +597,7 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
             let region: String?
         }
         guard let url = URL(string: "https://ipapi.co/json/"),
-              let (data, _) = try? await URLSession.shared.data(from: url),
+              let (data, _) = try? await TrinityToolNet.session.data(from: url),
               let api = try? JSONDecoder().decode(Api.self, from: data),
               let lat = api.latitude, let lon = api.longitude else { return nil }
         let label = [api.city, api.region].compactMap { $0 }.joined(separator: ", ")
