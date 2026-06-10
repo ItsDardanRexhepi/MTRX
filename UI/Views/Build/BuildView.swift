@@ -29,6 +29,7 @@ final class BuildViewModel: ObservableObject {
     @Published var showUpgrade: Bool = false
     @Published var showPublishContent: Bool = false
     @Published var showCreatorHub: Bool = false
+    @Published var showIndexer: Bool = false
     @Published var selectedTemplate: BuildContractTemplate? = nil
 
     // MARK: - Computed Stats
@@ -199,6 +200,11 @@ struct BuildView: View {
             .sheet(isPresented: $viewModel.showCreatorHub) {
                 NavigationStack {
                     CreatorView()
+                }
+            }
+            .sheet(isPresented: $viewModel.showIndexer) {
+                NavigationStack {
+                    IndexerView()
                 }
             }
             .sheet(item: $viewModel.selectedTemplate) { template in
@@ -451,6 +457,16 @@ struct BuildView: View {
                     index: 9
                 ) {
                     viewModel.showCreatorHub = true
+                    MtrxHaptics.impact(.medium)
+                }
+
+                buildActionCard(
+                    icon: "server.rack",
+                    title: "Chain Indexer",
+                    description: "Query indexed on-chain data — blocks, transactions, and contract events.",
+                    index: 10
+                ) {
+                    viewModel.showIndexer = true
                     MtrxHaptics.impact(.medium)
                 }
 

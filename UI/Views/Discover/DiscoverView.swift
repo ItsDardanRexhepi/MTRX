@@ -194,7 +194,8 @@ enum DiscoverCategory: String, CaseIterable, Identifiable {
     var hasHubView: Bool {
         switch self {
         case .bridging, .compute, .gaming, .creator, .oracles,
-             .realWorld, .payments, .storage, .markets, .defiAdvanced:
+             .realWorld, .payments, .storage, .markets, .defiAdvanced,
+             .nft, .nftFinance, .identity, .social, .contracts, .staking:
             return true
         default:
             return false
@@ -433,6 +434,18 @@ struct DiscoverView: View {
             TradingView()
         case .defiAdvanced:
             YieldView()
+        case .nft:
+            NFTGalleryView()
+        case .nftFinance:
+            MintNFTView()
+        case .identity:
+            DomainView()
+        case .social:
+            EventsView()
+        case .contracts:
+            DisputeView()
+        case .staking:
+            StakingView()
         default:
             EmptyView()
         }

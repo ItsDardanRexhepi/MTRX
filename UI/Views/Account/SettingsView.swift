@@ -708,22 +708,92 @@ private struct AutoLockPickerView: View {
 private struct PlaceholderLegalView: View {
     let title: String
 
+    private var content: String {
+        switch title {
+        case "Terms of Service":
+            return """
+            Effective June 2026
+
+            1. The Service. MTRX provides a consumer interface to the \
+            0pnMatrx platform: AI-assisted finance, smart-contract \
+            tooling, and on-chain social features. Demo environments \
+            simulate execution and move no real funds.
+
+            2. Eligibility. You must be at least 18 and legally able to \
+            enter contracts in your jurisdiction.
+
+            3. Your Account. Sign in with Apple secures your identity; \
+            wallet keys are generated on-device in the Secure Enclave \
+            and never leave your hardware. You are responsible for the \
+            security of your device.
+
+            4. Acceptable Use. No unlawful activity, market abuse, or \
+            attempts to access other users' data or restricted system \
+            layers. Guardian-agent interventions enforce these rules.
+
+            5. No Financial Advice. Information in the app — including \
+            agent responses — is not investment advice. Digital assets \
+            are volatile; you may lose value.
+
+            6. Liability. The service is provided "as is" to the extent \
+            permitted by law. OPN MATRX disclaims indirect and \
+            consequential damages.
+
+            7. Changes. We may update these terms; continued use after \
+            notice constitutes acceptance.
+            """
+        case "Privacy Policy":
+            return """
+            Effective June 2026
+
+            What we collect. Account identifiers from Sign in with \
+            Apple, app settings, and the content you create. Wallet \
+            addresses are public by nature of blockchains.
+
+            What stays on your device. Agent conversations run on-device \
+            with Apple Intelligence; chat history, wallet keys, and \
+            location never leave your iPhone. Weather and price lookups \
+            query public APIs without your identity attached.
+
+            What we don't do. No ad tracking, no selling of personal \
+            data, no off-device profiling. Anonymous analytics and crash \
+            reports are optional and controlled in Privacy settings.
+
+            Your controls. Export your data, adjust privacy levels, or \
+            delete your account at any time from Account → Privacy.
+
+            Contact: privacy@openmatrix-ai.com
+            """
+        default:
+            return """
+            MTRX is built with the Swift open-source ecosystem and \
+            gratefully acknowledges:
+
+            • Swift & SwiftUI — Apache License 2.0, Apple Inc.
+            • Swift Collections — Apache License 2.0
+            • Swift Crypto — Apache License 2.0
+
+            Market data is provided by the CoinGecko public API; weather \
+            by Open-Meteo (CC BY 4.0); knowledge lookups by Wikipedia \
+            (CC BY-SA). Full license texts are available from their \
+            respective projects.
+            """
+        }
+    }
+
     var body: some View {
         ScrollView {
-            VStack(spacing: Spacing.lg) {
-                Spacer(minLength: Spacing.xxl)
-                Image(systemName: "doc.text")
-                    .font(.system(size: 48, weight: .light))
-                    .foregroundStyle(Color.labelTertiary)
+            VStack(alignment: .leading, spacing: Spacing.lg) {
                 Text(title)
-                    .font(.mtrxTitle3)
+                    .font(.mtrxTitle2)
                     .foregroundStyle(Color.labelPrimary)
-                Text("Content will be displayed here.")
-                    .font(.mtrxBody)
+
+                Text(content)
+                    .font(.mtrxCallout)
                     .foregroundStyle(Color.labelSecondary)
-                Spacer()
+                    .lineSpacing(4)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Spacing.contentPadding)
         }
         .background(Color.backgroundGrouped.ignoresSafeArea())
