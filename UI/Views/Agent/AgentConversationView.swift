@@ -36,6 +36,17 @@ struct AgentConversationView: View {
             // Background
             MtrxGradientBackground(style: .trinityGlow)
 
+            // The room takes on its agent's signature color — a faint
+            // aurora that shifts cyan/red/green with who's listening.
+            Circle()
+                .fill(agentAccent.opacity(0.11))
+                .frame(width: 400, height: 400)
+                .blur(radius: 95)
+                .offset(y: -270)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .animation(.easeInOut(duration: 0.7), value: viewModel.activeAgent)
+
             VStack(spacing: 0) {
                 // Agent header
                 agentHeader
