@@ -45,14 +45,16 @@ struct TrinityWeatherTool: Tool {
                     return "Couldn't find a city called \(city)."
                 }
                 place = geocoded
-            } else if let located = await TrinityLocationProvider.shared.coordinates() {
+            } else if let located = await TrinityLocationProvider.shared.coordinates(maxWait: 4) {
+                // Precise GPS fix (or a recently cached one).
                 let label = await Self.placeName(for: located) ?? "your current location"
                 place = (located.latitude, located.longitude, label)
             } else if let approx = await TrinityLocationProvider.approximateByIP() {
-                // No GPS fix — fall back to the network connection's
-                // city-level location, and say it's approximate.
-                place = (approx.latitude, approx.longitude,
-                         "\(approx.label) (approximate, from the network connection)")
+                // GPS wasn't ready fast enough (or permission isn't
+                // granted yet) — use the network connection's city-level
+                // location so the user still gets an answer. Fast (~1s)
+                // and reliable whenever the device is online.
+                place = (approx.latitude, approx.longitude, approx.label)
             } else if await TrinityLocationProvider.shared.isAuthorizationDenied {
                 return """
                 Location permission is denied for this app. Tell the user to \
@@ -379,6 +381,7 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
 
     private var manager: CLLocationManager?
     private var continuations: [CheckedContinuation<CLLocationCoordinate2D?, Never>] = []
+    private var authContinuations: [CheckedContinuation<CLAuthorizationStatus, Never>] = []
 
     private override init() {
         super.init()
@@ -395,15 +398,20 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
         return fresh
     }
 
-    /// Fire-and-forget refresh; call while the app is in the foreground
-    /// (permission prompts and fresh fixes both need it).
+    /// Fire-and-forget refresh; call while the app is in the foreground.
+    /// This is where the location-permission prompt is meant to appear,
+    /// and where a long enough wait lets a cold GPS fix land and cache,
+    /// so later tool calls (which must be fast) can read it instantly.
     func warmUp() {
-        Task { _ = await coordinates() }
+        Task { _ = await coordinates(maxWait: 20) }
     }
 
-    /// Current coordinates: fresh fix → new request (5s cap) → persisted
-    /// recent fix → nil.
-    func coordinates() async -> CLLocationCoordinate2D? {
+    /// Current coordinates: fresh cached fix → new request (capped) →
+    /// persisted recent fix → nil.
+    ///
+    /// `maxWait` is short for in-conversation tool calls (the model
+    /// abandons a tool that blocks too long) and long for `warmUp`.
+    func coordinates(maxWait: TimeInterval = 4) async -> CLLocationCoordinate2D? {
         let live: CLLocationCoordinate2D? = await withCheckedContinuation { cont in
             DispatchQueue.main.async {
                 let manager = self.managerOnMain()
@@ -421,8 +429,9 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
                     cont.resume(returning: nil)
                     return
                 case .notDetermined:
-                    // The grant lands in locationManagerDidChangeAuthorization,
-                    // which starts the fix while we stay queued.
+                    // Shows the permission dialog; the grant lands in
+                    // locationManagerDidChangeAuthorization, which then
+                    // starts the fix while we stay queued.
                     manager.requestWhenInUseAuthorization()
                 default:
                     // Continuous updates, stopped on the first fix —
@@ -432,9 +441,7 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
 
                 self.continuations.append(cont)
 
-                // Hard cap so a missing fix can't hang the model turn;
-                // cold GPS fixes routinely need more than a few seconds.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + maxWait) {
                     self.finish(with: self.manager?.location?.coordinate)
                 }
             }
@@ -444,8 +451,8 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
             Self.persist(live)
             return live
         }
-        // Background Siri turn or temporary fix failure — fall back to
-        // the last real fix from when the app was open.
+        // No fresh fix in time — fall back to the last real fix from
+        // when the app was open (background Siri turns, cold GPS).
         return Self.persistedFix()
     }
 
@@ -456,6 +463,25 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
         let waiting = continuations
         continuations = []
         waiting.forEach { $0.resume(returning: coordinate) }
+    }
+
+    /// Ask for when-in-use authorization — shows the system dialog when
+    /// status is undetermined — and resolve once the user decides.
+    /// The single safe entry point for permission prompts (onboarding,
+    /// settings): a throwaway CLLocationManager never sees the answer.
+    func requestAuthorization() async -> CLAuthorizationStatus {
+        await withCheckedContinuation { cont in
+            DispatchQueue.main.async {
+                let manager = self.managerOnMain()
+                let status = manager.authorizationStatus
+                guard status == .notDetermined else {
+                    cont.resume(returning: status)
+                    return
+                }
+                self.authContinuations.append(cont)
+                manager.requestWhenInUseAuthorization()
+            }
+        }
     }
 
     /// Whether the user has explicitly denied location access.
@@ -482,7 +508,7 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
     /// last resort so weather still works when Core Location can't
     /// deliver (permission denied, background Siri turn, no GPS).
     static func approximateByIP() async -> ApproximateLocation? {
-        // Two keyless HTTPS providers; either alone is usually enough.
+        // Keyless HTTPS providers, tried in order; either one suffices.
         if let hit = await ipWhoIs() { return hit }
         return await ipApiCo()
     }
@@ -541,8 +567,17 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
     // MARK: CLLocationManagerDelegate (delivered on main)
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+
+        // Resolve anyone waiting on the permission dialog itself.
+        if status != .notDetermined, !authContinuations.isEmpty {
+            let waiting = authContinuations
+            authContinuations = []
+            waiting.forEach { $0.resume(returning: status) }
+        }
+
         guard !continuations.isEmpty else { return }
-        switch manager.authorizationStatus {
+        switch status {
         case .authorizedWhenInUse, .authorizedAlways:
             manager.startUpdatingLocation()
         case .denied, .restricted:

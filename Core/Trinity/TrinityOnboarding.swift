@@ -422,11 +422,10 @@ final class TrinityOnboarding: ObservableObject {
 
     private func requestLocationPermission() async -> PermissionStatus {
         #if canImport(CoreLocation)
-        let delegate = _LocationDelegate()
-        let manager = CLLocationManager()
-        manager.delegate = delegate
-        manager.requestWhenInUseAuthorization()
-        let status = await delegate.waitForResolution()
+        // Route through the shared provider — its manager lives on the
+        // main run loop, so the dialog result actually arrives. A
+        // locally-created CLLocationManager never gets the callback.
+        let status = await TrinityLocationProvider.shared.requestAuthorization()
         switch status {
         case .authorizedWhenInUse, .authorizedAlways: return .granted
         case .denied: return .denied
