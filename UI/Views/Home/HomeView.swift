@@ -68,19 +68,35 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             Text(timeGreeting)
                 .font(.mtrxCaption1)
-                .foregroundStyle(Color.labelSecondary)
+                .foregroundStyle(Color.trinityPrimary.opacity(0.85))
                 .textCase(.uppercase)
-                .kerning(1.2)
+                .kerning(1.6)
 
             Text(firstName)
                 .font(.mtrxLargeTitle)
-                .foregroundStyle(Color.labelPrimary)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.labelPrimary, Color.trinityPrimary],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
 
             Text(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()))
                 .font(.mtrxSubheadline)
                 .foregroundStyle(Color.labelTertiary)
         }
         .padding(.top, Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            // Soft signature glow rising behind the greeting.
+            Circle()
+                .fill(Color.trinityPrimary.opacity(0.13))
+                .frame(width: 280, height: 280)
+                .blur(radius: 70)
+                .offset(x: -60, y: -70),
+            alignment: .topLeading
+        )
     }
 
     private var timeGreeting: String {
@@ -168,15 +184,27 @@ struct HomeView: View {
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.labelTertiary)
+                    .foregroundStyle((colors.first ?? .accentPrimary).opacity(0.8))
             }
             .padding(Spacing.md)
-            .background(Color.surfaceCard.overlay((colors.first ?? .clear).opacity(0.05)))
+            .background(.ultraThinMaterial)
+            .background((colors.first ?? .clear).opacity(0.06))
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
-                    .stroke((colors.first ?? .clear).opacity(0.22), lineWidth: 1)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                (colors.first ?? .clear).opacity(0.45),
+                                (colors.first ?? .clear).opacity(0.08),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
             )
+            .shadow(color: (colors.first ?? .clear).opacity(0.10), radius: 14, y: 6)
         }
         .buttonStyle(.plain)
     }
@@ -211,9 +239,14 @@ struct HomeView: View {
             presentedChat = ChatLaunch(agent: .trinity, prompt: prompt)
         } label: {
             HStack(spacing: Spacing.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(color)
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.14))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: icon)
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(color)
+                }
 
                 Text(title)
                     .font(.mtrxCaptionBold)
@@ -224,12 +257,13 @@ struct HomeView: View {
                 Spacer(minLength: 0)
             }
             .padding(Spacing.ms)
-            .frame(maxWidth: .infinity, minHeight: 56)
-            .background(Color.surfaceCard)
+            .frame(maxWidth: .infinity, minHeight: 58)
+            .background(.ultraThinMaterial)
+            .background(color.opacity(0.04))
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
-                    .stroke(color.opacity(0.18), lineWidth: 1)
+                    .stroke(color.opacity(0.22), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -280,12 +314,21 @@ struct HomeView: View {
                 }
             }
             .padding(Spacing.md)
-            .background(Color.surfaceCard)
+            .background(.ultraThinMaterial)
+            .background(Color.trinityPrimary.opacity(0.035))
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
-                    .stroke(Color.trinityPrimary.opacity(0.14), lineWidth: 1)
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color.trinityPrimary.opacity(0.35), Color.trinityPrimary.opacity(0.06)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
             )
+            .shadow(color: Color.trinityPrimary.opacity(0.08), radius: 14, y: 6)
         }
     }
 
