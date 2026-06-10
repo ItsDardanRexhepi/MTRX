@@ -21,6 +21,7 @@ struct AgentConversationView: View {
     @State private var appeared = false
     @State private var showAgentIdentity = false
     @State private var showSearch = false
+    @State private var showChats = false
 
     var body: some View {
         ZStack {
@@ -167,6 +168,16 @@ struct AgentConversationView: View {
         .sheet(isPresented: $showSearch) {
             SearchView()
         }
+        .sheet(isPresented: $showChats) {
+            ChatHistorySheet(
+                currentID: viewModel.conversationID,
+                allowNeo: AgentAccessControl.shared.userType(for: userID) == .owner,
+                onSelect: { viewModel.openConversation($0) },
+                onNew: { viewModel.startNewConversation(agent: $0) }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Scroll Helper
@@ -220,6 +231,18 @@ struct AgentConversationView: View {
 
             Spacer()
 
+            // Chats button — saved history + new chats per agent
+            Button {
+                MtrxHaptics.impact(.light)
+                showChats = true
+            } label: {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Color.labelSecondary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+
             // Search button — opens SearchView sheet
             Button {
                 MtrxHaptics.impact(.light)
@@ -254,6 +277,12 @@ struct AgentConversationView: View {
         case .morpheus: return [.statusError, .statusError.opacity(0.7)]
         case .neo: return [.statusSuccess, .accentPrimary]
         }
+    }
+
+    /// The active agent's signature color — used for focus rings and
+    /// the send button so the whole bar quietly matches who's listening.
+    private var agentAccent: Color {
+        agentGradientColors.first ?? .accentPrimary
     }
 
     private var agentInitial: String {
@@ -366,8 +395,8 @@ struct AgentConversationView: View {
                     .frame(width: 36, height: 36)
             }
 
-            // Text field
-            TextField("Ask Trinity...", text: $viewModel.inputText, axis: .vertical)
+            // Text field — addressed to whoever is in the room.
+            TextField("Ask \(agentName)...", text: $viewModel.inputText, axis: .vertical)
                 .font(.mtrxBody)
                 .lineLimit(1...5)
                 .focused($isInputFocused)
@@ -376,6 +405,14 @@ struct AgentConversationView: View {
                 .background(
                     RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous)
                         .fill(Color.surfaceOverlay)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous)
+                        .stroke(
+                            isInputFocused ? agentAccent.opacity(0.45) : Color.clear,
+                            lineWidth: 1
+                        )
+                        .animation(.easeOut(duration: 0.18), value: isInputFocused)
                 )
 
             // Send button
@@ -388,7 +425,7 @@ struct AgentConversationView: View {
                     .foregroundStyle(
                         viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             ? Color.labelTertiary
-                            : Color.accentPrimary
+                            : agentAccent
                     )
                     .symbolRenderingMode(.hierarchical)
             }
@@ -434,6 +471,12 @@ struct MessageBubble: View {
                     .padding(.vertical, 10)
                     .background(bubbleBackground)
                     .clipShape(bubbleShape)
+                    .overlay(
+                        bubbleShape.stroke(
+                            isUser ? Color.clear : agentDotColor.opacity(0.16),
+                            lineWidth: 1
+                        )
+                    )
 
                 // Timestamp
                 Text(message.timestamp, style: .time)
@@ -449,9 +492,13 @@ struct MessageBubble: View {
     private var bubbleBackground: some View {
         Group {
             if isUser {
-                Color.accentPrimary
+                LinearGradient(
+                    colors: [Color.accentPrimary, Color.accentPrimary.opacity(0.78)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
             } else {
-                Color.surfaceCard
+                Color.surfaceCard.overlay(agentDotColor.opacity(0.045))
             }
         }
     }

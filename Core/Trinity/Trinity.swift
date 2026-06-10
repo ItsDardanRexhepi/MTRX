@@ -1832,7 +1832,7 @@ struct TrinityResponse: Sendable {
 
 // MARK: - Suggested Action
 
-struct SuggestedAction: Identifiable, Sendable {
+struct SuggestedAction: Identifiable, Sendable, Codable {
     let id: UUID
     let title: String
     let description: String

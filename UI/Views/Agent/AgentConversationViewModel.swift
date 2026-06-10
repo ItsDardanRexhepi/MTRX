@@ -1,8 +1,8 @@
 import Foundation
 import Combine
 
-/// Message model for agent conversations.
-struct AgentMessage: Identifiable {
+/// Message model for agent conversations. Codable so chats persist.
+struct AgentMessage: Identifiable, Codable {
     let id: UUID
     let text: String
     let role: MessageRole
@@ -10,7 +10,7 @@ struct AgentMessage: Identifiable {
     let timestamp: Date
     let suggestedActions: [SuggestedAction]
 
-    enum MessageRole {
+    enum MessageRole: String, Codable {
         case user
         case agent
         case system
@@ -56,6 +56,12 @@ final class AgentConversationViewModel: ObservableObject {
     /// One router per conversation so the model session keeps context.
     private let inference = InferenceRouter()
 
+    /// Persistent chat storage — every conversation belongs to one agent.
+    private let store = ConversationStore.shared
+    private(set) var conversationID: UUID?
+    private var cancellables = Set<AnyCancellable>()
+    private var isConfigured = false
+
     /// Maximum number of recent messages to include as conversation context for API calls.
     private let maxContextMessages = 10
 
@@ -84,6 +90,89 @@ final class AgentConversationViewModel: ObservableObject {
                 showFirstBoot = true
                 accessControl.markFirstBootShown(for: userID)
             }
+        }
+
+        guard !isConfigured else { return }
+        isConfigured = true
+
+        // Resume the most recent saved chat, or open a fresh one.
+        if let recent = store.conversations.first, !recent.messages.isEmpty {
+            openConversation(recent)
+        } else {
+            startNewConversation(agent: activeAgent, announce: false)
+        }
+
+        // Continuously persist the active conversation as it changes.
+        $messages
+            .dropFirst()
+            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+            .sink { [weak self] msgs in
+                guard let self, let id = self.conversationID else { return }
+                self.store.update(id: id, agentRaw: self.activeAgent.rawValue, messages: msgs)
+            }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Conversations
+
+    /// Open a fresh chat bound to `agent`.
+    func startNewConversation(agent: AgentAccessControl.ActiveAgent, announce: Bool = true) {
+        let convo = store.create(agent: agent)
+        conversationID = convo.id
+        manualAgentOverride = (agent == .trinity) ? nil : agent
+        activeAgent = agent
+        pendingAction = nil
+        showFirstBoot = false
+        messages = announce
+            ? [AgentMessage(text: Self.openingLine(for: agent), role: .agent, agentName: Self.displayName(of: agent))]
+            : []
+    }
+
+    /// Load a saved chat.
+    func openConversation(_ convo: AgentChatRecord) {
+        conversationID = convo.id
+        manualAgentOverride = (convo.agent == .trinity) ? nil : convo.agent
+        activeAgent = convo.agent
+        pendingAction = nil
+        showFirstBoot = false
+        messages = convo.messages
+    }
+
+    /// "Talk to Morpheus" opens that agent's own chat — the most recent
+    /// one, or a fresh one — keeping every agent's history separate.
+    private func transferToAgentChat(_ target: AgentAccessControl.ActiveAgent) {
+        if let id = conversationID, store.conversation(id: id)?.agent == target {
+            messages.append(AgentMessage(
+                text: "You're already speaking with \(Self.displayName(of: target)).",
+                role: .system
+            ))
+            return
+        }
+        if let existing = store.mostRecent(agent: target) {
+            openConversation(existing)
+            messages.append(AgentMessage(
+                text: Self.openingLine(for: target),
+                role: .agent,
+                agentName: Self.displayName(of: target)
+            ))
+        } else {
+            startNewConversation(agent: target)
+        }
+    }
+
+    static func displayName(of agent: AgentAccessControl.ActiveAgent) -> String {
+        switch agent {
+        case .trinity: return "Trinity"
+        case .morpheus: return "Morpheus"
+        case .neo: return "Neo"
+        }
+    }
+
+    private static func openingLine(for agent: AgentAccessControl.ActiveAgent) -> String {
+        switch agent {
+        case .trinity: return "New conversation — what do you need?"
+        case .morpheus: return "You have my attention. Speak."
+        case .neo: return "Channel open. Report."
         }
     }
 
@@ -130,16 +219,14 @@ final class AgentConversationViewModel: ObservableObject {
         messages.append(AgentMessage(text: text, role: .user))
         inputText = ""
 
-        // Manual agent switching — "talk to morpheus", "switch to trinity".
-        // The choice sticks for the rest of the conversation until the
-        // user switches again.
+        // Manual agent switching — "talk to morpheus", "bring trinity".
+        // Each agent keeps its own separate chat; switching opens theirs.
         if let target = Self.agentSwitchTarget(in: text) {
             if target == .neo && userType != .owner {
                 respondAsTrinity("Neo coordinates the platform itself and answers only to the owner. Morpheus and I are here for you — what do you need?")
                 return
             }
-            manualAgentOverride = (target == .trinity) ? nil : target
-            switchAgent(to: target)
+            transferToAgentChat(target)
             return
         }
 
