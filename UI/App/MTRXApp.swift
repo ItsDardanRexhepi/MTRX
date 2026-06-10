@@ -129,7 +129,7 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.build)
 
-            AgentConversationView(userID: appState.currentUserID)
+            HomeView()
                 .tabItem {
                     Label("Home", systemImage: Symbols.home)
                 }
