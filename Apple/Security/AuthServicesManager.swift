@@ -4,6 +4,7 @@
 
 import AuthenticationServices
 import Foundation
+import UIKit
 
 // MARK: - Auth Services Manager
 
@@ -29,6 +30,7 @@ final class AuthServicesManager: NSObject {
 
             let controller = ASAuthorizationController(authorizationRequests: [request])
             controller.delegate = self
+            controller.presentationContextProvider = self
             controller.performRequests()
         }
     }
@@ -114,6 +116,20 @@ final class AuthServicesManager: NSObject {
 }
 
 // MARK: - ASAuthorizationControllerDelegate
+
+// MARK: - Presentation Context
+
+extension AuthServicesManager: ASAuthorizationControllerPresentationContextProviding {
+    /// Anchor the Apple sign-in sheet to the app's key window. Without
+    /// this, presentation is unreliable on device.
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        let keyWindow = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }
+        return keyWindow ?? ASPresentationAnchor()
+    }
+}
 
 extension AuthServicesManager: ASAuthorizationControllerDelegate {
 

@@ -198,16 +198,58 @@ class AppState: ObservableObject {
     @Published var joinDate: Date = Date()
     @Published var notificationCount: Int = 0
 
+    private enum Keys {
+        static let onboardingComplete = "com.mtrx.onboardingComplete"
+        static let appleUserId = "com.mtrx.appleUserId"
+        static let displayName = "com.mtrx.userDisplayName"
+        static let email = "com.mtrx.userEmail"
+        static let walletAddress = "com.mtrx.walletAddress"
+        static let joinDate = "com.mtrx.joinDate"
+    }
+
+    init() {
+        restorePersistedSession()
+    }
+
+    /// Restore the demo account created via Sign in with Apple, so the
+    /// user lands on Home — not onboarding — on every later launch.
+    private func restorePersistedSession() {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: Keys.onboardingComplete),
+              let userId = defaults.string(forKey: Keys.appleUserId),
+              !userId.isEmpty else { return }
+
+        currentUserID = userId
+        if let name = defaults.string(forKey: Keys.displayName), !name.isEmpty {
+            displayName = name
+        }
+        if let address = defaults.string(forKey: Keys.walletAddress), !address.isEmpty {
+            walletAddress = address
+        }
+        if let joined = defaults.object(forKey: Keys.joinDate) as? Date {
+            joinDate = joined
+        }
+        isAuthenticated = true
+    }
+
     func navigate(to destination: NavigationDestination) {
         currentDestination = destination
     }
 
     func signIn(userID: String, displayName: String, walletAddress: String) {
         self.currentUserID = userID
-        self.displayName = displayName
+        if !displayName.isEmpty { self.displayName = displayName }
         self.walletAddress = walletAddress
         self.joinDate = Date()
         self.isAuthenticated = true
+
+        // Persist the demo account so it survives relaunch.
+        let defaults = UserDefaults.standard
+        defaults.set(true, forKey: Keys.onboardingComplete)
+        defaults.set(userID, forKey: Keys.appleUserId)
+        if !displayName.isEmpty { defaults.set(displayName, forKey: Keys.displayName) }
+        defaults.set(walletAddress, forKey: Keys.walletAddress)
+        defaults.set(joinDate, forKey: Keys.joinDate)
     }
 
     func signOut() {
@@ -215,6 +257,16 @@ class AppState: ObservableObject {
         currentUserID = ""
         displayName = ""
         walletAddress = ""
+
+        // Clear the stored demo account so the next launch starts at
+        // onboarding and a fresh Sign in with Apple can be demoed.
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: Keys.onboardingComplete)
+        defaults.removeObject(forKey: Keys.appleUserId)
+        defaults.removeObject(forKey: Keys.displayName)
+        defaults.removeObject(forKey: Keys.email)
+        defaults.removeObject(forKey: Keys.walletAddress)
+        defaults.removeObject(forKey: Keys.joinDate)
     }
 
     func refreshOnForeground() { }
