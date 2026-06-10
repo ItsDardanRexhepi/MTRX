@@ -196,12 +196,14 @@ final class AgentConversationViewModel: ObservableObject {
 
         Task {
             // 1 — On-device Apple Intelligence (instant, private, offline).
-            // The session keeps its own conversation context across turns;
-            // we inject live wallet state + time so answers stay grounded.
+            // The session keeps its own conversation context across turns.
+            // Live wallet data is attached ONLY when the message is about
+            // money — ordinary conversation gets no context at all, so the
+            // model never drifts into reciting the portfolio.
             if agent == .trinity, !intercepted,
                let onDevice = await inference.generateOnDeviceOnly(
                    prompt: text,
-                   context: liveContextLine() + " " + temporal
+                   context: Self.isFinanceRelated(text) ? liveContextLine() : nil
                ) {
                 messages.append(AgentMessage(
                     text: onDevice,
@@ -260,6 +262,20 @@ final class AgentConversationViewModel: ObservableObject {
         return "User portfolio: \(total) total — \(holdings)."
     }
 
+    /// Whether a message is about money/wallet topics — the only case
+    /// where live portfolio context is attached to the prompt.
+    private static func isFinanceRelated(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let keywords = [
+            "balance", "portfolio", "wallet", "holding", "worth",
+            "eth", "usdc", "link", "uni", "aave", "token", "coin", "crypto",
+            "send", "transfer", "pay", "swap", "stake", "staking", "unstake",
+            "buy", "sell", "trade", "price", "yield", "apy", "defi",
+            "nft", "gas", "fee", "money", "fund", "invest", "transaction",
+        ]
+        return keywords.contains { lower.contains($0) }
+    }
+
     // MARK: - Conversation Context
 
     /// Build a text summary of recent conversation for API context.
@@ -311,17 +327,13 @@ final class AgentConversationViewModel: ObservableObject {
             pendingAction = nil
         }
 
-        // 2 — Live wallet queries answered from real shared state
-        if let wm = walletManager,
+        // 2 — Live wallet queries: when Apple Intelligence is available it
+        // answers these naturally (the prompt carries live wallet context),
+        // so the static summary only serves devices without it.
+        if !inference.isOnDeviceAvailable,
+           let wm = walletManager,
            lower.contains("balance") || lower.contains("portfolio") || lower.contains("how much do i") {
-            respondAsTrinity(
-                livePortfolioSummary(wm),
-                actions: [
-                    SuggestedAction(title: "Send 0.1 ETH", description: "Send to a contact", action: "send 0.1 ETH to alice.eth"),
-                    SuggestedAction(title: "Swap ETH → USDC", description: "Swap at spot", action: "swap 0.25 ETH to USDC"),
-                    SuggestedAction(title: "Stake ETH", description: "Earn 8.7% APY", action: "stake 0.5 ETH"),
-                ]
-            )
+            respondAsTrinity(livePortfolioSummary(wm))
             return true
         }
 
@@ -439,7 +451,7 @@ final class AgentConversationViewModel: ObservableObject {
             "• \(t.symbol): \(Self.trim(t.balance)) (\(Self.usdFormatter.string(from: NSNumber(value: t.valueUSD)) ?? "$0"))"
         }.joined(separator: "\n")
         let total = Self.usdFormatter.string(from: NSNumber(value: wm.totalPortfolioValue)) ?? "$0"
-        return "Your portfolio is worth **\(total)** right now, up \(String(format: "%.2f", wm.portfolioChange24h))% today.\n\n\(lines)\n\nWant me to send, swap, or stake something?"
+        return "Your portfolio is worth **\(total)** right now, up \(String(format: "%.2f", wm.portfolioChange24h))% today.\n\n\(lines)"
     }
 
     private func insufficientFundsMessage(token: String, in wm: WalletManager) -> String {
