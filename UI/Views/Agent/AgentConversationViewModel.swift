@@ -48,6 +48,10 @@ final class AgentConversationViewModel: ObservableObject {
     /// Action parsed from the user's message, awaiting their confirmation.
     private var pendingAction: TrinityDemoAction?
 
+    /// On-device conversation brain (Apple Foundation Models on iOS 26+).
+    /// One router per conversation so the model session keeps context.
+    private let inference = InferenceRouter()
+
     /// Maximum number of recent messages to include as conversation context for API calls.
     private let maxContextMessages = 10
 
@@ -55,6 +59,10 @@ final class AgentConversationViewModel: ObservableObject {
         self.userID = userID
         if let walletManager { self.walletManager = walletManager }
         self.userType = accessControl.userType(for: userID)
+
+        // Preload Apple Intelligence model assets so Trinity's first
+        // reply doesn't pay the cold-start cost.
+        inference.prewarmOnDevice()
 
         // Set primary agent based on user type
         if userType == .owner {
@@ -187,7 +195,24 @@ final class AgentConversationViewModel: ObservableObject {
         let conversationContext = buildConversationContext()
 
         Task {
-            // Attempt real API call first
+            // 1 — On-device Apple Intelligence (instant, private, offline).
+            // The session keeps its own conversation context across turns;
+            // we inject live wallet state + time so answers stay grounded.
+            if agent == .trinity, !intercepted,
+               let onDevice = await inference.generateOnDeviceOnly(
+                   prompt: text,
+                   context: liveContextLine() + " " + temporal
+               ) {
+                messages.append(AgentMessage(
+                    text: onDevice,
+                    role: .agent,
+                    agentName: agentName
+                ))
+                isTyping = false
+                return
+            }
+
+            // 2 — Gateway (when Apple Intelligence isn't available)
             do {
                 let apiResponse = try await MTRXAPIClient.shared.sendAgentMessage(
                     agent: agentName.lowercased(),
@@ -204,7 +229,7 @@ final class AgentConversationViewModel: ObservableObject {
                 ))
                 isTyping = false
             } catch {
-                // API unavailable — fall back to local response generation
+                // 3 — Local template fallback
                 isOffline = true
                 let response = generateResponse(
                     text: text,
@@ -221,6 +246,18 @@ final class AgentConversationViewModel: ObservableObject {
                 isTyping = false
             }
         }
+    }
+
+    /// One-line live snapshot of the user's wallet for grounding
+    /// on-device responses. Plain English, no addresses.
+    private func liveContextLine() -> String {
+        guard let wm = walletManager else { return "" }
+        let total = Self.usdFormatter.string(from: NSNumber(value: wm.totalPortfolioValue)) ?? "$0"
+        let holdings = wm.tokens
+            .filter { $0.balance > 0 }
+            .map { "\(Self.trim($0.balance)) \($0.symbol)" }
+            .joined(separator: ", ")
+        return "User portfolio: \(total) total — \(holdings)."
     }
 
     // MARK: - Conversation Context

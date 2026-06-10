@@ -7,15 +7,118 @@
 //
 
 import Foundation
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
-// MARK: - Foundation Models Stub (iOS 26+ API not available in current SDK)
-// When building with Xcode 26.5+ targeting iOS 26+, replace with real FoundationModels import.
+// MARK: - Foundation Models Engine
+//
+// Real on-device LLM via Apple Foundation Models (Apple Intelligence,
+// iOS 26+). Compiles to a graceful stub on SDKs/OSes without the
+// framework — `isAvailable` is the single gate callers rely on.
 
-class FoundationModelsEngine {
-    static var isAvailable: Bool { false }
-    func resetSession() {}
+final class FoundationModelsEngine {
+
+    enum EngineError: Error {
+        case unavailable
+    }
+
+    /// True only when the device can run Apple Intelligence right now
+    /// (supported hardware, feature enabled, model assets ready).
+    static var isAvailable: Bool {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *) {
+            if case .available = SystemLanguageModel.default.availability {
+                return true
+            }
+        }
+        #endif
+        return false
+    }
+
+    /// Trinity's standing instructions for the on-device session.
+    static let trinityInstructions = """
+    You are Trinity, the AI companion inside MTRX — a consumer app for \
+    Web3 finance. You are warm, capable, and plain-spoken. Keep answers \
+    short (2-5 sentences unless asked for detail), never use jargon \
+    without explaining it, and never invent balances or transactions — \
+    a [Context] line in each message gives you the user's real portfolio \
+    when relevant. The app can execute these actions when the user asks: \
+    sending tokens ("send 0.1 ETH to alice.eth"), swapping ("swap 1 ETH \
+    to USDC"), and staking ("stake 0.5 ETH" at 8.7% APY). Gas fees are \
+    always covered by the platform. If the user wants one of those, tell \
+    them the exact phrase to type. You cannot execute anything yourself — \
+    the app confirms and executes after the user agrees. Never produce \
+    financial advice; describe options and trade-offs instead.
+    """
+
+    private let defaultInstructions: String
+
+    #if canImport(FoundationModels)
+    /// Type-erased session storage (LanguageModelSession is iOS 26+).
+    /// The session persists across turns, so conversation context is
+    /// maintained by the model itself.
+    private var _session: Any?
+
+    @available(iOS 26.0, macOS 26.0, *)
+    private func session() -> LanguageModelSession {
+        if let existing = _session as? LanguageModelSession {
+            return existing
+        }
+        let fresh = LanguageModelSession(instructions: defaultInstructions)
+        _session = fresh
+        return fresh
+    }
+    #endif
+
+    init(instructions: String = FoundationModelsEngine.trinityInstructions) {
+        self.defaultInstructions = instructions
+    }
+
+    /// Drop the running session, clearing conversation context.
+    func resetSession() {
+        #if canImport(FoundationModels)
+        _session = nil
+        #endif
+    }
+
+    /// Preload model assets so the first reply is fast.
+    func prewarm() {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *), Self.isAvailable {
+            session().prewarm()
+        }
+        #endif
+    }
+
+    /// Generate a reply. `context` is prepended to the prompt (live
+    /// wallet state, time of day); `instructions` is accepted for API
+    /// compatibility but the persistent session's instructions win.
     func respond(to prompt: String, context: String? = nil, instructions: String? = nil) async throws -> String {
-        return "On-device inference not available on this iOS version."
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *) {
+            guard Self.isAvailable else { throw EngineError.unavailable }
+            let live = session()
+
+            // LanguageModelSession is not reentrant — wait briefly if a
+            // previous turn is still streaming.
+            var spins = 0
+            while live.isResponding && spins < 100 {
+                try await Task.sleep(nanoseconds: 50_000_000)
+                spins += 1
+            }
+
+            let full: String
+            if let context, !context.isEmpty {
+                full = "[Context: \(context)]\n\n\(prompt)"
+            } else {
+                full = prompt
+            }
+            let response = try await live.respond(to: full)
+            return response.content
+        }
+        #endif
+        throw EngineError.unavailable
     }
 }
 
@@ -101,11 +204,33 @@ final class InferenceRouter {
     private var _foundationEngine: Any?
 
     /// Whether on-device Foundation Models inference is available.
+    /// True on Apple Intelligence devices (iOS 26+) with the feature
+    /// enabled and model assets downloaded.
     var isOnDeviceAvailable: Bool {
-        if #available(iOS 26, macOS 26, *) {
-            return false // FoundationModelsEngine requires iOS 26+
+        FoundationModelsEngine.isAvailable
+    }
+
+    /// Preload on-device model assets so the first turn is fast.
+    func prewarmOnDevice() {
+        if #available(iOS 26, macOS 26, *), isOnDeviceAvailable {
+            foundationEngine.prewarm()
         }
-        return false
+    }
+
+    /// Strict on-device generation: returns the model's reply, or nil if
+    /// Apple Intelligence is unavailable or generation failed. Never
+    /// falls back to the gateway or templates — callers own the fallback.
+    func generateOnDeviceOnly(prompt: String, context: String? = nil) async -> String? {
+        guard #available(iOS 26, macOS 26, *), isOnDeviceAvailable else { return nil }
+        do {
+            let text = try await foundationEngine.respond(to: prompt, context: context)
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        } catch {
+            // Guardrail violations or transient model errors — let the
+            // caller fall back gracefully.
+            return nil
+        }
     }
 
     /// The inference source that will be used for the next request.
