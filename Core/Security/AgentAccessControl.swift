@@ -52,6 +52,12 @@ final class AgentAccessControl: ObservableObject {
         if userID == String(Self.ownerTelegramID) {
             return .owner
         }
+        // The Apple account that signed in and created this install's
+        // demo wallet IS the platform owner on this device.
+        if !userID.isEmpty,
+           userID == UserDefaults.standard.string(forKey: "com.mtrx.appleUserId") {
+            return .owner
+        }
         return .consumer
     }
 

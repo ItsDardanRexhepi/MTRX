@@ -119,6 +119,16 @@ struct HomeView: View {
                 tagline: "The guardian — security and judgment",
                 colors: [.statusError, .statusError.opacity(0.7)]
             )
+
+            // Neo answers only to the owner.
+            if AgentAccessControl.shared.userType(for: appState.currentUserID) == .owner {
+                agentCard(
+                    agent: .neo,
+                    name: "Neo",
+                    tagline: "The coordinator — full platform command",
+                    colors: [.statusSuccess, .accentPrimary]
+                )
+            }
         }
     }
 
