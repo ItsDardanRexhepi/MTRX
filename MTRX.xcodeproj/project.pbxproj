@@ -269,6 +269,7 @@
 		E89DA464BAA3574A5A5D44F3 /* LedgerBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E76603E0373DA6297E6253 /* LedgerBridge.swift */; };
 		D72833AE066FB976BF316C47 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF571B31F424F56C472006AA /* HomeView.swift */; };
 		BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 865035F886D6A8D182DB316D /* TrinityTools.swift */; };
+		9B0D61499BEA348A65C8FB76 /* TrinitySiri.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFCDD086642D4A0858146C8B /* TrinitySiri.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -542,6 +543,7 @@
 		C9E76603E0373DA6297E6253 /* LedgerBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LedgerBridge.swift"; path = "Core/Wallet/LedgerBridge.swift"; sourceTree = SOURCE_ROOT; };
 		DF571B31F424F56C472006AA /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HomeView.swift"; path = "UI/Views/Home/HomeView.swift"; sourceTree = SOURCE_ROOT; };
 		865035F886D6A8D182DB316D /* TrinityTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TrinityTools.swift"; path = "Core/Trinity/TrinityTools.swift"; sourceTree = SOURCE_ROOT; };
+		DFCDD086642D4A0858146C8B /* TrinitySiri.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TrinitySiri.swift"; path = "Apple/AppIntents/TrinitySiri.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1584,6 +1586,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */,
+				9B0D61499BEA348A65C8FB76 /* TrinitySiri.swift in Sources */,
 				CF6505A67436A73292D272AA /* WalletCore.swift in Sources */,
 				D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */,
 				7BA4A0A8EC45F85DD7C5E33B /* BiometricAuth.swift in Sources */,

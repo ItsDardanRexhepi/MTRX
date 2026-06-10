@@ -164,7 +164,8 @@ enum BlockchainNetwork: String, AppEnum {
 final class TrinityQueryEngine {
     static let shared = TrinityQueryEngine()
     func ask(question: String, persona: TrinityPersona) async throws -> String {
-        return "Trinity is processing: \(question)"
+        let online = await TrinitySiriSession.isOnline()
+        return await TrinitySiriSession.shared.answer(question, online: online)
     }
 }
 

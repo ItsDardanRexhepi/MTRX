@@ -12,11 +12,12 @@ struct MTRXShortcutsProvider: AppShortcutsProvider {
 
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
-            intent: AskTrinityIntent(),
+            intent: AskTrinityQuestionIntent(),
             phrases: [
+                "Ask \(.applicationName)",
                 "Ask \(.applicationName) a question",
-                "Talk to Trinity in \(.applicationName)",
-                "Hey \(.applicationName)"
+                "Ask Trinity in \(.applicationName)",
+                "Talk to Trinity in \(.applicationName)"
             ],
             shortTitle: "Ask Trinity",
             systemImageName: "brain.head.profile"
