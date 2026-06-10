@@ -678,16 +678,31 @@ final class AgentConversationViewModel: ObservableObject {
         return nil
     }
 
-    /// Detect explicit requests to change the active agent.
+    /// Detect explicit requests to change the active agent — an agent is
+    /// named AND the message carries a summon/switch verb.
     private static func agentSwitchTarget(in text: String) -> AgentAccessControl.ActiveAgent? {
         let lower = text.lowercased()
-        let asksSwitch = ["talk to", "talk with", "speak to", "speak with", "switch to", "let me talk", "bring in", "get me"]
-            .contains { lower.contains($0) }
-        guard asksSwitch else { return nil }
-        if lower.contains("morpheus") { return .morpheus }
-        if lower.contains("trinity") { return .trinity }
-        if lower.contains("neo") { return .neo }
-        return nil
+
+        let target: AgentAccessControl.ActiveAgent?
+        if lower.contains("morpheus") {
+            target = .morpheus
+        } else if lower.contains("trinity") {
+            target = .trinity
+        } else if lower.contains("neo"), !lower.contains("neon") {
+            target = .neo
+        } else {
+            target = nil
+        }
+        guard let target else { return nil }
+
+        let verbs = [
+            "talk to", "talk with", "speak to", "speak with", "switch to",
+            "let me talk", "bring", "summon", "wake", "get me",
+            "connect me", "put me through", "i want to talk", "can i talk",
+            "hand me", "switch me", "give me",
+        ]
+        guard verbs.contains(where: { lower.contains($0) }) else { return nil }
+        return target
     }
 
     /// Trim trailing politeness from captured recipient names

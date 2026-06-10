@@ -68,6 +68,9 @@ final class FoundationModelsEngine {
     - If getWeather reports the user's location is unavailable, say you \
     can't see their location and ask which city they want — NEVER \
     assume or invent a city.
+    - If the user wants to speak with Morpheus (the guardian agent) or \
+    Neo (the platform coordinator), tell them to say "talk to Morpheus" \
+    or "talk to Neo" and the app will switch over.
     - If the user wants to move money, the app executes after they type \
     it as a request — crypto ("send 0.1 ETH to alice.eth", "swap 1 ETH \
     to USDC", "stake 0.5 ETH") or plain cash ("send $50 to mom", "pay \
