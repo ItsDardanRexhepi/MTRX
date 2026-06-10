@@ -37,7 +37,7 @@ final class DiscoverViewModel: ObservableObject {
     var filteredListings: [MarketplaceListing] {
         var result = trendingListings
         if selectedCategory != .all {
-            result = result.filter { $0.category.localizedCaseInsensitiveContains(selectedCategory.rawValue) }
+            result = result.filter { $0.categoryKey == selectedCategory.rawValue }
         }
         if !searchText.isEmpty {
             result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.category.localizedCaseInsensitiveContains(searchText) }
@@ -536,7 +536,7 @@ struct DiscoverView: View {
                             .tag(index)
                     }
                 }
-                .tabViewStyle(.page(indexDisplayMode: .automatic))
+                .tabViewStyle(.page(indexDisplayMode: .never))
                 .frame(height: 280)
 
                 // Page dots
@@ -1203,21 +1203,60 @@ struct MarketplaceListing: Identifiable, Hashable {
     let id = UUID()
     let name: String
     let category: String
+    /// Matches a DiscoverCategory rawValue so the chips filter exactly.
+    let categoryKey: String
     let price: String
     let change24h: Double
     let volume: String
     let icon: String
     let avatarColor: Color
 
+    /// At least one listing per Discover category, so every chip
+    /// demos with real content.
     static let sampleData: [MarketplaceListing] = [
-        MarketplaceListing(name: "Nairobi Solar Farm", category: "Marketplace", price: "$50.00", change24h: 12.4, volume: "2.4K", icon: Symbols.property, avatarColor: .orange),
-        MarketplaceListing(name: "DeFi Index Fund", category: "DeFi", price: "$1,240.00", change24h: 3.8, volume: "12K", icon: Symbols.chartPie, avatarColor: .blue),
-        MarketplaceListing(name: "Carbon Credits", category: "Marketplace", price: "$12.50", change24h: -2.1, volume: "8.1K", icon: Symbols.globe, avatarColor: .green),
-        MarketplaceListing(name: "Yield Optimizer V2", category: "DeFi", price: "$89.99", change24h: 7.2, volume: "5.6K", icon: Symbols.chartLine, avatarColor: .purple),
-        MarketplaceListing(name: "Weather Shield", category: "Insurance", price: "$150.00", change24h: 1.5, volume: "1.2K", icon: Symbols.insurance, avatarColor: .accentPrimary),
-        MarketplaceListing(name: "Governance Token", category: "DAOs", price: "$3.42", change24h: -0.8, volume: "45K", icon: Symbols.dao, avatarColor: .accentTertiary),
-        MarketplaceListing(name: "Gaming Loot Box", category: "Gaming", price: "$25.00", change24h: 24.6, volume: "3.3K", icon: "gamecontroller.fill", avatarColor: .pink),
-        MarketplaceListing(name: "Staking Pool Alpha", category: "DeFi", price: "$500.00", change24h: -4.3, volume: "9.8K", icon: Symbols.stake, avatarColor: .statusInfo),
+        // real_world
+        MarketplaceListing(name: "Nairobi Solar Farm", category: "Real World", categoryKey: "real_world", price: "$50.00", change24h: 12.4, volume: "2.4K", icon: Symbols.property, avatarColor: .orange),
+        MarketplaceListing(name: "Carbon Credits", category: "Real World", categoryKey: "real_world", price: "$12.50", change24h: -2.1, volume: "8.1K", icon: Symbols.globe, avatarColor: .green),
+        MarketplaceListing(name: "Weather Shield Insurance", category: "Real World", categoryKey: "real_world", price: "$150.00", change24h: 1.5, volume: "1.2K", icon: Symbols.insurance, avatarColor: .accentPrimary),
+        // defi
+        MarketplaceListing(name: "DeFi Index Fund", category: "DeFi", categoryKey: "defi", price: "$1,240.00", change24h: 3.8, volume: "12K", icon: Symbols.chartPie, avatarColor: .blue),
+        MarketplaceListing(name: "Yield Optimizer V2", category: "DeFi", categoryKey: "defi", price: "$89.99", change24h: 7.2, volume: "5.6K", icon: Symbols.chartLine, avatarColor: .purple),
+        // defi_advanced
+        MarketplaceListing(name: "Options Vault Pro", category: "DeFi Advanced", categoryKey: "defi_advanced", price: "$310.00", change24h: 9.1, volume: "4.2K", icon: "chart.xyaxis.line", avatarColor: .purple),
+        MarketplaceListing(name: "Perp Strategy Engine", category: "DeFi Advanced", categoryKey: "defi_advanced", price: "$199.00", change24h: -3.2, volume: "2.9K", icon: "waveform.path.ecg", avatarColor: .blue),
+        // contracts
+        MarketplaceListing(name: "Escrow Contract Suite", category: "Contracts", categoryKey: "contracts", price: "$120.00", change24h: 5.2, volume: "3.7K", icon: "doc.badge.gearshape", avatarColor: .statusInfo),
+        MarketplaceListing(name: "Audit-Ready Templates", category: "Contracts", categoryKey: "contracts", price: "$45.00", change24h: 2.8, volume: "6.4K", icon: "checkmark.shield", avatarColor: .green),
+        // nft
+        MarketplaceListing(name: "Genesis Art Drop", category: "NFT", categoryKey: "nft", price: "$85.00", change24h: 18.3, volume: "7.1K", icon: "photo.artframe", avatarColor: .pink),
+        // nft_finance
+        MarketplaceListing(name: "NFT Lending Desk", category: "NFT Finance", categoryKey: "nft_finance", price: "$210.00", change24h: 6.7, volume: "1.8K", icon: "banknote", avatarColor: .orange),
+        // identity
+        MarketplaceListing(name: "ZK Identity Pass", category: "Identity", categoryKey: "identity", price: "$15.00", change24h: 4.1, volume: "11K", icon: "person.badge.shield.checkmark", avatarColor: .accentPrimary),
+        // governance
+        MarketplaceListing(name: "Governance Token", category: "Governance", categoryKey: "governance", price: "$3.42", change24h: -0.8, volume: "45K", icon: Symbols.dao, avatarColor: .accentTertiary),
+        MarketplaceListing(name: "DAO Launch Toolkit", category: "Governance", categoryKey: "governance", price: "$75.00", change24h: 3.3, volume: "2.2K", icon: "building.columns", avatarColor: .statusInfo),
+        // social
+        MarketplaceListing(name: "Creator Social Graph", category: "Social", categoryKey: "social", price: "$28.00", change24h: 11.0, volume: "5.3K", icon: "person.2.wave.2", avatarColor: .pink),
+        // creator
+        MarketplaceListing(name: "Royalty Splitter", category: "Creator", categoryKey: "creator", price: "$65.00", change24h: 7.9, volume: "1.6K", icon: "music.note.list", avatarColor: .purple),
+        // payments
+        MarketplaceListing(name: "Instant Pay Rails", category: "Payments", categoryKey: "payments", price: "$9.99", change24h: 15.6, volume: "22K", icon: "bolt.circle", avatarColor: .accentPrimary),
+        // bridging
+        MarketplaceListing(name: "Cross-Chain Bridge Pass", category: "Bridging", categoryKey: "bridging", price: "$75.00", change24h: -1.4, volume: "3.1K", icon: "arrow.left.arrow.right.circle", avatarColor: .blue),
+        // staking
+        MarketplaceListing(name: "Staking Pool Alpha", category: "Staking", categoryKey: "staking", price: "$500.00", change24h: -4.3, volume: "9.8K", icon: Symbols.stake, avatarColor: .statusInfo),
+        // privacy
+        MarketplaceListing(name: "ZK Privacy Shield", category: "Privacy", categoryKey: "privacy", price: "$140.00", change24h: 8.8, volume: "2.7K", icon: "eye.slash.circle", avatarColor: .accentTertiary),
+        // oracles
+        MarketplaceListing(name: "Price Oracle Feed", category: "Oracles", categoryKey: "oracles", price: "$199.00", change24h: 2.4, volume: "13K", icon: "antenna.radiowaves.left.and.right", avatarColor: .orange),
+        // storage
+        MarketplaceListing(name: "Decentralized Storage Quota", category: "Storage", categoryKey: "storage", price: "$19.00", change24h: 5.5, volume: "8.9K", icon: "externaldrive.badge.icloud", avatarColor: .green),
+        // compute
+        MarketplaceListing(name: "GPU Compute Credits", category: "Compute", categoryKey: "compute", price: "$240.00", change24h: 21.2, volume: "4.8K", icon: "cpu", avatarColor: .statusError),
+        // markets
+        MarketplaceListing(name: "Prediction Markets Pack", category: "Markets", categoryKey: "markets", price: "$55.00", change24h: 13.5, volume: "6.2K", icon: "chart.bar.xaxis", avatarColor: .pink),
+        MarketplaceListing(name: "Gaming Loot Market", category: "Markets", categoryKey: "markets", price: "$25.00", change24h: 24.6, volume: "3.3K", icon: "gamecontroller.fill", avatarColor: .pink),
     ]
 }
 

@@ -148,7 +148,8 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.account)
         }
-        .tint(Color.tabSelected)
+        .tint(tabTint)
+        .animation(.easeInOut(duration: 0.4), value: selectedTab)
         .task {
             // Sync wallet prices to the live feed so every screen and
             // every agent quote agree.
@@ -191,6 +192,22 @@ enum AppTab: Int, CaseIterable {
     case home
     case social
     case account
+}
+
+extension MainTabView {
+    /// The selected-tab accent slides along a green→cyan gradient as
+    /// the user moves left→right through the tabs: Discover sits at the
+    /// green end, Account at the cyan end, with a smooth blend between.
+    var tabTint: Color {
+        let green = (r: 0.20, g: 0.78, b: 0.35)
+        let cyan = (r: 0.13, g: 0.83, b: 0.93)
+        let t = Double(selectedTab.rawValue) / Double(AppTab.allCases.count - 1)
+        return Color(
+            red: green.r + (cyan.r - green.r) * t,
+            green: green.g + (cyan.g - green.g) * t,
+            blue: green.b + (cyan.b - green.b) * t
+        )
+    }
 }
 
 // MARK: - App State
