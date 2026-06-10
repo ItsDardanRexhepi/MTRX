@@ -57,6 +57,13 @@ final class FoundationModelsEngine {
     to...?" follow-ups unless genuinely natural.
     - Plain English. Explain any technical term you must use.
     - No financial advice. If asked, lay out trade-offs neutrally.
+    - The [Context] line always carries the current local date and time \
+    — trust it over your own assumptions when the user asks what day or \
+    time it is.
+    - You have tools: getWeather for weather and searchWeb for live \
+    facts, news, people, places, and anything that may have changed \
+    since your training. Use them whenever they'd make the answer more \
+    accurate; never guess at current facts when a tool can check.
     - If the user wants to move money, the app executes after they type \
     it as a request — crypto ("send 0.1 ETH to alice.eth", "swap 1 ETH \
     to USDC", "stake 0.5 ETH") or plain cash ("send $50 to mom", "pay \
@@ -78,7 +85,11 @@ final class FoundationModelsEngine {
         if let existing = _session as? LanguageModelSession {
             return existing
         }
-        let fresh = LanguageModelSession(instructions: defaultInstructions)
+        // Tools the model can call mid-turn: live weather and web lookups.
+        let fresh = LanguageModelSession(
+            tools: [TrinityWeatherTool(), TrinityWebSearchTool()],
+            instructions: defaultInstructions
+        )
         _session = fresh
         return fresh
     }

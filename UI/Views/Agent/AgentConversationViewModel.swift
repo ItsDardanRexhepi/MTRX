@@ -197,13 +197,17 @@ final class AgentConversationViewModel: ObservableObject {
         Task {
             // 1 — On-device Apple Intelligence (instant, private, offline).
             // The session keeps its own conversation context across turns.
-            // Live wallet data is attached ONLY when the message is about
-            // money — ordinary conversation gets no context at all, so the
-            // model never drifts into reciting the portfolio.
+            // Every turn carries the local date/time; live wallet data is
+            // attached ONLY when the message is about money, so the model
+            // never drifts into reciting the portfolio.
+            var contextLine = Self.dateTimeLine()
+            if Self.isFinanceRelated(text) {
+                contextLine += " " + liveContextLine()
+            }
             if agent == .trinity, !intercepted,
                let onDevice = await inference.generateOnDeviceOnly(
                    prompt: text,
-                   context: Self.isFinanceRelated(text) ? liveContextLine() : nil
+                   context: contextLine
                ) {
                 messages.append(AgentMessage(
                     text: onDevice,
@@ -260,6 +264,15 @@ final class AgentConversationViewModel: ObservableObject {
             .map { "\(Self.trim($0.balance)) \($0.symbol)" }
             .joined(separator: ", ")
         return "User portfolio: \(total) total — \(holdings)."
+    }
+
+    /// Local date/time line attached to every on-device turn so Trinity
+    /// always knows what day and time it is for the user.
+    private static func dateTimeLine() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMMM d, yyyy 'at' h:mm a"
+        let tz = TimeZone.current.identifier
+        return "Now: \(formatter.string(from: Date())) (\(tz))."
     }
 
     /// Whether a message is about money/wallet topics — the only case
