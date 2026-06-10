@@ -272,6 +272,7 @@ final class AgentConversationViewModel: ObservableObject {
             "send", "transfer", "pay", "swap", "stake", "staking", "unstake",
             "buy", "sell", "trade", "price", "yield", "apy", "defi",
             "nft", "gas", "fee", "money", "fund", "invest", "transaction",
+            "$", "dollar", "euro", "pound", "cash", "bucks",
         ]
         return keywords.contains { lower.contains($0) }
     }
@@ -343,9 +344,12 @@ final class AgentConversationViewModel: ObservableObject {
         guard let wm = walletManager else { return false }
         pendingAction = action
 
-        // Morpheus appears before consequential moves.
+        // Morpheus appears before consequential moves — crypto or fiat.
         let usd = action.usdValue(in: wm)
-        if case .send = action, usd >= 1000 {
+        var isOutboundTransfer = false
+        if case .send = action { isOutboundTransfer = true }
+        if case .sendFiat = action { isOutboundTransfer = true }
+        if isOutboundTransfer, usd >= 1000 {
             if let intervention = morpheus.evaluate(
                 trigger: .irreversibleAction(.init(
                     title: "High-value transfer",
@@ -407,6 +411,19 @@ final class AgentConversationViewModel: ObservableObject {
                     respondAsTrinity(insufficientFundsMessage(token: token, in: wm))
                 }
 
+            case .sendFiat(let amount, let currency, let recipient):
+                let symbol = TrinityDemoAction.fiatSymbol(currency)
+                let formatted = String(format: "%@%.2f", symbol, amount)
+                if wm.demoSendFiat(amount: amount, currency: currency, recipient: recipient) {
+                    respondAsTrinity(
+                        "✅ **Sent.** \(formatted) is on its way to \(recipient) — it arrives in seconds, with no fees.\n\nReference: `\(txHash)`\n\nYour cash balance just updated in Account → Wallet.",
+                        actions: [SuggestedAction(title: "Check balance", description: "See updated portfolio", action: "What's my balance?")]
+                    )
+                } else {
+                    let cash = wm.token("USDC")?.balance ?? 0
+                    respondAsTrinity("That's more than your available cash balance — you have \(String(format: "$%.2f", cash)) ready to send. Try a smaller amount.")
+                }
+
             case .swap(let amount, let from, let to):
                 if let received = wm.demoSwap(amount: amount, from: from, to: to) {
                     respondAsTrinity(
@@ -459,10 +476,13 @@ final class AgentConversationViewModel: ObservableObject {
         return "That's more \(token.uppercased()) than you hold — your balance is \(Self.trim(held)) \(token.uppercased()). Try a smaller amount."
     }
 
-    /// Parse "send 0.5 eth to alice.eth", "swap 1 eth to usdc", "stake 0.5 eth".
+    /// Parse executable intents:
+    ///   crypto — "send 0.5 eth to alice.eth", "swap 1 eth to usdc", "stake 0.5 eth"
+    ///   fiat   — "send $50 to mom", "pay john 20 dollars", "send 30 euros to anna"
     private func parseDemoAction(from text: String) -> TrinityDemoAction? {
         let lower = text.lowercased()
         let knownTokens = "eth|usdc|link|uni|aave"
+        let fiatWords = "dollars?|usd|bucks|euros?|eur|pounds?|gbp|cad"
 
         func match(_ pattern: String) -> [String?]? {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
@@ -471,6 +491,38 @@ final class AgentConversationViewModel: ObservableObject {
             return (1..<m.numberOfRanges).map { i in
                 Range(m.range(at: i), in: lower).map { String(lower[$0]) }
             }
+        }
+
+        func fiatCode(_ word: String?) -> String {
+            switch word ?? "" {
+            case let w where w.hasPrefix("euro") || w == "eur": return "EUR"
+            case let w where w.hasPrefix("pound") || w == "gbp": return "GBP"
+            case "cad": return "CAD"
+            default: return "USD"
+            }
+        }
+
+        // Fiat MUST parse before crypto — "$50" is money, not 50 ETH.
+
+        // "send $50 to mom" / "transfer $1,200 to alice"
+        if let g = match(#"(?:send|transfer|pay)\s+\$\s*([0-9][0-9,]*\.?[0-9]*)\s*(?:to\s+([a-z0-9.\-_ ]+?))?\s*$"#),
+           let amount = g[0].flatMap({ Double($0.replacingOccurrences(of: ",", with: "")) }) {
+            return .sendFiat(amount: amount, currency: "USD",
+                             recipient: cleanRecipient(g[1]) ?? "alice.eth")
+        }
+
+        // "send 20 dollars to john" / "send 30 euros to anna"
+        if let g = match(#"(?:send|transfer|pay)\s+([0-9][0-9,]*\.?[0-9]*)\s*("# + fiatWords + #")\s*(?:to\s+([a-z0-9.\-_ ]+?))?\s*$"#),
+           let amount = g[0].flatMap({ Double($0.replacingOccurrences(of: ",", with: "")) }) {
+            return .sendFiat(amount: amount, currency: fiatCode(g[1]),
+                             recipient: cleanRecipient(g[2]) ?? "alice.eth")
+        }
+
+        // "pay mom $50"
+        if let g = match(#"pay\s+([a-z0-9.\-_]+)\s+\$\s*([0-9][0-9,]*\.?[0-9]*)"#),
+           let amount = g[1].flatMap({ Double($0.replacingOccurrences(of: ",", with: "")) }) {
+            return .sendFiat(amount: amount, currency: "USD",
+                             recipient: cleanRecipient(g[0]) ?? "alice.eth")
         }
 
         if let g = match(#"swap\s+\$?([0-9]*\.?[0-9]+)\s*("# + knownTokens + #")\s+(?:to|for|into)\s+("# + knownTokens + #")"#),
@@ -483,12 +535,22 @@ final class AgentConversationViewModel: ObservableObject {
             return .stake(amount: amount, token: g[1] ?? "eth")
         }
 
-        if let g = match(#"(?:send|transfer|pay)\s+\$?([0-9]*\.?[0-9]+)\s*("# + knownTokens + #")?(?:\s+to\s+([a-z0-9.\-_]+))?"#),
+        if let g = match(#"(?:send|transfer|pay)\s+([0-9]*\.?[0-9]+)\s*("# + knownTokens + #")?(?:\s+to\s+([a-z0-9.\-_]+))?"#),
            let amount = g[0].flatMap(Double.init) {
             return .send(amount: amount, token: g[1] ?? "eth", recipient: g[2] ?? "alice.eth")
         }
 
         return nil
+    }
+
+    /// Trim trailing politeness from captured recipient names
+    /// ("mom please" → "mom").
+    private func cleanRecipient(_ raw: String?) -> String? {
+        guard var name = raw?.trimmingCharacters(in: .whitespaces), !name.isEmpty else { return nil }
+        for suffix in [" please", " now", " today", " right away"] where name.hasSuffix(suffix) {
+            name = String(name.dropLast(suffix.count))
+        }
+        return name.isEmpty ? nil : name
     }
 
     private static func trim(_ value: Double) -> String {
@@ -788,14 +850,30 @@ final class AgentConversationViewModel: ObservableObject {
 /// An executable intent parsed from conversation, awaiting confirmation.
 enum TrinityDemoAction {
     case send(amount: Double, token: String, recipient: String)
+    case sendFiat(amount: Double, currency: String, recipient: String)
     case swap(amount: Double, from: String, to: String)
     case stake(amount: Double, token: String)
+
+    /// Fixed demo FX rates → USD.
+    static let fiatRates: [String: Double] = ["USD": 1.0, "EUR": 1.08, "GBP": 1.27, "CAD": 0.73]
+
+    /// Display symbol per supported fiat currency.
+    static func fiatSymbol(_ code: String) -> String {
+        switch code {
+        case "EUR": return "€"
+        case "GBP": return "£"
+        case "CAD": return "C$"
+        default: return "$"
+        }
+    }
 
     /// Approximate USD value of the action at current spot prices.
     func usdValue(in wm: WalletManager) -> Double {
         switch self {
         case .send(let amount, let token, _), .stake(let amount, let token):
             return amount * (wm.token(token)?.priceUSD ?? 0)
+        case .sendFiat(let amount, let currency, _):
+            return amount * (Self.fiatRates[currency] ?? 1.0)
         case .swap(let amount, let from, _):
             return amount * (wm.token(from)?.priceUSD ?? 0)
         }
@@ -809,6 +887,10 @@ enum TrinityDemoAction {
         switch self {
         case .send(let amount, let token, let recipient):
             return "**Send \(amount) \(token.uppercased())** (≈\(usd)) to **\(recipient)**."
+        case .sendFiat(let amount, let currency, let recipient):
+            let symbol = Self.fiatSymbol(currency)
+            let formatted = String(format: "%@%.2f", symbol, amount)
+            return "**Send \(formatted)** to **\(recipient)**. Arrives in seconds — no fees."
         case .swap(let amount, let from, let to):
             return "**Swap \(amount) \(from.uppercased())** (≈\(usd)) into **\(to.uppercased())** at spot rate."
         case .stake(let amount, let token):

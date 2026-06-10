@@ -342,6 +342,29 @@ class WalletManager: ObservableObject {
         return true
     }
 
+    /// Send fiat (`USD`/`EUR`/`GBP`/`CAD`) to a recipient. The user just
+    /// sends money; settlement rides the stablecoin rail underneath
+    /// (USDC ≈ cash balance), which is invisible to them. Returns false
+    /// when the cash balance can't cover the amount.
+    @discardableResult
+    func demoSendFiat(amount: Double, currency: String, recipient: String) -> Bool {
+        let rate: Double = ["USD": 1.0, "EUR": 1.08, "GBP": 1.27, "CAD": 0.73][currency] ?? 1.0
+        let usdAmount = amount * rate
+        guard let cash = token("USDC"), cash.balance >= usdAmount else { return false }
+        setBalance("USDC", to: cash.balance - usdAmount)
+
+        let symbol: String = ["EUR": "€", "GBP": "£", "CAD": "C$"][currency] ?? "$"
+        transactions.insert(TransactionItem(
+            type: .send,
+            title: "Sent \(symbol)\(String(format: "%.2f", amount))",
+            subtitle: "To \(recipient) · instant transfer",
+            amount: String(format: "-$%.2f", usdAmount),
+            timestamp: Date(),
+            status: .confirmed
+        ), at: 0)
+        return true
+    }
+
     /// Swap `amount` of `from` into `to` at spot prices.
     /// Returns the received amount, or nil on failure.
     @discardableResult

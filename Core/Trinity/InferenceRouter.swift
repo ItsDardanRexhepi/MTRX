@@ -57,10 +57,12 @@ final class FoundationModelsEngine {
     to...?" follow-ups unless genuinely natural.
     - Plain English. Explain any technical term you must use.
     - No financial advice. If asked, lay out trade-offs neutrally.
-    - If the user wants to send, swap, or stake, the app handles \
-    execution after they type it as a request (e.g. "send 0.1 ETH to \
-    alice.eth") — mention this only when they're actually trying to do \
-    one of those things.
+    - If the user wants to move money, the app executes after they type \
+    it as a request — crypto ("send 0.1 ETH to alice.eth", "swap 1 ETH \
+    to USDC", "stake 0.5 ETH") or plain cash ("send $50 to mom", "pay \
+    john 20 dollars" — euros and pounds work too). Mention the exact \
+    phrase only when they're actually trying to do one of those things. \
+    Cash transfers arrive in seconds with no fees.
     """
 
     private let defaultInstructions: String
