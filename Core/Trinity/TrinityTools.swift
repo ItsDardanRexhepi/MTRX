@@ -59,18 +59,19 @@ struct TrinityWeatherTool: Tool {
                     return "Couldn't find a city called \(city)."
                 }
                 place = geocoded
-            } else if let located = await TrinityLocationProvider.shared.coordinates(maxWait: 4) {
+            } else if let located = await TrinityLocationProvider.shared.coordinates(maxWait: 6) {
                 // Precise GPS fix (or a recently cached one).
                 print("[Trinity.weather] CL fix: \(located.latitude), \(located.longitude)")
                 let label = await Self.placeName(for: located) ?? "your current location"
                 place = (located.latitude, located.longitude, label)
             } else if let approx = await TrinityLocationProvider.approximateByIP() {
                 // GPS wasn't ready fast enough (or permission isn't
-                // granted yet) — use the network connection's city-level
-                // location so the user still gets an answer. Fast (~1s)
-                // and reliable whenever the device is online.
+                // granted yet) — network-based location is city-level at
+                // best and the ISP can place it in a neighboring city,
+                // so it is labelled as approximate, never stated as fact.
                 print("[Trinity.weather] IP fallback: \(approx.label)")
-                place = (approx.latitude, approx.longitude, approx.label)
+                place = (approx.latitude, approx.longitude,
+                         "the \(approx.label) area (approximate network location — if this is the wrong city, the user can name theirs)")
             } else if !(await TrinityLocationProvider.servicesEnabled()) {
                 print("[Trinity.weather] FAIL: Location Services globally off, IP failed")
                 return """
@@ -421,9 +422,9 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
     static let shared = TrinityLocationProvider()
 
     private static let persistKey = "com.mtrx.trinity.lastLocationFix"
-    /// Weather changes by the hour, not the minute — a 2-hour-old fix
-    /// still names the right city.
-    private static let persistedFixMaxAge: TimeInterval = 2 * 60 * 60
+    /// A GPS fix names the right city for hours — far better than the
+    /// network fallback, whose ISP routing can land a city over.
+    private static let persistedFixMaxAge: TimeInterval = 6 * 60 * 60
 
     private var manager: CLLocationManager?
     private var continuations: [CheckedContinuation<CLLocationCoordinate2D?, Never>] = []

@@ -199,7 +199,10 @@ class AppState: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var currentDestination: NavigationDestination?
     @Published var currentUserID: String = ""
-    @Published var displayName: String = DemoDataProvider.ensName
+    /// The user's real name. Empty until Apple provides it (first-ever
+    /// sign-in only) or the user sets it themselves — never a fake
+    /// placeholder, so the UI can greet honestly.
+    @Published var displayName: String = ""
     @Published var walletAddress: String = DemoDataProvider.walletAddress
     @Published var joinDate: Date = Date()
     @Published var notificationCount: Int = 0
@@ -256,6 +259,14 @@ class AppState: ObservableObject {
         if !displayName.isEmpty { defaults.set(displayName, forKey: Keys.displayName) }
         defaults.set(walletAddress, forKey: Keys.walletAddress)
         defaults.set(joinDate, forKey: Keys.joinDate)
+    }
+
+    /// User-set display name — persists like the Apple-provided one.
+    func updateDisplayName(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        displayName = trimmed
+        UserDefaults.standard.set(trimmed, forKey: Keys.displayName)
     }
 
     func signOut() {

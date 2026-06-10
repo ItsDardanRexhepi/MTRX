@@ -96,10 +96,12 @@ final class AgentConversationViewModel: ObservableObject {
         isConfigured = true
 
         // Resume the most recent saved chat, or open a fresh one.
+        // Fresh installs always start with Trinity — she is the primary
+        // assistant; Neo and Morpheus are a tap away.
         if let recent = store.conversations.first, !recent.messages.isEmpty {
             openConversation(recent)
         } else {
-            startNewConversation(agent: activeAgent, announce: false)
+            startNewConversation(agent: .trinity, announce: false)
         }
 
         // Continuously persist the active conversation as it changes.
@@ -108,7 +110,7 @@ final class AgentConversationViewModel: ObservableObject {
             .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
             .sink { [weak self] msgs in
                 guard let self, let id = self.conversationID else { return }
-                self.store.update(id: id, agentRaw: self.activeAgent.rawValue, messages: msgs)
+                self.store.update(id: id, messages: msgs)
             }
             .store(in: &cancellables)
     }
@@ -247,8 +249,11 @@ final class AgentConversationViewModel: ObservableObject {
 
         switch route {
         case .allowed(let agent):
-            // A manual "talk to morpheus/neo" choice outranks routing.
-            let effective = manualAgentOverride ?? agent
+            // The open conversation's agent owns the room. Routing never
+            // reassigns who answers mid-chat — Trinity's chat is always
+            // Trinity, no matter what the access router prefers.
+            let conversationAgent = conversationID.flatMap { store.conversation(id: $0)?.agent }
+            let effective = conversationAgent ?? manualAgentOverride ?? agent
             activeAgent = effective
 
             // Demo action engine: executable intents (send / swap / stake

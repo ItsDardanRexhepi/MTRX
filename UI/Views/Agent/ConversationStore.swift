@@ -71,12 +71,12 @@ final class ConversationStore: ObservableObject {
     }
 
     /// Write the latest messages into a conversation and float it to the
-    /// top. The first user message becomes the saved title.
-    func update(id: UUID, agentRaw: String, messages: [AgentMessage]) {
+    /// top. The first user message becomes the saved title. A chat's
+    /// agent is fixed at creation — it is never reassigned by updates.
+    func update(id: UUID, messages: [AgentMessage]) {
         guard let idx = conversations.firstIndex(where: { $0.id == id }) else { return }
         var convo = conversations[idx]
         convo.messages = messages
-        convo.agentRaw = agentRaw
         convo.updatedAt = Date()
         if convo.title == "New chat",
            let firstUser = messages.first(where: { $0.role == .user }) {
@@ -106,7 +106,21 @@ final class ConversationStore: ObservableObject {
         guard let data = try? Data(contentsOf: fileURL),
               let decoded = try? JSONDecoder().decode([AgentChatRecord].self, from: data)
         else { return }
-        conversations = decoded.sorted { $0.updatedAt > $1.updatedAt }
+        // Repair pass: earlier builds could reassign a chat's agent
+        // mid-conversation. The messages know who really owns the room —
+        // the agent who wrote most of them (so Morpheus stepping into a
+        // Trinity chat for a verification doesn't miscount).
+        conversations = decoded.map { convo in
+            var fixed = convo
+            let names = convo.messages.compactMap { $0.role == .agent ? $0.agentName : nil }
+            if let majority = Dictionary(grouping: names, by: { $0 }).max(by: { $0.value.count < $1.value.count })?.key,
+               let trueRaw = ["Trinity": "trinity", "Morpheus": "morpheus", "Neo": "neo"][majority],
+               trueRaw != convo.agentRaw {
+                fixed.agentRaw = trueRaw
+            }
+            return fixed
+        }
+        .sorted { $0.updatedAt > $1.updatedAt }
     }
 
     private var saveTask: Task<Void, Never>?

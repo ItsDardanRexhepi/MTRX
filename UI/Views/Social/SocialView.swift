@@ -157,7 +157,8 @@ final class SocialViewModel: ObservableObject {
     }
 
     /// Publish the composer text as a new post at the top of the feed.
-    func publishPost(displayName: String) {
+    func publishPost(displayName rawName: String) {
+        let displayName = rawName.isEmpty ? "You" : rawName
         let body = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
 

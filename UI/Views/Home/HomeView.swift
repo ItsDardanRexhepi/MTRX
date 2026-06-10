@@ -14,6 +14,8 @@ struct HomeView: View {
 
     @State private var presentedChat: ChatLaunch?
     @State private var appeared = false
+    @State private var showNameEditor = false
+    @State private var nameDraft = ""
 
     /// What to open the chat with: an agent and an optional prefill.
     struct ChatLaunch: Identifiable {
@@ -72,15 +74,34 @@ struct HomeView: View {
                 .textCase(.uppercase)
                 .kerning(1.6)
 
-            Text(firstName)
-                .font(.mtrxLargeTitle)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.labelPrimary, Color.trinityPrimary],
-                        startPoint: .leading,
-                        endPoint: .trailing
+            HStack(spacing: Spacing.sm) {
+                Text(firstName)
+                    .font(.mtrxLargeTitle)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.labelPrimary, Color.trinityPrimary],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
                     )
-                )
+
+                Button {
+                    nameDraft = appState.displayName
+                    showNameEditor = true
+                } label: {
+                    Image(systemName: "pencil.circle")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(Color.labelTertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            .alert("Your Name", isPresented: $showNameEditor) {
+                TextField("Name", text: $nameDraft)
+                Button("Save") { appState.updateDisplayName(nameDraft) }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Shown in your greeting and on your posts.")
+            }
 
             Text(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()))
                 .font(.mtrxSubheadline)

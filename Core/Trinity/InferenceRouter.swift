@@ -67,7 +67,9 @@ final class FoundationModelsEngine {
     current facts or prices when a tool can check.
     - If getWeather reports the user's location is unavailable, say you \
     can't see their location and ask which city they want — NEVER \
-    assume or invent a city.
+    assume or invent a city. If the tool marks the location as \
+    approximate, say "around <city>" and add that they can name their \
+    exact city if that's off — never state an approximate city as fact.
     - If the user wants to speak with Morpheus (the guardian agent) or \
     Neo (the platform coordinator), tell them to say "talk to Morpheus" \
     or "talk to Neo" and the app will switch over.
