@@ -48,6 +48,18 @@ struct TrinityWeatherTool: Tool {
             } else if let located = await TrinityLocationProvider.shared.coordinates() {
                 let label = await Self.placeName(for: located) ?? "your current location"
                 place = (located.latitude, located.longitude, label)
+            } else if let approx = await TrinityLocationProvider.approximateByIP() {
+                // No GPS fix — fall back to the network connection's
+                // city-level location, and say it's approximate.
+                place = (approx.latitude, approx.longitude,
+                         "\(approx.label) (approximate, from the network connection)")
+            } else if await TrinityLocationProvider.shared.isAuthorizationDenied {
+                return """
+                Location permission is denied for this app. Tell the user to \
+                enable it in Settings > Privacy & Security > Location Services \
+                > MTRX, or ask which city they want weather for. Do NOT pick \
+                or guess a city yourself.
+                """
             } else {
                 return """
                 The user's location is unavailable right now. Tell them you \
@@ -410,16 +422,19 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
                     return
                 case .notDetermined:
                     // The grant lands in locationManagerDidChangeAuthorization,
-                    // which retries the fix while we stay queued.
+                    // which starts the fix while we stay queued.
                     manager.requestWhenInUseAuthorization()
                 default:
-                    manager.requestLocation()
+                    // Continuous updates, stopped on the first fix —
+                    // requestLocation() gives up too easily on cold starts.
+                    manager.startUpdatingLocation()
                 }
 
                 self.continuations.append(cont)
 
-                // Hard timeout so a missing fix can't hang the model turn.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                // Hard cap so a missing fix can't hang the model turn;
+                // cold GPS fixes routinely need more than a few seconds.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
                     self.finish(with: self.manager?.location?.coordinate)
                 }
             }
@@ -436,9 +451,74 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
 
     /// Must run on main. Resumes every waiter exactly once.
     private func finish(with coordinate: CLLocationCoordinate2D?) {
+        guard !continuations.isEmpty else { return }
+        manager?.stopUpdatingLocation()
         let waiting = continuations
         continuations = []
         waiting.forEach { $0.resume(returning: coordinate) }
+    }
+
+    /// Whether the user has explicitly denied location access.
+    var isAuthorizationDenied: Bool {
+        get async {
+            await withCheckedContinuation { cont in
+                DispatchQueue.main.async {
+                    let status = self.managerOnMain().authorizationStatus
+                    cont.resume(returning: status == .denied || status == .restricted)
+                }
+            }
+        }
+    }
+
+    // MARK: Network-based approximate location (no permission needed)
+
+    struct ApproximateLocation {
+        let latitude: Double
+        let longitude: Double
+        let label: String
+    }
+
+    /// City-level location derived from the internet connection — the
+    /// last resort so weather still works when Core Location can't
+    /// deliver (permission denied, background Siri turn, no GPS).
+    static func approximateByIP() async -> ApproximateLocation? {
+        // Two keyless HTTPS providers; either alone is usually enough.
+        if let hit = await ipWhoIs() { return hit }
+        return await ipApiCo()
+    }
+
+    private static func ipWhoIs() async -> ApproximateLocation? {
+        struct Who: Decodable {
+            let success: Bool?
+            let latitude: Double?
+            let longitude: Double?
+            let city: String?
+            let region: String?
+        }
+        guard let url = URL(string: "https://ipwho.is/"),
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let who = try? JSONDecoder().decode(Who.self, from: data),
+              who.success != false,
+              let lat = who.latitude, let lon = who.longitude else { return nil }
+        let label = [who.city, who.region].compactMap { $0 }.joined(separator: ", ")
+        return ApproximateLocation(latitude: lat, longitude: lon,
+                                   label: label.isEmpty ? "your area" : label)
+    }
+
+    private static func ipApiCo() async -> ApproximateLocation? {
+        struct Api: Decodable {
+            let latitude: Double?
+            let longitude: Double?
+            let city: String?
+            let region: String?
+        }
+        guard let url = URL(string: "https://ipapi.co/json/"),
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let api = try? JSONDecoder().decode(Api.self, from: data),
+              let lat = api.latitude, let lon = api.longitude else { return nil }
+        let label = [api.city, api.region].compactMap { $0 }.joined(separator: ", ")
+        return ApproximateLocation(latitude: lat, longitude: lon,
+                                   label: label.isEmpty ? "your area" : label)
     }
 
     private static func persist(_ coordinate: CLLocationCoordinate2D) {
@@ -464,7 +544,7 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
         guard !continuations.isEmpty else { return }
         switch manager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
-            manager.requestLocation()
+            manager.startUpdatingLocation()
         case .denied, .restricted:
             finish(with: nil)
         default:
@@ -480,6 +560,11 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // kCLErrorLocationUnknown is transient — Core Location keeps
+        // trying after it, so keep waiting for the fix or the timeout.
+        if let clError = error as? CLError, clError.code == .locationUnknown {
+            return
+        }
         finish(with: nil)
     }
 }
