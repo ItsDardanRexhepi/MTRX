@@ -248,6 +248,98 @@ class WalletManager: ObservableObject {
     func refreshOnForeground() {
         needsRefresh = true
     }
+
+    // MARK: - Demo Actions (Trinity-executed)
+    //
+    // These mutate the shared wallet state so an action performed in the
+    // Trinity conversation is immediately visible in the Account → Wallet
+    // tab: balances move, a new transaction appears at the top of history.
+
+    func token(_ symbol: String) -> AppTokenBalance? {
+        tokens.first { $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame }
+    }
+
+    private func setBalance(_ symbol: String, to newBalance: Double) {
+        tokens = tokens.map { t in
+            guard t.symbol.caseInsensitiveCompare(symbol) == .orderedSame else { return t }
+            return AppTokenBalance(
+                symbol: t.symbol, name: t.name,
+                balance: max(0, newBalance),
+                priceUSD: t.priceUSD, change24h: t.change24h, iconColor: t.iconColor
+            )
+        }
+        if symbol.caseInsensitiveCompare("ETH") == .orderedSame, let eth = token("ETH") {
+            balance = Decimal(eth.balance * eth.priceUSD)
+        }
+    }
+
+    /// Send `amount` of `tokenSymbol` to `recipient`. Returns false when
+    /// the token is unknown or the balance is insufficient.
+    @discardableResult
+    func demoSend(amount: Double, tokenSymbol: String, recipient: String) -> Bool {
+        guard let t = token(tokenSymbol), t.balance >= amount else { return false }
+        setBalance(t.symbol, to: t.balance - amount)
+        transactions.insert(TransactionItem(
+            type: .send,
+            title: "Sent \(t.symbol)",
+            subtitle: "To \(recipient)",
+            amount: String(format: "-%.4f %@", amount, t.symbol),
+            timestamp: Date(),
+            status: .confirmed
+        ), at: 0)
+        return true
+    }
+
+    /// Swap `amount` of `from` into `to` at spot prices.
+    /// Returns the received amount, or nil on failure.
+    @discardableResult
+    func demoSwap(amount: Double, from: String, to: String) -> Double? {
+        guard let f = token(from), let t = token(to),
+              f.balance >= amount, f.priceUSD > 0, t.priceUSD > 0 else { return nil }
+        let received = amount * f.priceUSD / t.priceUSD
+        setBalance(f.symbol, to: f.balance - amount)
+        setBalance(t.symbol, to: t.balance + received)
+        transactions.insert(TransactionItem(
+            type: .swap,
+            title: "Swapped \(f.symbol) → \(t.symbol)",
+            subtitle: "Via MTRX router",
+            amount: String(format: "+%.4f %@", received, t.symbol),
+            timestamp: Date(),
+            status: .confirmed
+        ), at: 0)
+        return received
+    }
+
+    /// Stake `amount` of `tokenSymbol` into the MTRX staking position.
+    @discardableResult
+    func demoStake(amount: Double, tokenSymbol: String) -> Bool {
+        guard let t = token(tokenSymbol), t.balance >= amount else { return false }
+        let usd = amount * t.priceUSD
+        setBalance(t.symbol, to: t.balance - amount)
+
+        if let idx = defiPositions.firstIndex(where: { $0.protocol_ == "MTRX Staking" }) {
+            let p = defiPositions[idx]
+            defiPositions[idx] = DeFiPositionItem(
+                protocol_: p.protocol_, type: p.type,
+                value: p.value + usd, apy: p.apy,
+                healthFactor: p.healthFactor, icon: p.icon
+            )
+        } else {
+            defiPositions.append(DeFiPositionItem(
+                protocol_: "MTRX Staking", type: "Staking",
+                value: usd, apy: 8.7, healthFactor: nil, icon: "lock.circle"
+            ))
+        }
+        transactions.insert(TransactionItem(
+            type: .stake,
+            title: "Staked \(t.symbol)",
+            subtitle: "MTRX Staking — 8.7% APY",
+            amount: String(format: "-%.4f %@", amount, t.symbol),
+            timestamp: Date(),
+            status: .confirmed
+        ), at: 0)
+        return true
+    }
 }
 
 // MARK: - Trinity Engine

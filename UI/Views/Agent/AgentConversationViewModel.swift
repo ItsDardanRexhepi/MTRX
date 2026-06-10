@@ -41,11 +41,19 @@ final class AgentConversationViewModel: ObservableObject {
     private var userID: String = ""
     private var userType: AgentAccessControl.UserType = .consumer
 
+    /// Shared wallet state — Trinity's demo actions execute against this,
+    /// so results are immediately visible in the Account → Wallet tab.
+    private weak var walletManager: WalletManager?
+
+    /// Action parsed from the user's message, awaiting their confirmation.
+    private var pendingAction: TrinityDemoAction?
+
     /// Maximum number of recent messages to include as conversation context for API calls.
     private let maxContextMessages = 10
 
-    func setup(userID: String) {
+    func setup(userID: String, walletManager: WalletManager? = nil) {
         self.userID = userID
+        if let walletManager { self.walletManager = walletManager }
         self.userType = accessControl.userType(for: userID)
 
         // Set primary agent based on user type
@@ -112,6 +120,13 @@ final class AgentConversationViewModel: ObservableObject {
         switch route {
         case .allowed(let agent):
             activeAgent = agent
+
+            // Demo action engine: executable intents (send / swap / stake)
+            // are parsed, confirmed, and executed locally against the
+            // shared wallet — no backend required.
+            if agent == .trinity, handleDemoConversation(text: text) {
+                return
+            }
             processWithAgent(text: text, agent: agent)
 
         case .scenario1:
@@ -231,6 +246,214 @@ final class AgentConversationViewModel: ObservableObject {
             ]
         }
     }
+
+    // MARK: - Demo Action Engine
+    //
+    // Parses executable intents from natural language, asks for
+    // confirmation, then executes against the shared WalletManager so the
+    // result is visible app-wide. Runs entirely on-device.
+
+    /// Returns true when the message was handled by the demo engine
+    /// (no further processing should occur).
+    private func handleDemoConversation(text: String) -> Bool {
+        let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 1 — A confirmation/cancellation typed in response to a pending action
+        if pendingAction != nil {
+            let confirms = ["yes", "confirm", "do it", "go ahead", "execute", "send it", "yep", "y"]
+            let cancels = ["no", "cancel", "stop", "never mind", "nevermind", "don't", "n"]
+            if confirms.contains(where: { lower == $0 || lower.hasPrefix($0 + " ") }) {
+                executePendingAction()
+                return true
+            }
+            if cancels.contains(where: { lower == $0 || lower.hasPrefix($0 + " ") }) {
+                cancelPendingAction()
+                return true
+            }
+            // A different message replaces the pending action.
+            pendingAction = nil
+        }
+
+        // 2 — Live wallet queries answered from real shared state
+        if let wm = walletManager,
+           lower.contains("balance") || lower.contains("portfolio") || lower.contains("how much do i") {
+            respondAsTrinity(
+                livePortfolioSummary(wm),
+                actions: [
+                    SuggestedAction(title: "Send 0.1 ETH", description: "Send to a contact", action: "send 0.1 ETH to alice.eth"),
+                    SuggestedAction(title: "Swap ETH → USDC", description: "Swap at spot", action: "swap 0.25 ETH to USDC"),
+                    SuggestedAction(title: "Stake ETH", description: "Earn 8.7% APY", action: "stake 0.5 ETH"),
+                ]
+            )
+            return true
+        }
+
+        // 3 — Executable action?
+        guard let action = parseDemoAction(from: text) else { return false }
+
+        guard let wm = walletManager else { return false }
+        pendingAction = action
+
+        // Morpheus appears before consequential moves.
+        let usd = action.usdValue(in: wm)
+        if case .send = action, usd >= 1000 {
+            if let intervention = morpheus.evaluate(
+                trigger: .irreversibleAction(.init(
+                    title: "High-value transfer",
+                    details: action.summary(in: wm) + " This is irreversible once executed.",
+                    isPermanent: true,
+                    estimatedValue: Self.usdFormatter.string(from: NSNumber(value: usd))
+                )),
+                userID: userID
+            ) {
+                morpheus.present(intervention)
+            }
+        }
+
+        respondAsTrinity(
+            "Here's what I'm about to do:\n\n\(action.summary(in: wm))\n\nNetwork fees are covered by the platform — you pay no gas. Confirm?",
+            actions: [
+                SuggestedAction(title: "Confirm & Execute", description: "Execute now", action: "demo_confirm"),
+                SuggestedAction(title: "Cancel", description: "Do nothing", action: "demo_cancel"),
+            ]
+        )
+        return true
+    }
+
+    /// Entry point for tapped suggestion chips.
+    func handleSuggestedAction(_ action: String) {
+        switch action {
+        case "demo_confirm":
+            executePendingAction()
+        case "demo_cancel":
+            cancelPendingAction()
+        default:
+            // Any other action string is a prompt — submit it as the user.
+            inputText = action
+            sendMessage()
+        }
+    }
+
+    private func executePendingAction() {
+        guard let action = pendingAction, let wm = walletManager else {
+            pendingAction = nil
+            return
+        }
+        pendingAction = nil
+        isTyping = true
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(900))
+            isTyping = false
+
+            let txHash = "0x" + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(16).lowercased()
+            switch action {
+            case .send(let amount, let token, let recipient):
+                if wm.demoSend(amount: amount, tokenSymbol: token, recipient: recipient) {
+                    respondAsTrinity(
+                        "✅ **Sent.** \(Self.trim(amount)) \(token.uppercased()) is on its way to \(recipient).\n\nTransaction: `\(txHash)`\nStatus: Confirmed · Gas: covered by MTRX\n\nYour updated balance is in Account → Wallet — the transaction is at the top of your history.",
+                        actions: [SuggestedAction(title: "Check balance", description: "See updated portfolio", action: "What's my balance?")]
+                    )
+                } else {
+                    respondAsTrinity(insufficientFundsMessage(token: token, in: wm))
+                }
+
+            case .swap(let amount, let from, let to):
+                if let received = wm.demoSwap(amount: amount, from: from, to: to) {
+                    respondAsTrinity(
+                        "✅ **Swap complete.** \(Self.trim(amount)) \(from.uppercased()) → \(Self.trim(received)) \(to.uppercased()) at spot rate.\n\nTransaction: `\(txHash)`\nSlippage: 0.04% · Gas: covered by MTRX\n\nBoth balances just updated in your wallet.",
+                        actions: [SuggestedAction(title: "Check balance", description: "See updated portfolio", action: "What's my balance?")]
+                    )
+                } else {
+                    respondAsTrinity(insufficientFundsMessage(token: from, in: wm))
+                }
+
+            case .stake(let amount, let token):
+                if wm.demoStake(amount: amount, tokenSymbol: token) {
+                    respondAsTrinity(
+                        "✅ **Staked.** \(Self.trim(amount)) \(token.uppercased()) is now earning **8.7% APY** in MTRX Staking.\n\nTransaction: `\(txHash)`\nRewards accrue continuously — you can unstake anytime.\n\nSee the position under Account → Wallet → DeFi.",
+                        actions: [SuggestedAction(title: "Check balance", description: "See updated portfolio", action: "What's my balance?")]
+                    )
+                } else {
+                    respondAsTrinity(insufficientFundsMessage(token: token, in: wm))
+                }
+            }
+        }
+    }
+
+    private func cancelPendingAction() {
+        pendingAction = nil
+        respondAsTrinity("Cancelled — nothing was executed. What else can I do for you?")
+    }
+
+    // MARK: Demo engine helpers
+
+    private func respondAsTrinity(_ text: String, actions: [SuggestedAction] = []) {
+        messages.append(AgentMessage(
+            text: text,
+            role: .agent,
+            agentName: "Trinity",
+            suggestedActions: actions
+        ))
+    }
+
+    private func livePortfolioSummary(_ wm: WalletManager) -> String {
+        let lines = wm.tokens.map { t in
+            "• \(t.symbol): \(Self.trim(t.balance)) (\(Self.usdFormatter.string(from: NSNumber(value: t.valueUSD)) ?? "$0"))"
+        }.joined(separator: "\n")
+        let total = Self.usdFormatter.string(from: NSNumber(value: wm.totalPortfolioValue)) ?? "$0"
+        return "Your portfolio is worth **\(total)** right now, up \(String(format: "%.2f", wm.portfolioChange24h))% today.\n\n\(lines)\n\nWant me to send, swap, or stake something?"
+    }
+
+    private func insufficientFundsMessage(token: String, in wm: WalletManager) -> String {
+        let held = wm.token(token)?.balance ?? 0
+        return "That's more \(token.uppercased()) than you hold — your balance is \(Self.trim(held)) \(token.uppercased()). Try a smaller amount."
+    }
+
+    /// Parse "send 0.5 eth to alice.eth", "swap 1 eth to usdc", "stake 0.5 eth".
+    private func parseDemoAction(from text: String) -> TrinityDemoAction? {
+        let lower = text.lowercased()
+        let knownTokens = "eth|usdc|link|uni|aave"
+
+        func match(_ pattern: String) -> [String?]? {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+                  let m = regex.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower))
+            else { return nil }
+            return (1..<m.numberOfRanges).map { i in
+                Range(m.range(at: i), in: lower).map { String(lower[$0]) }
+            }
+        }
+
+        if let g = match(#"swap\s+\$?([0-9]*\.?[0-9]+)\s*("# + knownTokens + #")\s+(?:to|for|into)\s+("# + knownTokens + #")"#),
+           let amount = g[0].flatMap(Double.init), let from = g[1], let to = g[2] {
+            return .swap(amount: amount, from: from, to: to)
+        }
+
+        if let g = match(#"stake\s+\$?([0-9]*\.?[0-9]+)\s*("# + knownTokens + #")?"#),
+           let amount = g[0].flatMap(Double.init) {
+            return .stake(amount: amount, token: g[1] ?? "eth")
+        }
+
+        if let g = match(#"(?:send|transfer|pay)\s+\$?([0-9]*\.?[0-9]+)\s*("# + knownTokens + #")?(?:\s+to\s+([a-z0-9.\-_]+))?"#),
+           let amount = g[0].flatMap(Double.init) {
+            return .send(amount: amount, token: g[1] ?? "eth", recipient: g[2] ?? "alice.eth")
+        }
+
+        return nil
+    }
+
+    private static func trim(_ value: Double) -> String {
+        let s = String(format: "%.4f", value)
+        return s.replacingOccurrences(of: #"\.?0+$"#, with: "", options: .regularExpression)
+    }
+
+    private static let usdFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "USD"
+        f.maximumFractionDigits = 2
+        return f
+    }()
 
     // MARK: - Local Response Generation
 
@@ -507,6 +730,40 @@ final class AgentConversationViewModel: ObservableObject {
                     break
                 }
             }
+        }
+    }
+}
+
+// MARK: - Trinity Demo Action
+
+/// An executable intent parsed from conversation, awaiting confirmation.
+enum TrinityDemoAction {
+    case send(amount: Double, token: String, recipient: String)
+    case swap(amount: Double, from: String, to: String)
+    case stake(amount: Double, token: String)
+
+    /// Approximate USD value of the action at current spot prices.
+    func usdValue(in wm: WalletManager) -> Double {
+        switch self {
+        case .send(let amount, let token, _), .stake(let amount, let token):
+            return amount * (wm.token(token)?.priceUSD ?? 0)
+        case .swap(let amount, let from, _):
+            return amount * (wm.token(from)?.priceUSD ?? 0)
+        }
+    }
+
+    /// Human confirmation line shown before execution.
+    func summary(in wm: WalletManager) -> String {
+        let usd = NumberFormatter.localizedString(
+            from: NSNumber(value: usdValue(in: wm)), number: .currency
+        )
+        switch self {
+        case .send(let amount, let token, let recipient):
+            return "**Send \(amount) \(token.uppercased())** (≈\(usd)) to **\(recipient)**."
+        case .swap(let amount, let from, let to):
+            return "**Swap \(amount) \(from.uppercased())** (≈\(usd)) into **\(to.uppercased())** at spot rate."
+        case .stake(let amount, let token):
+            return "**Stake \(amount) \(token.uppercased())** (≈\(usd)) at 8.7% APY. Unstake anytime."
         }
     }
 }

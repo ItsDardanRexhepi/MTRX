@@ -12,6 +12,7 @@ struct AgentConversationView: View {
     @StateObject private var viewModel = AgentConversationViewModel()
     @ObservedObject private var accessControl = AgentAccessControl.shared
     @ObservedObject private var morpheus = MorpheusInterventions.shared
+    @EnvironmentObject private var walletManager: WalletManager
     @FocusState private var isInputFocused: Bool
 
     let userID: String
@@ -58,8 +59,56 @@ struct AgentConversationView: View {
                             }
 
                             ForEach(viewModel.messages) { message in
-                                MessageBubble(message: message)
-                                    .id(message.id)
+                                VStack(alignment: .leading, spacing: Spacing.sm) {
+                                    MessageBubble(message: message)
+
+                                    // Actionable suggestion chips — only on the
+                                    // most recent agent message, so stale
+                                    // confirmations can't be tapped.
+                                    if message.id == viewModel.messages.last?.id,
+                                       message.role == .agent,
+                                       !message.suggestedActions.isEmpty {
+                                        ScrollView(.horizontal, showsIndicators: false) {
+                                            HStack(spacing: Spacing.sm) {
+                                                ForEach(message.suggestedActions) { action in
+                                                    Button {
+                                                        MtrxHaptics.impact(.medium)
+                                                        viewModel.handleSuggestedAction(action.action)
+                                                    } label: {
+                                                        Text(action.title)
+                                                            .font(.mtrxCaptionBold)
+                                                            .foregroundStyle(
+                                                                action.action == "demo_cancel"
+                                                                    ? Color.labelSecondary
+                                                                    : Color.accentPrimary
+                                                            )
+                                                            .padding(.horizontal, Spacing.md)
+                                                            .padding(.vertical, Spacing.sm)
+                                                            .background(
+                                                                Capsule().fill(
+                                                                    action.action == "demo_cancel"
+                                                                        ? Color.backgroundTertiary
+                                                                        : Color.accentPrimary.opacity(0.12)
+                                                                )
+                                                            )
+                                                            .overlay(
+                                                                Capsule().stroke(
+                                                                    action.action == "demo_cancel"
+                                                                        ? Color.clear
+                                                                        : Color.accentPrimary.opacity(0.35),
+                                                                    lineWidth: 1
+                                                                )
+                                                            )
+                                                    }
+                                                    .buttonStyle(.plain)
+                                                }
+                                            }
+                                            .padding(.leading, Spacing.xl)
+                                        }
+                                        .transition(.mtrxSlideUp)
+                                    }
+                                }
+                                .id(message.id)
                             }
 
                             if viewModel.isTyping {
@@ -107,7 +156,7 @@ struct AgentConversationView: View {
             }
         }
         .onAppear {
-            viewModel.setup(userID: userID)
+            viewModel.setup(userID: userID, walletManager: walletManager)
             withAnimation(Motion.springDefault.delay(0.2)) {
                 appeared = true
             }
