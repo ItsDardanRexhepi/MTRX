@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var appeared = false
     @State private var showNameEditor = false
     @State private var nameDraft = ""
+    @State private var askedForName = false
 
     /// What to open the chat with: an agent and an optional prefill.
     struct ChatLaunch: Identifiable {
@@ -50,6 +51,13 @@ struct HomeView: View {
         .onAppear {
             withAnimation(Motion.springDefault.delay(0.1)) {
                 appeared = true
+            }
+            // Apple only shares the name on the first-ever sign-in, so
+            // when it's missing, ask once — then it persists for good.
+            if appState.displayName.isEmpty && !askedForName {
+                askedForName = true
+                nameDraft = ""
+                showNameEditor = true
             }
         }
         .fullScreenCover(item: $presentedChat) { launch in

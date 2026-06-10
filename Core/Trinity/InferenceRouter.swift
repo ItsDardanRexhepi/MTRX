@@ -376,7 +376,7 @@ final class InferenceRouter {
         do {
             let activeEngine = engine(for: persona)
             let first = try await activeEngine.respond(to: prompt, context: context)
-            var reply = first.trimmingCharacters(in: .whitespacesAndNewlines)
+            var reply = Self.sanitize(first)
             guard !reply.isEmpty else { return nil }
 
             // The agents never leave the user with a refusal: when a
@@ -393,7 +393,7 @@ final class InferenceRouter {
                     """,
                     context: context
                 )
-                let retried = retry.trimmingCharacters(in: .whitespacesAndNewlines)
+                let retried = Self.sanitize(retry)
                 if !retried.isEmpty, !Self.soundsLikeRefusal(retried) {
                     reply = retried
                 }
@@ -404,6 +404,18 @@ final class InferenceRouter {
             // caller fall back gracefully.
             return nil
         }
+    }
+
+    /// Strip internal markers the small on-device model occasionally
+    /// parrots back — a trailing "[Context]", "[Context: …]" — so no
+    /// agent ever shows prompt plumbing to the user.
+    private static func sanitize(_ text: String) -> String {
+        text.replacingOccurrences(
+            of: #"\s*\[Context[^\]]*\]\s*"#,
+            with: " ",
+            options: .regularExpression
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// True when a reply is a refusal rather than an answer. Markers are
