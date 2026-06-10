@@ -2,6 +2,7 @@
 // MTRX - On-chain social feed with governance, messaging, and proof sharing
 // Copyright 2026 OPN MATRX. All rights reserved.
 
+import PhotosUI
 import SwiftUI
 
 // MARK: - Social Tab Sections
@@ -43,6 +44,11 @@ struct SocialPostDisplay: Identifiable {
     var commentCount: Int
     var isLiked: Bool
     var isReposted: Bool
+    /// Rich attachments — photo, video file in the social media
+    /// directory, or an external link.
+    var imageData: Data? = nil
+    var videoFileName: String? = nil
+    var linkURL: String? = nil
 }
 
 // MARK: - Governance Proposal Model
@@ -101,6 +107,9 @@ final class SocialViewModel: ObservableObject {
     @Published var isComposerPresented = false
     @Published var composerText = ""
     @Published var attachProof = false
+    @Published var composerImageData: Data?
+    @Published var composerVideoFileName: String?
+    @Published var composerLink = ""
     @Published var showPastProposals = false
     @Published var delegationPower: String = "12,450 MTRX"
     @Published var delegatedTo: String = "Self"
@@ -156,11 +165,13 @@ final class SocialViewModel: ObservableObject {
         MtrxHaptics.success()
     }
 
-    /// Publish the composer text as a new post at the top of the feed.
+    /// Publish the composer text — and any attached photo, video, or
+    /// link — as a new post at the top of the feed.
     func publishPost(displayName rawName: String) {
         let displayName = rawName.isEmpty ? "You" : rawName
         let body = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !body.isEmpty else { return }
+        let hasAttachment = composerImageData != nil || composerVideoFileName != nil
+        guard !body.isEmpty || hasAttachment else { return }
 
         let initials = displayName
             .split(separator: " ")
@@ -168,10 +179,11 @@ final class SocialViewModel: ObservableObject {
             .compactMap { $0.first.map(String.init) }
             .joined()
             .uppercased()
-        let handle = "@" + displayName
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "")
-            .replacingOccurrences(of: ".eth", with: "") + ".eth"
+        let handle = SocialIdentity.shared.handle(displayName: rawName)
+        let link = composerLink.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedLink = link.isEmpty
+            ? nil
+            : (link.hasPrefix("http") ? link : "https://" + link)
 
         posts.insert(SocialPostDisplay(
             id: UUID().uuidString,
@@ -191,11 +203,17 @@ final class SocialViewModel: ObservableObject {
             repostCount: 0,
             commentCount: 0,
             isLiked: false,
-            isReposted: false
+            isReposted: false,
+            imageData: composerImageData,
+            videoFileName: composerVideoFileName,
+            linkURL: normalizedLink
         ), at: 0)
 
         composerText = ""
         attachProof = false
+        composerImageData = nil
+        composerVideoFileName = nil
+        composerLink = ""
         isComposerPresented = false
         MtrxHaptics.success()
     }
@@ -249,6 +267,10 @@ final class SocialViewModel: ObservableObject {
 struct SocialView: View {
     @StateObject private var viewModel = SocialViewModel()
     @EnvironmentObject private var appState: AppState
+    @ObservedObject private var socialIdentity = SocialIdentity.shared
+    @State private var photoPickerItem: PhotosPickerItem?
+    @State private var videoPickerItem: PhotosPickerItem?
+    @State private var showProfile = false
     @State private var appeared = false
     @State private var showProofPicker = false
     @State private var commentingOnPost: SocialPostDisplay? = nil
@@ -278,8 +300,62 @@ struct SocialView: View {
             }
             .navigationTitle("Social")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        MtrxHaptics.impact(.light)
+                        showProfile = true
+                    } label: {
+                        Group {
+                            if let avatar = socialIdentity.avatarImage {
+                                Image(uiImage: avatar).resizable().scaledToFill()
+                            } else {
+                                LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    .overlay(
+                                        Image(systemName: "person.fill")
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(.white)
+                                    )
+                            }
+                        }
+                        .frame(width: 30, height: 30)
+                        .clipShape(Circle())
+                    }
+                }
+            }
+            .sheet(isPresented: $showProfile) {
+                SocialProfileSheet(
+                    myPosts: viewModel.posts.filter {
+                        $0.handle == socialIdentity.handle(displayName: appState.displayName)
+                    }
+                )
+                .environmentObject(appState)
+            }
             .sheet(isPresented: $viewModel.isComposerPresented) {
                 composeSheet
+                    .onChange(of: photoPickerItem) { _, item in
+                        guard let item else { return }
+                        Task {
+                            if let data = try? await item.loadTransferable(type: Data.self),
+                               let image = UIImage(data: data) {
+                                // Re-encode bounded JPEG so the feed stays light.
+                                viewModel.composerImageData = image.jpegData(compressionQuality: 0.8)
+                                MtrxHaptics.success()
+                            }
+                            photoPickerItem = nil
+                        }
+                    }
+                    .onChange(of: videoPickerItem) { _, item in
+                        guard let item else { return }
+                        Task {
+                            if let data = try? await item.loadTransferable(type: Data.self) {
+                                viewModel.composerVideoFileName = SocialIdentity.saveMedia(data, fileExtension: "mov")
+                                MtrxHaptics.success()
+                            }
+                            videoPickerItem = nil
+                        }
+                    }
             }
             .sheet(isPresented: $showProofPicker) {
                 ProofPickerSheet { selection in
@@ -440,18 +516,88 @@ struct SocialView: View {
                     }
                 }
 
-                HStack {
+                // Attachment previews
+                if let imageData = viewModel.composerImageData, let image = UIImage(data: imageData) {
+                    ZStack(alignment: .topTrailing) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 140)
+                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                        Button {
+                            viewModel.composerImageData = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 22))
+                                .foregroundStyle(.white, .black.opacity(0.6))
+                        }
+                        .padding(6)
+                    }
+                }
+                if viewModel.composerVideoFileName != nil {
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: "video.fill")
+                            .foregroundStyle(Color.accentPrimary)
+                        Text("Video attached")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelPrimary)
+                        Spacer()
+                        Button { viewModel.composerVideoFileName = nil } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(Color.labelTertiary)
+                        }
+                    }
+                    .padding(Spacing.ms)
+                    .background(Color.surfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                }
+
+                // Link field
+                HStack(spacing: Spacing.sm) {
+                    Image(systemName: "link")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.labelTertiary)
+                    TextField("Add a link (optional)", text: $viewModel.composerLink)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .font(.mtrxCaption1)
+                }
+                .padding(Spacing.ms)
+                .background(Color.surfaceCard)
+                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+
+                HStack(spacing: Spacing.sm) {
+                    // Photo
+                    PhotosPicker(selection: $photoPickerItem, matching: .images) {
+                        Image(systemName: "photo")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(Color.accentPrimary)
+                            .frame(width: 38, height: 38)
+                            .background(Color.accentPrimary.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    // Video
+                    PhotosPicker(selection: $videoPickerItem, matching: .videos) {
+                        Image(systemName: "video")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(Color.accentPrimary)
+                            .frame(width: 38, height: 38)
+                            .background(Color.accentPrimary.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    // On-chain proof
                     Button {
                         viewModel.attachProof.toggle()
                         MtrxHaptics.impact(.light)
                     } label: {
-                        Label(
-                            viewModel.attachProof ? "Proof Attached" : "Attach Proof",
-                            systemImage: viewModel.attachProof ? "checkmark.seal.fill" : Symbols.link
-                        )
-                        .font(.mtrxCaptionBold)
+                        Image(systemName: viewModel.attachProof ? "checkmark.seal.fill" : "checkmark.seal")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(viewModel.attachProof ? Color.statusSuccess : Color.accentPrimary)
+                            .frame(width: 38, height: 38)
+                            .background((viewModel.attachProof ? Color.statusSuccess : Color.accentPrimary).opacity(0.12))
+                            .clipShape(Circle())
                     }
-                    .buttonStyle(MtrxButtonStyle(variant: viewModel.attachProof ? .primary : .secondary, size: .compact))
 
                     Spacer()
 
@@ -482,7 +628,9 @@ struct SocialView: View {
                     }
                     .buttonStyle(MtrxButtonStyle(variant: .primary, size: .compact))
                     .disabled(
-                        viewModel.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        (viewModel.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            && viewModel.composerImageData == nil
+                            && viewModel.composerVideoFileName == nil)
                             || viewModel.composerText.count > 280
                     )
                 }
@@ -495,6 +643,7 @@ struct SocialView: View {
 
     private var feedSection: some View {
         VStack(spacing: 0) {
+            StoriesRail()
             filterChips
             ScrollView {
                 LazyVStack(spacing: Spacing.ms) {
@@ -749,6 +898,16 @@ struct PostCardView: View {
                         .foregroundStyle(Color.accentPrimary)
                 }
                 .buttonStyle(.plain)
+            }
+
+            // Photo / video / link attachments
+            if post.imageData != nil || post.videoFileName != nil || post.linkURL != nil {
+                PostAttachmentView(
+                    imageData: post.imageData,
+                    videoFileName: post.videoFileName,
+                    linkURL: post.linkURL
+                )
+                .padding(.top, Spacing.xs)
             }
         }
     }

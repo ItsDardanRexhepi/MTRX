@@ -88,9 +88,25 @@ final class ContractViewModel: ObservableObject {
         MtrxHaptics.impact(.heavy)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-            self?.isDeploying = false
-            self?.deploySuccess = true
+            guard let self else { return }
+            self.isDeploying = false
+            self.deploySuccess = true
             MtrxHaptics.success()
+
+            // The new contract lands at the top of the Build hub list.
+            if let template = self.selectedTemplate {
+                DeployedContractsStore.shared.items.insert(ContractListItem(
+                    title: self.contractName.isEmpty ? template.rawValue : self.contractName,
+                    contractType: template.rawValue,
+                    counterparty: "0x" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)).lowercased() + "…",
+                    value: "$0.00",
+                    valueNumeric: 0,
+                    status: .active,
+                    typeIcon: template.icon,
+                    createdDate: Date().formatted(.dateTime.month(.abbreviated).day().year()),
+                    actionLabel: "View"
+                ), at: 0)
+            }
         }
     }
 

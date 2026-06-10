@@ -148,8 +148,10 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.account)
         }
+        // NOTE: no .animation() on the TabView itself — animating the
+        // whole tab container swallows NavigationLink pushes inside
+        // tabs. The tint still shifts green→cyan per selected tab.
         .tint(tabTint)
-        .animation(.easeInOut(duration: 0.4), value: selectedTab)
         .task {
             // Restore the demo subscription tier so FeatureGate honors
             // it from the first frame after a relaunch.

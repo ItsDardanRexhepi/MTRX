@@ -3,6 +3,7 @@
 //
 // Smart contract management hub — contracts, templates, and subscriptions.
 
+import Combine
 import SwiftUI
 import SafariServices
 
@@ -14,6 +15,7 @@ final class BuildViewModel: ObservableObject {
     // MARK: - Published State
 
     @Published var contracts: [ContractListItem] = []
+    private var cancellables = Set<AnyCancellable>()
     @Published var templates: [BuildContractTemplate] = []
     @Published var subscriptions: [SubscriptionItem] = []
     @Published var isLoading: Bool = false
@@ -61,9 +63,17 @@ final class BuildViewModel: ObservableObject {
 
         try? await Task.sleep(nanoseconds: 1_000_000_000)
 
-        contracts = ContractListItem.sampleData
+        contracts = DeployedContractsStore.shared.items + ContractListItem.sampleData
         templates = BuildContractTemplate.sampleData
         subscriptions = SubscriptionItem.sampleData
+
+        // New deployments from the wizard surface at the top, live.
+        DeployedContractsStore.shared.$items
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] deployed in
+                self?.contracts = deployed + ContractListItem.sampleData
+            }
+            .store(in: &cancellables)
 
         isLoading = false
 
@@ -961,6 +971,14 @@ struct SubscriptionCardView: View {
 }
 
 // MARK: - Data Models
+
+/// Contracts created in the New Contract wizard land here so the Build
+/// hub list shows them immediately, ahead of the sample history.
+@MainActor
+final class DeployedContractsStore: ObservableObject {
+    static let shared = DeployedContractsStore()
+    @Published var items: [ContractListItem] = []
+}
 
 struct ContractListItem: Identifiable {
     let id = UUID()

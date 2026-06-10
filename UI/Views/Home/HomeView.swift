@@ -114,6 +114,13 @@ struct HomeView: View {
             Text(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()))
                 .font(.mtrxSubheadline)
                 .foregroundStyle(Color.labelTertiary)
+
+            // A calm, reassuring beat before any numbers — people stay
+            // where they feel things are under control.
+            Text(reassuranceLine)
+                .font(.mtrxCaption1)
+                .foregroundStyle(Color.trinityPrimary.opacity(0.75))
+                .padding(.top, 2)
         }
         .padding(.top, Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -149,7 +156,7 @@ struct HomeView: View {
 
     private var agentSection: some View {
         VStack(alignment: .leading, spacing: Spacing.ms) {
-            sectionTitle("Your Agents")
+            sectionTitle("Your agents")
 
             agentCard(
                 agent: .trinity,
@@ -249,7 +256,7 @@ struct HomeView: View {
 
     private var quickActionsSection: some View {
         VStack(alignment: .leading, spacing: Spacing.ms) {
-            sectionTitle("Quick Actions")
+            sectionTitle("Quick actions")
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.ms) {
                 quickAction("Send Money", icon: "arrow.up.circle.fill", color: .accentPrimary, prompt: "Send $")
@@ -363,12 +370,20 @@ struct HomeView: View {
 
     // MARK: - Helpers
 
+    /// Picks by time of day so the app feels alive, not canned.
+    private var reassuranceLine: String {
+        switch Calendar.current.component(.hour, from: Date()) {
+        case 5..<12: return "Everything's ready — markets are live."
+        case 12..<17: return "All systems running smoothly."
+        case 17..<22: return "Your agents kept watch all day."
+        default: return "Markets never sleep — your agents don't either."
+        }
+    }
+
     private func sectionTitle(_ text: String) -> some View {
         Text(text)
-            .font(.mtrxCaptionBold)
-            .foregroundStyle(Color.labelSecondary)
-            .textCase(.uppercase)
-            .kerning(1.1)
+            .font(.mtrxHeadline)
+            .foregroundStyle(Color.labelPrimary)
     }
 }
 
