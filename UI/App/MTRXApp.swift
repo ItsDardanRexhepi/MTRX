@@ -151,6 +151,12 @@ struct MainTabView: View {
         .tint(tabTint)
         .animation(.easeInOut(duration: 0.4), value: selectedTab)
         .task {
+            // Restore the demo subscription tier so FeatureGate honors
+            // it from the first frame after a relaunch.
+            if let raw = UserDefaults.standard.string(forKey: "com.mtrx.subscriptionTier"),
+               let tier = SubscriptionTier(rawValue: raw) {
+                FeatureGate.shared.updateTier(tier)
+            }
             // Sync wallet prices to the live feed so every screen and
             // every agent quote agree.
             await walletManager.refreshLivePrices()

@@ -67,8 +67,14 @@ struct SubscriptionView: View {
     @State private var appeared = false
     @State private var showTrialStarted = false
     @State private var showRestored = false
+    @State private var showUpgraded = false
 
-    private let currentTier: SubscriptionTier = .free
+    /// Demo subscription — persists across launches and drives
+    /// FeatureGate so the whole app honors the chosen tier.
+    @AppStorage("com.mtrx.subscriptionTier") private var currentTierRaw: String = SubscriptionTier.free.rawValue
+    private var currentTier: SubscriptionTier {
+        SubscriptionTier(rawValue: currentTierRaw) ?? .free
+    }
     private let contractsUsed: Int = 3
     private let contractsLimit: Int = 3
 
@@ -109,6 +115,16 @@ struct SubscriptionView: View {
                 withAnimation(Motion.springDefault.delay(0.1)) {
                     appeared = true
                 }
+            }
+            .alert(
+                currentTier == .free ? "Plan Changed" : "Welcome to \(currentTier.displayName)",
+                isPresented: $showUpgraded
+            ) {
+                Button("Done", role: .cancel) {}
+            } message: {
+                Text(currentTier == .free
+                    ? "You're back on the Free plan. Upgrade again anytime."
+                    : "Demo purchase complete — no charge. \(currentTier.displayName) features are unlocked across the app.")
             }
         }
     }
@@ -248,29 +264,15 @@ struct SubscriptionView: View {
                     .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .regular, fullWidth: true))
                     .disabled(true)
                     .opacity(0.5)
-                } else if tier == .enterprise {
-                    Button {
-                        selectedTier = tier
-                        handleSubscribeTap()
-                    } label: {
-                        Text("Upgrade")
-                    }
-                    .buttonStyle(MtrxButtonStyle(
-                        variant: .accent,
-                        size: .regular,
-                        isLoading: isPurchasing && selectedTier == tier,
-                        fullWidth: true
-                    ))
-                    .disabled(isPurchasing)
                 } else {
                     Button {
                         selectedTier = tier
                         handleSubscribeTap()
                     } label: {
-                        Text("Subscribe")
+                        Text(upgradeLabel(for: tier))
                     }
                     .buttonStyle(MtrxButtonStyle(
-                        variant: .primary,
+                        variant: tier == .enterprise ? .accent : .primary,
                         size: .regular,
                         isLoading: isPurchasing && selectedTier == tier,
                         fullWidth: true
@@ -307,6 +309,12 @@ struct SubscriptionView: View {
 
                 Button {
                     MtrxHaptics.success()
+                    currentTierRaw = SubscriptionTier.pro.rawValue
+                    FeatureGate.shared.updateTier(
+                        .pro,
+                        isTrialActive: true,
+                        trialEndDate: Calendar.current.date(byAdding: .day, value: 3, to: Date())
+                    )
                     showTrialStarted = true
                 } label: {
                     Text("Start Free Trial")
@@ -365,13 +373,26 @@ struct SubscriptionView: View {
 
     // MARK: - Actions
 
+    private func upgradeLabel(for tier: SubscriptionTier) -> String {
+        switch tier {
+        case .free: return "Switch to Free"
+        case .pro: return "Upgrade — $4.99/mo"
+        case .enterprise: return "Upgrade — $19.99/mo"
+        }
+    }
+
+    /// Demo purchase: no charge — after a short processing beat the
+    /// tier flips, persists, and FeatureGate unlocks it app-wide.
     private func handleSubscribeTap() {
         isPurchasing = true
         MtrxHaptics.success()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             withAnimation(Motion.springDefault) {
                 isPurchasing = false
+                currentTierRaw = selectedTier.rawValue
+                FeatureGate.shared.updateTier(selectedTier)
+                showUpgraded = true
             }
         }
     }
