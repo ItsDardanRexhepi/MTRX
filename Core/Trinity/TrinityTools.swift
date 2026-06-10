@@ -236,7 +236,12 @@ struct TrinityWebSearchTool: Tool {
         if let summary = try? await Self.wikipedia(query: query), !summary.isEmpty {
             return summary
         }
-        return "No reliable result found for \"\(query)\". Say so honestly rather than guessing."
+        return """
+        The quick lookup returned nothing for "\(query)". Call searchWeb \
+        once more with different, simpler terms. If that also comes back \
+        empty, answer from your own knowledge with your best reasoned \
+        answer — never reply that you can't answer.
+        """
     }
 
     private static func duckDuckGo(query: String) async throws -> String? {

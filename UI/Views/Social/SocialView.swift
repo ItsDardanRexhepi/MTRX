@@ -99,6 +99,8 @@ final class SocialViewModel: ObservableObject {
     @Published var threads: [MessageThread] = []
     @Published var isLoading = false
     @Published var isComposerPresented = false
+    @Published var composerText = ""
+    @Published var attachProof = false
     @Published var showPastProposals = false
     @Published var delegationPower: String = "12,450 MTRX"
     @Published var delegatedTo: String = "Self"
@@ -154,6 +156,49 @@ final class SocialViewModel: ObservableObject {
         MtrxHaptics.success()
     }
 
+    /// Publish the composer text as a new post at the top of the feed.
+    func publishPost(displayName: String) {
+        let body = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else { return }
+
+        let initials = displayName
+            .split(separator: " ")
+            .prefix(2)
+            .compactMap { $0.first.map(String.init) }
+            .joined()
+            .uppercased()
+        let handle = "@" + displayName
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: ".eth", with: "") + ".eth"
+
+        posts.insert(SocialPostDisplay(
+            id: UUID().uuidString,
+            displayName: displayName,
+            handle: handle,
+            avatarInitials: initials.isEmpty ? "ME" : initials,
+            avatarColor: .trinityPrimary,
+            timestamp: Date(),
+            body: body,
+            isVerified: true,
+            hasOnChainProof: attachProof,
+            proofHash: attachProof
+                ? "0x" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(6)).lowercased() + "...verified"
+                : nil,
+            governanceTag: nil,
+            likeCount: 0,
+            repostCount: 0,
+            commentCount: 0,
+            isLiked: false,
+            isReposted: false
+        ), at: 0)
+
+        composerText = ""
+        attachProof = false
+        isComposerPresented = false
+        MtrxHaptics.success()
+    }
+
     // MARK: Sample Data
 
     private func loadSampleData() {
@@ -202,6 +247,7 @@ final class SocialViewModel: ObservableObject {
 
 struct SocialView: View {
     @StateObject private var viewModel = SocialViewModel()
+    @EnvironmentObject private var appState: AppState
     @State private var appeared = false
     @State private var showProofPicker = false
     @State private var commentingOnPost: SocialPostDisplay? = nil
@@ -374,25 +420,45 @@ struct SocialView: View {
     private var composeSheet: some View {
         NavigationStack {
             VStack(spacing: Spacing.md) {
-                TextEditor(text: .constant(""))
-                    .frame(minHeight: 140)
-                    .scrollContentBackground(.hidden)
-                    .padding(Spacing.ms)
-                    .background(Color.surfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
-                    .font(.mtrxBody)
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: $viewModel.composerText)
+                        .frame(minHeight: 140)
+                        .scrollContentBackground(.hidden)
+                        .padding(Spacing.ms)
+                        .background(Color.surfaceCard)
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                        .font(.mtrxBody)
+
+                    if viewModel.composerText.isEmpty {
+                        Text("What's happening on-chain?")
+                            .font(.mtrxBody)
+                            .foregroundStyle(Color.labelTertiary)
+                            .padding(.top, Spacing.ms + 8)
+                            .padding(.leading, Spacing.ms + 5)
+                            .allowsHitTesting(false)
+                    }
+                }
 
                 HStack {
                     Button {
-                        showProofPicker = true
+                        viewModel.attachProof.toggle()
                         MtrxHaptics.impact(.light)
                     } label: {
-                        Label("Attach Proof", systemImage: Symbols.link)
-                            .font(.mtrxCaptionBold)
+                        Label(
+                            viewModel.attachProof ? "Proof Attached" : "Attach Proof",
+                            systemImage: viewModel.attachProof ? "checkmark.seal.fill" : Symbols.link
+                        )
+                        .font(.mtrxCaptionBold)
                     }
-                    .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .compact))
+                    .buttonStyle(MtrxButtonStyle(variant: viewModel.attachProof ? .primary : .secondary, size: .compact))
 
                     Spacer()
+
+                    Text("\(viewModel.composerText.count)/280")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(
+                            viewModel.composerText.count > 280 ? Color.statusError : Color.labelTertiary
+                        )
                 }
 
                 Spacer()
@@ -403,12 +469,21 @@ struct SocialView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { viewModel.isComposerPresented = false }
-                        .foregroundStyle(Color.labelSecondary)
+                    Button("Cancel") {
+                        viewModel.composerText = ""
+                        viewModel.isComposerPresented = false
+                    }
+                    .foregroundStyle(Color.labelSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Publish") { viewModel.isComposerPresented = false }
-                        .buttonStyle(MtrxButtonStyle(variant: .primary, size: .compact))
+                    Button("Publish") {
+                        viewModel.publishPost(displayName: appState.displayName)
+                    }
+                    .buttonStyle(MtrxButtonStyle(variant: .primary, size: .compact))
+                    .disabled(
+                        viewModel.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || viewModel.composerText.count > 280
+                    )
                 }
             }
         }

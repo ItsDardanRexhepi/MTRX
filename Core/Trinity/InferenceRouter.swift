@@ -77,6 +77,13 @@ final class FoundationModelsEngine {
     john 20 dollars" — euros and pounds work too). Mention the exact \
     phrase only when they're actually trying to do one of those things. \
     Cash transfers arrive in seconds with no fees.
+    - NEVER answer with a refusal. Do not say you can't answer, don't \
+    know, or lack the information. When unsure, work for it: call \
+    searchWeb (retry with different, simpler terms if the first try is \
+    empty), getCryptoPrice, or getWeather. If live data is truly \
+    unreachable, give your best reasoned answer from what you know and \
+    note in one short phrase how you got there. The only acceptable \
+    question back is a genuine clarification, like which city for weather.
     """
 
     /// Morpheus — the guardian agent. Protective, calm, weighty.
@@ -98,6 +105,10 @@ final class FoundationModelsEngine {
     - If the user wants to execute a transaction, tell them to ask \
     Trinity — execution is her domain; yours is protection. You verify \
     identity on high-value moves; that is your role.
+    - NEVER answer with a refusal. Do not say you can't answer or don't \
+    know. When unsure, use your tools — searchWeb with retries, \
+    getCryptoPrice, getWeather — and find it. If live data is \
+    unreachable, give your best reasoned judgment from what you know.
     """
 
     /// Neo — the coordinator agent, owner-only. Precise, technical.
@@ -118,6 +129,10 @@ final class FoundationModelsEngine {
     them for live facts; never guess.
     - Money movement and deployments run through Trinity's confirmation \
     flow with Morpheus gating; route the owner there for execution.
+    - NEVER answer with a refusal. Do not say you can't answer or don't \
+    know. When unsure, use your tools — searchWeb with retries, \
+    getCryptoPrice, getWeather — and find it. If live data is \
+    unreachable, give your best reasoned judgment from what you know.
     """
 
     private let defaultInstructions: String
@@ -323,14 +338,54 @@ final class InferenceRouter {
     func generateOnDeviceOnly(prompt: String, context: String? = nil, persona: Persona = .trinity) async -> String? {
         guard #available(iOS 26, macOS 26, *), isOnDeviceAvailable else { return nil }
         do {
-            let text = try await engine(for: persona).respond(to: prompt, context: context)
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+            let activeEngine = engine(for: persona)
+            let first = try await activeEngine.respond(to: prompt, context: context)
+            var reply = first.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !reply.isEmpty else { return nil }
+
+            // The agents never leave the user with a refusal: when a
+            // reply sounds like "I can't / don't know", push the same
+            // session once more — tools included — for a real answer.
+            // One retry bounds the added latency.
+            if Self.soundsLikeRefusal(reply) {
+                let retry = try await activeEngine.respond(
+                    to: """
+                    Answer my question directly this time. Use your tools — \
+                    search the web with different, simpler terms, check live \
+                    prices or weather — or reason it out from what you know. \
+                    Give me your best answer, not a statement that you can't.
+                    """,
+                    context: context
+                )
+                let retried = retry.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !retried.isEmpty, !Self.soundsLikeRefusal(retried) {
+                    reply = retried
+                }
+            }
+            return reply
         } catch {
             // Guardrail violations or transient model errors — let the
             // caller fall back gracefully.
             return nil
         }
+    }
+
+    /// True when a reply is a refusal rather than an answer. Markers are
+    /// deliberately specific so legitimate clarifications ("I can't see
+    /// your location — which city?") pass through untouched.
+    private static func soundsLikeRefusal(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let markers = [
+            "i can't answer", "i cannot answer", "i can't help with",
+            "i cannot help with", "i don't know", "i do not know",
+            "i'm unable to answer", "i am unable to answer",
+            "i can't provide", "i cannot provide",
+            "i don't have an answer", "i don't have that information",
+            "i don't have information", "i cannot find", "i can't find",
+            "i'm not able to answer", "i am not able to answer",
+            "no information available",
+        ]
+        return markers.contains { lower.contains($0) }
     }
 
     /// The inference source that will be used for the next request.

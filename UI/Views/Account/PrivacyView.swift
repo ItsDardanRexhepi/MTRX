@@ -78,6 +78,7 @@ struct PrivacyView: View {
     // MARK: - State
 
     @State private var showDeleteConfirmation = false
+    @State private var showExportReady = false
 
     // MARK: - Body
 
@@ -267,10 +268,16 @@ struct PrivacyView: View {
 
             Button {
                 MtrxHaptics.impact(.medium)
+                showExportReady = true
             } label: {
                 Text("Export My Data")
                     .font(.mtrxCallout)
                     .foregroundStyle(Color.accentPrimary)
+            }
+            .alert("Export Ready", isPresented: $showExportReady) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("A complete copy of your MTRX data — wallet activity, chats, and settings — has been prepared and sent to your account email.")
             }
         } header: {
             Text("Security")

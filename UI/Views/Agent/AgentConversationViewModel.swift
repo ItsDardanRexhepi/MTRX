@@ -128,6 +128,17 @@ final class AgentConversationViewModel: ObservableObject {
             : []
     }
 
+    /// Jump straight into an agent's chat (most recent, or fresh) —
+    /// used by the Home screen agent cards.
+    func openAgentChat(_ agent: AgentAccessControl.ActiveAgent) {
+        if let id = conversationID, store.conversation(id: id)?.agent == agent { return }
+        if let existing = store.mostRecent(agent: agent) {
+            openConversation(existing)
+        } else {
+            startNewConversation(agent: agent)
+        }
+    }
+
     /// Load a saved chat.
     func openConversation(_ convo: AgentChatRecord) {
         conversationID = convo.id

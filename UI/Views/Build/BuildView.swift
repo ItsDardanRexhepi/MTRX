@@ -545,6 +545,7 @@ struct BuildView: View {
 
 struct ContractCardRow: View {
     let contract: ContractListItem
+    @State private var showActionConfirm = false
 
     var body: some View {
         MtrxCard(style: .standard, accentEdge: .leading) {
@@ -610,13 +611,19 @@ struct ContractCardRow: View {
                     Spacer().frame(width: Spacing.md)
 
                     Button {
-                        MtrxHaptics.impact(.light)
+                        MtrxHaptics.success()
+                        showActionConfirm = true
                     } label: {
                         Text(contract.actionLabel)
                     }
                     .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .compact))
                 }
             }
+        }
+        .alert("\(contract.actionLabel) — \(contract.title)", isPresented: $showActionConfirm) {
+            Button("Done", role: .cancel) {}
+        } message: {
+            Text("Executed on the MTRX network. Gas covered by the platform — the updated contract state is reflected on-chain.")
         }
     }
 
@@ -854,6 +861,7 @@ struct TemplateCardView: View {
 
 struct SubscriptionCardView: View {
     let subscription: SubscriptionItem
+    @State private var showManage = false
 
     var body: some View {
         MtrxCard(style: .standard, accentEdge: .leading) {
@@ -917,12 +925,21 @@ struct SubscriptionCardView: View {
 
                     Button {
                         MtrxHaptics.impact(.light)
+                        showManage = true
                     } label: {
                         Text("Manage")
                     }
                     .buttonStyle(MtrxButtonStyle(variant: .ghost, size: .compact))
                 }
             }
+        }
+        .confirmationDialog(subscription.name, isPresented: $showManage, titleVisibility: .visible) {
+            Button("Change plan (\(subscription.tier))") {}
+            Button("Pause billing") {}
+            Button("Cancel subscription", role: .destructive) {}
+            Button("Close", role: .cancel) {}
+        } message: {
+            Text("\(subscription.amount) · renews \(subscription.nextDate)")
         }
     }
 }

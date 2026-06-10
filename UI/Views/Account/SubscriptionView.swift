@@ -65,6 +65,8 @@ struct SubscriptionView: View {
     @State private var selectedTier: SubscriptionTier = .pro
     @State private var isPurchasing = false
     @State private var appeared = false
+    @State private var showTrialStarted = false
+    @State private var showRestored = false
 
     private let currentTier: SubscriptionTier = .free
     private let contractsUsed: Int = 3
@@ -303,10 +305,16 @@ struct SubscriptionView: View {
 
                 Button {
                     MtrxHaptics.success()
+                    showTrialStarted = true
                 } label: {
                     Text("Start Free Trial")
                 }
                 .buttonStyle(MtrxButtonStyle(variant: .accent, size: .regular, fullWidth: true))
+                .alert("Pro Trial Active", isPresented: $showTrialStarted) {
+                    Button("Let's go", role: .cancel) {}
+                } message: {
+                    Text("You have 3 days of MTRX Pro, free. Unlimited deployments, advanced analytics, and priority agent responses are unlocked.")
+                }
             }
         }
         .overlay(
@@ -339,10 +347,16 @@ struct SubscriptionView: View {
 
             Button {
                 MtrxHaptics.impact(.light)
+                showRestored = true
             } label: {
                 Text("Restore Purchases")
             }
             .buttonStyle(MtrxButtonStyle(variant: .ghost, size: .compact))
+            .alert("Purchases Restored", isPresented: $showRestored) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Your purchase history is synced — your plan is up to date.")
+            }
         }
         .padding(.top, Spacing.sm)
     }

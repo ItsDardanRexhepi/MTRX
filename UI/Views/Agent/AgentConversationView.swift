@@ -17,6 +17,14 @@ struct AgentConversationView: View {
 
     let userID: String
 
+    /// Open straight into this agent's chat (Home screen agent cards).
+    var initialAgent: AgentAccessControl.ActiveAgent?
+    /// Pre-fill the input bar (Home screen quick actions).
+    var initialPrompt: String?
+    /// Presented modally → show a dismiss chevron in the header.
+    var isModal: Bool = false
+
+    @Environment(\.dismiss) private var dismiss
     @State private var isListening = false
     @State private var appeared = false
     @State private var showAgentIdentity = false
@@ -158,6 +166,13 @@ struct AgentConversationView: View {
         }
         .onAppear {
             viewModel.setup(userID: userID, walletManager: walletManager)
+            if let initialAgent {
+                viewModel.openAgentChat(initialAgent)
+            }
+            if let initialPrompt, viewModel.inputText.isEmpty {
+                viewModel.inputText = initialPrompt
+                isInputFocused = true
+            }
             withAnimation(Motion.springDefault.delay(0.2)) {
                 appeared = true
             }
@@ -194,6 +209,20 @@ struct AgentConversationView: View {
 
     private var agentHeader: some View {
         HStack(spacing: Spacing.ms) {
+            // Dismiss chevron when presented from the Home screen.
+            if isModal {
+                Button {
+                    MtrxHaptics.impact(.light)
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.labelSecondary)
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.plain)
+            }
+
             // Agent avatar — gradient circle with initial.
             // Long-press opens the AgentIdentityView sheet.
             ZStack {
