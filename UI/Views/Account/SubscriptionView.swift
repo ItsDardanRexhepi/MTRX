@@ -133,7 +133,9 @@ struct SubscriptionView: View {
                         .font(.mtrxTitle2)
                         .foregroundStyle(Color.labelPrimary)
 
-                    Text(currentTier.isPaid ? "Renews May 10, 2026" : "Upgrade for premium features")
+                    Text(currentTier.isPaid
+                        ? "Renews \((Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()).formatted(.dateTime.month(.abbreviated).day().year()))"
+                        : "Upgrade for premium features")
                         .font(.mtrxSubheadline)
                         .foregroundStyle(currentTier.isPaid ? Color.labelSecondary : Color.accentPrimary)
                 }

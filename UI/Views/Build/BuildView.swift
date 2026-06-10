@@ -1046,9 +1046,15 @@ struct SubscriptionItem: Identifiable {
     let tierColor: Color
     let usagePercent: Double
 
+    /// Renewal dates are always in the future relative to today.
+    private static func upcoming(_ days: Int) -> String {
+        (Calendar.current.date(byAdding: .day, value: days, to: Date()) ?? Date())
+            .formatted(.dateTime.month(.abbreviated).day().year())
+    }
+
     static let sampleData: [SubscriptionItem] = [
-        SubscriptionItem(name: "DeFi Yield Optimizer", tier: "Pro", amount: "$29/mo", nextDate: "May 1, 2026", icon: Symbols.chartLine, tierColor: .accentPrimary, usagePercent: 0.73),
-        SubscriptionItem(name: "Data Oracle Feed", tier: "Standard", amount: "$12/mo", nextDate: "Apr 28, 2026", icon: Symbols.link, tierColor: .statusInfo, usagePercent: 0.45),
+        SubscriptionItem(name: "DeFi Yield Optimizer", tier: "Pro", amount: "$29/mo", nextDate: upcoming(21), icon: Symbols.chartLine, tierColor: .accentPrimary, usagePercent: 0.73),
+        SubscriptionItem(name: "Data Oracle Feed", tier: "Standard", amount: "$12/mo", nextDate: upcoming(9), icon: Symbols.link, tierColor: .statusInfo, usagePercent: 0.45),
         SubscriptionItem(name: "Contract Analytics", tier: "Free", amount: "$0/mo", nextDate: "N/A", icon: Symbols.chartBar, tierColor: .labelTertiary, usagePercent: 0.92),
     ]
 }

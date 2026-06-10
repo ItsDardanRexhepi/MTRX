@@ -295,11 +295,8 @@ struct AgentConversationView: View {
             }
             .buttonStyle(.plain)
 
-            // Market hours badge
-            MtrxBadge(
-                text: TemporalContext.shared.currentData().isMarketOpen ? "Markets Open" : "Markets Closed",
-                style: TemporalContext.shared.currentData().isMarketOpen ? .success : .neutral
-            )
+            // Crypto markets never close.
+            MtrxBadge(text: "Markets Live", style: .success)
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.ms)

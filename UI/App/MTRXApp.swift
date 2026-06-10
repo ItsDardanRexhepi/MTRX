@@ -113,6 +113,7 @@ struct RootView: View {
 
 struct MainTabView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var walletManager: WalletManager
     @State private var selectedTab: AppTab = .home
 
     var body: some View {
@@ -148,6 +149,11 @@ struct MainTabView: View {
                 .tag(AppTab.account)
         }
         .tint(Color.tabSelected)
+        .task {
+            // Sync wallet prices to the live feed so every screen and
+            // every agent quote agree.
+            await walletManager.refreshLivePrices()
+        }
         .onChange(of: selectedTab) { _, _ in
             MtrxHaptics.selection()
         }
@@ -414,6 +420,47 @@ class WalletManager: ObservableObject {
             status: .confirmed
         ), at: 0)
         return true
+    }
+
+    // MARK: - Live Prices
+    //
+    // Seed prices are an offline fallback; on launch the wallet syncs to
+    // the same live feed Trinity quotes (CoinGecko), so the numbers she
+    // says out loud and the numbers on every screen always agree.
+
+    private static let coingeckoIDs: [String: String] = [
+        "ETH": "ethereum", "USDC": "usd-coin", "WBTC": "wrapped-bitcoin",
+        "LINK": "chainlink", "UNI": "uniswap", "AAVE": "aave",
+    ]
+
+    func refreshLivePrices() async {
+        var comps = URLComponents(string: "https://api.coingecko.com/api/v3/simple/price")!
+        comps.queryItems = [
+            URLQueryItem(name: "ids", value: Self.coingeckoIDs.values.joined(separator: ",")),
+            URLQueryItem(name: "vs_currencies", value: "usd"),
+            URLQueryItem(name: "include_24hr_change", value: "true"),
+        ]
+        guard let url = comps.url,
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: [String: Double]]
+        else { return }
+
+        await MainActor.run {
+            tokens = tokens.map { t in
+                guard let id = Self.coingeckoIDs[t.symbol.uppercased()],
+                      let entry = parsed[id],
+                      let price = entry["usd"] else { return t }
+                return AppTokenBalance(
+                    symbol: t.symbol, name: t.name, balance: t.balance,
+                    priceUSD: price,
+                    change24h: entry["usd_24h_change"] ?? t.change24h,
+                    iconColor: t.iconColor
+                )
+            }
+            if let eth = token("ETH") {
+                balance = Decimal(eth.balance * eth.priceUSD)
+            }
+        }
     }
 
     /// Deploy a (demo) smart contract: records the deployment in the
