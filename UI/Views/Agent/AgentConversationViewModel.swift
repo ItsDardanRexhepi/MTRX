@@ -64,6 +64,11 @@ final class AgentConversationViewModel: ObservableObject {
         // reply doesn't pay the cold-start cost.
         inference.prewarmOnDevice()
 
+        // Grab a location fix while the app is foregrounded so weather
+        // works instantly — and still works later from Siri in the
+        // background, where a fresh fix may not be possible.
+        TrinityLocationProvider.shared.warmUp()
+
         // Set primary agent based on user type
         if userType == .owner {
             activeAgent = .neo

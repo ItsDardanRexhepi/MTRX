@@ -46,9 +46,14 @@ struct TrinityWeatherTool: Tool {
                 }
                 place = geocoded
             } else if let located = await TrinityLocationProvider.shared.coordinates() {
-                place = (located.latitude, located.longitude, "your location")
+                let label = await Self.placeName(for: located) ?? "your current location"
+                place = (located.latitude, located.longitude, label)
             } else {
-                return "Location unavailable (no permission). Ask the user which city they want weather for."
+                return """
+                The user's location is unavailable right now. Tell them you \
+                can't see their location and ask which city they want weather \
+                for. Do NOT pick, assume, or guess a city yourself.
+                """
             }
 
             let weather = try await Self.fetchWeather(lat: place.lat, lon: place.lon)
@@ -56,6 +61,21 @@ struct TrinityWeatherTool: Tool {
         } catch {
             return "Weather lookup failed: \(error.localizedDescription)"
         }
+    }
+
+    /// Reverse-geocode to a human place name so the answer names the
+    /// user's real city rather than leaving the model room to guess.
+    private static func placeName(for coordinate: CLLocationCoordinate2D) async -> String? {
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        guard let mark = try? await CLGeocoder().reverseGeocodeLocation(location).first else {
+            return nil
+        }
+        let city = mark.locality ?? mark.subAdministrativeArea ?? mark.administrativeArea
+        guard let city else { return nil }
+        if let region = mark.administrativeArea, region != city {
+            return "\(city), \(region)"
+        }
+        return city
     }
 
     // MARK: Open-Meteo
@@ -181,7 +201,10 @@ struct TrinityWebSearchTool: Tool {
     }
 
     private static func wikipedia(query: String) async throws -> String? {
-        // Find the best-matching page title…
+        // Find the best-matching page title — exact-prefix match first,
+        // then full-text search for looser questions.
+        var title: String?
+
         var search = URLComponents(string: "https://en.wikipedia.org/w/api.php")!
         search.queryItems = [
             URLQueryItem(name: "action", value: "opensearch"),
@@ -189,13 +212,38 @@ struct TrinityWebSearchTool: Tool {
             URLQueryItem(name: "limit", value: "1"),
             URLQueryItem(name: "format", value: "json"),
         ]
-        let (data, _) = try await URLSession.shared.data(from: search.url!)
-        guard let parsed = try JSONSerialization.jsonObject(with: data) as? [Any],
-              parsed.count > 1,
-              let titles = parsed[1] as? [String],
-              let title = titles.first else { return nil }
+        if let (data, _) = try? await URLSession.shared.data(from: search.url!),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [Any],
+           parsed.count > 1,
+           let titles = parsed[1] as? [String] {
+            title = titles.first
+        }
 
-        // …then pull its summary.
+        if title == nil {
+            var fullText = URLComponents(string: "https://en.wikipedia.org/w/api.php")!
+            fullText.queryItems = [
+                URLQueryItem(name: "action", value: "query"),
+                URLQueryItem(name: "list", value: "search"),
+                URLQueryItem(name: "srsearch", value: query),
+                URLQueryItem(name: "srlimit", value: "1"),
+                URLQueryItem(name: "format", value: "json"),
+            ]
+            struct SearchResponse: Decodable {
+                struct Query: Decodable {
+                    struct Hit: Decodable { let title: String }
+                    let search: [Hit]
+                }
+                let query: Query?
+            }
+            if let (data, _) = try? await URLSession.shared.data(from: fullText.url!) {
+                title = (try? JSONDecoder().decode(SearchResponse.self, from: data))?
+                    .query?.search.first?.title
+            }
+        }
+
+        guard let title else { return nil }
+
+        // …then pull that page's summary.
         let escaped = title.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? title
         let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(escaped)")!
         let (summaryData, _) = try await URLSession.shared.data(from: url)
@@ -204,58 +252,230 @@ struct TrinityWebSearchTool: Tool {
     }
 }
 
+// MARK: - Crypto Price Tool
+
+@available(iOS 26.0, macOS 26.0, *)
+struct TrinityCryptoPriceTool: Tool {
+    let name = "getCryptoPrice"
+    let description = """
+    Get the live price and 24-hour change of a cryptocurrency in USD. \
+    Call whenever the user asks about a coin or token price, how the \
+    market is doing, or anything price-sensitive. Never quote a crypto \
+    price from memory.
+    """
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "Coin name or ticker, e.g. 'bitcoin', 'ETH', 'solana'.")
+        var coin: String
+    }
+
+    /// Common tickers → CoinGecko ids; anything else goes through
+    /// CoinGecko's own search.
+    private static let knownIds: [String: String] = [
+        "btc": "bitcoin", "bitcoin": "bitcoin",
+        "eth": "ethereum", "ethereum": "ethereum",
+        "sol": "solana", "solana": "solana",
+        "usdc": "usd-coin", "usdt": "tether", "tether": "tether",
+        "link": "chainlink", "chainlink": "chainlink",
+        "uni": "uniswap", "uniswap": "uniswap",
+        "aave": "aave",
+        "ada": "cardano", "cardano": "cardano",
+        "doge": "dogecoin", "dogecoin": "dogecoin",
+        "xrp": "ripple", "ripple": "ripple",
+        "matic": "polygon-ecosystem-token", "polygon": "polygon-ecosystem-token",
+        "bnb": "binancecoin",
+        "dot": "polkadot", "polkadot": "polkadot",
+        "avax": "avalanche-2", "avalanche": "avalanche-2",
+        "ltc": "litecoin", "litecoin": "litecoin",
+    ]
+
+    func call(arguments: Arguments) async throws -> String {
+        let raw = arguments.coin.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !raw.isEmpty else { return "Which coin?" }
+
+        do {
+            guard let id = try await Self.resolveId(for: raw) else {
+                return "Couldn't find a cryptocurrency called \(arguments.coin)."
+            }
+
+            var comps = URLComponents(string: "https://api.coingecko.com/api/v3/simple/price")!
+            comps.queryItems = [
+                URLQueryItem(name: "ids", value: id),
+                URLQueryItem(name: "vs_currencies", value: "usd"),
+                URLQueryItem(name: "include_24hr_change", value: "true"),
+            ]
+            let (data, _) = try await URLSession.shared.data(from: comps.url!)
+            guard let parsed = try JSONSerialization.jsonObject(with: data) as? [String: [String: Double]],
+                  let entry = parsed[id],
+                  let price = entry["usd"] else {
+                return "Price for \(arguments.coin) is unavailable right now."
+            }
+
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            formatter.minimumFractionDigits = price >= 1 ? 2 : 4
+            formatter.maximumFractionDigits = price >= 1 ? 2 : 4
+            let priceText = "$" + (formatter.string(from: NSNumber(value: price)) ?? String(price))
+            if let change = entry["usd_24h_change"] {
+                let direction = change >= 0 ? "up" : "down"
+                return "\(id.capitalized): \(priceText), \(direction) \(String(format: "%.1f", abs(change)))% in the last 24h."
+            }
+            return "\(id.capitalized): \(priceText)."
+        } catch {
+            return "Price lookup failed: \(error.localizedDescription)"
+        }
+    }
+
+    private static func resolveId(for query: String) async throws -> String? {
+        if let known = knownIds[query] { return known }
+
+        var comps = URLComponents(string: "https://api.coingecko.com/api/v3/search")!
+        comps.queryItems = [URLQueryItem(name: "query", value: query)]
+        let (data, _) = try await URLSession.shared.data(from: comps.url!)
+        struct SearchResult: Decodable {
+            struct Coin: Decodable { let id: String }
+            let coins: [Coin]
+        }
+        return try JSONDecoder().decode(SearchResult.self, from: data).coins.first?.id
+    }
+}
+
 #endif
 
 // MARK: - One-shot Location Provider
 
-/// Minimal async wrapper over CLLocationManager: request permission if
-/// needed, deliver one fix, never block longer than a few seconds.
+/// Async wrapper over CLLocationManager: request permission if needed,
+/// deliver one fix, never block longer than a few seconds.
+///
+/// Everything touches the manager on the main thread — CLLocationManager
+/// delegate callbacks silently never fire when the manager lives on a
+/// run-loop-less background thread, which is exactly where Swift
+/// concurrency may land a tool call.
+///
+/// The last good fix is persisted so Siri turns running in the
+/// background (where iOS may refuse a fresh when-in-use fix) can still
+/// answer for the user's real area instead of failing.
 final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
 
     static let shared = TrinityLocationProvider()
 
-    private let manager = CLLocationManager()
-    private var continuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
+    private static let persistKey = "com.mtrx.trinity.lastLocationFix"
+    /// Weather changes by the hour, not the minute — a 2-hour-old fix
+    /// still names the right city.
+    private static let persistedFixMaxAge: TimeInterval = 2 * 60 * 60
+
+    private var manager: CLLocationManager?
+    private var continuations: [CheckedContinuation<CLLocationCoordinate2D?, Never>] = []
 
     private override init() {
         super.init()
-        manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyKilometer
     }
 
-    /// Current coordinates, or nil when permission is denied/unavailable.
+    /// Lazily create the manager on the main thread only.
+    private func managerOnMain() -> CLLocationManager {
+        dispatchPrecondition(condition: .onQueue(.main))
+        if let manager { return manager }
+        let fresh = CLLocationManager()
+        fresh.delegate = self
+        fresh.desiredAccuracy = kCLLocationAccuracyKilometer
+        manager = fresh
+        return fresh
+    }
+
+    /// Fire-and-forget refresh; call while the app is in the foreground
+    /// (permission prompts and fresh fixes both need it).
+    func warmUp() {
+        Task { _ = await coordinates() }
+    }
+
+    /// Current coordinates: fresh fix → new request (5s cap) → persisted
+    /// recent fix → nil.
     func coordinates() async -> CLLocationCoordinate2D? {
-        // Cached fix from the last few minutes is plenty for weather.
-        if let recent = manager.location,
-           recent.timestamp.timeIntervalSinceNow > -300 {
-            return recent.coordinate
+        let live: CLLocationCoordinate2D? = await withCheckedContinuation { cont in
+            DispatchQueue.main.async {
+                let manager = self.managerOnMain()
+
+                // A fix from the last few minutes is plenty for weather.
+                if let recent = manager.location,
+                   recent.timestamp.timeIntervalSinceNow > -300 {
+                    Self.persist(recent.coordinate)
+                    cont.resume(returning: recent.coordinate)
+                    return
+                }
+
+                switch manager.authorizationStatus {
+                case .denied, .restricted:
+                    cont.resume(returning: nil)
+                    return
+                case .notDetermined:
+                    // The grant lands in locationManagerDidChangeAuthorization,
+                    // which retries the fix while we stay queued.
+                    manager.requestWhenInUseAuthorization()
+                default:
+                    manager.requestLocation()
+                }
+
+                self.continuations.append(cont)
+
+                // Hard timeout so a missing fix can't hang the model turn.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                    self.finish(with: self.manager?.location?.coordinate)
+                }
+            }
         }
 
+        if let live {
+            Self.persist(live)
+            return live
+        }
+        // Background Siri turn or temporary fix failure — fall back to
+        // the last real fix from when the app was open.
+        return Self.persistedFix()
+    }
+
+    /// Must run on main. Resumes every waiter exactly once.
+    private func finish(with coordinate: CLLocationCoordinate2D?) {
+        let waiting = continuations
+        continuations = []
+        waiting.forEach { $0.resume(returning: coordinate) }
+    }
+
+    private static func persist(_ coordinate: CLLocationCoordinate2D) {
+        UserDefaults.standard.set(
+            ["lat": coordinate.latitude, "lon": coordinate.longitude,
+             "at": Date().timeIntervalSince1970],
+            forKey: persistKey
+        )
+    }
+
+    private static func persistedFix() -> CLLocationCoordinate2D? {
+        guard let dict = UserDefaults.standard.dictionary(forKey: persistKey),
+              let lat = dict["lat"] as? Double,
+              let lon = dict["lon"] as? Double,
+              let at = dict["at"] as? Double,
+              Date().timeIntervalSince1970 - at < persistedFixMaxAge else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    }
+
+    // MARK: CLLocationManagerDelegate (delivered on main)
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        guard !continuations.isEmpty else { return }
         switch manager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            manager.requestLocation()
         case .denied, .restricted:
-            return nil
-        case .notDetermined:
-            manager.requestWhenInUseAuthorization()
+            finish(with: nil)
         default:
             break
         }
-
-        return await withCheckedContinuation { cont in
-            continuation = cont
-            manager.requestLocation()
-            // Hard timeout so a missing fix can't hang the model turn.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-                self?.finish(with: self?.manager.location?.coordinate)
-            }
-        }
-    }
-
-    private func finish(with coordinate: CLLocationCoordinate2D?) {
-        continuation?.resume(returning: coordinate)
-        continuation = nil
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        if let coordinate = locations.last?.coordinate {
+            Self.persist(coordinate)
+        }
         finish(with: locations.last?.coordinate)
     }
 

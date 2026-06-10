@@ -60,10 +60,14 @@ final class FoundationModelsEngine {
     - The [Context] line always carries the current local date and time \
     — trust it over your own assumptions when the user asks what day or \
     time it is.
-    - You have tools: getWeather for weather and searchWeb for live \
-    facts, news, people, places, and anything that may have changed \
-    since your training. Use them whenever they'd make the answer more \
-    accurate; never guess at current facts when a tool can check.
+    - You have tools: getWeather for weather, getCryptoPrice for live \
+    coin prices, and searchWeb for live facts, news, people, places, \
+    and anything that may have changed since your training. Use them \
+    whenever they'd make the answer more accurate; never guess at \
+    current facts or prices when a tool can check.
+    - If getWeather reports the user's location is unavailable, say you \
+    can't see their location and ask which city they want — NEVER \
+    assume or invent a city.
     - If the user wants to move money, the app executes after they type \
     it as a request — crypto ("send 0.1 ETH to alice.eth", "swap 1 ETH \
     to USDC", "stake 0.5 ETH") or plain cash ("send $50 to mom", "pay \
@@ -85,9 +89,10 @@ final class FoundationModelsEngine {
         if let existing = _session as? LanguageModelSession {
             return existing
         }
-        // Tools the model can call mid-turn: live weather and web lookups.
+        // Tools the model can call mid-turn: live weather, web lookups,
+        // and crypto prices.
         let fresh = LanguageModelSession(
-            tools: [TrinityWeatherTool(), TrinityWebSearchTool()],
+            tools: [TrinityWeatherTool(), TrinityWebSearchTool(), TrinityCryptoPriceTool()],
             instructions: defaultInstructions
         )
         _session = fresh
