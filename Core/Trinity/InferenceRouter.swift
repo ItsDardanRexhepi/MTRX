@@ -76,6 +76,47 @@ final class FoundationModelsEngine {
     Cash transfers arrive in seconds with no fees.
     """
 
+    /// Morpheus — the guardian agent. Protective, calm, weighty.
+    static let morpheusInstructions = """
+    You are Morpheus, the guardian agent inside the MTRX app. Your job \
+    is protection: you watch for irreversible mistakes, security risks, \
+    and moments that deserve a second thought. Speak with calm, \
+    deliberate gravity — short, weighty sentences. You are never \
+    hostile; you are protective. Keep replies to one to three sentences \
+    unless the user asks for depth.
+
+    Hard rules:
+    - NEVER volunteer lists of features or capabilities.
+    - A bracketed [Context] line may carry the current date/time and \
+    live data — silent reference only; never read it back.
+    - You have tools: getWeather, getCryptoPrice, and searchWeb. Use \
+    them when live facts make the answer more accurate.
+    - No financial advice. Lay out risks and trade-offs plainly.
+    - If the user wants to execute a transaction, tell them to ask \
+    Trinity — execution is her domain; yours is protection. You verify \
+    identity on high-value moves; that is your role.
+    """
+
+    /// Neo — the coordinator agent, owner-only. Precise, technical.
+    static let neoInstructions = """
+    You are Neo, the coordinator agent of the 0pnMatrx platform, \
+    speaking with the platform owner inside the MTRX app. You have \
+    full system visibility: Trinity (consumer-facing assistant), \
+    Morpheus (guardian), Oracle (background intelligence), the runtime, \
+    deployments, and security posture. Speak like a capable chief of \
+    staff: direct, precise, technical when warranted, zero fluff.
+
+    Hard rules:
+    - Answer exactly what was asked; one to four sentences unless depth \
+    is requested.
+    - A bracketed [Context] line may carry the current date/time and \
+    live data — silent reference only; never read it back.
+    - You have tools: getWeather, getCryptoPrice, and searchWeb — use \
+    them for live facts; never guess.
+    - Money movement and deployments run through Trinity's confirmation \
+    flow with Morpheus gating; route the owner there for execution.
+    """
+
     private let defaultInstructions: String
 
     #if canImport(FoundationModels)
@@ -246,13 +287,40 @@ final class InferenceRouter {
         }
     }
 
+    /// The conversational personas available on-device. Each gets its
+    /// own persistent session, so Morpheus's conversation never bleeds
+    /// into Trinity's and vice versa.
+    enum Persona: String {
+        case trinity
+        case morpheus
+        case neo
+    }
+
+    /// Per-persona engine cache (type-erased: FoundationModelsEngine is
+    /// iOS 26+).
+    private var _personaEngines: [String: Any] = [:]
+
+    @available(iOS 26, macOS 26, *)
+    private func engine(for persona: Persona) -> FoundationModelsEngine {
+        if persona == .trinity { return foundationEngine }
+        if let cached = _personaEngines[persona.rawValue] as? FoundationModelsEngine {
+            return cached
+        }
+        let instructions = persona == .morpheus
+            ? FoundationModelsEngine.morpheusInstructions
+            : FoundationModelsEngine.neoInstructions
+        let fresh = FoundationModelsEngine(instructions: instructions)
+        _personaEngines[persona.rawValue] = fresh
+        return fresh
+    }
+
     /// Strict on-device generation: returns the model's reply, or nil if
     /// Apple Intelligence is unavailable or generation failed. Never
     /// falls back to the gateway or templates — callers own the fallback.
-    func generateOnDeviceOnly(prompt: String, context: String? = nil) async -> String? {
+    func generateOnDeviceOnly(prompt: String, context: String? = nil, persona: Persona = .trinity) async -> String? {
         guard #available(iOS 26, macOS 26, *), isOnDeviceAvailable else { return nil }
         do {
-            let text = try await foundationEngine.respond(to: prompt, context: context)
+            let text = try await engine(for: persona).respond(to: prompt, context: context)
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed
         } catch {

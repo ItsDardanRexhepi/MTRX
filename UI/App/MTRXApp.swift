@@ -415,6 +415,22 @@ class WalletManager: ObservableObject {
         ), at: 0)
         return true
     }
+
+    /// Deploy a (demo) smart contract: records the deployment in the
+    /// activity feed and returns the new contract address.
+    @discardableResult
+    func demoDeployContract(name: String) -> String {
+        let address = "0x" + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(40).lowercased()
+        transactions.insert(TransactionItem(
+            type: .contract,
+            title: "Deployed \(name)",
+            subtitle: "Glasswing audit passed · MTRX network",
+            amount: String(address.prefix(10)) + "…",
+            timestamp: Date(),
+            status: .confirmed
+        ), at: 0)
+        return address
+    }
 }
 
 // MARK: - Trinity Engine

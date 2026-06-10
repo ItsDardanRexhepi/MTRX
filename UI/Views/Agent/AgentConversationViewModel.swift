@@ -48,6 +48,10 @@ final class AgentConversationViewModel: ObservableObject {
     /// Action parsed from the user's message, awaiting their confirmation.
     private var pendingAction: TrinityDemoAction?
 
+    /// Set when the user explicitly picks an agent ("talk to morpheus");
+    /// outranks automatic routing until they switch back to Trinity.
+    private var manualAgentOverride: AgentAccessControl.ActiveAgent?
+
     /// On-device conversation brain (Apple Foundation Models on iOS 26+).
     /// One router per conversation so the model session keeps context.
     private let inference = InferenceRouter()
@@ -126,21 +130,36 @@ final class AgentConversationViewModel: ObservableObject {
         messages.append(AgentMessage(text: text, role: .user))
         inputText = ""
 
+        // Manual agent switching — "talk to morpheus", "switch to trinity".
+        // The choice sticks for the rest of the conversation until the
+        // user switches again.
+        if let target = Self.agentSwitchTarget(in: text) {
+            if target == .neo && userType != .owner {
+                respondAsTrinity("Neo coordinates the platform itself and answers only to the owner. Morpheus and I are here for you — what do you need?")
+                return
+            }
+            manualAgentOverride = (target == .trinity) ? nil : target
+            switchAgent(to: target)
+            return
+        }
+
         // Check access control
         let intent = UserIntent.parse(text)
         let route = accessControl.routeAgent(for: userID, intent: intent)
 
         switch route {
         case .allowed(let agent):
-            activeAgent = agent
+            // A manual "talk to morpheus/neo" choice outranks routing.
+            let effective = manualAgentOverride ?? agent
+            activeAgent = effective
 
-            // Demo action engine: executable intents (send / swap / stake)
-            // are parsed, confirmed, and executed locally against the
-            // shared wallet — no backend required.
-            if agent == .trinity, handleDemoConversation(text: text) {
+            // Demo action engine: executable intents (send / swap / stake
+            // / deploy) are parsed, confirmed, and executed locally against
+            // the shared wallet — no backend required.
+            if effective == .trinity, handleDemoConversation(text: text) {
                 return
             }
-            processWithAgent(text: text, agent: agent)
+            processWithAgent(text: text, agent: effective)
 
         case .scenario1:
             // Trinity intercepts silently — user never knows
@@ -164,11 +183,34 @@ final class AgentConversationViewModel: ObservableObject {
             accessControl.executeScenario2(userID: bannedUserID)
 
         case .scenario3Required:
+            // Owner authorization: Morpheus verifies identity on the
+            // spot instead of dead-ending the request.
+            activeAgent = .morpheus
             messages.append(AgentMessage(
-                text: "This request requires owner authorization. A verification process has been initiated.",
+                text: "This operation requires owner authorization. Verify your identity to continue.",
                 role: .agent,
-                agentName: "Trinity"
+                agentName: "Morpheus"
             ))
+            Task { @MainActor in
+                let verified = (try? await BiometricAuth().authenticate(
+                    reason: "Owner authorization required"
+                )) ?? false
+                if verified {
+                    messages.append(AgentMessage(
+                        text: "Owner verified. Proceeding.",
+                        role: .agent,
+                        agentName: "Morpheus"
+                    ))
+                    processWithAgent(text: text, agent: .neo)
+                } else {
+                    activeAgent = .trinity
+                    messages.append(AgentMessage(
+                        text: "Authorization was not completed. The request is blocked.",
+                        role: .agent,
+                        agentName: "Morpheus"
+                    ))
+                }
+            }
 
         case .blocked:
             // Silently ignore banned users
@@ -209,10 +251,18 @@ final class AgentConversationViewModel: ObservableObject {
             if Self.isFinanceRelated(text) {
                 contextLine += " " + liveContextLine()
             }
-            if agent == .trinity, !intercepted,
+            let persona: InferenceRouter.Persona = {
+                switch agent {
+                case .trinity: return .trinity
+                case .morpheus: return .morpheus
+                case .neo: return .neo
+                }
+            }()
+            if !intercepted,
                let onDevice = await inference.generateOnDeviceOnly(
                    prompt: text,
-                   context: contextLine
+                   context: contextLine,
+                   persona: persona
                ) {
                 messages.append(AgentMessage(
                     text: onDevice,
@@ -363,24 +413,24 @@ final class AgentConversationViewModel: ObservableObject {
         pendingAction = action
 
         // Morpheus appears before consequential moves — crypto or fiat.
+        // He takes over the conversation, states the stakes, and demands
+        // identity verification (Face ID / passcode) before Trinity may
+        // proceed to the normal confirmation.
         let usd = action.usdValue(in: wm)
         var isOutboundTransfer = false
         if case .send = action { isOutboundTransfer = true }
         if case .sendFiat = action { isOutboundTransfer = true }
         if isOutboundTransfer, usd >= 1000 {
-            if let intervention = morpheus.evaluate(
-                trigger: .irreversibleAction(.init(
-                    title: "High-value transfer",
-                    details: action.summary(in: wm) + " This is irreversible once executed.",
-                    isPermanent: true,
-                    estimatedValue: Self.usdFormatter.string(from: NSNumber(value: usd))
-                )),
-                userID: userID
-            ) {
-                morpheus.present(intervention)
-            }
+            beginMorpheusVerification(for: action, usd: usd, in: wm)
+            return true
         }
 
+        presentConfirmation(for: action, in: wm)
+        return true
+    }
+
+    /// Trinity's standard pre-execution confirmation with action chips.
+    private func presentConfirmation(for action: TrinityDemoAction, in wm: WalletManager) {
         respondAsTrinity(
             "Here's what I'm about to do:\n\n\(action.summary(in: wm))\n\nNetwork fees are covered by the platform — you pay no gas. Confirm?",
             actions: [
@@ -388,7 +438,53 @@ final class AgentConversationViewModel: ObservableObject {
                 SuggestedAction(title: "Cancel", description: "Do nothing", action: "demo_cancel"),
             ]
         )
-        return true
+    }
+
+    // MARK: - Morpheus Verification
+
+    /// High-value transfers summon Morpheus into the conversation: he
+    /// announces himself, verifies the owner's identity with Face ID
+    /// (system passcode as backstop), then hands back to Trinity. A
+    /// failed or cancelled verification blocks the transfer outright.
+    private func beginMorpheusVerification(for action: TrinityDemoAction, usd: Double, in wm: WalletManager) {
+        let amountText = Self.usdFormatter.string(from: NSNumber(value: usd)) ?? String(format: "$%.0f", usd)
+        let previousAgent = activeAgent
+        activeAgent = .morpheus
+
+        messages.append(AgentMessage(
+            text: "I step in when the stakes are real. You are about to move **\(amountText)** — irreversible once executed. Verify your identity to proceed.",
+            role: .agent,
+            agentName: "Morpheus"
+        ))
+
+        // Morpheus speaks — the guardian is heard, not just read.
+        Task.detached { await MorpheusVoice().speak("Identity verification required.") }
+
+        isTyping = true
+        Task { @MainActor in
+            let verified = (try? await BiometricAuth().authenticate(
+                reason: "Morpheus: authorize a transfer of \(amountText)"
+            )) ?? false
+            isTyping = false
+
+            if verified {
+                messages.append(AgentMessage(
+                    text: "Verification complete. You are who you say you are. Trinity will take it from here.",
+                    role: .agent,
+                    agentName: "Morpheus"
+                ))
+                activeAgent = previousAgent
+                presentConfirmation(for: action, in: wm)
+            } else {
+                pendingAction = nil
+                activeAgent = previousAgent
+                messages.append(AgentMessage(
+                    text: "Verification was not completed. The transfer is **blocked** — nothing has moved. If this was you, try again and authenticate when prompted.",
+                    role: .agent,
+                    agentName: "Morpheus"
+                ))
+            }
+        }
     }
 
     /// Entry point for tapped suggestion chips.
@@ -461,6 +557,17 @@ final class AgentConversationViewModel: ObservableObject {
                 } else {
                     respondAsTrinity(insufficientFundsMessage(token: token, in: wm))
                 }
+
+            case .deploy(let name):
+                // Staged pipeline: audit → gate → deploy, then the
+                // contract address lands in the transaction history.
+                respondAsTrinity("🛡 **Glasswing audit running…** 12-point vulnerability scan on \"\(name)\".")
+                try? await Task.sleep(for: .milliseconds(1400))
+                let address = wm.demoDeployContract(name: name)
+                respondAsTrinity(
+                    "✅ **Deployed.** \"\(name)\" is live on the MTRX network.\n\n• Glasswing audit: **passed** — 0 critical, 0 high findings\n• Morpheus gate: **cleared**\n• Contract: `\(address)`\n• Gas: covered by MTRX\n\nThe deployment is recorded in Account → Wallet → Activity.",
+                    actions: [SuggestedAction(title: "Deploy another", description: "Start a new deployment", action: "Deploy a contract")]
+                )
             }
         }
     }
@@ -558,6 +665,28 @@ final class AgentConversationViewModel: ObservableObject {
             return .send(amount: amount, token: g[1] ?? "eth", recipient: g[2] ?? "alice.eth")
         }
 
+        // "deploy a contract", "deploy my token contract called Vault"
+        if lower.contains("deploy"), lower.contains("contract") {
+            var name = "MyContract"
+            if let g = match(#"(?:called|named)\s+[\"']?([a-z0-9_\- ]+?)[\"']?\s*$"#),
+               let captured = g[0]?.trimmingCharacters(in: .whitespaces), !captured.isEmpty {
+                name = captured.split(separator: " ").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined()
+            }
+            return .deploy(name: name)
+        }
+
+        return nil
+    }
+
+    /// Detect explicit requests to change the active agent.
+    private static func agentSwitchTarget(in text: String) -> AgentAccessControl.ActiveAgent? {
+        let lower = text.lowercased()
+        let asksSwitch = ["talk to", "talk with", "speak to", "speak with", "switch to", "let me talk", "bring in", "get me"]
+            .contains { lower.contains($0) }
+        guard asksSwitch else { return nil }
+        if lower.contains("morpheus") { return .morpheus }
+        if lower.contains("trinity") { return .trinity }
+        if lower.contains("neo") { return .neo }
         return nil
     }
 
@@ -871,6 +1000,7 @@ enum TrinityDemoAction {
     case sendFiat(amount: Double, currency: String, recipient: String)
     case swap(amount: Double, from: String, to: String)
     case stake(amount: Double, token: String)
+    case deploy(name: String)
 
     /// Fixed demo FX rates → USD.
     static let fiatRates: [String: Double] = ["USD": 1.0, "EUR": 1.08, "GBP": 1.27, "CAD": 0.73]
@@ -894,6 +1024,8 @@ enum TrinityDemoAction {
             return amount * (Self.fiatRates[currency] ?? 1.0)
         case .swap(let amount, let from, _):
             return amount * (wm.token(from)?.priceUSD ?? 0)
+        case .deploy:
+            return 0
         }
     }
 
@@ -913,6 +1045,8 @@ enum TrinityDemoAction {
             return "**Swap \(amount) \(from.uppercased())** (≈\(usd)) into **\(to.uppercased())** at spot rate."
         case .stake(let amount, let token):
             return "**Stake \(amount) \(token.uppercased())** (≈\(usd)) at 8.7% APY. Unstake anytime."
+        case .deploy(let name):
+            return "**Deploy smart contract \"\(name)\"** to the MTRX network. Glasswing runs its 12-point security audit first; Morpheus clears it before mainnet."
         }
     }
 }
