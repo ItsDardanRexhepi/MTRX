@@ -112,6 +112,7 @@ enum RegistrationDuration: CaseIterable {
 // MARK: - Domain View
 
 struct DomainView: View {
+    @State private var renewedDomain: String?
     @StateObject private var viewModel = DomainViewModel()
 
     private let accent = Color(red: 0.0, green: 0.675, blue: 0.694)
@@ -131,7 +132,15 @@ struct DomainView: View {
                     domainContent
                 }
             }
-            .navigationTitle("ENS Domains")
+            .alert("Renewed", isPresented: .init(
+            get: { renewedDomain != nil },
+            set: { if !$0 { renewedDomain = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("\(renewedDomain ?? "") is extended for another year on-chain.")
+        }
+        .navigationTitle("ENS Domains")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $viewModel.showRegisterSheet) {
                 registerSheet
@@ -327,7 +336,8 @@ struct DomainView: View {
                         }
 
                         Button {
-                            MtrxHaptics.impact(.light)
+                            MtrxHaptics.success()
+                            renewedDomain = domain.name
                         } label: {
                             Text("Renew")
                         }

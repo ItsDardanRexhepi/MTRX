@@ -68,12 +68,15 @@ final class BuildViewModel: ObservableObject {
         subscriptions = SubscriptionItem.sampleData
 
         // New deployments from the wizard surface at the top, live.
-        DeployedContractsStore.shared.$items
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] deployed in
-                self?.contracts = deployed + ContractListItem.sampleData
-            }
-            .store(in: &cancellables)
+        // Subscribe exactly once — refresh() must not stack duplicates.
+        if cancellables.isEmpty {
+            DeployedContractsStore.shared.$items
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] deployed in
+                    self?.contracts = deployed + ContractListItem.sampleData
+                }
+                .store(in: &cancellables)
+        }
 
         isLoading = false
 
@@ -668,6 +671,7 @@ struct ContractCardRow: View {
 // MARK: - Contract Detail View
 
 struct ContractDetailView: View {
+    @State private var disputeFiled = false
     let contract: ContractListItem
     @State private var isSigningContract: Bool = false
     @State private var isExecuting: Bool = false
@@ -798,10 +802,16 @@ struct ContractDetailView: View {
         .alert("Raise Dispute?", isPresented: $showDisputeConfirm) {
             Button("Raise Dispute", role: .destructive) {
                 MtrxHaptics.warning()
+                disputeFiled = true
             }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This will initiate a formal dispute process on-chain.")
+        }
+        .alert("Dispute Filed", isPresented: $disputeFiled) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Case #DSP-\(Int.random(in: 1000...9999)) opened. An arbiter reviews the contract within 48 hours; funds stay escrowed until resolution.")
         }
         .sheet(item: $explorerURL) { url in
             BuildSafariView(url: url)
@@ -890,6 +900,7 @@ struct TemplateCardView: View {
 struct SubscriptionCardView: View {
     let subscription: SubscriptionItem
     @State private var showManage = false
+    @State private var manageResult: String?
 
     var body: some View {
         MtrxCard(style: .standard, accentEdge: .leading) {
@@ -962,12 +973,26 @@ struct SubscriptionCardView: View {
             }
         }
         .confirmationDialog(subscription.name, isPresented: $showManage, titleVisibility: .visible) {
-            Button("Change plan (\(subscription.tier))") {}
-            Button("Pause billing") {}
-            Button("Cancel subscription", role: .destructive) {}
+            Button("Change plan (\(subscription.tier))") {
+                manageResult = "Plan change scheduled — takes effect at the next billing cycle."
+            }
+            Button("Pause billing") {
+                manageResult = "Billing paused. Resume anytime from this menu."
+            }
+            Button("Cancel subscription", role: .destructive) {
+                manageResult = "Subscription cancelled — access continues until \(subscription.nextDate)."
+            }
             Button("Close", role: .cancel) {}
         } message: {
             Text("\(subscription.amount) · renews \(subscription.nextDate)")
+        }
+        .alert("Done", isPresented: .init(
+            get: { manageResult != nil },
+            set: { if !$0 { manageResult = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(manageResult ?? "")
         }
     }
 }

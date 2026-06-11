@@ -54,14 +54,18 @@ struct TrinityWeatherTool: Tool {
         do {
             let place: (lat: Double, lon: Double, label: String)
             if let city = arguments.city, !city.isEmpty {
+                #if DEBUG
                 print("[Trinity.weather] explicit city: \(city)")
+                #endif
                 guard let geocoded = try await Self.geocode(city: city) else {
                     return "Couldn't find a city called \(city)."
                 }
                 place = geocoded
             } else if let located = await TrinityLocationProvider.shared.coordinates(maxWait: 6) {
                 // Precise GPS fix (or a recently cached one).
+                #if DEBUG
                 print("[Trinity.weather] CL fix: \(located.latitude), \(located.longitude)")
+                #endif
                 let label = await Self.placeName(for: located) ?? "your current location"
                 place = (located.latitude, located.longitude, label)
             } else if let approx = await TrinityLocationProvider.approximateByIP() {
@@ -69,11 +73,15 @@ struct TrinityWeatherTool: Tool {
                 // granted yet) — network-based location is city-level at
                 // best and the ISP can place it in a neighboring city,
                 // so it is labelled as approximate, never stated as fact.
+                #if DEBUG
                 print("[Trinity.weather] IP fallback: \(approx.label)")
+                #endif
                 place = (approx.latitude, approx.longitude,
                          "the \(approx.label) area (approximate network location — if this is the wrong city, the user can name theirs)")
             } else if !(await TrinityLocationProvider.servicesEnabled()) {
+                #if DEBUG
                 print("[Trinity.weather] FAIL: Location Services globally off, IP failed")
+                #endif
                 return """
                 Location Services are turned off for this whole iPhone, and \
                 the network lookup also failed. Tell the user to turn on \
@@ -82,7 +90,9 @@ struct TrinityWeatherTool: Tool {
                 pick or guess a city yourself.
                 """
             } else if await TrinityLocationProvider.shared.isAuthorizationDenied {
+                #if DEBUG
                 print("[Trinity.weather] FAIL: permission denied, IP failed")
+                #endif
                 return """
                 Location permission is denied for this app. Tell the user to \
                 enable it in Settings > Privacy & Security > Location Services \
@@ -90,7 +100,9 @@ struct TrinityWeatherTool: Tool {
                 or guess a city yourself.
                 """
             } else {
+                #if DEBUG
                 print("[Trinity.weather] FAIL: no CL fix, no IP result")
+                #endif
                 return """
                 The user's location is unavailable right now. Tell them you \
                 can't see their location and ask which city they want weather \
@@ -99,10 +111,14 @@ struct TrinityWeatherTool: Tool {
             }
 
             let weather = try await Self.fetchWeather(lat: place.lat, lon: place.lon)
+            #if DEBUG
             print("[Trinity.weather] OK: \(place.label)")
+            #endif
             return "Weather for \(place.label): \(weather)"
         } catch {
+            #if DEBUG
             print("[Trinity.weather] ERROR: \(error)")
+            #endif
             return "Weather lookup failed: \(error.localizedDescription)"
         }
     }
@@ -462,14 +478,18 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
         // Master switch off → no dialog, no fix, ever. Skip straight to
         // the persisted fallback. (Must be read off the main thread.)
         guard await Self.servicesEnabled() else {
+            #if DEBUG
             print("[Trinity.location] Location Services globally OFF")
+            #endif
             return Self.persistedFix()
         }
 
         let live: CLLocationCoordinate2D? = await withCheckedContinuation { cont in
             DispatchQueue.main.async {
                 let manager = self.managerOnMain()
+                #if DEBUG
                 print("[Trinity.location] auth=\(manager.authorizationStatus.rawValue) cached=\(String(describing: manager.location?.timestamp))")
+                #endif
 
                 // A fix from the last few minutes is plenty for weather.
                 if let recent = manager.location,
@@ -571,9 +591,13 @@ final class TrinityLocationProvider: NSObject, CLLocationManagerDelegate {
     static func approximateByIP() async -> ApproximateLocation? {
         // Keyless HTTPS providers, tried in order; either one suffices.
         if let hit = await ipWhoIs() { return hit }
+        #if DEBUG
         print("[Trinity.location] ipwho.is failed — trying ipapi.co")
+        #endif
         if let hit = await ipApiCo() { return hit }
+        #if DEBUG
         print("[Trinity.location] ipapi.co failed too — no IP location")
+        #endif
         return nil
     }
 

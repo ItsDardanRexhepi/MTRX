@@ -64,6 +64,9 @@ enum ProfileVisibility: String, CaseIterable, Identifiable {
 
 struct PrivacyView: View {
 
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+
     // MARK: - App Storage
 
     @AppStorage("mtrx_privacy_level") private var selectedLevel: String = "standard"
@@ -102,6 +105,11 @@ struct PrivacyView: View {
             ) {
                 Button("Delete my account permanently", role: .destructive) {
                     MtrxHaptics.error()
+                    // Real consequence: the demo account, session, and
+                    // persisted state are wiped; the app returns to
+                    // onboarding for a fresh start.
+                    appState.signOut()
+                    dismiss()
                 }
                 Button("Cancel", role: .cancel) { }
             } message: {
