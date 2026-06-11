@@ -301,7 +301,8 @@ struct SocialView: View {
             .navigationTitle("Social")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                // Your avatar on the left opens your profile.
+                ToolbarItem(placement: .topBarLeading) {
                     Button {
                         MtrxHaptics.impact(.light)
                         showProfile = true
@@ -323,7 +324,36 @@ struct SocialView: View {
                         .clipShape(Circle())
                     }
                 }
+
+                // The MTRX mark sits center, like every timeline app.
+                ToolbarItem(placement: .principal) {
+                    Text("M")
+                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                        .foregroundStyle(
+                            LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
+                                           startPoint: .top, endPoint: .bottom)
+                        )
+                        .mtrxGlow(color: .trinityPrimary, radius: 4)
+                }
+
+                // Timeline switcher — ranked vs. latest.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        MtrxHaptics.selection()
+                        withAnimation(Motion.springSnappy) {
+                            viewModel.selectedFilter =
+                                viewModel.selectedFilter == .trending ? .all : .trending
+                        }
+                    } label: {
+                        Image(systemName: viewModel.selectedFilter == .trending
+                              ? "sparkles" : "sparkle")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(viewModel.selectedFilter == .trending
+                                             ? Color.accentPrimary : Color.labelSecondary)
+                    }
+                }
             }
+            .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showProfile) {
                 SocialProfileSheet(
                     myPosts: viewModel.posts.filter {
@@ -507,7 +537,7 @@ struct SocialView: View {
                         .font(.mtrxBody)
 
                     if viewModel.composerText.isEmpty {
-                        Text("What's happening on-chain?")
+                        Text("What's happening?")
                             .font(.mtrxBody)
                             .foregroundStyle(Color.labelTertiary)
                             .padding(.top, Spacing.ms + 8)
@@ -612,7 +642,7 @@ struct SocialView: View {
             }
             .padding(Spacing.contentPadding)
             .background(MtrxGradientBackground(style: .primary))
-            .navigationTitle("New Post")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -623,7 +653,7 @@ struct SocialView: View {
                     .foregroundStyle(Color.labelSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Publish") {
+                    Button("Post") {
                         viewModel.publishPost(displayName: appState.displayName)
                     }
                     .buttonStyle(MtrxButtonStyle(variant: .primary, size: .compact))
@@ -646,7 +676,9 @@ struct SocialView: View {
             StoriesRail()
             filterChips
             ScrollView {
-                LazyVStack(spacing: Spacing.ms) {
+                // Flat, edge-to-edge timeline rows with hairline
+                // separators — the modern feed look.
+                LazyVStack(spacing: 0) {
                     ForEach(Array(viewModel.filteredPosts.enumerated()), id: \.element.id) { index, post in
                         PostCardView(
                             post: post,
@@ -656,10 +688,10 @@ struct SocialView: View {
                             onComment: { commentingOnPost = post }
                         )
                         .mtrxStaggeredAppearance(index: index, isVisible: appeared)
+
+                        MtrxDivider()
                     }
                 }
-                .padding(.horizontal, Spacing.contentPadding)
-                .padding(.top, Spacing.sm)
                 .padding(.bottom, Spacing.xxl)
             }
             .refreshable {
@@ -670,24 +702,38 @@ struct SocialView: View {
 
     // MARK: - Filter Chips
 
+    /// Timeline tabs — For You and Following, underline indicator.
     private var filterChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Spacing.sm) {
-                ForEach(FeedFilter.allCases, id: \.self) { filter in
-                    MtrxChip(
-                        label: filter.rawValue,
-                        isSelected: viewModel.selectedFilter == filter
-                    ) {
-                        withAnimation(Motion.springSnappy) {
-                            viewModel.selectedFilter = filter
-                        }
-                        MtrxHaptics.selection()
-                    }
-                }
-            }
-            .padding(.horizontal, Spacing.contentPadding)
-            .padding(.vertical, Spacing.sm)
+        HStack(spacing: 0) {
+            timelineTab("For You", filter: .all)
+            timelineTab("Following", filter: .following)
         }
+        .overlay(alignment: .bottom) {
+            MtrxDivider()
+        }
+    }
+
+    private func timelineTab(_ title: String, filter: FeedFilter) -> some View {
+        Button {
+            withAnimation(Motion.springSnappy) {
+                viewModel.selectedFilter = filter
+            }
+            MtrxHaptics.selection()
+        } label: {
+            VStack(spacing: 11) {
+                Text(title)
+                    .font(.system(size: 15, weight: viewModel.selectedFilter == filter ? .bold : .semibold))
+                    .foregroundStyle(viewModel.selectedFilter == filter ? Color.labelPrimary : Color.labelTertiary)
+
+                Capsule()
+                    .fill(viewModel.selectedFilter == filter ? Color.accentPrimary : Color.clear)
+                    .frame(width: 58, height: 3)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, Spacing.sm)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Governance Section
@@ -785,238 +831,243 @@ struct PostCardView: View {
     var onComment: () -> Void = {}
 
     @State private var isExpanded = false
-    @State private var likeScale: CGFloat = 1.0
+    @State private var bookmarked = false
 
-    private let expandThreshold = 180
+    private let expandThreshold = 280
 
-    var body: some View {
-        MtrxCard(style: .standard) {
-            VStack(alignment: .leading, spacing: Spacing.ms) {
-                postHeader
-                postBody
-                if post.hasOnChainProof {
-                    proofLink
-                }
-                if let tag = post.governanceTag {
-                    governanceTag(tag)
-                }
-                engagementBar
-            }
-        }
+    /// Deterministic demo view count — stable per post, feels alive.
+    private var viewCount: Int {
+        post.likeCount * 83 + post.repostCount * 41 + post.commentCount * 17 + 412
     }
 
-    // MARK: Header
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.ms) {
+            MtrxAvatar(text: post.avatarInitials, color: post.avatarColor, size: 40)
 
-    private var postHeader: some View {
-        HStack(spacing: Spacing.avatarContentGap) {
-            MtrxAvatar(text: post.avatarInitials, color: post.avatarColor, size: Spacing.Size.avatarMedium)
+            VStack(alignment: .leading, spacing: 7) {
+                headerLine
+                bodyText
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: Spacing.xs) {
-                    Text(post.displayName)
-                        .font(.mtrxCalloutBold)
-                        .foregroundStyle(Color.labelPrimary)
-
-                    if post.isVerified {
-                        Image(systemName: Symbols.verified)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.accentPrimary)
-                    }
+                if post.imageData != nil || post.videoFileName != nil || post.linkURL != nil {
+                    PostAttachmentView(
+                        imageData: post.imageData,
+                        videoFileName: post.videoFileName,
+                        linkURL: post.linkURL
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(.top, 2)
                 }
 
-                HStack(spacing: Spacing.xs) {
-                    Text(post.handle)
-                        .font(.mtrxCaption1)
-                        .foregroundStyle(Color.labelSecondary)
-
-                    Text("  \(relativeTimestamp(post.timestamp))")
-                        .font(.mtrxCaption1)
-                        .foregroundStyle(Color.labelTertiary)
+                if post.hasOnChainProof {
+                    proofChip
                 }
+                if let tag = post.governanceTag {
+                    governanceChip(tag)
+                }
+
+                actionRow
+                    .padding(.top, 3)
+            }
+        }
+        .padding(.horizontal, Spacing.contentPadding)
+        .padding(.vertical, Spacing.ms)
+        .contentShape(Rectangle())
+    }
+
+    // MARK: Header line — name · handle · time, menu at right
+
+    private var headerLine: some View {
+        HStack(spacing: 4) {
+            Text(post.displayName)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Color.labelPrimary)
+                .lineLimit(1)
+
+            if post.isVerified {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.accentPrimary)
             }
 
-            Spacer()
+            Text(post.handle)
+                .font(.system(size: 14))
+                .foregroundStyle(Color.labelTertiary)
+                .lineLimit(1)
+
+            Text("· \(relativeTimestamp(post.timestamp))")
+                .font(.system(size: 14))
+                .foregroundStyle(Color.labelTertiary)
+                .layoutPriority(1)
+
+            Spacer(minLength: 4)
 
             Button {
                 onMenu()
                 MtrxHaptics.impact(.light)
             } label: {
-                Image(systemName: Symbols.more)
-                    .font(.system(size: 16))
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14))
                     .foregroundStyle(Color.labelTertiary)
+                    .frame(width: 26, height: 26)
             }
             .buttonStyle(.plain)
         }
     }
 
-    // MARK: Body
+    // MARK: Body text
 
     @ViewBuilder
-    private var postBody: some View {
+    private var bodyText: some View {
         let shouldTruncate = post.body.count > expandThreshold && !isExpanded
 
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            Text(shouldTruncate ? String(post.body.prefix(expandThreshold)) + "..." : post.body)
-                .font(.mtrxBody)
+        if !post.body.isEmpty {
+            Text(shouldTruncate ? String(post.body.prefix(expandThreshold)) + "…" : post.body)
+                .font(.system(size: 15))
                 .foregroundStyle(Color.labelPrimary)
                 .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
 
             if post.body.count > expandThreshold {
                 Button {
-                    withAnimation(Motion.springDefault) {
-                        isExpanded.toggle()
-                    }
+                    withAnimation(Motion.springDefault) { isExpanded.toggle() }
                 } label: {
-                    Text(isExpanded ? "Show less" : "Read more")
-                        .font(.mtrxCaptionBold)
+                    Text(isExpanded ? "Show less" : "Show more")
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.accentPrimary)
                 }
                 .buttonStyle(.plain)
             }
-
-            // Photo / video / link attachments
-            if post.imageData != nil || post.videoFileName != nil || post.linkURL != nil {
-                PostAttachmentView(
-                    imageData: post.imageData,
-                    videoFileName: post.videoFileName,
-                    linkURL: post.linkURL
-                )
-                .padding(.top, Spacing.xs)
-            }
         }
     }
 
-    // MARK: Proof Link
+    // MARK: On-chain proof / governance chips
 
-    private var proofLink: some View {
-        HStack(spacing: Spacing.sm) {
-            Image(systemName: Symbols.lock)
+    private var proofChip: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 11, weight: .semibold))
+            Text("On-chain proof")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.statusSuccess)
-
-            Text("View on-chain proof")
-                .font(.mtrxCaptionBold)
-                .foregroundStyle(Color.statusSuccess)
-
             if let hash = post.proofHash {
                 Text(hash)
-                    .font(.mtrxMonoTiny)
-                    .foregroundStyle(Color.labelTertiary)
+                    .font(.mtrxMonoSmall)
+                    .lineLimit(1)
             }
-
-            Spacer()
-
-            Image(systemName: Symbols.externalLink)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.statusSuccess)
         }
-        .padding(Spacing.sm)
-        .background(Color.statusSuccess.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-    }
-
-    // MARK: Governance Tag
-
-    private func governanceTag(_ tag: String) -> some View {
-        HStack(spacing: Spacing.xs) {
-            Image(systemName: Symbols.dao)
-                .font(.system(size: 11, weight: .semibold))
-            Text(tag)
-                .font(.mtrxCaptionBold)
-        }
-        .foregroundStyle(Color.statusInfo)
-        .padding(.horizontal, Spacing.sm)
-        .padding(.vertical, Spacing.xs)
-        .background(Color.statusInfo.opacity(0.1))
+        .foregroundStyle(Color.statusSuccess)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.statusSuccess.opacity(0.10))
         .clipShape(Capsule())
     }
 
-    // MARK: Engagement Bar
+    private func governanceChip(_ tag: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "building.columns.fill")
+                .font(.system(size: 11, weight: .semibold))
+            Text(tag)
+                .font(.system(size: 12, weight: .semibold))
+        }
+        .foregroundStyle(Color.statusInfo)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.statusInfo.opacity(0.10))
+        .clipShape(Capsule())
+    }
 
-    private var engagementBar: some View {
-        HStack(spacing: Spacing.ml) {
-            // Like
-            Button {
-                withAnimation(Motion.springBouncy) {
-                    likeScale = 1.3
-                }
-                onLike()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    withAnimation(Motion.springSnappy) {
-                        likeScale = 1.0
-                    }
-                }
-            } label: {
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: post.isLiked ? Symbols.like : "heart")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(post.isLiked ? Color.statusError : Color.labelTertiary)
-                        .scaleEffect(likeScale)
-                    Text("\(post.likeCount)")
-                        .font(.mtrxCaption1)
-                        .foregroundStyle(post.isLiked ? Color.statusError : Color.labelTertiary)
-                }
-            }
-            .buttonStyle(.plain)
+    // MARK: Action row — reply · repost · like · views · bookmark/share
 
-            // Repost
-            Button {
-                onRepost()
-            } label: {
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: Symbols.repost)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(post.isReposted ? Color.statusSuccess : Color.labelTertiary)
-                    Text("\(post.repostCount)")
-                        .font(.mtrxCaption1)
-                        .foregroundStyle(post.isReposted ? Color.statusSuccess : Color.labelTertiary)
-                }
-            }
-            .buttonStyle(.plain)
-
-            // Comment
-            Button {
-                onComment()
-                MtrxHaptics.impact(.light)
-            } label: {
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: "bubble.left")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(Color.labelTertiary)
-                    Text("\(post.commentCount)")
-                        .font(.mtrxCaption1)
-                        .foregroundStyle(Color.labelTertiary)
-                }
-            }
-            .buttonStyle(.plain)
+    private var actionRow: some View {
+        HStack(spacing: 0) {
+            actionButton(
+                icon: "bubble.left",
+                count: post.commentCount,
+                tint: Color.labelTertiary
+            ) { onComment() }
 
             Spacer()
 
-            // Share
-            ShareLink(item: postShareURL) {
-                Image(systemName: Symbols.share)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Color.labelTertiary)
+            actionButton(
+                icon: "arrow.2.squarepath",
+                count: post.repostCount,
+                tint: post.isReposted ? Color.statusSuccess : Color.labelTertiary
+            ) { onRepost() }
+
+            Spacer()
+
+            actionButton(
+                icon: post.isLiked ? "heart.fill" : "heart",
+                count: post.likeCount,
+                tint: post.isLiked ? Color(red: 0.97, green: 0.26, blue: 0.45) : Color.labelTertiary
+            ) { onLike() }
+
+            Spacer()
+
+            actionButton(
+                icon: "chart.bar.xaxis",
+                count: viewCount,
+                tint: Color.labelTertiary
+            ) {}
+
+            Spacer()
+
+            HStack(spacing: Spacing.ms) {
+                Button {
+                    bookmarked.toggle()
+                    MtrxHaptics.impact(.light)
+                } label: {
+                    Image(systemName: bookmarked ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 15))
+                        .foregroundStyle(bookmarked ? Color.accentPrimary : Color.labelTertiary)
+                }
+                .buttonStyle(.plain)
+
+                ShareLink(item: post.body.isEmpty ? "Shared from MTRX" : post.body) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.labelTertiary)
+                }
             }
-            .buttonStyle(.plain)
+        }
+        .padding(.trailing, 2)
+    }
+
+    private func actionButton(icon: String, count: Int, tint: Color, action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+            MtrxHaptics.impact(.light)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 15))
+                if count > 0 {
+                    Text(Self.compact(count))
+                        .font(.system(size: 13))
+                        .monospacedDigit()
+                }
+            }
+            .foregroundStyle(tint)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 1.2K-style compact counts.
+    static func compact(_ value: Int) -> String {
+        switch value {
+        case 1_000_000...: return String(format: "%.1fM", Double(value) / 1_000_000)
+        case 1_000...: return String(format: "%.1fK", Double(value) / 1_000)
+        default: return "\(value)"
         }
     }
 
-    private var postShareURL: URL {
-        URL(string: "https://openmatrix-ai.com/p/\(post.id)") ?? URL(string: "https://openmatrix-ai.com")!
-    }
-
-    // MARK: Helpers
-
     private func relativeTimestamp(_ date: Date) -> String {
-        let interval = Date().timeIntervalSince(date)
-        let minutes = Int(interval / 60)
-        if minutes < 1 { return "now" }
-        if minutes < 60 { return "\(minutes)m ago" }
-        let hours = minutes / 60
-        if hours < 24 { return "\(hours)h ago" }
-        let days = hours / 24
-        return "\(days)d ago"
+        let seconds = Date().timeIntervalSince(date)
+        switch seconds {
+        case ..<60: return "now"
+        case ..<3600: return "\(Int(seconds / 60))m"
+        case ..<86400: return "\(Int(seconds / 3600))h"
+        default: return "\(Int(seconds / 86400))d"
+        }
     }
 }
 

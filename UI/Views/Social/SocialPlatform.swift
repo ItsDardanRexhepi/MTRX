@@ -334,123 +334,203 @@ struct SocialProfileSheet: View {
     @State private var editingUsername = ""
     @State private var editingBio = ""
     @State private var saved = false
+    @State private var isEditing = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: Spacing.lg) {
-                    // Avatar — tap to change.
-                    PhotosPicker(selection: $avatarPickerItem, matching: .images) {
-                        ZStack(alignment: .bottomTrailing) {
-                            Group {
-                                if let avatar = identity.avatarImage {
-                                    Image(uiImage: avatar).resizable().scaledToFill()
-                                } else {
-                                    LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
-                                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                                        .overlay(
-                                            Text(initials)
-                                                .font(.system(size: 34, weight: .bold, design: .rounded))
-                                                .foregroundStyle(.white)
-                                        )
-                                }
-                            }
-                            .frame(width: 96, height: 96)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.trinityPrimary.opacity(0.5), lineWidth: 2))
+                VStack(alignment: .leading, spacing: 0) {
+                    // Banner with the avatar overlapping its bottom edge.
+                    ZStack(alignment: .bottomLeading) {
+                        LinearGradient(
+                            colors: [Color.trinityPrimary.opacity(0.55), Color.trinitySecondary.opacity(0.35), Color.backgroundPrimary],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .frame(height: 130)
 
-                            Image(systemName: "camera.circle.fill")
-                                .font(.system(size: 28))
+                        PhotosPicker(selection: $avatarPickerItem, matching: .images) {
+                            ZStack(alignment: .bottomTrailing) {
+                                Group {
+                                    if let avatar = identity.avatarImage {
+                                        Image(uiImage: avatar).resizable().scaledToFill()
+                                    } else {
+                                        LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
+                                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                                            .overlay(
+                                                Text(initials)
+                                                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                                                    .foregroundStyle(.white)
+                                            )
+                                    }
+                                }
+                                .frame(width: 84, height: 84)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.backgroundPrimary, lineWidth: 4))
+
+                                Image(systemName: "camera.circle.fill")
+                                    .font(.system(size: 24))
+                                    .foregroundStyle(Color.accentPrimary)
+                                    .background(Circle().fill(Color.backgroundPrimary))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .offset(x: Spacing.contentPadding, y: 42)
+                    }
+                    .padding(.bottom, 46)
+
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        // Edit profile pill, right-aligned like every
+                        // profile page the user already knows.
+                        HStack {
+                            Spacer()
+                            Button {
+                                withAnimation(Motion.springSnappy) { isEditing.toggle() }
+                            } label: {
+                                Text(isEditing ? "Cancel" : "Edit profile")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.labelPrimary)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 7)
+                                    .overlay(Capsule().stroke(Color.labelTertiary.opacity(0.5), lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.top, -38)
+
+                        // Name + handle + verified
+                        HStack(spacing: 5) {
+                            Text(appState.displayName.isEmpty ? "You" : appState.displayName)
+                                .font(.system(size: 21, weight: .heavy))
+                                .foregroundStyle(Color.labelPrimary)
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 16))
                                 .foregroundStyle(Color.accentPrimary)
-                                .background(Circle().fill(Color.backgroundPrimary))
                         }
-                    }
-                    .buttonStyle(.plain)
 
-                    // Stats — social proof, front and center.
-                    HStack(spacing: 0) {
-                        statColumn("\(myPosts.count)", "Posts")
-                        statColumn("1.2K", "Followers")
-                        statColumn("348", "Following")
-                    }
-                    .padding(.vertical, Spacing.sm)
-                    .background(Color.surfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                        Text(identity.handle(displayName: appState.displayName))
+                            .font(.system(size: 15))
+                            .foregroundStyle(Color.labelTertiary)
 
-                    // Editable identity
-                    VStack(alignment: .leading, spacing: Spacing.ms) {
-                        fieldLabel("Display name")
-                        TextField("Your name", text: $editingName)
-                            .textFieldStyle(.plain)
-                            .font(.mtrxBody)
-                            .padding(Spacing.ms)
-                            .background(Color.surfaceCard)
-                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                        if !identity.bio.isEmpty {
+                            Text(identity.bio)
+                                .font(.system(size: 15))
+                                .foregroundStyle(Color.labelPrimary)
+                                .padding(.top, 2)
+                        }
 
-                        fieldLabel("Username")
-                        TextField("@username", text: $editingUsername)
-                            .textFieldStyle(.plain)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .font(.mtrxBody)
-                            .padding(Spacing.ms)
-                            .background(Color.surfaceCard)
-                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                        // Meta row
+                        HStack(spacing: Spacing.md) {
+                            Label("Joined \(appState.joinDate.formatted(.dateTime.month(.wide).year()))", systemImage: "calendar")
+                            Label("MTRX Network", systemImage: "link")
+                        }
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.labelTertiary)
+                        .padding(.top, 2)
 
-                        fieldLabel("Bio")
-                        TextField("Tell people about yourself", text: $editingBio, axis: .vertical)
-                            .textFieldStyle(.plain)
-                            .lineLimit(2...4)
-                            .font(.mtrxBody)
-                            .padding(Spacing.ms)
-                            .background(Color.surfaceCard)
-                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-                    }
-
-                    Button {
-                        appState.updateDisplayName(editingName)
-                        identity.username = editingUsername.trimmingCharacters(in: .whitespaces)
-                        identity.bio = editingBio
-                        saved = true
-                        MtrxHaptics.success()
-                    } label: {
-                        Text("Save Profile")
-                    }
-                    .buttonStyle(MtrxButtonStyle(variant: .primary, size: .regular, fullWidth: true))
-
-                    // My posts
-                    if !myPosts.isEmpty {
-                        VStack(alignment: .leading, spacing: Spacing.ms) {
-                            Text("My Posts")
-                                .font(.mtrxCaptionBold)
-                                .foregroundStyle(Color.labelSecondary)
-                                .textCase(.uppercase)
-                                .kerning(1.1)
-
-                            ForEach(myPosts) { post in
-                                VStack(alignment: .leading, spacing: Spacing.xs) {
-                                    Text(post.body)
-                                        .font(.mtrxCallout)
-                                        .foregroundStyle(Color.labelPrimary)
-                                        .lineLimit(3)
-                                    Text("\(post.likeCount) likes · \(post.timestamp.formatted(.relative(presentation: .named)))")
-                                        .font(.mtrxCaption2)
-                                        .foregroundStyle(Color.labelTertiary)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(Spacing.ms)
-                                .background(Color.surfaceCard)
-                                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                        // Following / Followers
+                        HStack(spacing: Spacing.md) {
+                            HStack(spacing: 4) {
+                                Text("348").font(.system(size: 14, weight: .bold)).foregroundStyle(Color.labelPrimary)
+                                Text("Following").font(.system(size: 14)).foregroundStyle(Color.labelTertiary)
+                            }
+                            HStack(spacing: 4) {
+                                Text("1,284").font(.system(size: 14, weight: .bold)).foregroundStyle(Color.labelPrimary)
+                                Text("Followers").font(.system(size: 14)).foregroundStyle(Color.labelTertiary)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 2)
+
+                        // Inline editor — slides in under Edit profile.
+                        if isEditing {
+                            VStack(alignment: .leading, spacing: Spacing.ms) {
+                                fieldLabel("Display name")
+                                TextField("Your name", text: $editingName)
+                                    .textFieldStyle(.plain)
+                                    .font(.mtrxBody)
+                                    .padding(Spacing.ms)
+                                    .background(Color.surfaceCard)
+                                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+
+                                fieldLabel("Username")
+                                TextField("@username", text: $editingUsername)
+                                    .textFieldStyle(.plain)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                                    .font(.mtrxBody)
+                                    .padding(Spacing.ms)
+                                    .background(Color.surfaceCard)
+                                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+
+                                fieldLabel("Bio")
+                                TextField("Tell people about yourself", text: $editingBio, axis: .vertical)
+                                    .textFieldStyle(.plain)
+                                    .lineLimit(2...4)
+                                    .font(.mtrxBody)
+                                    .padding(Spacing.ms)
+                                    .background(Color.surfaceCard)
+                                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+
+                                Button {
+                                    appState.updateDisplayName(editingName)
+                                    identity.username = editingUsername.trimmingCharacters(in: .whitespaces)
+                                    identity.bio = editingBio
+                                    saved = true
+                                    withAnimation(Motion.springSnappy) { isEditing = false }
+                                    MtrxHaptics.success()
+                                } label: {
+                                    Text("Save")
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(.black)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 11)
+                                        .background(Color.labelPrimary)
+                                        .clipShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.top, Spacing.sm)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+
+                    // Posts tab header
+                    VStack(spacing: 11) {
+                        Text("Posts")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(Color.labelPrimary)
+                        Capsule()
+                            .fill(Color.accentPrimary)
+                            .frame(width: 50, height: 3)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, Spacing.lg)
+                    .overlay(alignment: .bottom) { MtrxDivider() }
+
+                    if myPosts.isEmpty {
+                        VStack(spacing: Spacing.sm) {
+                            Text("Nothing here yet")
+                                .font(.mtrxHeadline)
+                                .foregroundStyle(Color.labelPrimary)
+                            Text("Your posts will live here. Tap + on the feed to write your first one.")
+                                .font(.mtrxCaption1)
+                                .foregroundStyle(Color.labelSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(Spacing.xl)
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(myPosts) { post in
+                                PostCardView(post: post)
+                                MtrxDivider()
+                            }
+                        }
                     }
                 }
-                .padding(Spacing.contentPadding)
             }
             .background(MtrxGradientBackground(style: .primary))
-            .navigationTitle("My Profile")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
