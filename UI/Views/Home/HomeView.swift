@@ -50,7 +50,7 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.top, Spacing.lg)
-                .padding(.bottom, Spacing.xxl)
+                .padding(.bottom, 96)
             }
         }
         .onAppear {

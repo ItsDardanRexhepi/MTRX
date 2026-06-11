@@ -333,7 +333,7 @@ struct SocialView: View {
                     VStack {
                         Spacer()
                         MtrxToast(message: feedback)
-                            .padding(.bottom, Spacing.xxl)
+                            .padding(.bottom, 96)
                     }
                     .frame(maxWidth: .infinity)
                     .transition(.move(edge: .bottom).combined(with: .opacity))

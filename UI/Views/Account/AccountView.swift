@@ -2,8 +2,65 @@
 // MTRX - Identity hub, portfolio summary, quick actions, and settings gateway
 // Copyright 2026 OPN MATRX. All rights reserved.
 
+import PhotosUI
 import SwiftUI
 import SafariServices
+
+
+// MARK: - Account Avatar
+
+/// The Account profile picture: a chosen photo, the Social photo, or
+/// the default monogram in a user-picked color. Photo persists on
+/// disk; the monogram color in UserDefaults.
+@MainActor
+final class AccountAvatar: ObservableObject {
+
+    static let shared = AccountAvatar()
+
+    @Published var image: UIImage?
+    @AppStorage("com.mtrx.account.monogramHex") var monogramHex: String = ""
+
+    static let monogramPresets: [(name: String, color: Color, hex: String)] = [
+        ("Aqua", Color(red: 0.23, green: 0.92, blue: 0.96), "3BEBF5"),
+        ("Leaf", Color(red: 0.30, green: 0.87, blue: 0.46), "4CDE76"),
+        ("Violet", Color(red: 0.62, green: 0.40, blue: 0.96), "9E66F5"),
+        ("Rose", Color(red: 0.95, green: 0.36, blue: 0.42), "F25C6B"),
+        ("Amber", Color(red: 0.98, green: 0.65, blue: 0.15), "FAA626"),
+        ("Sky", Color(red: 0.25, green: 0.55, blue: 0.98), "408CFA"),
+    ]
+
+    private var fileURL: URL {
+        SocialIdentity.mediaDirectory.appendingPathComponent("account-avatar.jpg")
+    }
+
+    private init() {
+        if let data = try? Data(contentsOf: fileURL) {
+            image = UIImage(data: data)
+        }
+    }
+
+    func set(_ newImage: UIImage) {
+        image = newImage
+        if let data = newImage.jpegData(compressionQuality: 0.85) {
+            try? data.write(to: fileURL, options: .atomic)
+        }
+    }
+
+    func useSocialPhoto() {
+        if let social = SocialIdentity.shared.avatarImage {
+            set(social)
+        }
+    }
+
+    func clearPhoto() {
+        image = nil
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    var monogramColor: Color {
+        Self.monogramPresets.first(where: { $0.hex == monogramHex })?.color ?? .accentPrimary
+    }
+}
 
 // MARK: - Account View
 
@@ -13,6 +70,11 @@ struct AccountView: View {
 
     @State private var presentedDestination: AccountNavDestination?
     @State private var showSignOutAlert = false
+    @ObservedObject private var accountAvatar = AccountAvatar.shared
+    @State private var showAvatarOptions = false
+    @State private var avatarPickerItem: PhotosPickerItem?
+    @State private var showMonogramColors = false
+    @State private var showAvatarPicker = false
     @State private var appeared = false
     @State private var copiedDID = false
     @State private var showEditProfile = false
@@ -34,7 +96,7 @@ struct AccountView: View {
                 }
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.top, Spacing.sm)
-                .padding(.bottom, Spacing.xxl)
+                .padding(.bottom, 96)
             }
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Account")
@@ -115,23 +177,107 @@ struct AccountView: View {
         MtrxCard(style: .glass) {
             VStack(spacing: Spacing.md) {
                 // Avatar with gradient ring
-                ZStack {
-                    Circle()
-                        .stroke(
-                            LinearGradient(
-                                colors: [.accentPrimary, .accentSecondary],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 3
-                        )
-                        .frame(width: Spacing.Size.avatarXLarge + 6, height: Spacing.Size.avatarXLarge + 6)
+                Button {
+                    MtrxHaptics.impact(.light)
+                    showAvatarOptions = true
+                } label: {
+                    ZStack(alignment: .bottomTrailing) {
+                        ZStack {
+                            Circle()
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [accountAvatar.monogramColor, .accentSecondary],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 3
+                                )
+                                .frame(width: Spacing.Size.avatarXLarge + 6, height: Spacing.Size.avatarXLarge + 6)
 
-                    MtrxAvatar(
-                        text: appState.displayName.isEmpty ? "M" : String(appState.displayName.prefix(2)),
-                        color: .accentPrimary,
-                        size: Spacing.Size.avatarXLarge
-                    )
+                            if let photo = accountAvatar.image {
+                                Image(uiImage: photo)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: Spacing.Size.avatarXLarge, height: Spacing.Size.avatarXLarge)
+                                    .clipShape(Circle())
+                            } else {
+                                MtrxAvatar(
+                                    text: appState.displayName.isEmpty ? "M" : String(appState.displayName.prefix(2)),
+                                    color: accountAvatar.monogramColor,
+                                    size: Spacing.Size.avatarXLarge
+                                )
+                            }
+                        }
+
+                        Image(systemName: "camera.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(Color.accentPrimary)
+                            .background(Circle().fill(Color.backgroundPrimary))
+                    }
+                }
+                .buttonStyle(.plain)
+                .confirmationDialog("Profile Photo", isPresented: $showAvatarOptions, titleVisibility: .visible) {
+                    if SocialIdentity.shared.avatarImage != nil {
+                        Button("Use my Social photo") {
+                            accountAvatar.useSocialPhoto()
+                            MtrxHaptics.success()
+                        }
+                    }
+                    Button("Choose a different photo") { showAvatarPicker = true }
+                    Button("Change monogram color") { showMonogramColors = true }
+                    if accountAvatar.image != nil {
+                        Button("Remove photo", role: .destructive) {
+                            accountAvatar.clearPhoto()
+                            MtrxHaptics.impact(.light)
+                        }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                }
+                .photosPicker(isPresented: $showAvatarPicker, selection: $avatarPickerItem, matching: .images)
+                .onChange(of: avatarPickerItem) { _, item in
+                    guard let item else { return }
+                    Task {
+                        if let data = try? await item.loadTransferable(type: Data.self),
+                           let image = UIImage(data: data) {
+                            accountAvatar.set(image)
+                            MtrxHaptics.success()
+                        }
+                        avatarPickerItem = nil
+                    }
+                }
+                .sheet(isPresented: $showMonogramColors) {
+                    VStack(spacing: Spacing.lg) {
+                        Text("Monogram color")
+                            .font(.mtrxTitle3)
+                            .foregroundStyle(Color.labelPrimary)
+
+                        HStack(spacing: Spacing.md) {
+                            ForEach(AccountAvatar.monogramPresets, id: \.hex) { preset in
+                                Button {
+                                    accountAvatar.monogramHex = preset.hex
+                                    accountAvatar.clearPhoto()
+                                    MtrxHaptics.selection()
+                                    showMonogramColors = false
+                                } label: {
+                                    Circle()
+                                        .fill(preset.color)
+                                        .frame(width: 40, height: 40)
+                                        .overlay(
+                                            Circle().stroke(.white.opacity(0.9), lineWidth: 2.5)
+                                                .opacity(accountAvatar.monogramHex == preset.hex ? 1 : 0)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+
+                        Text("Your initials wear this color when no photo is set.")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+                    .padding(Spacing.xl)
+                    .presentationDetents([.height(220)])
+                    .presentationBackground(.thinMaterial)
                 }
 
                 // Display name
