@@ -17,6 +17,7 @@ struct HomeView: View {
     @State private var showNameEditor = false
     @State private var nameDraft = ""
     @State private var askedForName = false
+    @State private var presentedService: HomeService?
 
     /// What to open the chat with: an agent and an optional prefill.
     struct ChatLaunch: Identifiable {
@@ -40,8 +41,11 @@ struct HomeView: View {
                     quickActionsSection
                         .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
 
-                    portfolioSnapshot
+                    servicesSection
                         .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
+
+                    portfolioSnapshot
+                        .mtrxStaggeredAppearance(index: 4, isVisible: appeared)
                 }
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.top, Spacing.lg)
@@ -194,24 +198,24 @@ struct HomeView: View {
             MtrxHaptics.impact(.medium)
             presentedChat = ChatLaunch(agent: agent)
         } label: {
-            HStack(spacing: Spacing.ms) {
+            HStack(spacing: Spacing.sm) {
                 ZStack {
                     Circle()
                         .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 46, height: 46)
+                        .frame(width: 37, height: 37)
                     Text(String(name.prefix(1)))
-                        .font(.system(size: 19, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                 }
-                .mtrxGlow(color: colors.first ?? .accentPrimary, radius: 5)
+                .mtrxGlow(color: colors.first ?? .accentPrimary, radius: 4)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(name)
-                        .font(.mtrxHeadline)
+                        .font(.mtrxCalloutBold)
                         .foregroundStyle(Color.labelPrimary)
 
                     Text(lastMessagePreview(for: agent) ?? tagline)
-                        .font(.mtrxCaption1)
+                        .font(.mtrxCaption2)
                         .foregroundStyle(Color.labelSecondary)
                         .lineLimit(1)
                 }
@@ -222,7 +226,7 @@ struct HomeView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle((colors.first ?? .accentPrimary).opacity(0.8))
             }
-            .padding(Spacing.md)
+            .padding(Spacing.ms)
             .background(.ultraThinMaterial)
             .background((colors.first ?? .clear).opacity(0.06))
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
@@ -368,6 +372,58 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Services (the super-app layer)
+
+    /// One life, one app: every MTRX service is a tap from Home —
+    /// pay, invest, shop, insure, play, meet, store — no other apps
+    /// needed through the day.
+    private var servicesSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.ms) {
+            sectionTitle("Services")
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Spacing.md) {
+                    ForEach(HomeService.allCases) { service in
+                        Button {
+                            MtrxHaptics.impact(.light)
+                            presentedService = service
+                        } label: {
+                            VStack(spacing: 7) {
+                                Image(systemName: service.icon)
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundStyle(service.color)
+                                    .frame(width: 52, height: 52)
+                                    .background(.ultraThinMaterial)
+                                    .background(service.color.opacity(0.10))
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                            .stroke(service.color.opacity(0.25), lineWidth: 1)
+                                    )
+
+                                Text(service.title)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(Color.labelSecondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .sheet(item: $presentedService) { service in
+            NavigationStack {
+                service.destination
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { presentedService = nil }
+                        }
+                    }
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     /// Picks by time of day so the app feels alive, not canned.
@@ -391,4 +447,74 @@ struct HomeView: View {
     HomeView()
         .environmentObject(AppState())
         .environmentObject(WalletManager())
+}
+
+// MARK: - Home Services
+
+/// The mini-app launcher: each case opens a full MTRX service.
+enum HomeService: String, CaseIterable, Identifiable {
+    case pay, invest, defi, shop, insure, game, events, domains, storage, bridge
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .pay: return "Pay"
+        case .invest: return "Invest"
+        case .defi: return "Earn"
+        case .shop: return "Shop"
+        case .insure: return "Insure"
+        case .game: return "Play"
+        case .events: return "Events"
+        case .domains: return "Identity"
+        case .storage: return "Storage"
+        case .bridge: return "Bridge"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .pay: return "bolt.circle.fill"
+        case .invest: return "chart.line.uptrend.xyaxis.circle.fill"
+        case .defi: return "percent"
+        case .shop: return "bag.fill"
+        case .insure: return "umbrella.fill"
+        case .game: return "gamecontroller.fill"
+        case .events: return "calendar"
+        case .domains: return "person.crop.circle.badge.checkmark"
+        case .storage: return "externaldrive.fill"
+        case .bridge: return "arrow.left.arrow.right.circle.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .pay: return .trinityPrimary
+        case .invest: return .statusSuccess
+        case .defi: return .purple
+        case .shop: return .pink
+        case .insure: return .statusInfo
+        case .game: return .orange
+        case .events: return .yellow
+        case .domains: return .accentPrimary
+        case .storage: return .green
+        case .bridge: return .blue
+        }
+    }
+
+    @ViewBuilder
+    var destination: some View {
+        switch self {
+        case .pay: StablecoinView()
+        case .invest: TradingView()
+        case .defi: YieldView()
+        case .shop: MarketplaceView()
+        case .insure: RWAView()
+        case .game: GamingView()
+        case .events: EventsView()
+        case .domains: DomainView()
+        case .storage: StorageView()
+        case .bridge: BridgeView()
+        }
+    }
 }

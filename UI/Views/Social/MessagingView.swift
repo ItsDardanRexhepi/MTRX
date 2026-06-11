@@ -12,6 +12,8 @@ struct ChatMessage: Identifiable, Equatable {
     let isFromUser: Bool
     let timestamp: Date
     let senderName: String
+    /// Incognito messages vanish when the user leaves incognito mode.
+    var isEphemeral: Bool = false
 }
 
 struct ChatConversation: Identifiable {
@@ -35,6 +37,21 @@ final class MessagingViewModel: ObservableObject {
     @Published var selectedConversation: ChatConversation?
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
+
+    /// Incognito chat mode — anything sent while on is ephemeral and
+    /// purged the moment the user leaves the mode (or the chat).
+    @Published var incognito = false {
+        didSet {
+            if !incognito && oldValue { purgeEphemeral() }
+        }
+    }
+
+    func purgeEphemeral() {
+        guard messages.contains(where: { $0.isEphemeral }) else { return }
+        withAnimation(Motion.springDefault) {
+            messages.removeAll { $0.isEphemeral }
+        }
+    }
 
     // MARK: - Init
 
@@ -120,7 +137,8 @@ final class MessagingViewModel: ObservableObject {
             text: trimmed,
             isFromUser: true,
             timestamp: Date(),
-            senderName: "You"
+            senderName: "You",
+            isEphemeral: incognito
         )
         messages.append(newMessage)
         inputText = ""
@@ -308,14 +326,49 @@ struct ConversationDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Image(systemName: Symbols.messageEncrypted)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.accentPrimary)
+                HStack(spacing: Spacing.ms) {
+                    // Incognito switch — chat goes ephemeral while on.
+                    Button {
+                        MtrxHaptics.impact(.medium)
+                        withAnimation(Motion.springSnappy) {
+                            viewModel.incognito.toggle()
+                        }
+                    } label: {
+                        Image(systemName: viewModel.incognito
+                              ? "theatermasks.fill" : "theatermasks")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(viewModel.incognito ? Color.purple : Color.labelSecondary)
+                    }
+
+                    Image(systemName: Symbols.messageEncrypted)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
+        }
+        .safeAreaInset(edge: .top) {
+            if viewModel.incognito {
+                HStack(spacing: Spacing.sm) {
+                    Image(systemName: "theatermasks.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("Incognito — messages sent now disappear when you leave this mode")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 7)
+                .background(Color.purple.opacity(0.85))
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .onAppear {
             viewModel.loadMessages(for: conversation)
             appeared = true
+        }
+        .onDisappear {
+            // Leaving the chat ends the incognito session.
+            viewModel.purgeEphemeral()
+            viewModel.incognito = false
         }
     }
 
@@ -414,13 +467,36 @@ struct ConversationDetailView: View {
         HStack(alignment: .bottom, spacing: 0) {
             if message.isFromUser { Spacer(minLength: Spacing.xxl) }
 
-            Text(message.text)
-                .font(.mtrxBody)
-                .foregroundStyle(message.isFromUser ? .white : Color.labelPrimary)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
-                .background(message.isFromUser ? Color.accentPrimary : Color.surfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: 3) {
+                Text(message.text)
+                    .font(.mtrxBody)
+                    .foregroundStyle(message.isFromUser ? .white : Color.labelPrimary)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.sm)
+                    .background(
+                        message.isEphemeral
+                            ? AnyShapeStyle(Color.purple.opacity(0.75))
+                            : AnyShapeStyle(message.isFromUser ? Color.accentPrimary : Color.surfaceCard)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(
+                                message.isEphemeral ? Color.purple : Color.clear,
+                                style: StrokeStyle(lineWidth: 1, dash: [5, 4])
+                            )
+                    )
+
+                if message.isEphemeral {
+                    HStack(spacing: 3) {
+                        Image(systemName: "timer")
+                            .font(.system(size: 9))
+                        Text("Disappears")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundStyle(Color.purple.opacity(0.9))
+                }
+            }
 
             if !message.isFromUser { Spacer(minLength: Spacing.xxl) }
         }

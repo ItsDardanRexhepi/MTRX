@@ -49,6 +49,8 @@ struct SocialPostDisplay: Identifiable {
     var imageData: Data? = nil
     var videoFileName: String? = nil
     var linkURL: String? = nil
+    /// Set when this post was brought over from another platform.
+    var importedFrom: String? = nil
 }
 
 // MARK: - Governance Proposal Model
@@ -268,9 +270,11 @@ struct SocialView: View {
     @StateObject private var viewModel = SocialViewModel()
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var socialIdentity = SocialIdentity.shared
+    @ObservedObject private var theme = SocialTheme.shared
     @State private var photoPickerItem: PhotosPickerItem?
     @State private var videoPickerItem: PhotosPickerItem?
     @State private var showProfile = false
+    @State private var showThemePicker = false
     @State private var appeared = false
     @State private var showProofPicker = false
     @State private var commentingOnPost: SocialPostDisplay? = nil
@@ -330,26 +334,37 @@ struct SocialView: View {
                     Text("M")
                         .font(.system(size: 24, weight: .heavy, design: .rounded))
                         .foregroundStyle(
-                            LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
+                            LinearGradient(colors: [theme.accent, theme.accent.opacity(0.6)],
                                            startPoint: .top, endPoint: .bottom)
                         )
-                        .mtrxGlow(color: .trinityPrimary, radius: 4)
+                        .mtrxGlow(color: theme.accent, radius: 4)
                 }
 
-                // Timeline switcher — ranked vs. latest.
+                // Theme color (Pro) + timeline switcher.
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        MtrxHaptics.selection()
-                        withAnimation(Motion.springSnappy) {
-                            viewModel.selectedFilter =
-                                viewModel.selectedFilter == .trending ? .all : .trending
+                    HStack(spacing: Spacing.ms) {
+                        Button {
+                            MtrxHaptics.impact(.light)
+                            showThemePicker = true
+                        } label: {
+                            Image(systemName: "paintpalette")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(theme.accent)
                         }
-                    } label: {
-                        Image(systemName: viewModel.selectedFilter == .trending
-                              ? "sparkles" : "sparkle")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(viewModel.selectedFilter == .trending
-                                             ? Color.accentPrimary : Color.labelSecondary)
+
+                        Button {
+                            MtrxHaptics.selection()
+                            withAnimation(Motion.springSnappy) {
+                                viewModel.selectedFilter =
+                                    viewModel.selectedFilter == .trending ? .all : .trending
+                            }
+                        } label: {
+                            Image(systemName: viewModel.selectedFilter == .trending
+                                  ? "sparkles" : "sparkle")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(viewModel.selectedFilter == .trending
+                                                 ? theme.accent : Color.labelSecondary)
+                        }
                     }
                 }
             }
@@ -358,9 +373,15 @@ struct SocialView: View {
                 SocialProfileSheet(
                     myPosts: viewModel.posts.filter {
                         $0.handle == socialIdentity.handle(displayName: appState.displayName)
+                    },
+                    onImport: { imported in
+                        viewModel.posts.insert(contentsOf: imported, at: 0)
                     }
                 )
                 .environmentObject(appState)
+            }
+            .sheet(isPresented: $showThemePicker) {
+                SocialThemeSheet()
             }
             .sheet(isPresented: $viewModel.isComposerPresented) {
                 composeSheet
@@ -512,10 +533,10 @@ struct SocialView: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 56, height: 56)
-                .background(Color.accentPrimary)
+                .background(theme.accent)
                 .clipShape(Circle())
-                .shadow(color: Color.accentPrimary.opacity(0.4), radius: 8, y: 4)
-                .shadow(color: Color.accentPrimary.opacity(0.2), radius: 16, y: 8)
+                .shadow(color: theme.accent.opacity(0.4), radius: 8, y: 4)
+                .shadow(color: theme.accent.opacity(0.2), radius: 16, y: 8)
         }
         .padding(.trailing, Spacing.ml)
         .padding(.bottom, Spacing.lg)
@@ -726,7 +747,7 @@ struct SocialView: View {
                     .foregroundStyle(viewModel.selectedFilter == filter ? Color.labelPrimary : Color.labelTertiary)
 
                 Capsule()
-                    .fill(viewModel.selectedFilter == filter ? Color.accentPrimary : Color.clear)
+                    .fill(viewModel.selectedFilter == filter ? theme.accent : Color.clear)
                     .frame(width: 58, height: 3)
             }
             .frame(maxWidth: .infinity)
@@ -863,6 +884,19 @@ struct PostCardView: View {
                 }
                 if let tag = post.governanceTag {
                     governanceChip(tag)
+                }
+                if let origin = post.importedFrom {
+                    HStack(spacing: 5) {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Imported from \(origin)")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.labelTertiary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Color.surfaceOverlay)
+                    .clipShape(Capsule())
                 }
 
                 actionRow

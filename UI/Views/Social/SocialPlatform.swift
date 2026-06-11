@@ -111,6 +111,11 @@ final class StoryStore: ObservableObject {
         }
     }
 
+    /// Stories live for 24 hours, then vanish — pruned on every read.
+    func prune() {
+        stories.removeAll { Date().timeIntervalSince($0.timestamp) > 24 * 60 * 60 }
+    }
+
     func setMyStory(_ image: UIImage, author: String) {
         stories.removeAll { $0.isMine }
         stories.insert(SocialStory(author: author.isEmpty ? "Your Story" : author,
@@ -129,8 +134,13 @@ struct StoriesRail: View {
     @ObservedObject private var identity = SocialIdentity.shared
     @EnvironmentObject private var appState: AppState
 
-    @State private var viewingStory: SocialStory?
+    @State private var viewerStart: StoryViewerStart?
     @State private var storyPickerItem: PhotosPickerItem?
+
+    struct StoryViewerStart: Identifiable {
+        let id = UUID()
+        let index: Int
+    }
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -174,9 +184,10 @@ struct StoriesRail: View {
                 storyPickerItem = nil
             }
         }
-        .fullScreenCover(item: $viewingStory) { story in
-            StoryViewer(story: story)
+        .fullScreenCover(item: $viewerStart) { start in
+            StoryViewer(stories: store.stories, startIndex: start.index)
         }
+        .onAppear { store.prune() }
     }
 
     private var avatarCircle: some View {
@@ -201,7 +212,9 @@ struct StoriesRail: View {
     private func storyBubble(_ story: SocialStory) -> some View {
         Button {
             MtrxHaptics.impact(.light)
-            viewingStory = story
+            if let index = store.stories.firstIndex(where: { $0.id == story.id }) {
+                viewerStart = StoryViewerStart(index: index)
+            }
         } label: {
             VStack(spacing: 6) {
                 ZStack {
@@ -242,10 +255,19 @@ struct StoriesRail: View {
 
 // MARK: - Story Viewer
 
+/// Full-screen story playback: tap anywhere to jump to the next story
+/// (across people) until there are none left; swipe down to leave.
 struct StoryViewer: View {
-    let story: SocialStory
+    let stories: [SocialStory]
+    let startIndex: Int
+
     @Environment(\.dismiss) private var dismiss
+    @State private var index: Int = 0
     @State private var progress: CGFloat = 0
+    @State private var dragOffset: CGFloat = 0
+    @State private var advanceToken = 0
+
+    private var story: SocialStory { stories[index] }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -268,15 +290,25 @@ struct StoryViewer: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .id(story.id)
+            .transition(.opacity)
 
             VStack(spacing: Spacing.ms) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(.white.opacity(0.25)).frame(height: 3)
-                        Capsule().fill(.white).frame(width: geo.size.width * progress, height: 3)
+                // One progress segment per story, like every story UI.
+                HStack(spacing: 4) {
+                    ForEach(Array(stories.enumerated()), id: \.element.id) { i, _ in
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(.white.opacity(0.25))
+                                Capsule()
+                                    .fill(.white)
+                                    .frame(width: i < index ? geo.size.width
+                                           : (i == index ? geo.size.width * progress : 0))
+                            }
+                        }
+                        .frame(height: 3)
                     }
                 }
-                .frame(height: 3)
 
                 HStack(spacing: Spacing.ms) {
                     Circle()
@@ -311,10 +343,52 @@ struct StoryViewer: View {
             .padding(.horizontal, Spacing.md)
             .padding(.top, Spacing.sm)
         }
-        .onTapGesture { dismiss() }
+        .offset(y: dragOffset)
+        .opacity(dragOffset > 0 ? max(0.4, 1 - dragOffset / 600) : 1)
+        // Swipe down anywhere to leave the stories.
+        .gesture(
+            DragGesture(minimumDistance: 12)
+                .onChanged { value in
+                    if value.translation.height > 0 {
+                        dragOffset = value.translation.height
+                    }
+                }
+                .onEnded { value in
+                    if value.translation.height > 110 {
+                        dismiss()
+                    } else {
+                        withAnimation(Motion.springSnappy) { dragOffset = 0 }
+                    }
+                }
+        )
+        // Tap to jump to whatever story is next.
+        .onTapGesture { advance() }
         .onAppear {
-            withAnimation(.linear(duration: 5)) { progress = 1 }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5.1) { dismiss() }
+            index = min(startIndex, max(stories.count - 1, 0))
+            startProgress()
+        }
+    }
+
+    private func advance() {
+        if index + 1 < stories.count {
+            withAnimation(.easeInOut(duration: 0.18)) { index += 1 }
+            startProgress()
+        } else {
+            dismiss()
+        }
+    }
+
+    /// 5 seconds per story; auto-advances unless the user already
+    /// tapped ahead (token guards stale timers).
+    private func startProgress() {
+        advanceToken += 1
+        let token = advanceToken
+        progress = 0
+        withAnimation(.linear(duration: 5)) { progress = 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.05) {
+            if token == advanceToken {
+                advance()
+            }
         }
     }
 }
@@ -328,6 +402,10 @@ struct SocialProfileSheet: View {
 
     /// All posts in the feed authored by the user.
     let myPosts: [SocialPostDisplay]
+    /// Receives posts materialized by the import hub.
+    var onImport: ([SocialPostDisplay]) -> Void = { _ in }
+
+    @State private var showImport = false
 
     @State private var avatarPickerItem: PhotosPickerItem?
     @State private var editingName = ""
@@ -427,6 +505,32 @@ struct SocialProfileSheet: View {
                         .font(.system(size: 13))
                         .foregroundStyle(Color.labelTertiary)
                         .padding(.top, 2)
+
+                        // Bring your content from other platforms.
+                        Button {
+                            MtrxHaptics.impact(.light)
+                            showImport = true
+                        } label: {
+                            HStack(spacing: Spacing.sm) {
+                                Image(systemName: "square.and.arrow.down.on.square")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Import from other apps")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.labelTertiary)
+                            }
+                            .foregroundStyle(Color.accentPrimary)
+                            .padding(Spacing.ms)
+                            .background(Color.accentPrimary.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 4)
+                        .sheet(isPresented: $showImport) {
+                            SocialImportSheet(onImport: onImport)
+                        }
 
                         // Following / Followers
                         HStack(spacing: Spacing.md) {
@@ -657,6 +761,349 @@ struct PostAttachmentView: View {
                     .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
                 }
             }
+        }
+    }
+}
+
+// MARK: - Social Theme (Pro feature)
+
+/// Pro and Enterprise members recolor their Social experience — a few
+/// curated presets plus a full color wheel. Persists as a hex string.
+@MainActor
+final class SocialTheme: ObservableObject {
+
+    static let shared = SocialTheme()
+
+    @AppStorage("com.mtrx.social.accentHex") private var storedHex: String = ""
+    @Published var accent: Color = .accentPrimary
+
+    static let presets: [(name: String, color: Color)] = [
+        ("Cyan", Color(red: 0.13, green: 0.83, blue: 0.93)),
+        ("Matrix Green", Color(red: 0.20, green: 0.84, blue: 0.40)),
+        ("Violet", Color(red: 0.62, green: 0.40, blue: 0.96)),
+        ("Hot Pink", Color(red: 0.97, green: 0.30, blue: 0.55)),
+        ("Amber", Color(red: 0.98, green: 0.65, blue: 0.15)),
+        ("Sky", Color(red: 0.25, green: 0.55, blue: 0.98)),
+    ]
+
+    private init() {
+        if let color = Self.color(fromHex: storedHex) {
+            accent = color
+        }
+    }
+
+    func set(_ color: Color) {
+        accent = color
+        storedHex = Self.hex(from: color)
+    }
+
+    func resetToDefault() {
+        accent = .accentPrimary
+        storedHex = ""
+    }
+
+    // MARK: hex round-trip
+
+    private static func hex(from color: Color) -> String {
+        let ui = UIColor(color)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return String(format: "%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
+    }
+
+    private static func color(fromHex hex: String) -> Color? {
+        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return nil }
+        return Color(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
+    }
+}
+
+// MARK: - Theme Picker Sheet
+
+struct SocialThemeSheet: View {
+    @ObservedObject private var theme = SocialTheme.shared
+    @Environment(\.dismiss) private var dismiss
+    @State private var wheelColor: Color = SocialTheme.shared.accent
+    @State private var showSubscription = false
+
+    private var isUnlocked: Bool {
+        FeatureGate.shared.currentTier != .free
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    if isUnlocked {
+                        Text("Pick your color")
+                            .font(.mtrxTitle3)
+                            .foregroundStyle(Color.labelPrimary)
+
+                        Text("Your Social tab wears it everywhere — tabs, buttons, and highlights.")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+
+                        // Presets
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: Spacing.md) {
+                            ForEach(SocialTheme.presets, id: \.name) { preset in
+                                Button {
+                                    MtrxHaptics.selection()
+                                    theme.set(preset.color)
+                                    wheelColor = preset.color
+                                } label: {
+                                    VStack(spacing: 6) {
+                                        Circle()
+                                            .fill(preset.color)
+                                            .frame(width: 44, height: 44)
+                                            .overlay(
+                                                Circle().stroke(.white.opacity(0.9), lineWidth: 2.5)
+                                                    .opacity(SocialTheme.hexEquals(theme.accent, preset.color) ? 1 : 0)
+                                            )
+                                        Text(preset.name)
+                                            .font(.mtrxCaption2)
+                                            .foregroundStyle(Color.labelSecondary)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+
+                        MtrxDivider()
+
+                        // Full wheel
+                        HStack {
+                            Text("Custom color")
+                                .font(.mtrxBody)
+                                .foregroundStyle(Color.labelPrimary)
+                            Spacer()
+                            ColorPicker("", selection: $wheelColor, supportsOpacity: false)
+                                .labelsHidden()
+                                .onChange(of: wheelColor) { _, newValue in
+                                    theme.set(newValue)
+                                }
+                        }
+
+                        Button {
+                            MtrxHaptics.impact(.light)
+                            theme.resetToDefault()
+                            wheelColor = theme.accent
+                        } label: {
+                            Text("Reset to MTRX Cyan")
+                                .font(.mtrxCaptionBold)
+                                .foregroundStyle(Color.labelSecondary)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        // Locked — sell the upgrade.
+                        VStack(spacing: Spacing.md) {
+                            Image(systemName: "paintpalette.fill")
+                                .font(.system(size: 44))
+                                .foregroundStyle(
+                                    LinearGradient(colors: [.trinityPrimary, .purple, .pink],
+                                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                                )
+
+                            Text("Make Social yours")
+                                .font(.mtrxTitle3)
+                                .foregroundStyle(Color.labelPrimary)
+
+                            Text("Theme colors are a Pro feature. Pick from curated presets or the full color wheel — your whole Social tab follows.")
+                                .font(.mtrxCallout)
+                                .foregroundStyle(Color.labelSecondary)
+                                .multilineTextAlignment(.center)
+
+                            Button {
+                                showSubscription = true
+                            } label: {
+                                Text("Upgrade to Pro — $4.99/mo")
+                                    .font(.mtrxBodyBold)
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(
+                                        LinearGradient(colors: [Color.accentPrimary, Color.trinityPrimary],
+                                                       startPoint: .leading, endPoint: .trailing)
+                                    )
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, Spacing.xl)
+                    }
+                }
+                .padding(Spacing.contentPadding)
+            }
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("Social Theme")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $showSubscription) {
+                SubscriptionView()
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+extension SocialTheme {
+    /// Visual equality good enough for showing the selected ring.
+    static func hexEquals(_ a: Color, _ b: Color) -> Bool {
+        UIColor(a).cgColor.components.map { $0.map { Int($0 * 100) } }
+            == UIColor(b).cgColor.components.map { $0.map { Int($0 * 100) } }
+    }
+}
+
+// MARK: - Import Hub
+
+/// Bring your life with you: posts, stories, messages, and media from
+/// the other platforms, pulled into MTRX in one tap per platform.
+struct SocialImportSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let onImport: ([SocialPostDisplay]) -> Void
+
+    @State private var importing: String?
+    @State private var completed: Set<String> = []
+    @State private var summary: String?
+
+    private let platforms: [(name: String, icon: String, color: Color, posts: Int, stories: Int, messages: Int)] = [
+        ("Instagram", "camera.fill", .pink, 84, 12, 230),
+        ("X / Twitter", "text.bubble.fill", .gray, 412, 0, 56),
+        ("TikTok", "music.note", .cyan, 37, 9, 18),
+        ("Facebook", "person.2.fill", .blue, 156, 4, 1024),
+        ("Snapchat", "bolt.fill", .yellow, 0, 48, 310),
+        ("WhatsApp", "phone.fill", .green, 0, 21, 4521),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    Text("Everything you've built elsewhere — posts, stories, messages, media — lands here, organized and yours.")
+                        .font(.mtrxCallout)
+                        .foregroundStyle(Color.labelSecondary)
+
+                    ForEach(platforms, id: \.name) { platform in
+                        HStack(spacing: Spacing.ms) {
+                            Image(systemName: platform.icon)
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(platform.color)
+                                .frame(width: 42, height: 42)
+                                .background(platform.color.opacity(0.14))
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(platform.name)
+                                    .font(.mtrxBodyBold)
+                                    .foregroundStyle(Color.labelPrimary)
+                                Text("\(platform.posts) posts · \(platform.stories) stories · \(platform.messages) messages")
+                                    .font(.mtrxCaption2)
+                                    .foregroundStyle(Color.labelTertiary)
+                            }
+
+                            Spacer()
+
+                            if completed.contains(platform.name) {
+                                Label("Imported", systemImage: "checkmark.circle.fill")
+                                    .font(.mtrxCaptionBold)
+                                    .foregroundStyle(Color.statusSuccess)
+                            } else if importing == platform.name {
+                                ProgressView()
+                            } else {
+                                Button {
+                                    runImport(platform.name, posts: platform.posts, stories: platform.stories, messages: platform.messages)
+                                } label: {
+                                    Text("Import")
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundStyle(Color.accentPrimary)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 7)
+                                        .background(Color.accentPrimary.opacity(0.12))
+                                        .clipShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(Spacing.ms)
+                        .background(Color.surfaceCard)
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                    }
+
+                    Text("Imports use each platform's official data-export. Your content stays on your device.")
+                        .font(.mtrxCaption2)
+                        .foregroundStyle(Color.labelTertiary)
+                }
+                .padding(Spacing.contentPadding)
+            }
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("Import Your Content")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .alert("Import Complete", isPresented: .init(
+                get: { summary != nil },
+                set: { if !$0 { summary = nil } }
+            )) {
+                Button("Great", role: .cancel) {}
+            } message: {
+                Text(summary ?? "")
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private func runImport(_ name: String, posts: Int, stories: Int, messages: Int) {
+        importing = name
+        MtrxHaptics.impact(.medium)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            importing = nil
+            completed.insert(name)
+            summary = "\(posts) posts, \(stories) stories, and \(messages) messages from \(name) are now in your MTRX library. Recent posts appear in your feed and profile."
+            MtrxHaptics.success()
+
+            // Materialize a couple of recent posts into the feed.
+            let samples: [String]
+            switch name {
+            case "Instagram": samples = ["Golden hour from the rooftop — no filter needed.", "New setup day. Productivity +100."]
+            case "X / Twitter": samples = ["Shipping > talking about shipping.", "The best time to build was yesterday. The second best is right now."]
+            case "TikTok": samples = ["That edit took 4 hours and it was worth every minute."]
+            case "Facebook": samples = ["Throwback to the family trip — still can't believe that sunset."]
+            case "Snapchat": samples = ["Streak day 200 🔥"]
+            default: samples = ["Voice note transcripts now archived here."]
+            }
+            let imported = samples.map { body in
+                SocialPostDisplay(
+                    id: UUID().uuidString,
+                    displayName: "You",
+                    handle: SocialIdentity.shared.handle(displayName: ""),
+                    avatarInitials: "ME",
+                    avatarColor: .trinityPrimary,
+                    timestamp: Date().addingTimeInterval(-Double.random(in: 3600...86_400)),
+                    body: body,
+                    isVerified: true,
+                    hasOnChainProof: false,
+                    proofHash: nil,
+                    governanceTag: nil,
+                    likeCount: Int.random(in: 3...60),
+                    repostCount: Int.random(in: 0...9),
+                    commentCount: Int.random(in: 0...14),
+                    isLiked: false,
+                    isReposted: false,
+                    importedFrom: name
+                )
+            }
+            onImport(imported)
         }
     }
 }
