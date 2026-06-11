@@ -2,9 +2,15 @@
 // MTRX Apple Integration — Intelligence
 // On-device model training pipeline using CreateML
 
+// CreateML doesn't exist on the simulator SDK — the whole pipeline is
+// device-only and compiles out elsewhere.
+#if canImport(CreateML)
 import CreateML
+#endif
 import CoreML
 import Foundation
+
+#if canImport(CreateML)
 
 // MARK: - CreateML Pipeline
 
@@ -264,3 +270,5 @@ enum CreateMLPipelineError: LocalizedError {
         }
     }
 }
+
+#endif // canImport(CreateML)

@@ -768,36 +768,10 @@ struct SocialView: View {
 
     // MARK: - Messaging Section
 
+    /// The full messaging experience — thread list, conversations you
+    /// can open, and a working send box — not a static preview.
     private var messagingSection: some View {
-        Group {
-            if viewModel.threads.isEmpty {
-                MtrxEmptyState(
-                    icon: Symbols.message,
-                    title: "No Messages",
-                    message: "Start a conversation with another MTRX user using end-to-end encrypted messaging.",
-                    actionLabel: "New Message"
-                ) {}
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(viewModel.threads.enumerated()), id: \.element.id) { index, thread in
-                            MessageThreadRow(thread: thread)
-                                .mtrxStaggeredAppearance(index: index, isVisible: appeared)
-
-                            if index < viewModel.threads.count - 1 {
-                                MtrxDivider()
-                                    .padding(.leading, Spacing.contentPadding + Spacing.Size.avatarMedium + Spacing.ms)
-                            }
-                        }
-                    }
-                    .padding(.top, Spacing.sm)
-                    .padding(.bottom, Spacing.xxl)
-                }
-                .refreshable {
-                    await viewModel.refresh()
-                }
-            }
-        }
+        MessagingView()
     }
 }
 

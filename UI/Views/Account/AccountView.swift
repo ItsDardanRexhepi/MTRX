@@ -11,6 +11,7 @@ struct AccountView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var walletManager: WalletManager
 
+    @State private var presentedDestination: AccountNavDestination?
     @State private var showSignOutAlert = false
     @State private var appeared = false
     @State private var copiedDID = false
@@ -58,7 +59,7 @@ struct AccountView: View {
             .sheet(isPresented: $showAbout) {
                 AboutSheet()
             }
-            .navigationDestination(for: AccountNavDestination.self) { destination in
+            .sheet(item: $presentedDestination) { destination in
                 switch destination {
                 case .wallet:
                     AccountWalletView()
@@ -212,7 +213,7 @@ struct AccountView: View {
                     }
                 }
 
-                NavigationLink(value: AccountNavDestination.wallet) {
+                Button { presentedDestination = AccountNavDestination.wallet } label: {
                     HStack {
                         Text("View Wallet")
                             .font(.mtrxCaptionBold)
@@ -245,28 +246,32 @@ struct AccountView: View {
                     icon: Symbols.wallet,
                     label: "Wallet & Portfolio",
                     color: .statusInfo,
-                    destination: .wallet
+                    destination: .wallet,
+                    onOpen: { presentedDestination = $0 }
                 )
 
                 QuickActionCard(
                     icon: Symbols.stake,
                     label: "Staking & DeFi",
                     color: .accentPrimary,
-                    destination: .staking
+                    destination: .staking,
+                    onOpen: { presentedDestination = $0 }
                 )
 
                 QuickActionCard(
                     icon: Symbols.dao,
                     label: "Governance",
                     color: .accentTertiary,
-                    destination: .governance
+                    destination: .governance,
+                    onOpen: { presentedDestination = $0 }
                 )
 
                 QuickActionCard(
                     icon: Symbols.message,
                     label: "Messaging",
                     color: .statusSuccess,
-                    destination: .messaging
+                    destination: .messaging,
+                    onOpen: { presentedDestination = $0 }
                 )
             }
         }
@@ -281,7 +286,7 @@ struct AccountView: View {
                 .padding(.bottom, Spacing.sm)
 
             VStack(spacing: 0) {
-                NavigationLink(value: AccountNavDestination.settings) {
+                Button { presentedDestination = AccountNavDestination.settings } label: {
                     MtrxListRow(
                         icon: Symbols.settings,
                         iconColor: .labelSecondary,
@@ -292,7 +297,7 @@ struct AccountView: View {
 
                 MtrxDivider().padding(.leading, Spacing.contentPadding + 28 + Spacing.ms)
 
-                NavigationLink(value: AccountNavDestination.privacy) {
+                Button { presentedDestination = AccountNavDestination.privacy } label: {
                     MtrxListRow(
                         icon: Symbols.encrypted,
                         iconColor: .statusWarning,
@@ -303,7 +308,7 @@ struct AccountView: View {
 
                 MtrxDivider().padding(.leading, Spacing.contentPadding + 28 + Spacing.ms)
 
-                NavigationLink(value: AccountNavDestination.subscription) {
+                Button { presentedDestination = AccountNavDestination.subscription } label: {
                     MtrxListRow(
                         icon: "crown.fill",
                         iconColor: .accentTertiary,
@@ -314,7 +319,7 @@ struct AccountView: View {
 
                 MtrxDivider().padding(.leading, Spacing.contentPadding + 28 + Spacing.ms)
 
-                NavigationLink(value: AccountNavDestination.notifications) {
+                Button { presentedDestination = AccountNavDestination.notifications } label: {
                     MtrxListRow(
                         icon: Symbols.notification,
                         iconColor: .statusInfo,
@@ -402,7 +407,7 @@ struct AccountView: View {
     }
 
     private func identityRow(destination: AccountNavDestination, icon: String, iconColor: Color, title: String) -> some View {
-        NavigationLink(value: destination) {
+        Button { presentedDestination = destination } label: {
             MtrxListRow(icon: icon, iconColor: iconColor, title: title)
         }
         .buttonStyle(.plain)
@@ -464,7 +469,9 @@ struct AccountView: View {
 
 // MARK: - Navigation Destinations
 
-enum AccountNavDestination: Hashable {
+enum AccountNavDestination: Hashable, Identifiable {
+    var id: Self { self }
+
     case wallet
     case staking
     case governance
@@ -492,9 +499,10 @@ struct QuickActionCard: View {
     let label: String
     let color: Color
     let destination: AccountNavDestination
+    let onOpen: (AccountNavDestination) -> Void
 
     var body: some View {
-        NavigationLink(value: destination) {
+        Button { onOpen(destination) } label: {
             MtrxCard(style: .standard) {
                 VStack(spacing: Spacing.ms) {
                     Image(systemName: icon)

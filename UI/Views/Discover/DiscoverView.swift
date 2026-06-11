@@ -275,44 +275,8 @@ struct DiscoverView: View {
             Text(alertMessage)
         }
         .sheet(item: $selectedFeaturedItem) { item in
-            NavigationStack {
-                ScrollView {
-                    VStack(spacing: Spacing.sectionGap) {
-                        RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous)
-                            .fill(item.gradient)
-                            .frame(height: 200)
-                            .overlay {
-                                VStack {
-                                    MtrxBadge(text: item.badge, style: .accent)
-                                    Spacer()
-                                }
-                                .padding(Spacing.lg)
-                            }
-                            .padding(.horizontal, Spacing.contentPadding)
-
-                        VStack(spacing: Spacing.sm) {
-                            Text(item.title)
-                                .font(.mtrxTitle1)
-                                .foregroundStyle(Color.labelPrimary)
-                            Text(item.subtitle)
-                                .font(.mtrxBody)
-                                .foregroundStyle(Color.labelSecondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(.horizontal, Spacing.contentPadding)
-                    }
-                    .padding(.top, Spacing.md)
-                }
-                .background(MtrxGradientBackground(style: .primary))
-                .navigationTitle(item.title)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Done") { selectedFeaturedItem = nil }
-                    }
-                }
-            }
-            .presentationDetents([.large])
+            FeaturedDetailSheet(item: item) { selectedFeaturedItem = nil }
+                .presentationDetents([.large])
         }
         .sheet(isPresented: $showFilters) {
             DiscoverFiltersSheet()
@@ -1576,4 +1540,181 @@ struct BackFundraiserSheet: View {
 #Preview {
     DiscoverView()
         .environmentObject(WalletManager())
+}
+
+// MARK: - Featured Detail Sheet
+
+/// Full product page for a Featured item: hero, live-feeling stats,
+/// what it does, why it matters, and a working door into the real hub.
+struct FeaturedDetailSheet: View {
+    let item: FeaturedItem
+    let onDone: () -> Void
+
+    private struct Detail {
+        let about: String
+        let stats: [(String, String)]
+        let highlights: [String]
+        let ctaLabel: String
+    }
+
+    private var detail: Detail {
+        switch item.title {
+        case "Tokenized Real Estate":
+            return Detail(
+                about: "Own fractions of income-generating property from $50. Every share is an on-chain token with automated rent distribution, transparent valuations, and instant secondary-market liquidity — no brokers, no paperwork, no minimum lockup.",
+                stats: [("$48M", "Tokenized"), ("7.2%", "Avg yield"), ("12K", "Investors")],
+                highlights: ["Fractional ownership from $50", "Monthly rent paid automatically", "Audited property valuations on-chain", "Sell your share anytime"],
+                ctaLabel: "Browse Properties"
+            )
+        case "DeFi Yield Aggregator":
+            return Detail(
+                about: "One deposit, fifteen protocols. The aggregator continuously moves your liquidity to the best risk-adjusted yield across audited DeFi venues and auto-compounds the returns — what would take hours of daily management happens on-chain, every block.",
+                stats: [("15+", "Protocols"), ("11.4%", "Top APY"), ("$120M", "TVL")],
+                highlights: ["Auto-compounding every block", "Risk-scored protocol allocation", "Withdraw anytime, no penalties", "Gas costs covered by MTRX"],
+                ctaLabel: "Open Yield Hub"
+            )
+        case "Parametric Insurance":
+            return Detail(
+                about: "Insurance that pays the moment the data says so. Coverage is indexed to verified weather oracles — if rainfall drops below the threshold, the payout executes instantly. No claims process, no adjusters, no waiting.",
+                stats: [("<60s", "Payout time"), ("40K", "Policies"), ("99.8%", "Auto-settled")],
+                highlights: ["Instant oracle-triggered payouts", "No claims paperwork ever", "Cover crops, travel, or events", "Premiums from $5/month"],
+                ctaLabel: "Explore Coverage"
+            )
+        case "DAO Governance Hub":
+            return Detail(
+                about: "Spin up a decentralized organization in minutes: token-weighted voting, treasury management, and proposal pipelines — all enforced by smart contracts. From three-person project squads to ten-thousand-member communities.",
+                stats: [("2.4K", "Active DAOs"), ("$310M", "In treasuries"), ("89K", "Voters")],
+                highlights: ["Launch a DAO in under 5 minutes", "On-chain voting with delegation", "Multi-sig treasury built in", "Templates for every structure"],
+                ctaLabel: "Open Governance"
+            )
+        case "Carbon Credit Exchange":
+            return Detail(
+                about: "Trade verified carbon offsets with full provenance. Every credit traces back to a certified project with satellite-verified impact data — retire credits to offset your footprint or trade them on the open market.",
+                stats: [("1.2M", "Tons offset"), ("340", "Projects"), ("100%", "Verified")],
+                highlights: ["Satellite-verified projects", "Instant retirement certificates", "Transparent pricing history", "Fractional credits from $1"],
+                ctaLabel: "View Marketplace"
+            )
+        default: // Gaming Marketplace
+            return Detail(
+                about: "Your items, actually yours. Trade weapons, skins, and characters across games and chains — assets live in your wallet, not a publisher's database, so they survive any game shutting down.",
+                stats: [("8M", "Items traded"), ("120", "Games"), ("0.5%", "Trade fee")],
+                highlights: ["Cross-game asset portability", "Instant escrow-protected trades", "Creator royalties built in", "Works across 6 chains"],
+                ctaLabel: "Open Gaming Hub"
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var destination: some View {
+        switch item.title {
+        case "Tokenized Real Estate": RWAView()
+        case "DeFi Yield Aggregator": YieldView()
+        case "Parametric Insurance": RWAView()
+        case "DAO Governance Hub": DAOView()
+        case "Carbon Credit Exchange": MarketplaceView()
+        default: GamingView()
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    // Hero
+                    RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous)
+                        .fill(item.gradient)
+                        .frame(height: 190)
+                        .overlay {
+                            VStack {
+                                HStack {
+                                    MtrxBadge(text: item.badge, style: .accent)
+                                    Spacer()
+                                }
+                                Spacer()
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(item.title)
+                                            .font(.mtrxTitle2)
+                                            .foregroundStyle(.white)
+                                        Text(item.subtitle)
+                                            .font(.mtrxCaption1)
+                                            .foregroundStyle(.white.opacity(0.85))
+                                    }
+                                    Spacer()
+                                }
+                            }
+                            .padding(Spacing.md)
+                        }
+
+                    // Stats — concrete numbers build trust fast.
+                    HStack(spacing: Spacing.sm) {
+                        ForEach(detail.stats, id: \.1) { value, label in
+                            VStack(spacing: 3) {
+                                Text(value)
+                                    .font(.mtrxHeadline)
+                                    .foregroundStyle(Color.labelPrimary)
+                                Text(label)
+                                    .font(.mtrxCaption2)
+                                    .foregroundStyle(Color.labelTertiary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, Spacing.ms)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                        }
+                    }
+
+                    // About
+                    Text(detail.about)
+                        .font(.mtrxBody)
+                        .foregroundStyle(Color.labelSecondary)
+                        .lineSpacing(4)
+
+                    // Highlights
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        ForEach(detail.highlights, id: \.self) { line in
+                            HStack(spacing: Spacing.sm) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(Color.statusSuccess)
+                                Text(line)
+                                    .font(.mtrxCallout)
+                                    .foregroundStyle(Color.labelPrimary)
+                            }
+                        }
+                    }
+                    .padding(Spacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.surfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+
+                    // The real door in.
+                    NavigationLink {
+                        destination
+                    } label: {
+                        Text(detail.ctaLabel)
+                            .font(.mtrxBodyBold)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 15)
+                            .background(
+                                LinearGradient(colors: [Color.accentPrimary, Color.trinityPrimary],
+                                               startPoint: .leading, endPoint: .trailing)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+                            .shadow(color: Color.accentPrimary.opacity(0.35), radius: 12, y: 5)
+                    }
+                }
+                .padding(Spacing.contentPadding)
+            }
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle(item.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { onDone() }
+                }
+            }
+        }
+    }
 }
