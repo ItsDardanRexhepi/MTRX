@@ -25,9 +25,11 @@ struct AccountView: View {
                 VStack(spacing: Spacing.sectionGap) {
                     profileCard
                     portfolioSummary
-                    quickActionsGrid
-                    settingsSection
-                    identityAndSecuritySection
+                    moneySection
+                    identitySection
+                    workspaceSection
+                    appSection
+                    supportSection
                     signOutButton
                 }
                 .padding(.horizontal, Spacing.contentPadding)
@@ -232,178 +234,105 @@ struct AccountView: View {
         .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.05)
     }
 
-    // MARK: - Quick Actions Grid
+    // MARK: - Chunked Spaces
+    //
+    // Reorganized for how minds scan: small named groups of 3-4 (never
+    // an 11-row wall), grids for choices, rows only for low-stakes
+    // app plumbing. Identity → money → identity → workspace → app.
 
-    private var quickActionsGrid: some View {
+    private func spaceGrid<Tiles: View>(_ title: String, delay: Double, @ViewBuilder tiles: () -> Tiles) -> some View {
         VStack(spacing: Spacing.sm) {
-            MtrxSectionHeader(title: "Quick Actions")
-
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: Spacing.sm),
-                GridItem(.flexible(), spacing: Spacing.sm)
-            ], spacing: Spacing.sm) {
-                QuickActionCard(
-                    icon: Symbols.wallet,
-                    label: "Wallet & Portfolio",
-                    color: .statusInfo,
-                    destination: .wallet,
-                    onOpen: { presentedDestination = $0 }
-                )
-
-                QuickActionCard(
-                    icon: Symbols.stake,
-                    label: "Staking & DeFi",
-                    color: .accentPrimary,
-                    destination: .staking,
-                    onOpen: { presentedDestination = $0 }
-                )
-
-                QuickActionCard(
-                    icon: Symbols.dao,
-                    label: "Governance",
-                    color: .accentTertiary,
-                    destination: .governance,
-                    onOpen: { presentedDestination = $0 }
-                )
-
-                QuickActionCard(
-                    icon: Symbols.message,
-                    label: "Messaging",
-                    color: .statusSuccess,
-                    destination: .messaging,
-                    onOpen: { presentedDestination = $0 }
-                )
+            MtrxSectionHeader(title: title)
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: Spacing.sm),
+                    GridItem(.flexible(), spacing: Spacing.sm)
+                ],
+                spacing: Spacing.sm
+            ) {
+                tiles()
             }
         }
-        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.1)
+        .mtrxFadeInFromBottom(isVisible: appeared, delay: delay)
     }
 
-    // MARK: - Settings Section
+    private var moneySection: some View {
+        spaceGrid("Your money", delay: 0.10) {
+            QuickActionCard(icon: Symbols.wallet, label: "Wallet & Portfolio", color: .statusInfo, destination: .wallet, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: Symbols.stake, label: "Staking & DeFi", color: .accentPrimary, destination: .staking, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: "bell.fill", label: "Alerts", color: .statusError, destination: .alerts, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: "lock.shield", label: "Multi-Sig", color: .statusWarning, destination: .multiSig, onOpen: { presentedDestination = $0 })
+        }
+    }
 
-    private var settingsSection: some View {
+    private var identitySection: some View {
+        spaceGrid("Your identity", delay: 0.14) {
+            QuickActionCard(icon: "person.text.rectangle", label: "Verification", color: .statusInfo, destination: .kyc, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: "seal.fill", label: "Credentials", color: .statusSuccess, destination: .credentials, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: "star.fill", label: "Reputation", color: .accentTertiary, destination: .reputation, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: "key.fill", label: "Access Control", color: .accentPrimary, destination: .accessControl, onOpen: { presentedDestination = $0 })
+        }
+    }
+
+    private var workspaceSection: some View {
+        spaceGrid("Your workspace", delay: 0.18) {
+            QuickActionCard(icon: Symbols.dao, label: "Governance", color: .accentTertiary, destination: .governance, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: Symbols.message, label: "Messaging", color: .statusSuccess, destination: .messaging, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: "building.columns", label: "Treasury", color: .accentPrimary, destination: .treasury, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: "checkmark.seal.fill", label: "Attestations", color: .statusSuccess, destination: .attestations, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: "gift.fill", label: "Rewards", color: .accentSecondary, destination: .loyalty, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: "doc.text.fill", label: "Licenses", color: .statusInfo, destination: .licensing, onOpen: { presentedDestination = $0 })
+        }
+    }
+
+    private var appSection: some View {
         VStack(spacing: 0) {
-            MtrxSectionHeader(title: "Settings")
+            MtrxSectionHeader(title: "App")
                 .padding(.bottom, Spacing.sm)
 
             VStack(spacing: 0) {
-                Button { presentedDestination = AccountNavDestination.settings } label: {
-                    MtrxListRow(
-                        icon: Symbols.settings,
-                        iconColor: .labelSecondary,
-                        title: "Preferences"
-                    )
-                }
-                .buttonStyle(.plain)
+                identityRow(destination: .settings, icon: Symbols.settings, iconColor: .labelSecondary, title: "Preferences")
+                identityDivider()
+                identityRow(destination: .privacy, icon: "lock.fill", iconColor: .statusWarning, title: "Privacy & Security")
+                identityDivider()
+                identityRow(destination: .subscription, icon: "crown.fill", iconColor: .accentSecondary, title: "Subscription")
+            }
+            .background(Color.surfaceCard)
+            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+        }
+        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.22)
+    }
 
-                MtrxDivider().padding(.leading, Spacing.contentPadding + 28 + Spacing.ms)
+    private var supportSection: some View {
+        VStack(spacing: 0) {
+            MtrxSectionHeader(title: "Support")
+                .padding(.bottom, Spacing.sm)
 
-                Button { presentedDestination = AccountNavDestination.privacy } label: {
-                    MtrxListRow(
-                        icon: Symbols.encrypted,
-                        iconColor: .statusWarning,
-                        title: "Privacy & Security"
-                    )
-                }
-                .buttonStyle(.plain)
-
-                MtrxDivider().padding(.leading, Spacing.contentPadding + 28 + Spacing.ms)
-
-                Button { presentedDestination = AccountNavDestination.subscription } label: {
-                    MtrxListRow(
-                        icon: "crown.fill",
-                        iconColor: .accentTertiary,
-                        title: "Subscription"
-                    )
-                }
-                .buttonStyle(.plain)
-
-                MtrxDivider().padding(.leading, Spacing.contentPadding + 28 + Spacing.ms)
-
-                Button { presentedDestination = AccountNavDestination.notifications } label: {
-                    MtrxListRow(
-                        icon: Symbols.notification,
-                        iconColor: .statusInfo,
-                        title: "Notifications"
-                    )
-                }
-                .buttonStyle(.plain)
-
-                MtrxDivider().padding(.leading, Spacing.contentPadding + 28 + Spacing.ms)
+            VStack(spacing: 0) {
+                identityRow(destination: .notifications, icon: "bell.badge.fill", iconColor: .statusInfo, title: "Notifications")
+                identityDivider()
 
                 Button {
                     showHelp = true
                     MtrxHaptics.impact(.light)
                 } label: {
-                    MtrxListRow(
-                        icon: Symbols.help,
-                        iconColor: .labelTertiary,
-                        title: "Help & Support"
-                    )
+                    MtrxListRow(icon: Symbols.help, iconColor: .labelTertiary, title: "Help & Support")
                 }
                 .buttonStyle(.plain)
-
-                MtrxDivider().padding(.leading, Spacing.contentPadding + 28 + Spacing.ms)
+                identityDivider()
 
                 Button {
                     showAbout = true
                     MtrxHaptics.impact(.light)
                 } label: {
-                    MtrxListRow(
-                        icon: Symbols.info,
-                        iconColor: .labelTertiary,
-                        title: "About MTRX",
-                        subtitle: "Version 2.4.0"
-                    )
+                    MtrxListRow(icon: Symbols.info, iconColor: .labelTertiary, title: "About MTRX", subtitle: "Version 2.4.0")
                 }
                 .buttonStyle(.plain)
             }
             .background(Color.surfaceCard)
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
         }
-        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.15)
-    }
-
-    // MARK: - Identity & Security Section
-
-    private var identityAndSecuritySection: some View {
-        VStack(spacing: 0) {
-            MtrxSectionHeader(title: "Identity & Security")
-                .padding(.bottom, Spacing.sm)
-
-            VStack(spacing: 0) {
-                identityRow(destination: .accessControl, icon: "key.fill", iconColor: .accentPrimary, title: "Access Control")
-                identityDivider()
-
-                identityRow(destination: .kyc, icon: "person.text.rectangle", iconColor: .statusInfo, title: "Identity Verification")
-                identityDivider()
-
-                identityRow(destination: .reputation, icon: "star.fill", iconColor: .accentTertiary, title: "Reputation")
-                identityDivider()
-
-                identityRow(destination: .credentials, icon: "seal.fill", iconColor: .statusSuccess, title: "Credentials")
-                identityDivider()
-
-                identityRow(destination: .loyalty, icon: "gift.fill", iconColor: .accentSecondary, title: "Rewards & Loyalty")
-                identityDivider()
-
-                identityRow(destination: .licensing, icon: "doc.text.fill", iconColor: .statusInfo, title: "Licenses")
-                identityDivider()
-
-                identityRow(destination: .multiSig, icon: "lock.shield", iconColor: .statusWarning, title: "Multi-Sig Wallets")
-                identityDivider()
-
-                identityRow(destination: .treasury, icon: "building.columns", iconColor: .accentPrimary, title: "Treasury")
-                identityDivider()
-
-                identityRow(destination: .attestations, icon: "checkmark.seal.fill", iconColor: .statusSuccess, title: "Attestations")
-                identityDivider()
-
-                identityRow(destination: .alerts, icon: "bell.fill", iconColor: .statusError, title: "Alerts")
-            }
-            .background(Color.surfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
-        }
-        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.18)
+        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.26)
     }
 
     private func identityRow(destination: AccountNavDestination, icon: String, iconColor: Color, title: String) -> some View {

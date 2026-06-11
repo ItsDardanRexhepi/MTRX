@@ -369,7 +369,13 @@ struct BuildView: View {
 
     private var createView: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: Spacing.md) {
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: Spacing.sm),
+                    GridItem(.flexible(), spacing: Spacing.sm)
+                ],
+                spacing: Spacing.sm
+            ) {
                 buildActionCard(
                     icon: "doc.text.fill",
                     title: "Deploy Contract",
@@ -499,40 +505,36 @@ struct BuildView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            MtrxCard(style: .standard, accentEdge: .leading) {
-                HStack(spacing: Spacing.md) {
+            MtrxCard(style: .standard) {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
                     Image(systemName: icon)
-                        .font(.system(size: 28, weight: .light))
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(Color.accentPrimary)
-                        .frame(width: 48, height: 48)
-                        .background(Color.accentPrimary.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .frame(width: 40, height: 40)
+                        .background(Color.accentPrimary.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(title)
-                            .font(.mtrxHeadline)
-                            .foregroundStyle(Color.labelPrimary)
-                            .multilineTextAlignment(.leading)
-                        Text(description)
-                            .font(.mtrxCaption)
-                            .foregroundStyle(Color.labelSecondary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                    }
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.labelPrimary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
 
-                    Spacer()
+                    Text(description)
+                        .font(.mtrxCaption2)
+                        .foregroundStyle(Color.labelSecondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
 
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.labelTertiary)
+                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
             }
+            .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
         }
         .buttonStyle(.plain)
-        .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
     }
-
-    // MARK: - Upgrade Prompt
 
     private var upgradePrompt: some View {
         MtrxCard(style: .glass) {
