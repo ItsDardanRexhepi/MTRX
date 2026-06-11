@@ -49,13 +49,12 @@ struct AgentConversationView: View {
                 .animation(.easeInOut(duration: 0.7), value: viewModel.activeAgent)
 
             VStack(spacing: 0) {
-                // Agent header
-                agentHeader
-
-                // Inside the agent space, the other agents are one
-                // bubble away — tap to hand the room over.
+                // The agent space wears its own header; the tab-style
+                // header remains for any non-modal embedding.
                 if isModal {
-                    agentSwitcher
+                    agentSpaceHeader
+                } else {
+                    agentHeader
                 }
 
                 // Offline indicator
@@ -237,72 +236,126 @@ struct AgentConversationView: View {
         }
     }
 
-    // MARK: - Agent Switcher (modal agent space)
+    // MARK: - Agent Space Header
+    //
+    // One floating glass capsule is the entire identity AND switcher:
+    // the active agent shows as an expanded orb with its name; the
+    // others wait as quiet orbs one tap away. The highlight slides
+    // between agents with a shared-element morph.
 
-    private var agentSwitcher: some View {
-        HStack(spacing: Spacing.lg) {
-            switcherBubble(.trinity, label: "Trinity", colors: [.trinityPrimary, .trinitySecondary])
-            switcherBubble(.morpheus, label: "Morpheus", colors: [.statusError, .statusError.opacity(0.6)])
-            if AgentAccessControl.shared.userType(for: userID) == .owner {
-                switcherBubble(.neo, label: "Neo", colors: [.statusSuccess, .accentPrimary])
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Spacing.sm)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .bottom) { MtrxDivider() }
+    @Namespace private var agentSegmentNS
+
+    private var availableAgents: [AgentAccessControl.ActiveAgent] {
+        AgentAccessControl.shared.userType(for: userID) == .owner
+            ? [.trinity, .morpheus, .neo]
+            : [.trinity, .morpheus]
     }
 
-    private func switcherBubble(
-        _ agent: AgentAccessControl.ActiveAgent,
-        label: String,
-        colors: [Color]
-    ) -> some View {
+    private var agentSpaceHeader: some View {
+        HStack(spacing: Spacing.sm) {
+            chromeButton("chevron.down") { dismiss() }
+
+            Spacer(minLength: 0)
+
+            switcherCapsule
+
+            Spacer(minLength: 0)
+
+            chromeButton("square.and.pencil") { showChats = true }
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+    }
+
+    private func chromeButton(_ icon: String, action: @escaping () -> Void) -> some View {
+        Button {
+            MtrxHaptics.impact(.light)
+            action()
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.labelSecondary)
+                .frame(width: 34, height: 34)
+                .background(.ultraThinMaterial)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(.white.opacity(0.07), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var switcherCapsule: some View {
+        HStack(spacing: 3) {
+            ForEach(availableAgents, id: \.self) { agent in
+                agentSegment(agent)
+            }
+        }
+        .padding(4)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(.white.opacity(0.08), lineWidth: 1))
+        .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+    }
+
+    private func agentSegment(_ agent: AgentAccessControl.ActiveAgent) -> some View {
         let isActive = viewModel.activeAgent == agent
+        let colors = orbPalette(agent)
 
         return Button {
+            guard !isActive else { return }
             MtrxHaptics.impact(.medium)
             withAnimation(Motion.springSnappy) {
                 viewModel.openAgentChat(agent)
             }
         } label: {
-            VStack(spacing: 5) {
-                ZStack {
-                    if isActive {
-                        Circle()
-                            .fill(
-                                AngularGradient(colors: colors + [colors[0]], center: .center)
-                            )
-                            .frame(width: 46, height: 46)
-                            .blur(radius: 6)
-                            .opacity(0.8)
-                    }
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [.white.opacity(0.85), colors.0, colors.1],
+                            center: .init(x: 0.35, y: 0.28),
+                            startRadius: 1,
+                            endRadius: isActive ? 16 : 13
+                        )
+                    )
+                    .frame(width: isActive ? 24 : 20, height: isActive ? 24 : 20)
+                    .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 0.8))
+                    .shadow(color: colors.0.opacity(isActive ? 0.5 : 0.0), radius: 5)
+
+                if isActive {
+                    Text(AgentConversationViewModel.displayName(of: agent))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.labelPrimary)
+                        .lineLimit(1)
+                        .fixedSize()
 
                     Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [.white.opacity(isActive ? 0.9 : 0.4), colors[0], colors[1]],
-                                center: .init(x: 0.35, y: 0.3),
-                                startRadius: 1,
-                                endRadius: 24
-                            )
-                        )
-                        .frame(width: isActive ? 40 : 32, height: isActive ? 40 : 32)
-                        .overlay(
-                            Circle().stroke(.white.opacity(isActive ? 0.5 : 0.15), lineWidth: 1)
-                        )
-
-                    Text(String(label.prefix(1)))
-                        .font(.system(size: isActive ? 15 : 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .fill(Color.statusSuccess)
+                        .frame(width: 5, height: 5)
                 }
-
-                Text(label)
-                    .font(.system(size: 10, weight: isActive ? .bold : .medium))
-                    .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
             }
+            .padding(.horizontal, isActive ? 12 : 7)
+            .padding(.vertical, 6)
+            .background {
+                if isActive {
+                    Capsule()
+                        .fill(colors.0.opacity(0.15))
+                        .overlay(Capsule().stroke(colors.0.opacity(0.32), lineWidth: 1))
+                        .matchedGeometryEffect(id: "activeAgentSegment", in: agentSegmentNS)
+                }
+            }
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+
+    /// Orb color pairs — Morpheus wears rose-crimson here, warmer and
+    /// calmer than alert red.
+    private func orbPalette(_ agent: AgentAccessControl.ActiveAgent) -> (Color, Color) {
+        switch agent {
+        case .trinity: return (.trinityPrimary, .trinitySecondary)
+        case .morpheus: return (Color(red: 0.95, green: 0.36, blue: 0.42), Color(red: 0.58, green: 0.10, blue: 0.24))
+        case .neo: return (.statusSuccess, .accentPrimary)
+        }
     }
 
     /// The agent space wears a living edge light — the screen border
@@ -315,10 +368,10 @@ struct AgentConversationView: View {
                     colors: [agentAccent, .purple.opacity(0.6), agentAccent.opacity(0.2), agentAccent],
                     center: .center
                 ),
-                lineWidth: 3
+                lineWidth: 2
             )
-            .blur(radius: 6)
-            .opacity(0.55)
+            .blur(radius: 7)
+            .opacity(0.32)
             .ignoresSafeArea()
             .allowsHitTesting(false)
     }
