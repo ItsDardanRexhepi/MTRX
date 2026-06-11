@@ -23,23 +23,23 @@ extension Font {
     // MARK: - Large Title
 
     /// Large title matching iOS navigation bar — SF Pro, 34pt
-    static let mtrxLargeTitle: Font = .system(.largeTitle, design: .default, weight: .bold)
+    static let mtrxLargeTitle: Font = .system(.largeTitle, design: .rounded, weight: .heavy)
 
     // MARK: - Title
 
     /// Primary title — SF Pro, 28pt
-    static let mtrxTitle1: Font = .system(.title, design: .default, weight: .bold)
+    static let mtrxTitle1: Font = .system(.title, design: .rounded, weight: .bold)
 
     /// Secondary title — SF Pro, 22pt
-    static let mtrxTitle2: Font = .system(.title2, design: .default, weight: .semibold)
+    static let mtrxTitle2: Font = .system(.title2, design: .rounded, weight: .bold)
 
     /// Tertiary title — SF Pro, 20pt
-    static let mtrxTitle3: Font = .system(.title3, design: .default, weight: .semibold)
+    static let mtrxTitle3: Font = .system(.title3, design: .rounded, weight: .bold)
 
     // MARK: - Headline
 
     /// Headline for list rows and cards — SF Pro, 17pt semibold
-    static let mtrxHeadline: Font = .system(.headline, design: .default, weight: .semibold)
+    static let mtrxHeadline: Font = .system(.headline, design: .rounded, weight: .semibold)
 
     /// Subheadline for secondary information — SF Pro, 15pt
     static let mtrxSubheadline: Font = .system(.subheadline, design: .default, weight: .regular)

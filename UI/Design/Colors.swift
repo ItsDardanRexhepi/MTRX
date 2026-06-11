@@ -12,7 +12,7 @@ extension Color {
     // MARK: - Brand
 
     /// Primary brand color — terminal cyan
-    static let accentPrimary = Color("AccentPrimary", bundle: .main)
+    static let accentPrimary = Color(red: 0.063, green: 0.835, blue: 0.882)     // signal cyan
 
     /// Secondary brand color — complementary teal
     static let accentSecondary = Color("AccentSecondary", bundle: .main)
@@ -23,30 +23,30 @@ extension Color {
     // MARK: - Backgrounds
 
     /// Primary background — system background
-    static let backgroundPrimary = Color(uiColor: .systemBackground)
+    static let backgroundPrimary = Color(red: 0.043, green: 0.094, blue: 0.133)  // deep ocean #0B1822
 
     /// Secondary background — grouped content
-    static let backgroundSecondary = Color(uiColor: .secondarySystemBackground)
+    static let backgroundSecondary = Color(red: 0.059, green: 0.125, blue: 0.169)
 
     /// Tertiary background — nested grouped content
     static let backgroundTertiary = Color(uiColor: .tertiarySystemBackground)
 
     /// Grouped background — for grouped table views
-    static let backgroundGrouped = Color(uiColor: .systemGroupedBackground)
+    static let backgroundGrouped = Color(red: 0.043, green: 0.094, blue: 0.133)
 
     /// Secondary grouped background
-    static let backgroundGroupedSecondary = Color(uiColor: .secondarySystemGroupedBackground)
+    static let backgroundGroupedSecondary = Color(red: 0.078, green: 0.157, blue: 0.204)
 
     // MARK: - Surfaces
 
     /// Card surface color
-    static let surfaceCard = Color("SurfaceCard", bundle: .main)
+    static let surfaceCard = Color(red: 0.082, green: 0.165, blue: 0.216)       // teal slate #152A37
 
     /// Elevated surface — for modals, popovers
-    static let surfaceElevated = Color("SurfaceElevated", bundle: .main)
+    static let surfaceElevated = Color(red: 0.110, green: 0.208, blue: 0.263)
 
     /// Overlay surface — semi-transparent overlays
-    static let surfaceOverlay = Color(uiColor: .systemFill)
+    static let surfaceOverlay = Color(red: 0.102, green: 0.192, blue: 0.243)
 
     /// Thin material surface
     static let surfaceThin = Color(uiColor: .tertiarySystemFill)
@@ -79,7 +79,7 @@ extension Color {
     // MARK: - Semantic Status
 
     /// Success state — green
-    static let statusSuccess = Color.green
+    static let statusSuccess = Color(red: 0.298, green: 0.871, blue: 0.463)     // leaf green
 
     /// Warning state — orange
     static let statusWarning = Color.orange
@@ -140,7 +140,7 @@ extension Color {
     // MARK: - Trinity AI
 
     /// Trinity primary glow
-    static let trinityPrimary = Color("TrinityPrimary", bundle: .main)
+    static let trinityPrimary = Color(red: 0.231, green: 0.922, blue: 0.961)    // luminous aqua
 
     /// Trinity secondary glow
     static let trinitySecondary = Color("TrinitySecondary", bundle: .main)

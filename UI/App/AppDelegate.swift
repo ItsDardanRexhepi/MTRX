@@ -93,7 +93,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
         let tabBarAppearance = UITabBarAppearance()
         tabBarAppearance.configureWithOpaqueBackground()
-        tabBarAppearance.backgroundColor = .black
+        // The dock sits in the same deep-ocean world as every screen.
+        tabBarAppearance.backgroundColor = UIColor(red: 0.035, green: 0.078, blue: 0.110, alpha: 1)
 
         let normalAttributes: [NSAttributedString.Key: Any] = [.foregroundColor: unselectedColor]
 

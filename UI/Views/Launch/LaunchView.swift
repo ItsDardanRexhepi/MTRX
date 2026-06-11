@@ -1,152 +1,124 @@
 // LaunchView.swift
 // MTRX
 //
-// Animated splash screen — the very first thing users see.
-// Minimal, premium, and unforgettable.
+// The first three seconds of the app: a deep-ocean field, a living
+// aurora orb breathing into existence, and the rounded MTRX wordmark.
+// Springs only — nothing linear — then a soft handoff into Home.
 
 import SwiftUI
 
 struct LaunchView: View {
-    @State private var phase: LaunchPhase = .dark
-    @State private var glowOpacity: Double = 0
-    @State private var logoScale: CGFloat = 0.6
-    @State private var logoOpacity: Double = 0
-    @State private var ringRotation: Double = 0
-    @State private var ringScale: CGFloat = 0.3
-    @State private var ringOpacity: Double = 0
-    @State private var taglineOpacity: Double = 0
-    @State private var taglineOffset: CGFloat = 12
-    @State private var particleOpacity: Double = 0
-
     let onComplete: () -> Void
 
-    enum LaunchPhase {
-        case dark, logoIn, ringPulse, tagline, fadeOut
-    }
+    @State private var orbScale: CGFloat = 0.4
+    @State private var orbOpacity: Double = 0
+    @State private var haloScale: CGFloat = 0.2
+    @State private var haloOpacity: Double = 0
+    @State private var wordmarkOpacity: Double = 0
+    @State private var wordmarkOffset: CGFloat = 16
+    @State private var taglineOpacity: Double = 0
+    @State private var sceneOpacity: Double = 1
+    @State private var breathe = false
 
     var body: some View {
         ZStack {
-            // Deep black background
-            Color.black.ignoresSafeArea()
+            // The ocean field — same world the whole app lives in.
+            Color.backgroundPrimary.ignoresSafeArea()
 
-            // Radial glow behind logo
             RadialGradient(
-                colors: [
-                    Color.accentPrimary.opacity(glowOpacity * 0.25),
-                    Color.accentPrimary.opacity(glowOpacity * 0.08),
-                    Color.clear
-                ],
-                center: .center,
-                startRadius: 20,
-                endRadius: 200
+                colors: [Color.trinityPrimary.opacity(0.14), .clear],
+                center: .init(x: 0.5, y: 0.32),
+                startRadius: 10,
+                endRadius: 380
             )
             .ignoresSafeArea()
 
-            // Particle field (subtle floating dots)
-            particleField
-                .opacity(particleOpacity)
-
-            // Center content
             VStack(spacing: Spacing.lg) {
+                // The orb — layered light, gently breathing.
                 ZStack {
-                    // Outer ring
                     Circle()
-                        .stroke(
+                        .fill(
                             AngularGradient(
-                                colors: [
-                                    Color.accentPrimary,
-                                    Color.accentPrimary.opacity(0.3),
-                                    Color.accentSecondary.opacity(0.5),
-                                    Color.accentPrimary
-                                ],
+                                colors: [.trinityPrimary, .statusSuccess, .accentPrimary, .purple.opacity(0.7), .trinityPrimary],
                                 center: .center
-                            ),
-                            lineWidth: 2
-                        )
-                        .frame(width: 120, height: 120)
-                        .scaleEffect(ringScale)
-                        .opacity(ringOpacity)
-                        .rotationEffect(.degrees(ringRotation))
-
-                    // Logo mark
-                    Text("M")
-                        .font(.system(size: 56, weight: .bold, design: .monospaced))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color.accentPrimary, Color.accentSecondary],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
                             )
                         )
-                        .scaleEffect(logoScale)
-                        .opacity(logoOpacity)
+                        .frame(width: 132, height: 132)
+                        .blur(radius: 26)
+                        .scaleEffect(haloScale * (breathe ? 1.06 : 0.96))
+                        .opacity(haloOpacity * 0.8)
+
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [.white.opacity(0.95), .trinityPrimary, Color(red: 0.02, green: 0.45, blue: 0.55)],
+                                center: .init(x: 0.36, y: 0.30),
+                                startRadius: 2,
+                                endRadius: 64
+                            )
+                        )
+                        .frame(width: 96, height: 96)
+                        .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
+                        .scaleEffect(orbScale * (breathe ? 1.02 : 0.99))
+                        .opacity(orbOpacity)
                 }
 
-                // Wordmark
-                Text("MTRX")
-                    .font(.system(size: 18, weight: .medium, design: .monospaced))
-                    .tracking(8)
-                    .foregroundStyle(Color.white.opacity(0.7))
-                    .opacity(taglineOpacity)
-                    .offset(y: taglineOffset)
+                VStack(spacing: Spacing.sm) {
+                    Text("MTRX")
+                        .font(.system(size: 42, weight: .heavy, design: .rounded))
+                        .kerning(6)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.white, .trinityPrimary],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .opacity(wordmarkOpacity)
+                        .offset(y: wordmarkOffset)
+
+                    Text("Your whole day. One app.")
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.labelSecondary)
+                        .opacity(taglineOpacity)
+                }
             }
         }
-        .onAppear(perform: runSequence)
+        .opacity(sceneOpacity)
+        .onAppear(perform: run)
     }
 
-    // MARK: - Particle Field
-
-    private var particleField: some View {
-        GeometryReader { geo in
-            ForEach(0..<20, id: \.self) { i in
-                Circle()
-                    .fill(Color.accentPrimary.opacity(Double.random(in: 0.05...0.2)))
-                    .frame(width: CGFloat.random(in: 1...3))
-                    .position(
-                        x: CGFloat.random(in: 0...geo.size.width),
-                        y: CGFloat.random(in: 0...geo.size.height)
-                    )
-            }
+    private func run() {
+        // Orb blooms in.
+        withAnimation(.spring(response: 0.7, dampingFraction: 0.68)) {
+            orbScale = 1
+            orbOpacity = 1
+            haloScale = 1
+            haloOpacity = 1
         }
-    }
-
-    // MARK: - Animation Sequence
-
-    private func runSequence() {
-        // Phase 1: Logo appears (0.0 - 0.5s)
-        withAnimation(.easeOut(duration: 0.5)) {
-            logoOpacity = 1
-            logoScale = 1.0
-            glowOpacity = 1
+        // It breathes while the wordmark arrives.
+        withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+            breathe = true
         }
-
-        // Phase 2: Ring appears and rotates (0.3s)
-        withAnimation(.easeOut(duration: 0.6).delay(0.3)) {
-            ringOpacity = 1
-            ringScale = 1.0
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.45)) {
+            wordmarkOpacity = 1
+            wordmarkOffset = 0
         }
-        withAnimation(.linear(duration: 8).repeatForever(autoreverses: false).delay(0.3)) {
-            ringRotation = 360
-        }
-
-        // Phase 3: Particles fade in (0.5s)
-        withAnimation(.easeIn(duration: 0.8).delay(0.5)) {
-            particleOpacity = 1
-        }
-
-        // Phase 4: Tagline slides up (0.7s)
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.7)) {
+        withAnimation(.easeOut(duration: 0.5).delay(0.85)) {
             taglineOpacity = 1
-            taglineOffset = 0
         }
-
-        // Phase 5: Complete after pause (2.0s total)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            onComplete()
+        // Soft handoff.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+            withAnimation(.easeInOut(duration: 0.45)) {
+                sceneOpacity = 0
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                onComplete()
+            }
         }
     }
 }
 
 #Preview {
-    LaunchView { }
+    LaunchView {}
 }

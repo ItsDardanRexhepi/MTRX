@@ -12,10 +12,10 @@ enum Spacing {
     // MARK: - Base Scale (Apple HIG Compliant)
 
     /// 4pt — Extra small spacing for tight groupings
-    static let xs: CGFloat = 4
+    static let xs: CGFloat = 8
 
     /// 8pt — Small spacing for related elements
-    static let sm: CGFloat = 8
+    static let sm: CGFloat = 12
 
     /// 12pt — Medium-small for compact layouts
     static let ms: CGFloat = 12
@@ -94,22 +94,22 @@ enum Spacing {
 
     enum CornerRadius {
         /// 4pt — Small chips, tags
-        static let xs: CGFloat = 4
+        static let xs: CGFloat = 8
 
         /// 8pt — Buttons, text fields
-        static let sm: CGFloat = 8
+        static let sm: CGFloat = 12
 
         /// 12pt — Cards, sheets
-        static let md: CGFloat = 12
+        static let md: CGFloat = 18
 
         /// 16pt — Large cards, modals
-        static let lg: CGFloat = 16
+        static let lg: CGFloat = 24
 
         /// 20pt — Bottom sheets
-        static let xl: CGFloat = 20
+        static let xl: CGFloat = 28
 
         /// 24pt — Full-screen modals
-        static let xxl: CGFloat = 24
+        static let xxl: CGFloat = 32
 
         /// Capsule — Pill shapes
         static let capsule: CGFloat = .infinity
