@@ -242,6 +242,7 @@ struct DiscoverView: View {
                     }
                 }
             }
+            .onAppear { DailyFlow.shared.mark(.explore) }
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

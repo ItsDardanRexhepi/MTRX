@@ -206,6 +206,7 @@ struct AgentConversationView: View {
                 }
         )
         .onAppear {
+            DailyFlow.shared.mark(.agent)
             viewModel.setup(userID: userID, walletManager: walletManager)
             if let initialAgent {
                 viewModel.openAgentChat(initialAgent)

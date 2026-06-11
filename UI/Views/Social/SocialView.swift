@@ -339,6 +339,7 @@ struct SocialView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .onAppear { DailyFlow.shared.mark(.social) }
             .navigationTitle("Social")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

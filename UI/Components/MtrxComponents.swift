@@ -17,16 +17,25 @@ struct MtrxGradientBackground: View {
 
     var body: some View {
         switch style {
-        case .primary:
-            LinearGradient(
-                stops: [
-                    .init(color: Color.backgroundPrimary, location: 0),
-                    .init(color: Color.backgroundPrimary.opacity(0.97), location: 0.4),
-                    .init(color: Color.accentPrimary.opacity(0.03), location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            ).ignoresSafeArea()
+        case .primary, .trinityGlow:
+            // One signature field everywhere: deep night base, a cyan
+            // aurora breathing at the top, a whisper of green depth
+            // low-left — water and light, nothing harsh.
+            ZStack {
+                Color.backgroundPrimary.ignoresSafeArea()
+                RadialGradient(
+                    colors: [Color.trinityPrimary.opacity(0.10), .clear],
+                    center: .init(x: 0.5, y: -0.05),
+                    startRadius: 10,
+                    endRadius: 420
+                ).ignoresSafeArea()
+                RadialGradient(
+                    colors: [Color.statusSuccess.opacity(0.035), .clear],
+                    center: .init(x: 0.05, y: 0.95),
+                    startRadius: 10,
+                    endRadius: 380
+                ).ignoresSafeArea()
+            }
         case .subtle:
             Color.backgroundPrimary.ignoresSafeArea()
         case .dark:
@@ -35,16 +44,6 @@ struct MtrxGradientBackground: View {
                 startPoint: .top,
                 endPoint: .bottom
             ).ignoresSafeArea()
-        case .trinityGlow:
-            ZStack {
-                Color.backgroundPrimary.ignoresSafeArea()
-                RadialGradient(
-                    colors: [Color.trinityPrimary.opacity(0.08), .clear],
-                    center: .top,
-                    startRadius: 0,
-                    endRadius: 400
-                ).ignoresSafeArea()
-            }
         }
     }
 }
@@ -72,13 +71,22 @@ struct MtrxCard<Content: View>: View {
     @ViewBuilder
     private var cardBackground: some View {
         switch style {
-        case .standard:
-            Color.surfaceCard
+        case .standard, .glass:
+            // Layered glass: material, a breath of signature tint,
+            // light falling from the top-left.
+            ZStack {
+                Color.clear.background(.ultraThinMaterial)
+                LinearGradient(
+                    colors: [Color.trinityPrimary.opacity(0.055), Color.clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
         case .elevated:
-            Color.surfaceElevated
-        case .glass:
-            Color.surfaceCard.opacity(0.6)
-                .background(.ultraThinMaterial)
+            ZStack {
+                Color.surfaceElevated.opacity(0.65)
+                Color.clear.background(.thinMaterial)
+            }
         case .outlined:
             Color.clear
         }
@@ -95,6 +103,17 @@ struct MtrxCard<Content: View>: View {
         } else if style == .outlined {
             RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
                 .stroke(Color.separatorStandard, lineWidth: 0.5)
+        } else {
+            // Lit hairline — the edge that catches the light.
+            RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.12), .white.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         }
     }
 
@@ -117,10 +136,10 @@ struct MtrxCard<Content: View>: View {
     }
 
     private var shadowColor: Color {
-        style == .elevated ? Color.black.opacity(0.12) : Color.black.opacity(0.06)
+        style == .elevated ? Color.black.opacity(0.30) : Color.black.opacity(0.20)
     }
-    private var shadowRadius: CGFloat { style == .elevated ? 12 : 4 }
-    private var shadowY: CGFloat { style == .elevated ? 4 : 2 }
+    private var shadowRadius: CGFloat { style == .elevated ? 16 : 10 }
+    private var shadowY: CGFloat { style == .elevated ? 6 : 4 }
 }
 
 // MARK: - Button Styles
@@ -350,15 +369,23 @@ struct MtrxChip: View {
                 Text(label)
                     .font(.mtrxCaptionBold)
             }
-            .foregroundStyle(isSelected ? .white : Color.labelPrimary)
+            .foregroundStyle(isSelected ? Color.accentPrimary : Color.labelSecondary)
             .padding(.horizontal, Spacing.chipHorizontal)
             .padding(.vertical, Spacing.chipVertical)
-            .background(isSelected ? Color.accentPrimary : Color.surfaceOverlay)
-            .clipShape(Capsule())
+            .background {
+                if isSelected {
+                    Capsule().fill(Color.accentPrimary.opacity(0.16))
+                } else {
+                    Capsule().fill(.ultraThinMaterial)
+                }
+            }
             .overlay(
-                Capsule()
-                    .stroke(isSelected ? Color.clear : Color.separatorStandard, lineWidth: 0.5)
+                Capsule().stroke(
+                    isSelected ? Color.accentPrimary.opacity(0.45) : Color.white.opacity(0.08),
+                    lineWidth: 1
+                )
             )
+            .shadow(color: isSelected ? Color.accentPrimary.opacity(0.25) : .clear, radius: 6)
         }
         .buttonStyle(.plain)
     }
@@ -375,9 +402,17 @@ struct MtrxSectionHeader: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.mtrxTitle3)
-                    .foregroundStyle(Color.labelPrimary)
+                HStack(spacing: Spacing.sm) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(
+                            LinearGradient(colors: [.trinityPrimary, .trinityPrimary.opacity(0.2)],
+                                           startPoint: .top, endPoint: .bottom)
+                        )
+                        .frame(width: 3, height: 16)
+                    Text(title)
+                        .font(.mtrxTitle3)
+                        .foregroundStyle(Color.labelPrimary)
+                }
                 if let subtitle {
                     Text(subtitle)
                         .font(.mtrxCaption1)

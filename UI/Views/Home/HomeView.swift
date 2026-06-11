@@ -11,6 +11,7 @@ struct HomeView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var walletManager: WalletManager
     @ObservedObject private var chatStore = ConversationStore.shared
+    @ObservedObject private var dailyFlow = DailyFlow.shared
 
     @State private var presentedChat: ChatLaunch?
     @State private var appeared = false
@@ -109,24 +110,33 @@ struct HomeView: View {
 
                 Spacer()
 
-                // Deliberately unfinished — an open loop pulls people
-                // back to close it. Completes as the day is used.
+                // A real open loop: fills as the day is actually
+                // lived — agent, social, exploration — and resets at
+                // midnight. Unfinished loops pull people back.
                 VStack(spacing: 2) {
                     ZStack {
                         MtrxProgressRing(
-                            progress: 0.66,
+                            progress: max(dailyFlow.progress, 0.04),
                             size: 38,
                             lineWidth: 4,
-                            color: .trinityPrimary,
+                            color: dailyFlow.isComplete ? .statusSuccess : .trinityPrimary,
                             showLabel: false
                         )
-                        Text("2/3")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(Color.labelPrimary)
+                        if dailyFlow.isComplete {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(Color.statusSuccess)
+                        } else {
+                            Text("\(dailyFlow.completed.count)/3")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color.labelPrimary)
+                        }
                     }
-                    Text("Daily flow")
+                    .mtrxGlow(color: dailyFlow.isComplete ? .statusSuccess : .clear, radius: 5)
+
+                    Text(dailyFlow.isComplete ? "In flow" : "Daily flow")
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(Color.labelTertiary)
+                        .foregroundStyle(dailyFlow.isComplete ? Color.statusSuccess : Color.labelTertiary)
                 }
             }
             .alert("Your Name", isPresented: $showNameEditor) {
@@ -538,5 +548,70 @@ enum HomeService: String, CaseIterable, Identifiable {
         case .storage: StorageView()
         case .bridge: BridgeView()
         }
+    }
+}
+
+// MARK: - Daily Flow
+
+/// The open loop that closes itself as the day is lived: talk to an
+/// agent, touch your social world, explore something new. Day-keyed,
+/// persisted, resets at midnight.
+@MainActor
+final class DailyFlow: ObservableObject {
+
+    static let shared = DailyFlow()
+
+    enum Goal: String, CaseIterable {
+        case agent
+        case social
+        case explore
+
+        var label: String {
+            switch self {
+            case .agent: return "Talk to an agent"
+            case .social: return "Check your world"
+            case .explore: return "Explore something new"
+            }
+        }
+    }
+
+    @Published private(set) var completed: Set<String> = []
+
+    private let storageKey = "com.mtrx.dailyflow"
+    private var todayKey: String {
+        Date().formatted(.iso8601.year().month().day())
+    }
+
+    private init() {
+        reload()
+    }
+
+    func mark(_ goal: Goal) {
+        reload()
+        guard !completed.contains(goal.rawValue) else { return }
+        completed.insert(goal.rawValue)
+        persist()
+    }
+
+    var progress: Double {
+        Double(completed.count) / Double(Goal.allCases.count)
+    }
+
+    var isComplete: Bool { completed.count >= Goal.allCases.count }
+
+    private func reload() {
+        let defaults = UserDefaults.standard
+        if defaults.string(forKey: storageKey + ".day") != todayKey {
+            completed = []
+            persist()
+        } else {
+            completed = Set(defaults.stringArray(forKey: storageKey + ".done") ?? [])
+        }
+    }
+
+    private func persist() {
+        let defaults = UserDefaults.standard
+        defaults.set(todayKey, forKey: storageKey + ".day")
+        defaults.set(Array(completed), forKey: storageKey + ".done")
     }
 }
