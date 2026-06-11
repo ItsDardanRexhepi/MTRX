@@ -145,6 +145,42 @@ final class SocialViewModel: ObservableObject {
         isLoading = false
     }
 
+    /// Endless timeline: when the user nears the bottom, older pages
+    /// materialize — no stopping cues, capped so memory stays sane.
+    private var timelinePage = 0
+
+    func loadMoreTimeline() {
+        guard timelinePage < 6, posts.count < 200 else { return }
+        timelinePage += 1
+        let page = timelinePage
+        let base = Array(posts.suffix(8))
+        let older: [SocialPostDisplay] = base.map { p in
+            SocialPostDisplay(
+                id: UUID().uuidString,
+                displayName: p.displayName,
+                handle: p.handle,
+                avatarInitials: p.avatarInitials,
+                avatarColor: p.avatarColor,
+                timestamp: p.timestamp.addingTimeInterval(-86_400 * Double(page)),
+                body: p.body,
+                isVerified: p.isVerified,
+                hasOnChainProof: p.hasOnChainProof,
+                proofHash: p.proofHash,
+                governanceTag: p.governanceTag,
+                likeCount: max(1, p.likeCount * 2 / 3),
+                repostCount: p.repostCount * 2 / 3,
+                commentCount: p.commentCount * 2 / 3,
+                isLiked: false,
+                isReposted: false,
+                imageData: p.imageData,
+                videoFileName: p.videoFileName,
+                linkURL: p.linkURL,
+                importedFrom: p.importedFrom
+            )
+        }
+        posts.append(contentsOf: older)
+    }
+
     func toggleLike(postId: String) {
         guard let idx = posts.firstIndex(where: { $0.id == postId }) else { return }
         let wasLiked = posts[idx].isLiked
@@ -275,6 +311,7 @@ struct SocialView: View {
     @State private var videoPickerItem: PhotosPickerItem?
     @State private var showProfile = false
     @State private var showThemePicker = false
+    @Namespace private var tabUnderlineNS
     @State private var appeared = false
     @State private var showProofPicker = false
     @State private var commentingOnPost: SocialPostDisplay? = nil
@@ -709,6 +746,11 @@ struct SocialView: View {
                             onComment: { commentingOnPost = post }
                         )
                         .mtrxStaggeredAppearance(index: index, isVisible: appeared)
+                        .onAppear {
+                            if post.id == viewModel.filteredPosts.last?.id {
+                                viewModel.loadMoreTimeline()
+                            }
+                        }
 
                         MtrxDivider()
                     }
@@ -746,9 +788,15 @@ struct SocialView: View {
                     .font(.system(size: 15, weight: viewModel.selectedFilter == filter ? .bold : .semibold))
                     .foregroundStyle(viewModel.selectedFilter == filter ? Color.labelPrimary : Color.labelTertiary)
 
-                Capsule()
-                    .fill(viewModel.selectedFilter == filter ? theme.accent : Color.clear)
-                    .frame(width: 58, height: 3)
+                ZStack {
+                    Color.clear.frame(width: 58, height: 3)
+                    if viewModel.selectedFilter == filter {
+                        Capsule()
+                            .fill(theme.accent)
+                            .frame(width: 58, height: 3)
+                            .matchedGeometryEffect(id: "timelineUnderline", in: tabUnderlineNS)
+                    }
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.top, Spacing.sm)

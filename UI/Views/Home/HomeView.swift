@@ -35,16 +35,16 @@ struct HomeView: View {
                     greetingHeader
                         .mtrxStaggeredAppearance(index: 0, isVisible: appeared)
 
-                    agentSection
+                    portfolioSnapshot
                         .mtrxStaggeredAppearance(index: 1, isVisible: appeared)
 
-                    quickActionsSection
+                    agentOrbSection
                         .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
 
-                    servicesSection
+                    quickActionsSection
                         .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
 
-                    portfolioSnapshot
+                    servicesSection
                         .mtrxStaggeredAppearance(index: 4, isVisible: appeared)
                 }
                 .padding(.horizontal, Spacing.contentPadding)
@@ -106,6 +106,28 @@ struct HomeView: View {
                         .foregroundStyle(Color.labelTertiary)
                 }
                 .buttonStyle(.plain)
+
+                Spacer()
+
+                // Deliberately unfinished — an open loop pulls people
+                // back to close it. Completes as the day is used.
+                VStack(spacing: 2) {
+                    ZStack {
+                        MtrxProgressRing(
+                            progress: 0.66,
+                            size: 38,
+                            lineWidth: 4,
+                            color: .trinityPrimary,
+                            showLabel: false
+                        )
+                        Text("2/3")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Color.labelPrimary)
+                    }
+                    Text("Daily flow")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color.labelTertiary)
+                }
             }
             .alert("Your Name", isPresented: $showNameEditor) {
                 TextField("Name", text: $nameDraft)
@@ -156,65 +178,60 @@ struct HomeView: View {
         return name.isEmpty ? "Welcome" : name
     }
 
-    // MARK: - Agents
+    // MARK: - Agents (the orb gateway)
 
-    private var agentSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.ms) {
-            sectionTitle("Your agents")
+    /// One tap into the agent space — a glowing 3D orb, in the spirit
+    /// of Apple's Siri light. Opens straight into Trinity; Morpheus and
+    /// Neo are one bubble away inside.
+    @State private var orbPulse = false
 
-            agentCard(
-                agent: .trinity,
-                name: "Trinity",
-                tagline: "Your assistant — money, markets, answers",
-                colors: [.trinityPrimary, .trinitySecondary]
-            )
-
-            agentCard(
-                agent: .morpheus,
-                name: "Morpheus",
-                tagline: "The guardian — security and judgment",
-                colors: [.statusError, .statusError.opacity(0.7)]
-            )
-
-            // Neo answers only to the owner.
-            if AgentAccessControl.shared.userType(for: appState.currentUserID) == .owner {
-                agentCard(
-                    agent: .neo,
-                    name: "Neo",
-                    tagline: "The coordinator — full platform command",
-                    colors: [.statusSuccess, .accentPrimary]
-                )
-            }
-        }
-    }
-
-    private func agentCard(
-        agent: AgentAccessControl.ActiveAgent,
-        name: String,
-        tagline: String,
-        colors: [Color]
-    ) -> some View {
+    private var agentOrbSection: some View {
         Button {
             MtrxHaptics.impact(.medium)
-            presentedChat = ChatLaunch(agent: agent)
+            presentedChat = ChatLaunch(agent: .trinity)
         } label: {
-            HStack(spacing: Spacing.sm) {
+            HStack(spacing: Spacing.md) {
+                // Layered gradient sphere with breathing glow.
                 ZStack {
                     Circle()
-                        .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 37, height: 37)
-                    Text(String(name.prefix(1)))
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                }
-                .mtrxGlow(color: colors.first ?? .accentPrimary, radius: 4)
+                        .fill(
+                            AngularGradient(
+                                colors: [.trinityPrimary, .purple, .statusError, .orange, .statusSuccess, .trinityPrimary],
+                                center: .center
+                            )
+                        )
+                        .frame(width: 64, height: 64)
+                        .blur(radius: 10)
+                        .opacity(orbPulse ? 0.95 : 0.55)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(name)
-                        .font(.mtrxCalloutBold)
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [.white.opacity(0.95), .trinityPrimary, .trinitySecondary.opacity(0.8)],
+                                center: .init(x: 0.35, y: 0.3),
+                                startRadius: 2,
+                                endRadius: 36
+                            )
+                        )
+                        .frame(width: 54, height: 54)
+                        .overlay(
+                            Circle()
+                                .stroke(.white.opacity(0.35), lineWidth: 1)
+                        )
+                        .scaleEffect(orbPulse ? 1.04 : 0.97)
+                }
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+                        orbPulse = true
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Agents")
+                        .font(.mtrxHeadline)
                         .foregroundStyle(Color.labelPrimary)
 
-                    Text(lastMessagePreview(for: agent) ?? tagline)
+                    Text(agentOrbSubtitle)
                         .font(.mtrxCaption2)
                         .foregroundStyle(Color.labelSecondary)
                         .lineLimit(1)
@@ -224,29 +241,34 @@ struct HomeView: View {
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle((colors.first ?? .accentPrimary).opacity(0.8))
+                    .foregroundStyle(Color.trinityPrimary.opacity(0.8))
             }
             .padding(Spacing.ms)
             .background(.ultraThinMaterial)
-            .background((colors.first ?? .clear).opacity(0.06))
+            .background(Color.trinityPrimary.opacity(0.05))
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
                     .stroke(
                         LinearGradient(
-                            colors: [
-                                (colors.first ?? .clear).opacity(0.45),
-                                (colors.first ?? .clear).opacity(0.08),
-                            ],
+                            colors: [Color.trinityPrimary.opacity(0.5), Color.purple.opacity(0.2), Color.trinityPrimary.opacity(0.08)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
                         lineWidth: 1
                     )
             )
-            .shadow(color: (colors.first ?? .clear).opacity(0.10), radius: 14, y: 6)
+            .shadow(color: Color.trinityPrimary.opacity(0.12), radius: 16, y: 6)
         }
         .buttonStyle(.plain)
+    }
+
+    private var agentOrbSubtitle: String {
+        if let preview = lastMessagePreview(for: .trinity) {
+            return preview
+        }
+        let owner = AgentAccessControl.shared.userType(for: appState.currentUserID) == .owner
+        return owner ? "Trinity · Morpheus · Neo" : "Trinity · Morpheus"
     }
 
     private func lastMessagePreview(for agent: AgentAccessControl.ActiveAgent) -> String? {

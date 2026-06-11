@@ -692,6 +692,19 @@ final class InferenceRouter {
         }
     }
 
+    /// Clear every persona's session — used when the user switches to a
+    /// different saved conversation, so one chat's memory never bleeds
+    /// into another. The rolling recap re-primes the right memory on
+    /// the next turn.
+    func resetAllSessions() {
+        if #available(iOS 26, macOS 26, *) {
+            (_foundationEngine as? FoundationModelsEngine)?.resetSession()
+            for engine in _personaEngines.values {
+                (engine as? FoundationModelsEngine)?.resetSession()
+            }
+        }
+    }
+
     /// Update the offline state based on network reachability.
     func updateConnectivity(isConnected: Bool) {
         isOffline = !isConnected

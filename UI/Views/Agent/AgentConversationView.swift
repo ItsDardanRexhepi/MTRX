@@ -30,6 +30,7 @@ struct AgentConversationView: View {
     @State private var showAgentIdentity = false
     @State private var showSearch = false
     @State private var showChats = false
+    @State private var dismissDrag: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -50,6 +51,12 @@ struct AgentConversationView: View {
             VStack(spacing: 0) {
                 // Agent header
                 agentHeader
+
+                // Inside the agent space, the other agents are one
+                // bubble away — tap to hand the room over.
+                if isModal {
+                    agentSwitcher
+                }
 
                 // Offline indicator
                 if viewModel.isOffline {
@@ -157,6 +164,11 @@ struct AgentConversationView: View {
                 inputBar
             }
 
+            // The agent space's living edge light.
+            if isModal {
+                edgeGlow
+            }
+
             // Morpheus overlay
             if morpheus.isPresenting, let intervention = morpheus.activeIntervention {
                 MorpheusOverlay(intervention: intervention)
@@ -175,6 +187,25 @@ struct AgentConversationView: View {
                     .transition(.mtrxSlideUp)
             }
         }
+        .offset(y: isModal ? dismissDrag : 0)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 24)
+                .onChanged { value in
+                    // Only from the header zone, only downward — never
+                    // fights the message scroll or the keyboard.
+                    guard isModal, value.startLocation.y < 190,
+                          value.translation.height > 0 else { return }
+                    dismissDrag = value.translation.height
+                }
+                .onEnded { value in
+                    guard isModal else { return }
+                    if value.startLocation.y < 190, value.translation.height > 130 {
+                        dismiss()
+                    } else {
+                        withAnimation(Motion.springSnappy) { dismissDrag = 0 }
+                    }
+                }
+        )
         .onAppear {
             viewModel.setup(userID: userID, walletManager: walletManager)
             if let initialAgent {
@@ -204,6 +235,92 @@ struct AgentConversationView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
+    }
+
+    // MARK: - Agent Switcher (modal agent space)
+
+    private var agentSwitcher: some View {
+        HStack(spacing: Spacing.lg) {
+            switcherBubble(.trinity, label: "Trinity", colors: [.trinityPrimary, .trinitySecondary])
+            switcherBubble(.morpheus, label: "Morpheus", colors: [.statusError, .statusError.opacity(0.6)])
+            if AgentAccessControl.shared.userType(for: userID) == .owner {
+                switcherBubble(.neo, label: "Neo", colors: [.statusSuccess, .accentPrimary])
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Spacing.sm)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) { MtrxDivider() }
+    }
+
+    private func switcherBubble(
+        _ agent: AgentAccessControl.ActiveAgent,
+        label: String,
+        colors: [Color]
+    ) -> some View {
+        let isActive = viewModel.activeAgent == agent
+
+        return Button {
+            MtrxHaptics.impact(.medium)
+            withAnimation(Motion.springSnappy) {
+                viewModel.openAgentChat(agent)
+            }
+        } label: {
+            VStack(spacing: 5) {
+                ZStack {
+                    if isActive {
+                        Circle()
+                            .fill(
+                                AngularGradient(colors: colors + [colors[0]], center: .center)
+                            )
+                            .frame(width: 46, height: 46)
+                            .blur(radius: 6)
+                            .opacity(0.8)
+                    }
+
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [.white.opacity(isActive ? 0.9 : 0.4), colors[0], colors[1]],
+                                center: .init(x: 0.35, y: 0.3),
+                                startRadius: 1,
+                                endRadius: 24
+                            )
+                        )
+                        .frame(width: isActive ? 40 : 32, height: isActive ? 40 : 32)
+                        .overlay(
+                            Circle().stroke(.white.opacity(isActive ? 0.5 : 0.15), lineWidth: 1)
+                        )
+
+                    Text(String(label.prefix(1)))
+                        .font(.system(size: isActive ? 15 : 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
+
+                Text(label)
+                    .font(.system(size: 10, weight: isActive ? .bold : .medium))
+                    .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The agent space wears a living edge light — the screen border
+    /// glows in the active agent's colors, so the whole surface reads
+    /// as its own layer over the app.
+    private var edgeGlow: some View {
+        RoundedRectangle(cornerRadius: 44, style: .continuous)
+            .strokeBorder(
+                AngularGradient(
+                    colors: [agentAccent, .purple.opacity(0.6), agentAccent.opacity(0.2), agentAccent],
+                    center: .center
+                ),
+                lineWidth: 3
+            )
+            .blur(radius: 6)
+            .opacity(0.55)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
     }
 
     // MARK: - Scroll Helper

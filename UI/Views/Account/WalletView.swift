@@ -100,6 +100,51 @@ final class WalletViewModel: ObservableObject {
 
     private let api = MTRXAPIClient.shared
 
+    /// Mirror the shared app-wide wallet into this screen, so Account →
+    /// Wallet always shows exactly what Home and Trinity show — one
+    /// source of truth across every tab.
+    func sync(with wm: WalletManager) {
+        totalValue = formatCurrency(wm.totalPortfolioValue)
+        isPositive = wm.portfolioChange24h >= 0
+        change24h = String(format: "%@%.2f%%", isPositive ? "+" : "", wm.portfolioChange24h)
+
+        tokens = wm.tokens.map { t in
+            TokenInfo(
+                id: t.symbol,
+                symbol: t.symbol,
+                name: t.name,
+                value: formatCurrency(t.balance * t.priceUSD),
+                balance: formatBalance(t.balance),
+                priceChange: t.change24h
+            )
+        }
+
+        defiPositions = wm.defiPositions.map { p in
+            DeFiPositionInfo(
+                id: p.protocol_ + p.type,
+                protocol_: p.protocol_,
+                type: p.type,
+                value: formatCurrency(p.value),
+                collateralRatio: p.healthFactor.map { String(format: "%.0f%%", $0 * 100) } ?? "—",
+                apy: String(format: "%.1f%%", p.apy),
+                healthColor: .healthGood
+            )
+        }
+
+        transactions = wm.transactions.map { t in
+            TransactionInfo(
+                hash: "—",
+                description_: t.title + " · " + t.subtitle,
+                amount: t.amount,
+                date: t.timestamp.formatted(.relative(presentation: .named)),
+                isIncoming: t.amount.hasPrefix("+")
+            )
+        }
+
+        errorMessage = nil
+        isLoading = false
+    }
+
     func loadPortfolio() async {
         isLoading = true
         errorMessage = nil
@@ -279,6 +324,7 @@ final class WalletViewModel: ObservableObject {
 
 struct AccountWalletView: View {
     @StateObject private var viewModel = WalletViewModel()
+    @EnvironmentObject private var walletManager: WalletManager
     @State private var selectedTab = 0
     @State private var showStaking = false
     @State private var selectedToken: TokenInfo?
@@ -311,7 +357,7 @@ struct AccountWalletView: View {
         .sheet(isPresented: $showStaking) {
             NavigationStack {
                 StakingView()
-                    .environmentObject(WalletManager())
+                    .environmentObject(walletManager)
             }
         }
         .sheet(item: $selectedToken) { token in
@@ -323,16 +369,21 @@ struct AccountWalletView: View {
         .sheet(isPresented: $showSwapSheet) {
             NavigationStack {
                 SwapView()
-                    .environmentObject(WalletManager())
+                    .environmentObject(walletManager)
             }
         }
         .alert("MTRX", isPresented: $showLoadMoreAlert) { Button("OK") {} } message: { Text("All recent transactions are displayed") }
         .alert("MTRX", isPresented: $showBrowseAlert) { Button("OK") {} } message: { Text("Visit Discover tab") }
         .task {
-            await viewModel.loadPortfolio()
+            viewModel.sync(with: walletManager)
+        }
+        .onReceive(walletManager.objectWillChange) { _ in
+            // A send in Trinity's chat shows up here the same second.
+            DispatchQueue.main.async { viewModel.sync(with: walletManager) }
         }
         .refreshable {
-            await viewModel.loadPortfolio()
+            await walletManager.refreshLivePrices()
+            viewModel.sync(with: walletManager)
         }
     }
 
@@ -385,7 +436,7 @@ struct AccountWalletView: View {
                 change24h: token.priceChange,
                 iconColor: .accentPrimary
             ))
-            .environmentObject(WalletManager())
+            .environmentObject(walletManager)
         }
         .presentationDetents([.large])
     }

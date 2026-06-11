@@ -119,6 +119,7 @@ final class AgentConversationViewModel: ObservableObject {
 
     /// Open a fresh chat bound to `agent`.
     func startNewConversation(agent: AgentAccessControl.ActiveAgent, announce: Bool = true) {
+        inference.resetAllSessions()
         let convo = store.create(agent: agent)
         conversationID = convo.id
         manualAgentOverride = (agent == .trinity) ? nil : agent
@@ -143,6 +144,7 @@ final class AgentConversationViewModel: ObservableObject {
 
     /// Load a saved chat.
     func openConversation(_ convo: AgentChatRecord) {
+        inference.resetAllSessions()
         conversationID = convo.id
         manualAgentOverride = (convo.agent == .trinity) ? nil : convo.agent
         activeAgent = convo.agent
@@ -354,6 +356,10 @@ final class AgentConversationViewModel: ObservableObject {
             if Self.isFinanceRelated(text) {
                 contextLine += " " + liveContextLine()
             }
+            // The conversation's own memory rides along on every turn:
+            // restored chats keep their context across app relaunches,
+            // and switching between saved chats never crosses wires.
+            contextLine += Self.transcriptRecap(messages)
             let persona: InferenceRouter.Persona = {
                 switch agent {
                 case .trinity: return .trinity
@@ -779,6 +785,20 @@ final class AgentConversationViewModel: ObservableObject {
         }
 
         return nil
+    }
+
+    /// A compact rolling transcript (everything before the message
+    /// being answered) — silent memory for the on-device session.
+    static func transcriptRecap(_ messages: [AgentMessage]) -> String {
+        var history = messages
+        if history.last?.role == .user { history.removeLast() }
+        let recent = history.suffix(8).filter { $0.role != .system }
+        guard !recent.isEmpty else { return "" }
+        let lines = recent.map { m in
+            let who = m.role == .user ? "User" : (m.agentName ?? "Agent")
+            return "\(who): \(m.text.prefix(110))"
+        }.joined(separator: " | ")
+        return " Conversation so far (silent memory — use it, never read it back): \(String(lines.prefix(750)))."
     }
 
     /// Detect explicit requests to change the active agent — an agent is
