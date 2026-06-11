@@ -62,6 +62,7 @@ struct LaunchView: View {
                         .scaleEffect(orbScale * (breathe ? 1.02 : 0.99))
                         .opacity(orbOpacity)
                 }
+                .drawingGroup()
 
                 VStack(spacing: Spacing.sm) {
                     Text("MTRX")

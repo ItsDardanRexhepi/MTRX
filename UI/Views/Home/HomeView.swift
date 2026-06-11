@@ -161,12 +161,16 @@ struct HomeView: View {
         .padding(.top, Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            // Soft signature glow rising behind the greeting.
-            Circle()
-                .fill(Color.trinityPrimary.opacity(0.13))
-                .frame(width: 280, height: 280)
-                .blur(radius: 70)
-                .offset(x: -60, y: -70),
+            // Soft signature glow rising behind the greeting — a radial
+            // gradient, not a live blur, so scrolling never pays for it.
+            RadialGradient(
+                colors: [Color.trinityPrimary.opacity(0.14), .clear],
+                center: .center,
+                startRadius: 0,
+                endRadius: 170
+            )
+            .frame(width: 340, height: 340)
+            .offset(x: -60, y: -70),
             alignment: .topLeading
         )
     }
@@ -230,6 +234,7 @@ struct HomeView: View {
                         )
                         .scaleEffect(orbPulse ? 1.04 : 0.97)
                 }
+                .drawingGroup()
                 .onAppear {
                     withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
                         orbPulse = true

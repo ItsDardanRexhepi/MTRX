@@ -38,15 +38,19 @@ struct AgentConversationView: View {
             MtrxGradientBackground(style: .trinityGlow)
 
             // The room takes on its agent's signature color — a faint
-            // aurora that shifts cyan/red/green with who's listening.
-            Circle()
-                .fill(agentAccent.opacity(0.11))
-                .frame(width: 400, height: 400)
-                .blur(radius: 95)
-                .offset(y: -270)
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-                .animation(.easeInOut(duration: 0.7), value: viewModel.activeAgent)
+            // aurora that shifts with who's listening. Radial gradient,
+            // not a live blur: identical look, none of the GPU cost.
+            RadialGradient(
+                colors: [agentAccent.opacity(0.13), .clear],
+                center: .center,
+                startRadius: 0,
+                endRadius: 230
+            )
+            .frame(width: 460, height: 460)
+            .offset(y: -270)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+            .animation(.easeInOut(duration: 0.7), value: viewModel.activeAgent)
 
             VStack(spacing: 0) {
                 // The agent space wears its own header; the tab-style
@@ -363,18 +367,21 @@ struct AgentConversationView: View {
     /// glows in the active agent's colors, so the whole surface reads
     /// as its own layer over the app.
     private var edgeGlow: some View {
-        RoundedRectangle(cornerRadius: 44, style: .continuous)
-            .strokeBorder(
-                AngularGradient(
-                    colors: [agentAccent, .purple.opacity(0.6), agentAccent.opacity(0.2), agentAccent],
-                    center: .center
-                ),
-                lineWidth: 2
-            )
-            .blur(radius: 7)
-            .opacity(0.32)
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
+        ZStack {
+            RoundedRectangle(cornerRadius: 44, style: .continuous)
+                .strokeBorder(
+                    AngularGradient(
+                        colors: [agentAccent, .purple.opacity(0.6), agentAccent.opacity(0.2), agentAccent],
+                        center: .center
+                    ),
+                    lineWidth: 5
+                )
+                .opacity(0.16)
+            RoundedRectangle(cornerRadius: 44, style: .continuous)
+                .strokeBorder(agentAccent.opacity(0.25), lineWidth: 1.5)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 
     // MARK: - Scroll Helper
