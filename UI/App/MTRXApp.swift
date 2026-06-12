@@ -366,6 +366,18 @@ struct FloatingAgentOrb: View {
 
     /// Where she lives on screen — wherever the user last put her.
     @State private var position: CGPoint?
+    /// Drives the slow drift of the bubble's iridescence.
+    @State private var drift = false
+
+    /// Soft pastel film — mint, lavender, peach, butter — like light
+    /// catching a soap bubble. Playful, never loud.
+    private static let bubblePastels: [Color] = [
+        Color(red: 0.62, green: 0.90, blue: 0.85),
+        Color(red: 0.72, green: 0.78, blue: 0.98),
+        Color(red: 0.99, green: 0.80, blue: 0.78),
+        Color(red: 0.99, green: 0.92, blue: 0.72),
+        Color(red: 0.62, green: 0.90, blue: 0.85),
+    ]
 
     private var tint: Color {
         switch agent {
@@ -381,30 +393,49 @@ struct FloatingAgentOrb: View {
             // button, and everything else that lives in the corners.
             let current = position ?? CGPoint(x: geo.size.width - 44, y: geo.size.height * 0.40)
 
-            // Pure presence, no color: a transparent circle of barely-
-            // there glass with a soft aura of light around it. No shine,
-            // no reflections, nothing solid — just a quiet ring of light.
+            // A soap bubble: transparent glass with a film of soft
+            // pastel iridescence drifting slowly around the rim, and a
+            // gentle aura of light. Playful and light — never solid,
+            // never loud.
             ZStack {
                 Circle()
                     .fill(.ultraThinMaterial)
                     .opacity(0.32)
 
                 Circle()
+                    .fill(AngularGradient(colors: Self.bubblePastels, center: .center))
+                    .mask(
+                        RadialGradient(
+                            colors: [.clear, .white],
+                            center: .center,
+                            startRadius: 9,
+                            endRadius: 27
+                        )
+                    )
+                    .opacity(0.55)
+                    .rotationEffect(.degrees(drift ? 360 : 0))
+
+                Circle()
                     .fill(
                         RadialGradient(
-                            colors: [.white.opacity(0.09), .clear],
+                            colors: [.white.opacity(0.10), .clear],
                             center: .center,
-                            startRadius: 4,
-                            endRadius: 27
+                            startRadius: 3,
+                            endRadius: 22
                         )
                     )
 
                 Circle()
-                    .strokeBorder(.white.opacity(0.22), lineWidth: 1)
+                    .strokeBorder(.white.opacity(0.25), lineWidth: 1)
             }
             .frame(width: 54, height: 54)
-            .shadow(color: .white.opacity(0.30), radius: 14)
-            .shadow(color: .white.opacity(0.10), radius: 30)
+            .shadow(color: .white.opacity(0.22), radius: 12)
+            .shadow(color: Color(red: 0.72, green: 0.78, blue: 0.98).opacity(0.30), radius: 24)
+            .onAppear {
+                withAnimation(.linear(duration: 14).repeatForever(autoreverses: false)) {
+                    drift = true
+                }
+            }
                 .position(current)
                 .gesture(
                     DragGesture()

@@ -195,8 +195,8 @@ struct HomeView: View {
                 Spacer()
 
                 // The agent orb, top right — one tap into the agent space.
-                // Colorless and transparent: a circle of glass breathing
-                // inside a soft aura of pure light.
+                // A soap bubble: glass with a film of pastel iridescence
+                // drifting around the rim, breathing inside a soft aura.
                 Button {
                     MtrxHaptics.impact(.medium)
                     presentedChat = ChatLaunch(agent: .trinity)
@@ -205,7 +205,7 @@ struct HomeView: View {
                         Circle()
                             .fill(
                                 RadialGradient(
-                                    colors: [.white.opacity(0.15), .clear],
+                                    colors: [.white.opacity(0.14), .clear],
                                     center: .center,
                                     startRadius: 13,
                                     endRadius: 30
@@ -220,28 +220,35 @@ struct HomeView: View {
                             .frame(width: 42, height: 42)
 
                         Circle()
-                            .fill(
+                            .fill(AngularGradient(colors: Self.bubblePastels, center: .center))
+                            .frame(width: 42, height: 42)
+                            .mask(
                                 RadialGradient(
-                                    colors: [.white.opacity(0.09), .clear],
+                                    colors: [.clear, .white],
                                     center: .center,
-                                    startRadius: 3,
+                                    startRadius: 7,
                                     endRadius: 21
                                 )
                             )
-                            .frame(width: 42, height: 42)
+                            .opacity(0.55)
+                            .rotationEffect(.degrees(orbDrift ? 360 : 0))
 
                         Circle()
-                            .strokeBorder(.white.opacity(0.24), lineWidth: 1)
+                            .strokeBorder(.white.opacity(0.25), lineWidth: 1)
                             .frame(width: 42, height: 42)
                             .scaleEffect(orbPulse ? 1.03 : 0.98)
                     }
                     .frame(width: 46, height: 46)
-                    .shadow(color: .white.opacity(0.22), radius: 10)
+                    .shadow(color: .white.opacity(0.18), radius: 9)
+                    .shadow(color: Color(red: 0.72, green: 0.78, blue: 0.98).opacity(0.25), radius: 16)
                 }
                 .buttonStyle(.plain)
                 .onAppear {
                     withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
                         orbPulse = true
+                    }
+                    withAnimation(.linear(duration: 14).repeatForever(autoreverses: false)) {
+                        orbDrift = true
                     }
                 }
             }
@@ -295,6 +302,18 @@ struct HomeView: View {
 
     /// Drives the breathing of the header orb.
     @State private var orbPulse = false
+    /// Drives the slow drift of its pastel film.
+    @State private var orbDrift = false
+
+    /// Soft pastel film — mint, lavender, peach, butter — like light
+    /// catching a soap bubble.
+    static let bubblePastels: [Color] = [
+        Color(red: 0.62, green: 0.90, blue: 0.85),
+        Color(red: 0.72, green: 0.78, blue: 0.98),
+        Color(red: 0.99, green: 0.80, blue: 0.78),
+        Color(red: 0.99, green: 0.92, blue: 0.72),
+        Color(red: 0.62, green: 0.90, blue: 0.85),
+    ]
 
     // MARK: - Quick Actions
 
@@ -534,6 +553,7 @@ struct HomeView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
+                .offset(y: -5)
             }
         }
     }
