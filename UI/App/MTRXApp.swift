@@ -572,8 +572,9 @@ struct FloatingAgentOrb: View {
                         }
                 )
                 .onTapGesture {
+                    // Opening the popup never undocks her — minimize
+                    // folds the chat right back into this orb.
                     MtrxHaptics.impact(.light)
-                    AgentPresence.shared.clear()
                     onTap()
                 }
         }
