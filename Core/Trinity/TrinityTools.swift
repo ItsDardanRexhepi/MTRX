@@ -253,12 +253,51 @@ struct TrinityWebSearchTool: Tool {
         if let summary = try? await Self.wikipedia(query: query), !summary.isEmpty {
             return summary
         }
+        // 3 — Real web results: top snippets from a live search, for
+        // the everyday questions instant answers don't cover.
+        if let results = try? await Self.duckDuckGoWeb(query: query), !results.isEmpty {
+            return results
+        }
         return """
         The quick lookup returned nothing for "\(query)". Call searchWeb \
         once more with different, simpler terms. If that also comes back \
         empty, answer from your own knowledge with your best reasoned \
         answer — never reply that you can't answer.
         """
+    }
+
+    /// Scrapes the top snippets from DuckDuckGo's HTML results — no API
+    /// key, works for news, how-tos, local facts, and anything current.
+    private static func duckDuckGoWeb(query: String) async throws -> String? {
+        var comps = URLComponents(string: "https://html.duckduckgo.com/html/")!
+        comps.queryItems = [URLQueryItem(name: "q", value: query)]
+        var request = URLRequest(url: comps.url!)
+        request.setValue(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15",
+            forHTTPHeaderField: "User-Agent"
+        )
+        let (data, _) = try await TrinityToolNet.session.data(for: request)
+        guard let html = String(data: data, encoding: .utf8) else { return nil }
+
+        let pattern = #"class="result__snippet"[^>]*>(.*?)</a>"#
+        let regex = try NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators])
+        let range = NSRange(html.startIndex..., in: html)
+        var snippets: [String] = []
+        regex.enumerateMatches(in: html, options: [], range: range) { match, _, stop in
+            if let m = match, let r = Range(m.range(at: 1), in: html) {
+                let stripped = html[r]
+                    .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                    .replacingOccurrences(of: "&amp;", with: "&")
+                    .replacingOccurrences(of: "&#x27;", with: "'")
+                    .replacingOccurrences(of: "&quot;", with: "\"")
+                    .replacingOccurrences(of: "&#39;", with: "'")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !stripped.isEmpty { snippets.append(stripped) }
+                if snippets.count >= 3 { stop.pointee = true }
+            }
+        }
+        guard !snippets.isEmpty else { return nil }
+        return "Top web results for \"\(query)\":\n- " + snippets.joined(separator: "\n- ")
     }
 
     private static func duckDuckGo(query: String) async throws -> String? {

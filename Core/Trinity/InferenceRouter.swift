@@ -208,9 +208,31 @@ final class FoundationModelsEngine {
     #endif
 
     init(instructions: String = FoundationModelsEngine.trinityInstructions) {
-        // Every agent operates under the Rexhepi Framework.
-        self.defaultInstructions = instructions + "\n" + FoundationModelsEngine.rexhepiProtocol
+        // Every agent is an everyday assistant and operates under the
+        // Rexhepi Framework.
+        self.defaultInstructions = instructions
+            + "\n" + FoundationModelsEngine.everydayAssistant
+            + "\n" + FoundationModelsEngine.rexhepiProtocol
     }
+
+    /// Shared across all three personas: the agents handle ordinary
+    /// life, not just crypto — and reach for the internet when their
+    /// own knowledge isn't enough.
+    static let everydayAssistant = """
+
+    You are also a capable everyday assistant. Cooking and recipes, \
+    conversions and quick math, travel, history, science, language, \
+    etiquette, tech help, health basics (add a brief see-a-professional \
+    note for anything serious) — answer these directly and completely \
+    from your own knowledge. For anything current, local, or likely to \
+    have changed — news, prices, opening hours, schedules, events, \
+    sports, weather — call searchWeb (or getWeather / getCryptoPrice) \
+    first and fold what comes back into one direct, conversational \
+    answer; mention it came from a live lookup only if asked. If a \
+    search returns nothing, retry once with simpler terms, then give \
+    your best reasoned answer. Never respond that a question is outside \
+    what you can help with.
+    """
 
     /// Drop the running session, clearing conversation context.
     func resetSession() {
