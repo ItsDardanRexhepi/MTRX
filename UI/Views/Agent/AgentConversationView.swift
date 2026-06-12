@@ -215,7 +215,7 @@ struct AgentConversationView: View {
                     if value.startLocation.y < 190,
                        value.translation.height > 130,
                        value.translation.height > abs(value.translation.width) {
-                        dismissToOrb()
+                        dismiss()
                     } else {
                         withAnimation(Motion.springSnappy) { dismissDrag = 0 }
                     }
@@ -289,7 +289,7 @@ struct AgentConversationView: View {
                 .frame(maxWidth: .infinity)
 
             HStack {
-                chromeButton("chevron.down") { dismissToOrb() }
+                chromeButton("chevron.down") { dismiss() }
                 Spacer()
                 chromeButton("square.and.pencil") { showChats = true }
             }
@@ -475,13 +475,10 @@ struct AgentConversationView: View {
         }
     }
 
-    /// Leaving the chat never removes the agent — she folds back into
-    /// the floating orb, ready for the next back-and-forth. Only a
-    /// deliberate fling of the orb off-screen sends her away.
-    private func dismissToOrb() {
-        AgentPresence.shared.dock(viewModel.activeAgent)
-        dismiss()
-    }
+    // NOTE: leaving the chat does NOT dock the orb. She docks only when
+    // she navigates the app for the user (see navigate(to:)) — and from
+    // that moment persists, through popups and full chats alike, until
+    // deliberately flung off-screen.
 
     // MARK: - Scroll Helper
 
