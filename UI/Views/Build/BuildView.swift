@@ -134,6 +134,11 @@ struct BuildView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
+                // The ocean fills the whole screen from the first frame —
+                // never sized by the content above it, so loading states
+                // can't expose black edges.
+                MtrxGradientBackground(style: .primary)
+
                 VStack(spacing: 0) {
                     segmentControl
                         .padding(.horizontal, Spacing.contentPadding)
@@ -142,6 +147,7 @@ struct BuildView: View {
                     Group {
                         if viewModel.isLoading && viewModel.contracts.isEmpty {
                             MtrxLoadingView(rows: 8)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         } else {
                             switch viewModel.selectedSegment {
                             case .contracts:
@@ -154,7 +160,6 @@ struct BuildView: View {
                         }
                     }
                 }
-                .background(MtrxGradientBackground(style: .primary))
 
                 // FAB
                 if viewModel.selectedSegment == .contracts && !viewModel.contracts.isEmpty {

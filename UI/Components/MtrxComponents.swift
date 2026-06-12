@@ -57,7 +57,12 @@ extension View {
     @ViewBuilder
     func mtrxLiquidGlass<S: Shape>(in shape: S) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular, in: shape)
+            // Clip first: glassEffect draws glass within the shape but
+            // leaves the view's own backgrounds rectangular — unclipped
+            // tint layers would ghost past the rounded corners.
+            self
+                .clipShape(shape)
+                .glassEffect(.regular, in: shape)
         } else {
             self
                 .background(.ultraThinMaterial)

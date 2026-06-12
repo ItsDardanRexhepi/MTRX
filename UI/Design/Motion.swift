@@ -146,33 +146,21 @@ extension View {
 
 struct ShimmerModifier: ViewModifier {
     let isActive: Bool
-    @State private var phase: CGFloat = 0
+    @State private var dimmed = false
 
+    // A calm breath instead of a sweeping band: the placeholder rows
+    // gently fade in and out. No overlays, no bands, nothing to smear
+    // across the screen — just quiet anticipation.
     func body(content: Content) -> some View {
         if isActive {
             content
-                .overlay(
-                    GeometryReader { geometry in
-                        LinearGradient(
-                            colors: [
-                                .clear,
-                                .white.opacity(0.3),
-                                .clear
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                        .frame(width: geometry.size.width * 0.6)
-                        .offset(x: phase * geometry.size.width * 1.6 - geometry.size.width * 0.3)
-                    }
-                )
-                .clipped()
+                .opacity(dimmed ? 0.45 : 0.9)
                 .onAppear {
                     withAnimation(
-                        .linear(duration: 1.5)
-                        .repeatForever(autoreverses: false)
+                        .easeInOut(duration: 1.0)
+                        .repeatForever(autoreverses: true)
                     ) {
-                        phase = 1
+                        dimmed = true
                     }
                 }
         } else {
