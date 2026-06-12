@@ -257,16 +257,18 @@ struct AgentConversationView: View {
     }
 
     private var agentSpaceHeader: some View {
-        HStack(spacing: Spacing.sm) {
-            chromeButton("chevron.down") { dismiss() }
-
-            Spacer(minLength: 0)
-
+        // ZStack layout: the capsule centers itself and the chrome
+        // buttons pin to the padded edges — neither can ever push the
+        // other off-screen, whatever the capsule's width.
+        ZStack {
             switcherCapsule
+                .frame(maxWidth: .infinity)
 
-            Spacer(minLength: 0)
-
-            chromeButton("square.and.pencil") { showChats = true }
+            HStack {
+                chromeButton("chevron.down") { dismiss() }
+                Spacer()
+                chromeButton("square.and.pencil") { showChats = true }
+            }
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
@@ -331,7 +333,7 @@ struct AgentConversationView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
-                        .fixedSize()
+                        .minimumScaleFactor(0.8)
 
                     Circle()
                         .fill(Color.statusSuccess)

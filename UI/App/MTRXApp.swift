@@ -119,35 +119,30 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             DiscoverView()
-                .tabArrival(active: selectedTab == .discover)
                 .tabItem {
                     Label("Discover", systemImage: Symbols.discover)
                 }
                 .tag(AppTab.discover)
 
             BuildView()
-                .tabArrival(active: selectedTab == .build)
                 .tabItem {
                     Label("Build", systemImage: Symbols.build)
                 }
                 .tag(AppTab.build)
 
             HomeView()
-                .tabArrival(active: selectedTab == .home)
                 .tabItem {
                     Label("Home", systemImage: Symbols.home)
                 }
                 .tag(AppTab.home)
 
             SocialView()
-                .tabArrival(active: selectedTab == .social)
                 .tabItem {
                     Label("Social", systemImage: Symbols.social)
                 }
                 .tag(AppTab.social)
 
             AccountView()
-                .tabArrival(active: selectedTab == .account)
                 .tabItem {
                     Label("Account", systemImage: Symbols.account)
                 }
@@ -171,35 +166,6 @@ struct MainTabView: View {
         .onChange(of: selectedTab) { _, _ in
             MtrxHaptics.selection()
         }
-    }
-}
-
-// MARK: - Tab Arrival Transition
-
-/// Each tab settles into place on a spring when selected — a breath of
-/// scale and light, transform/opacity only, so it rides the compositor
-/// at full ProMotion rate. State inside the tab is untouched.
-private struct TabArrival: ViewModifier {
-    let active: Bool
-    @State private var settled = true
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(settled ? 1 : 0.45)
-            .scaleEffect(settled ? 1 : 0.982)
-            .onChange(of: active) { _, isNowActive in
-                guard isNowActive else { return }
-                settled = false
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
-                    settled = true
-                }
-            }
-    }
-}
-
-extension View {
-    func tabArrival(active: Bool) -> some View {
-        modifier(TabArrival(active: active))
     }
 }
 

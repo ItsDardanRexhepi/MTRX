@@ -101,7 +101,7 @@ final class AgentConversationViewModel: ObservableObject {
         if let recent = store.conversations.first, !recent.messages.isEmpty {
             openConversation(recent)
         } else {
-            startNewConversation(agent: .trinity, announce: false)
+            startNewConversation(agent: .trinity, announce: true)
         }
 
         // Continuously persist the active conversation as it changes.

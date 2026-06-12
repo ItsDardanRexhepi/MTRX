@@ -12,19 +12,19 @@ enum Motion {
     // MARK: - Spring Animations (Apple HIG)
 
     /// Default interactive spring — responsive feel for UI interactions
-    static let springDefault = Animation.spring(response: 0.35, dampingFraction: 0.85, blendDuration: 0)
+    static let springDefault = Animation.spring(response: 0.22, dampingFraction: 0.88, blendDuration: 0)
 
     /// Snappy spring — quick, crisp animations for toggles and selections
-    static let springSnappy = Animation.spring(response: 0.25, dampingFraction: 0.9, blendDuration: 0)
+    static let springSnappy = Animation.spring(response: 0.16, dampingFraction: 0.92, blendDuration: 0)
 
     /// Bouncy spring — playful animations for success states and celebrations
-    static let springBouncy = Animation.spring(response: 0.5, dampingFraction: 0.65, blendDuration: 0)
+    static let springBouncy = Animation.spring(response: 0.32, dampingFraction: 0.7, blendDuration: 0)
 
     /// Gentle spring — smooth, relaxed animations for large transitions
-    static let springGentle = Animation.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0)
+    static let springGentle = Animation.spring(response: 0.35, dampingFraction: 0.84, blendDuration: 0)
 
     /// Stiff spring — minimal overshoot for precise movements
-    static let springStiff = Animation.spring(response: 0.2, dampingFraction: 0.95, blendDuration: 0)
+    static let springStiff = Animation.spring(response: 0.13, dampingFraction: 0.95, blendDuration: 0)
 
     // MARK: - Standard Durations (Apple HIG)
 
@@ -65,7 +65,7 @@ enum Motion {
     /// Calculate stagger delay for list animations
     /// - Parameter index: Item index in the list
     /// - Returns: Delay interval for the item
-    static func staggerDelay(for index: Int, baseDelay: Double = 0.05) -> Double {
+    static func staggerDelay(for index: Int, baseDelay: Double = 0.025) -> Double {
         Double(index) * baseDelay
     }
 

@@ -403,7 +403,7 @@ struct AccountView: View {
     }
 
     private var moneySection: some View {
-        spaceGrid("Your money", delay: 0.10) {
+        spaceGrid("Your money", delay: 0.05) {
             QuickActionCard(icon: Symbols.wallet, label: "Wallet & Portfolio", color: .statusInfo, destination: .wallet, onOpen: { presentedDestination = $0 })
             QuickActionCard(icon: Symbols.stake, label: "Staking & DeFi", color: .accentPrimary, destination: .staking, onOpen: { presentedDestination = $0 })
             QuickActionCard(icon: "bell.fill", label: "Alerts", color: .statusError, destination: .alerts, onOpen: { presentedDestination = $0 })
@@ -412,7 +412,7 @@ struct AccountView: View {
     }
 
     private var identitySection: some View {
-        spaceGrid("Your identity", delay: 0.14) {
+        spaceGrid("Your identity", delay: 0.07) {
             QuickActionCard(icon: "person.text.rectangle", label: "Verification", color: .statusInfo, destination: .kyc, onOpen: { presentedDestination = $0 })
             QuickActionCard(icon: "seal.fill", label: "Credentials", color: .statusSuccess, destination: .credentials, onOpen: { presentedDestination = $0 })
             QuickActionCard(icon: "star.fill", label: "Reputation", color: .accentTertiary, destination: .reputation, onOpen: { presentedDestination = $0 })
@@ -421,7 +421,7 @@ struct AccountView: View {
     }
 
     private var workspaceSection: some View {
-        spaceGrid("Your workspace", delay: 0.18) {
+        spaceGrid("Your workspace", delay: 0.09) {
             QuickActionCard(icon: Symbols.dao, label: "Governance", color: .accentTertiary, destination: .governance, onOpen: { presentedDestination = $0 })
             QuickActionCard(icon: Symbols.message, label: "Messaging", color: .statusSuccess, destination: .messaging, onOpen: { presentedDestination = $0 })
             QuickActionCard(icon: "building.columns", label: "Treasury", color: .accentPrimary, destination: .treasury, onOpen: { presentedDestination = $0 })
@@ -446,7 +446,7 @@ struct AccountView: View {
             .background(Color.surfaceCard)
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
         }
-        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.22)
+        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.11)
     }
 
     private var supportSection: some View {
@@ -478,7 +478,7 @@ struct AccountView: View {
             .background(Color.surfaceCard)
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
         }
-        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.26)
+        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.13)
     }
 
     private func identityRow(destination: AccountNavDestination, icon: String, iconColor: Color, title: String) -> some View {
