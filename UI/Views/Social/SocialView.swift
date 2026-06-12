@@ -364,6 +364,7 @@ struct SocialView: View {
                         }
                         .frame(width: 30, height: 30)
                         .clipShape(Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.28), lineWidth: 1))
                     }
                 }
 

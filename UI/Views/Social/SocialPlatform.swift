@@ -23,6 +23,7 @@ final class SocialIdentity: ObservableObject {
     @AppStorage("com.mtrx.social.username") var username: String = ""
     @AppStorage("com.mtrx.social.bio") var bio: String = "Building on MTRX."
     @Published var avatarImage: UIImage?
+    @Published var bannerImage: UIImage?
 
     static let mediaDirectory: URL = {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -32,10 +33,14 @@ final class SocialIdentity: ObservableObject {
     }()
 
     private var avatarURL: URL { Self.mediaDirectory.appendingPathComponent("avatar.jpg") }
+    private var bannerURL: URL { Self.mediaDirectory.appendingPathComponent("banner.jpg") }
 
     private init() {
         if let data = try? Data(contentsOf: avatarURL) {
             avatarImage = UIImage(data: data)
+        }
+        if let data = try? Data(contentsOf: bannerURL) {
+            bannerImage = UIImage(data: data)
         }
     }
 
@@ -43,6 +48,13 @@ final class SocialIdentity: ObservableObject {
         avatarImage = image
         if let data = image.jpegData(compressionQuality: 0.85) {
             try? data.write(to: avatarURL, options: .atomic)
+        }
+    }
+
+    func updateBanner(_ image: UIImage) {
+        bannerImage = image
+        if let data = image.jpegData(compressionQuality: 0.85) {
+            try? data.write(to: bannerURL, options: .atomic)
         }
     }
 
@@ -408,6 +420,7 @@ struct SocialProfileSheet: View {
     @State private var showImport = false
 
     @State private var avatarPickerItem: PhotosPickerItem?
+    @State private var bannerPickerItem: PhotosPickerItem?
     @State private var editingName = ""
     @State private var editingUsername = ""
     @State private var editingBio = ""
@@ -419,13 +432,35 @@ struct SocialProfileSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Banner with the avatar overlapping its bottom edge.
+                    // The banner itself is a photo picker — tap to set yours.
                     ZStack(alignment: .bottomLeading) {
-                        LinearGradient(
-                            colors: [Color.trinityPrimary.opacity(0.55), Color.trinitySecondary.opacity(0.35), Color.backgroundPrimary],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .frame(height: 130)
+                        PhotosPicker(selection: $bannerPickerItem, matching: .images) {
+                            ZStack(alignment: .topTrailing) {
+                                Group {
+                                    if let banner = identity.bannerImage {
+                                        Image(uiImage: banner)
+                                            .resizable()
+                                            .scaledToFill()
+                                    } else {
+                                        LinearGradient(
+                                            colors: [Color.trinityPrimary.opacity(0.55), Color.trinitySecondary.opacity(0.35), Color.backgroundPrimary],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    }
+                                }
+                                .frame(height: 130)
+                                .frame(maxWidth: .infinity)
+                                .clipped()
+
+                                Image(systemName: "camera.circle.fill")
+                                    .font(.system(size: 24))
+                                    .foregroundStyle(Color.accentPrimary)
+                                    .background(Circle().fill(Color.backgroundPrimary))
+                                    .padding(Spacing.sm)
+                            }
+                        }
+                        .buttonStyle(.plain)
 
                         PhotosPicker(selection: $avatarPickerItem, matching: .images) {
                             ZStack(alignment: .bottomTrailing) {
@@ -661,6 +696,17 @@ struct SocialProfileSheet: View {
                         MtrxHaptics.success()
                     }
                     avatarPickerItem = nil
+                }
+            }
+            .onChange(of: bannerPickerItem) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        identity.updateBanner(image)
+                        MtrxHaptics.success()
+                    }
+                    bannerPickerItem = nil
                 }
             }
         }
