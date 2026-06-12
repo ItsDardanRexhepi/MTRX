@@ -97,6 +97,11 @@ struct MessageThread: Identifiable {
 @MainActor
 final class SocialViewModel: ObservableObject {
 
+    /// One feed for the whole app — the Social tab and the Home feed
+    /// window read and write the same posts, so a like anywhere is a
+    /// like everywhere.
+    static let shared = SocialViewModel()
+
     // MARK: State
 
     @Published var selectedTab: SocialTab = .feed
@@ -303,7 +308,7 @@ final class SocialViewModel: ObservableObject {
 // MARK: - Social View
 
 struct SocialView: View {
-    @StateObject private var viewModel = SocialViewModel()
+    @ObservedObject private var viewModel = SocialViewModel.shared
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var socialIdentity = SocialIdentity.shared
     @ObservedObject private var theme = SocialTheme.shared

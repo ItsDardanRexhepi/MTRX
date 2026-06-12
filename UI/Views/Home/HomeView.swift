@@ -12,6 +12,8 @@ struct HomeView: View {
     @EnvironmentObject var walletManager: WalletManager
     @ObservedObject private var chatStore = ConversationStore.shared
     @ObservedObject private var dailyFlow = DailyFlow.shared
+    @ObservedObject private var socialFeed = SocialViewModel.shared
+    @State private var feedPage = 0
 
     @State private var presentedChat: ChatLaunch?
     @State private var appeared = false
@@ -46,6 +48,9 @@ struct HomeView: View {
 
                     quickActionsSection
                         .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
+
+                    homeFeedSection
+                        .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
                 }
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.top, Spacing.md)
@@ -451,6 +456,84 @@ struct HomeView: View {
                     )
             )
             .shadow(color: Color.trinityPrimary.opacity(0.08), radius: 14, y: 6)
+    }
+
+    // MARK: - Home Feed Window
+
+    /// The social feed, living on Home: one post at a time in a paged
+    /// window — swipe through chronologically, like and repost right
+    /// here, and it's the same feed the Social tab shows.
+    private var feedPosts: [SocialPostDisplay] {
+        Array(socialFeed.posts.sorted { $0.timestamp > $1.timestamp }.prefix(12))
+    }
+
+    private var homeFeedSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.ms) {
+            HStack(alignment: .firstTextBaseline) {
+                sectionTitle("Your feed")
+                Spacer()
+                Button {
+                    MtrxHaptics.selection()
+                    NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": 3])
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("Open Social")
+                            .font(.mtrxCaption1)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.trinityPrimary.opacity(0.85))
+                }
+                .buttonStyle(.plain)
+            }
+
+            if feedPosts.isEmpty {
+                Text("Your feed is warming up.")
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelTertiary)
+                    .frame(maxWidth: .infinity, minHeight: 120)
+            } else {
+                TabView(selection: $feedPage) {
+                    ForEach(Array(feedPosts.enumerated()), id: \.element.id) { index, post in
+                        PostCardView(
+                            post: post,
+                            onLike: { socialFeed.toggleLike(postId: post.id) },
+                            onRepost: { socialFeed.toggleRepost(postId: post.id) }
+                        )
+                        .padding(Spacing.ms)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .background(.ultraThinMaterial)
+                        .background(Color.trinityPrimary.opacity(0.03))
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [.white.opacity(0.10), .white.opacity(0.02)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(height: 264)
+
+                // Quiet position dots — you always know where you are.
+                HStack(spacing: 5) {
+                    ForEach(0..<min(feedPosts.count, 12), id: \.self) { index in
+                        Capsule()
+                            .fill(index == feedPage ? Color.trinityPrimary : Color.labelQuaternary.opacity(0.5))
+                            .frame(width: index == feedPage ? 14 : 5, height: 5)
+                            .animation(Motion.springSnappy, value: feedPage)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
     }
 
     // MARK: - Helpers
