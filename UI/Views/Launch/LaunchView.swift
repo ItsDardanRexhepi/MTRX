@@ -14,6 +14,7 @@ struct LaunchView: View {
     @State private var orbOpacity: Double = 0
     @State private var haloScale: CGFloat = 0.2
     @State private var haloOpacity: Double = 0
+    @State private var drift = false
     @State private var wordmarkOpacity: Double = 0
     @State private var wordmarkOffset: CGFloat = 16
     @State private var taglineOpacity: Double = 0
@@ -34,43 +35,54 @@ struct LaunchView: View {
             .ignoresSafeArea()
 
             VStack(spacing: Spacing.lg) {
-                // The orb — layered light, gently breathing.
-                // The halo is an angular gradient faded out by a radial mask:
-                // it dissolves to transparent well inside its own bounds, so it
-                // can never paint a hard layer edge the way a blur can.
+                // The bubble — the same soap-bubble orb that lives
+                // throughout the app, breathing into existence. The aura
+                // is pure light, even on every side, so it blends into
+                // the ocean all the way around.
                 ZStack {
                     Circle()
                         .fill(
-                            AngularGradient(
-                                colors: [.trinityPrimary, .statusSuccess, .accentPrimary, .purple.opacity(0.7), .trinityPrimary],
-                                center: .center
-                            )
-                        )
-                        .frame(width: 168, height: 168)
-                        .mask(
                             RadialGradient(
-                                colors: [.white, .white.opacity(0)],
+                                colors: [
+                                    .white.opacity(0.16),
+                                    Color(red: 0.72, green: 0.78, blue: 0.98).opacity(0.10),
+                                    .clear
+                                ],
                                 center: .center,
-                                startRadius: 34,
+                                startRadius: 30,
                                 endRadius: 84
                             )
                         )
+                        .frame(width: 168, height: 168)
                         .scaleEffect(haloScale * (breathe ? 1.06 : 0.96))
-                        .opacity(haloOpacity * 0.8)
+                        .opacity(haloOpacity)
 
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [.white.opacity(0.95), .trinityPrimary, Color(red: 0.02, green: 0.45, blue: 0.55)],
-                                center: .init(x: 0.36, y: 0.30),
-                                startRadius: 2,
-                                endRadius: 64
+                    ZStack {
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.32)
+
+                        Circle()
+                            .fill(AngularGradient(colors: HomeView.bubblePastels, center: .center))
+                            .opacity(0.60)
+                            .rotationEffect(.degrees(drift ? 360 : 0))
+
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [.white.opacity(0.42), .white.opacity(0.08), .clear],
+                                    center: .center,
+                                    startRadius: 2,
+                                    endRadius: 52
+                                )
                             )
-                        )
-                        .frame(width: 96, height: 96)
-                        .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
-                        .scaleEffect(orbScale * (breathe ? 1.02 : 0.99))
-                        .opacity(orbOpacity)
+
+                        Circle()
+                            .strokeBorder(.white.opacity(0.28), lineWidth: 1)
+                    }
+                    .frame(width: 96, height: 96)
+                    .scaleEffect(orbScale * (breathe ? 1.02 : 0.99))
+                    .opacity(orbOpacity)
                 }
                 .frame(width: 132, height: 132)
 
@@ -107,9 +119,12 @@ struct LaunchView: View {
             haloScale = 1
             haloOpacity = 1
         }
-        // It breathes while the wordmark arrives.
+        // It breathes while the wordmark arrives, pastels drifting.
         withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
             breathe = true
+        }
+        withAnimation(.linear(duration: 14).repeatForever(autoreverses: false)) {
+            drift = true
         }
         withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.45)) {
             wordmarkOpacity = 1
