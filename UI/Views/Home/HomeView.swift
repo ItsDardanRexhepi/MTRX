@@ -500,6 +500,7 @@ struct HomeView: View {
                             onLike: { socialFeed.toggleLike(postId: post.id) },
                             onRepost: { socialFeed.toggleRepost(postId: post.id) }
                         )
+                        .lineLimit(4)
                         .padding(Spacing.ms)
                         .frame(maxHeight: .infinity, alignment: .top)
                         .background(.ultraThinMaterial)
@@ -520,7 +521,7 @@ struct HomeView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 264)
+                .frame(height: 204)
 
                 // Quiet position dots — you always know where you are.
                 HStack(spacing: 5) {

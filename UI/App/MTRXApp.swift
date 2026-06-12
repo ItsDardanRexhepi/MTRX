@@ -175,14 +175,13 @@ struct MainTabView: View {
             }
         }
         // The docked agent: after she navigates the app for the user she
-        // stays here as a floating orb — tap to reopen, fling to dismiss.
-        .overlay(alignment: .bottomTrailing) {
+        // stays as a floating orb — drag her anywhere on screen, tap to
+        // reopen, and only a swipe fully off the screen sends her away.
+        .overlay {
             if let agent = presence.docked {
                 FloatingAgentOrb(agent: agent) {
                     reopenedAgent = AgentReopen(agent: agent)
                 }
-                .padding(.trailing, Spacing.md)
-                .padding(.bottom, 116)
                 .transition(.scale(scale: 0.4).combined(with: .opacity))
             }
         }
@@ -220,7 +219,9 @@ struct AgentReopen: Identifiable {
 struct FloatingAgentOrb: View {
     let agent: AgentAccessControl.ActiveAgent
     let onTap: () -> Void
-    @State private var dragOffset: CGSize = .zero
+
+    /// Where she lives on screen — wherever the user last put her.
+    @State private var position: CGPoint?
 
     private var sphereColors: [Color] {
         switch agent {
@@ -231,38 +232,62 @@ struct FloatingAgentOrb: View {
     }
 
     var body: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    colors: sphereColors,
-                    center: .init(x: 0.35, y: 0.3),
-                    startRadius: 2,
-                    endRadius: 34
+        GeometryReader { geo in
+            // She arrives mid-right — clear of the dock, the compose
+            // button, and everything else that lives in the corners.
+            let current = position ?? CGPoint(x: geo.size.width - 44, y: geo.size.height * 0.40)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: sphereColors,
+                        center: .init(x: 0.35, y: 0.3),
+                        startRadius: 2,
+                        endRadius: 34
+                    )
                 )
-            )
-            .frame(width: 54, height: 54)
-            .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
-            .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
-            .offset(dragOffset)
-            .onTapGesture {
-                MtrxHaptics.impact(.light)
-                AgentPresence.shared.clear()
-                onTap()
-            }
-            .gesture(
-                DragGesture()
-                    .onChanged { dragOffset = $0.translation }
-                    .onEnded { value in
-                        // A decisive fling in any direction sends her away.
-                        if abs(value.translation.width) > 70 || abs(value.translation.height) > 70 {
-                            withAnimation(Motion.springSnappy) {
-                                AgentPresence.shared.clear()
-                            }
-                        } else {
-                            withAnimation(Motion.springSnappy) { dragOffset = .zero }
+                .frame(width: 54, height: 54)
+                .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
+                .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+                .position(current)
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            position = value.location
                         }
-                    }
-            )
+                        .onEnded { value in
+                            let size = geo.size
+                            let end = value.predictedEndLocation
+                            let at = value.location
+                            // Only leaving the screen sends her away —
+                            // dragged past an edge, or flung toward one.
+                            let draggedOff = at.x < 10 || at.x > size.width - 10
+                                || at.y < 10 || at.y > size.height - 10
+                            let flungOff = end.x < -40 || end.x > size.width + 40
+                                || end.y < -40 || end.y > size.height + 40
+                            if draggedOff || flungOff {
+                                MtrxHaptics.impact(.light)
+                                withAnimation(Motion.springSnappy) {
+                                    AgentPresence.shared.clear()
+                                }
+                            } else {
+                                // She stays exactly where she was put,
+                                // nudged just enough to stay reachable.
+                                withAnimation(Motion.springSnappy) {
+                                    position = CGPoint(
+                                        x: min(max(at.x, 38), size.width - 38),
+                                        y: min(max(at.y, 80), size.height - 130)
+                                    )
+                                }
+                            }
+                        }
+                )
+                .onTapGesture {
+                    MtrxHaptics.impact(.light)
+                    AgentPresence.shared.clear()
+                    onTap()
+                }
+        }
     }
 }
 
