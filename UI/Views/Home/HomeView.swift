@@ -205,7 +205,9 @@ struct HomeView: View {
             presentedChat = ChatLaunch(agent: .trinity)
         } label: {
             HStack(spacing: Spacing.md) {
-                // Layered gradient sphere with breathing glow.
+                // Layered gradient sphere with breathing glow. The halo fades
+                // out through a radial mask instead of a blur, so it dissolves
+                // softly into the card — no rasterized square edge.
                 ZStack {
                     Circle()
                         .fill(
@@ -214,8 +216,15 @@ struct HomeView: View {
                                 center: .center
                             )
                         )
-                        .frame(width: 64, height: 64)
-                        .blur(radius: 10)
+                        .frame(width: 80, height: 80)
+                        .mask(
+                            RadialGradient(
+                                colors: [.white, .white.opacity(0)],
+                                center: .center,
+                                startRadius: 16,
+                                endRadius: 40
+                            )
+                        )
                         .opacity(orbPulse ? 0.95 : 0.55)
 
                     Circle()
@@ -234,7 +243,7 @@ struct HomeView: View {
                         )
                         .scaleEffect(orbPulse ? 1.04 : 0.97)
                 }
-                .drawingGroup()
+                .frame(width: 64, height: 64)
                 .onAppear {
                     withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
                         orbPulse = true

@@ -95,11 +95,18 @@ struct MtrxCard<Content: View>: View {
     @ViewBuilder
     private var accentOverlay: some View {
         if let edge = accentEdge {
+            // The accent lives in the border itself — a stroke that glows
+            // from the accented edge and fades across the card. No bars
+            // floating against the rounded corners.
             RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
-                .stroke(Color.accentPrimary.opacity(0.3), lineWidth: 1)
-                .overlay(alignment: alignment(for: edge)) {
-                    accentBar(for: edge)
-                }
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.accentPrimary.opacity(0.55), Color.accentPrimary.opacity(0.08)],
+                        startPoint: gradientStart(for: edge),
+                        endPoint: gradientEnd(for: edge)
+                    ),
+                    lineWidth: 1
+                )
         } else if style == .outlined {
             RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
                 .stroke(Color.separatorStandard, lineWidth: 0.5)
@@ -117,7 +124,7 @@ struct MtrxCard<Content: View>: View {
         }
     }
 
-    private func alignment(for edge: Edge) -> Alignment {
+    private func gradientStart(for edge: Edge) -> UnitPoint {
         switch edge {
         case .leading: return .leading
         case .trailing: return .trailing
@@ -126,13 +133,13 @@ struct MtrxCard<Content: View>: View {
         }
     }
 
-    @ViewBuilder
-    private func accentBar(for edge: Edge) -> some View {
-        let isVertical = edge == .leading || edge == .trailing
-        RoundedRectangle(cornerRadius: 2)
-            .fill(Color.accentPrimary)
-            .frame(width: isVertical ? 3 : nil, height: isVertical ? nil : 3)
-            .padding(isVertical ? .vertical : .horizontal, Spacing.sm)
+    private func gradientEnd(for edge: Edge) -> UnitPoint {
+        switch edge {
+        case .leading: return .trailing
+        case .trailing: return .leading
+        case .top: return .bottom
+        case .bottom: return .top
+        }
     }
 
     private var shadowColor: Color {

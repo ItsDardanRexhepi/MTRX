@@ -565,11 +565,8 @@ struct CampaignDetailSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: Symbols.close)
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(Color.labelSecondary)
-                            .frame(width: 30, height: 30)
-                            .background(Color.surfaceOverlay)
-                            .clipShape(Circle())
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.labelPrimary)
                     }
                 }
             }

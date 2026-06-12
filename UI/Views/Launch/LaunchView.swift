@@ -35,6 +35,9 @@ struct LaunchView: View {
 
             VStack(spacing: Spacing.lg) {
                 // The orb — layered light, gently breathing.
+                // The halo is an angular gradient faded out by a radial mask:
+                // it dissolves to transparent well inside its own bounds, so it
+                // can never paint a hard layer edge the way a blur can.
                 ZStack {
                     Circle()
                         .fill(
@@ -43,8 +46,15 @@ struct LaunchView: View {
                                 center: .center
                             )
                         )
-                        .frame(width: 132, height: 132)
-                        .blur(radius: 26)
+                        .frame(width: 168, height: 168)
+                        .mask(
+                            RadialGradient(
+                                colors: [.white, .white.opacity(0)],
+                                center: .center,
+                                startRadius: 34,
+                                endRadius: 84
+                            )
+                        )
                         .scaleEffect(haloScale * (breathe ? 1.06 : 0.96))
                         .opacity(haloOpacity * 0.8)
 
@@ -62,7 +72,7 @@ struct LaunchView: View {
                         .scaleEffect(orbScale * (breathe ? 1.02 : 0.99))
                         .opacity(orbOpacity)
                 }
-                .drawingGroup()
+                .frame(width: 132, height: 132)
 
                 VStack(spacing: Spacing.sm) {
                     Text("MTRX")
