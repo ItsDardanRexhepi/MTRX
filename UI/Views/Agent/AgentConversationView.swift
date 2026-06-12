@@ -317,8 +317,10 @@ struct AgentConversationView: View {
         .overlay(Capsule().stroke(.white.opacity(0.08), lineWidth: 1))
         .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
         // Swipe across the capsule to slide between agents — left for
-        // the next, right for the previous. Tapping still works.
-        .gesture(
+        // the next, right for the previous — like sliding along the
+        // dock. simultaneousGesture so the segment buttons can't
+        // swallow the drag before it reaches us. Tapping still works.
+        .simultaneousGesture(
             DragGesture(minimumDistance: 18)
                 .onEnded { value in
                     guard abs(value.translation.width) > 32,
@@ -347,18 +349,30 @@ struct AgentConversationView: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [.white.opacity(0.85), colors.0, colors.1],
-                            center: .init(x: 0.35, y: 0.28),
-                            startRadius: 1,
-                            endRadius: isActive ? 16 : 13
+                // Each agent is a little soap bubble: glass center, a
+                // film of their pastel hues around the rim, no solids.
+                ZStack {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .opacity(0.35)
+
+                    Circle()
+                        .fill(AngularGradient(colors: bubblePalette(agent), center: .center))
+                        .mask(
+                            RadialGradient(
+                                colors: [.clear, .white],
+                                center: .center,
+                                startRadius: isActive ? 4 : 3,
+                                endRadius: isActive ? 12 : 10
+                            )
                         )
-                    )
-                    .frame(width: isActive ? 24 : 20, height: isActive ? 24 : 20)
-                    .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 0.8))
-                    .shadow(color: colors.0.opacity(isActive ? 0.5 : 0.0), radius: 5)
+                        .opacity(0.75)
+
+                    Circle()
+                        .strokeBorder(.white.opacity(0.30), lineWidth: 0.8)
+                }
+                .frame(width: isActive ? 24 : 20, height: isActive ? 24 : 20)
+                .shadow(color: .white.opacity(isActive ? 0.30 : 0.0), radius: 5)
 
                 if isActive {
                     Text(AgentConversationViewModel.displayName(of: agent))
@@ -387,13 +401,41 @@ struct AgentConversationView: View {
         .buttonStyle(.plain)
     }
 
-    /// Orb color pairs — Morpheus wears rose-crimson here, warmer and
-    /// calmer than alert red.
+    /// Orb color pairs — kept for the active-pill tint, softened to the
+    /// bubble language.
     private func orbPalette(_ agent: AgentAccessControl.ActiveAgent) -> (Color, Color) {
         switch agent {
-        case .trinity: return (.trinityPrimary, .trinitySecondary)
-        case .morpheus: return (Color(red: 0.95, green: 0.36, blue: 0.42), Color(red: 0.58, green: 0.10, blue: 0.24))
-        case .neo: return (.statusSuccess, .accentPrimary)
+        case .trinity: return (Color(red: 0.62, green: 0.88, blue: 0.92), Color(red: 0.72, green: 0.78, blue: 0.98))
+        case .morpheus: return (Color(red: 0.98, green: 0.72, blue: 0.74), Color(red: 0.99, green: 0.85, blue: 0.72))
+        case .neo: return (Color(red: 0.68, green: 0.92, blue: 0.74), Color(red: 0.92, green: 0.97, blue: 0.72))
+        }
+    }
+
+    /// Pastel bubble films, one per agent — the same soap-bubble light
+    /// as the floating orb, each in its own gentle key.
+    private func bubblePalette(_ agent: AgentAccessControl.ActiveAgent) -> [Color] {
+        switch agent {
+        case .trinity:
+            return [
+                Color(red: 0.62, green: 0.90, blue: 0.92),
+                Color(red: 0.72, green: 0.78, blue: 0.98),
+                Color(red: 0.85, green: 0.92, blue: 0.99),
+                Color(red: 0.62, green: 0.90, blue: 0.92),
+            ]
+        case .morpheus:
+            return [
+                Color(red: 0.99, green: 0.74, blue: 0.76),
+                Color(red: 0.99, green: 0.86, blue: 0.72),
+                Color(red: 0.96, green: 0.78, blue: 0.94),
+                Color(red: 0.99, green: 0.74, blue: 0.76),
+            ]
+        case .neo:
+            return [
+                Color(red: 0.68, green: 0.93, blue: 0.76),
+                Color(red: 0.90, green: 0.97, blue: 0.70),
+                Color(red: 0.64, green: 0.92, blue: 0.88),
+                Color(red: 0.68, green: 0.93, blue: 0.76),
+            ]
         }
     }
 
