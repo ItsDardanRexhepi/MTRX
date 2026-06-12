@@ -32,6 +32,8 @@ final class AgentConversationViewModel: ObservableObject {
     @Published var messages: [AgentMessage] = []
     @Published var inputText = ""
     @Published var isTyping = false
+    /// Set when the agent has navigated the app — the chat slides away.
+    @Published var dismissRequested = false
     @Published var activeAgent: AgentAccessControl.ActiveAgent = .trinity
     @Published var showFirstBoot = false
     @Published var isOffline: Bool = false
@@ -257,6 +259,14 @@ final class AgentConversationViewModel: ObservableObject {
             return
         }
 
+        // App navigation — "open my social feed", "take me to the wallet",
+        // "open events". The agent drives the app there, then docks as a
+        // floating orb so she stays one tap away until swiped off.
+        if let destination = Self.appDestination(in: text) {
+            navigate(to: destination)
+            return
+        }
+
         // Check access control
         let intent = UserIntent.parse(text)
         let route = accessControl.routeAgent(for: userID, intent: intent)
@@ -335,6 +345,75 @@ final class AgentConversationViewModel: ObservableObject {
         }
     }
 
+    // MARK: - App Navigation
+
+    enum AppDestination {
+        case tab(Int, String)
+        case service(HomeService, String)
+    }
+
+    /// Detects "open / show / take me to <somewhere in the app>".
+    static func appDestination(in text: String) -> AppDestination? {
+        let lower = text.lowercased()
+        let verbs = ["open", "show", "go to", "goto", "take me", "bring up", "pull up", "launch", "switch to", "navigate"]
+        guard verbs.contains(where: { lower.contains($0) }) else { return nil }
+
+        let services: [(HomeService, [String])] = [
+            (.pay, ["pay tab", "payments", "pay service"]),
+            (.invest, ["invest", "trading"]),
+            (.defi, ["yield", "earn service", "earning"]),
+            (.shop, ["shop", "marketplace"]),
+            (.insure, ["insurance", "insure"]),
+            (.game, ["gaming", "games", "play service"]),
+            (.events, ["event"]),
+            (.domains, ["identity", "domain"]),
+            (.storage, ["storage"]),
+            (.bridge, ["bridge"])
+        ]
+        for (service, keys) in services where keys.contains(where: { lower.contains($0) }) {
+            return .service(service, service.title)
+        }
+
+        let tabs: [(Int, String, [String])] = [
+            (3, "Social", ["social", "feed", "my posts", "stories", "messages"]),
+            (1, "Build", ["build", "contract"]),
+            (4, "Account", ["account", "wallet", "settings", "subscription"]),
+            (0, "Discover", ["discover", "trending"]),
+            (2, "Home", ["home", "dashboard"])
+        ]
+        for (index, name, keys) in tabs where keys.contains(where: { lower.contains($0) }) {
+            return .tab(index, name)
+        }
+        return nil
+    }
+
+    /// Confirms in the room's voice, switches the app underneath, docks
+    /// the agent as a floating orb, then slides the chat away.
+    private func navigate(to destination: AppDestination) {
+        let name: String
+        switch destination {
+        case .tab(_, let n): name = n
+        case .service(_, let n): name = n
+        }
+        let speaker = conversationID.flatMap { store.conversation(id: $0)?.agent } ?? activeAgent
+        messages.append(AgentMessage(
+            text: "On it — opening \(name). I'll be in the corner if you need me.",
+            role: .agent,
+            agentName: Self.displayName(of: speaker)
+        ))
+        AgentPresence.shared.dock(speaker)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+            switch destination {
+            case .tab(let index, _):
+                NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": index])
+            case .service(let service, _):
+                NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": 2])
+                NotificationCenter.default.post(name: .mtrxOpenService, object: nil, userInfo: ["service": service.rawValue])
+            }
+            self?.dismissRequested = true
+        }
+    }
+
     // MARK: - Process With Agent
 
     private func processWithAgent(text: String, agent: AgentAccessControl.ActiveAgent, intercepted: Bool = false) {
@@ -365,6 +444,9 @@ final class AgentConversationViewModel: ObservableObject {
             // attached ONLY when the message is about money, so the model
             // never drifts into reciting the portfolio.
             var contextLine = Self.dateTimeLine()
+            // Every agent sees the same live picture of the user's app
+            // world on every turn — portfolio, plan, and daily rhythm.
+            contextLine += " " + appAwarenessLine()
             if Self.isFinanceRelated(text) {
                 contextLine += " " + liveContextLine()
             }
@@ -428,6 +510,26 @@ final class AgentConversationViewModel: ObservableObject {
                 isTyping = false
             }
         }
+    }
+
+    /// What every agent knows about the app on every turn: portfolio
+    /// value, plan, and how the user's day in the app is going.
+    private func appAwarenessLine() -> String {
+        var bits: [String] = []
+        if let wm = walletManager {
+            bits.append(String(format: "Portfolio $%.2f (%+.2f%% 24h)", wm.totalPortfolioValue, wm.portfolioChange24h))
+        }
+        if let tier = UserDefaults.standard.string(forKey: "com.mtrx.subscriptionTier"), !tier.isEmpty {
+            bits.append("Plan: \(tier)")
+        }
+        let flow = DailyFlow.shared
+        let done = DailyFlow.Goal.allCases
+            .filter { flow.completed.contains($0.rawValue) }
+            .map(\.rawValue)
+        bits.append("Daily flow \(flow.completed.count)/3" + (done.isEmpty ? "" : " (\(done.joined(separator: ", ")) done)"))
+        let name = UserDefaults.standard.string(forKey: "displayName") ?? ""
+        if !name.isEmpty { bits.append("User: \(name)") }
+        return "App state — " + bits.joined(separator: "; ") + "."
     }
 
     /// One-line live snapshot of the user's wallet for grounding

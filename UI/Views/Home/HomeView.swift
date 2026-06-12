@@ -57,6 +57,12 @@ struct HomeView: View {
                 .padding(.bottom, 96)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .mtrxOpenService)) { note in
+            if let raw = note.userInfo?["service"] as? String,
+               let service = HomeService(rawValue: raw) {
+                presentedService = service
+            }
+        }
         .onAppear {
             withAnimation(Motion.springDefault.delay(0.1)) {
                 appeared = true
@@ -669,6 +675,8 @@ final class DailyFlow: ObservableObject {
 extension Notification.Name {
     /// Posted with userInfo ["index": Int] to switch the root tab bar.
     static let mtrxSwitchTab = Notification.Name("com.mtrx.switchTab")
+    /// Posted with userInfo ["service": String] to open a Home service.
+    static let mtrxOpenService = Notification.Name("com.mtrx.openService")
 }
 
 // MARK: - Daily Flow Sheet

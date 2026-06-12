@@ -171,11 +171,6 @@ struct AgentConversationView: View {
                 inputBar
             }
 
-            // The agent space's living edge light.
-            if isModal {
-                edgeGlow
-            }
-
             // Morpheus overlay
             if morpheus.isPresenting, let intervention = morpheus.activeIntervention {
                 MorpheusOverlay(intervention: intervention)
@@ -213,6 +208,14 @@ struct AgentConversationView: View {
                     }
                 }
         )
+        .onChange(of: viewModel.dismissRequested) {
+            // The agent has navigated the app — slide the chat away and
+            // let the floating orb take over.
+            if viewModel.dismissRequested {
+                viewModel.dismissRequested = false
+                dismiss()
+            }
+        }
         .onAppear {
             DailyFlow.shared.mark(.agent)
             viewModel.setup(userID: userID, walletManager: walletManager)
@@ -367,27 +370,6 @@ struct AgentConversationView: View {
         case .morpheus: return (Color(red: 0.95, green: 0.36, blue: 0.42), Color(red: 0.58, green: 0.10, blue: 0.24))
         case .neo: return (.statusSuccess, .accentPrimary)
         }
-    }
-
-    /// The agent space wears a living edge light — the screen border
-    /// glows in the active agent's colors, so the whole surface reads
-    /// as its own layer over the app.
-    private var edgeGlow: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 44, style: .continuous)
-                .strokeBorder(
-                    AngularGradient(
-                        colors: [agentAccent, .purple.opacity(0.6), agentAccent.opacity(0.2), agentAccent],
-                        center: .center
-                    ),
-                    lineWidth: 5
-                )
-                .opacity(0.16)
-            RoundedRectangle(cornerRadius: 44, style: .continuous)
-                .strokeBorder(agentAccent.opacity(0.25), lineWidth: 1.5)
-        }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
     }
 
     // MARK: - Scroll Helper

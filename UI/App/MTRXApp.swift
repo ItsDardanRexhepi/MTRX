@@ -115,6 +115,8 @@ struct MainTabView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var walletManager: WalletManager
     @State private var selectedTab: AppTab = .home
+    @ObservedObject private var presence = AgentPresence.shared
+    @State private var reopenedAgent: AgentReopen?
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -172,6 +174,95 @@ struct MainTabView: View {
                 selectedTab = tab
             }
         }
+        // The docked agent: after she navigates the app for the user she
+        // stays here as a floating orb — tap to reopen, fling to dismiss.
+        .overlay(alignment: .bottomTrailing) {
+            if let agent = presence.docked {
+                FloatingAgentOrb(agent: agent) {
+                    reopenedAgent = AgentReopen(agent: agent)
+                }
+                .padding(.trailing, Spacing.md)
+                .padding(.bottom, 116)
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+            }
+        }
+        .animation(Motion.springDefault, value: presence.docked)
+        .fullScreenCover(item: $reopenedAgent) { launch in
+            AgentConversationView(
+                userID: appState.currentUserID,
+                initialAgent: launch.agent,
+                isModal: true
+            )
+            .environmentObject(appState)
+            .environmentObject(walletManager)
+        }
+    }
+}
+
+// MARK: - Agent Presence (the floating orb)
+
+/// Keeps an agent "around" after she navigates the app for the user —
+/// a floating orb that persists across tabs until swiped away.
+@MainActor
+final class AgentPresence: ObservableObject {
+    static let shared = AgentPresence()
+    @Published var docked: AgentAccessControl.ActiveAgent?
+
+    func dock(_ agent: AgentAccessControl.ActiveAgent) { docked = agent }
+    func clear() { docked = nil }
+}
+
+struct AgentReopen: Identifiable {
+    let id = UUID()
+    let agent: AgentAccessControl.ActiveAgent
+}
+
+struct FloatingAgentOrb: View {
+    let agent: AgentAccessControl.ActiveAgent
+    let onTap: () -> Void
+    @State private var dragOffset: CGSize = .zero
+
+    private var sphereColors: [Color] {
+        switch agent {
+        case .trinity: return [.white.opacity(0.95), .trinityPrimary, Color(red: 0.02, green: 0.45, blue: 0.55)]
+        case .morpheus: return [.white.opacity(0.9), Color(red: 0.95, green: 0.36, blue: 0.42), Color(red: 0.58, green: 0.10, blue: 0.24)]
+        case .neo: return [.white.opacity(0.9), .statusSuccess, Color(red: 0.04, green: 0.36, blue: 0.18)]
+        }
+    }
+
+    var body: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: sphereColors,
+                    center: .init(x: 0.35, y: 0.3),
+                    startRadius: 2,
+                    endRadius: 34
+                )
+            )
+            .frame(width: 54, height: 54)
+            .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
+            .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+            .offset(dragOffset)
+            .onTapGesture {
+                MtrxHaptics.impact(.light)
+                AgentPresence.shared.clear()
+                onTap()
+            }
+            .gesture(
+                DragGesture()
+                    .onChanged { dragOffset = $0.translation }
+                    .onEnded { value in
+                        // A decisive fling in any direction sends her away.
+                        if abs(value.translation.width) > 70 || abs(value.translation.height) > 70 {
+                            withAnimation(Motion.springSnappy) {
+                                AgentPresence.shared.clear()
+                            }
+                        } else {
+                            withAnimation(Motion.springSnappy) { dragOffset = .zero }
+                        }
+                    }
+            )
     }
 }
 
