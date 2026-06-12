@@ -402,26 +402,20 @@ struct FloatingAgentOrb: View {
                     .fill(.ultraThinMaterial)
                     .opacity(0.32)
 
+                // Pastel light fills the whole bubble — no hollow center,
+                // just color softening into a bright heart of light.
                 Circle()
                     .fill(AngularGradient(colors: Self.bubblePastels, center: .center))
-                    .mask(
-                        RadialGradient(
-                            colors: [.clear, .white],
-                            center: .center,
-                            startRadius: 9,
-                            endRadius: 27
-                        )
-                    )
-                    .opacity(0.55)
+                    .opacity(0.60)
                     .rotationEffect(.degrees(drift ? 360 : 0))
 
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [.white.opacity(0.10), .clear],
+                            colors: [.white.opacity(0.38), .white.opacity(0.06), .clear],
                             center: .center,
-                            startRadius: 3,
-                            endRadius: 22
+                            startRadius: 1,
+                            endRadius: 24
                         )
                     )
 

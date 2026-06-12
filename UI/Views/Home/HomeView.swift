@@ -222,16 +222,19 @@ struct HomeView: View {
                         Circle()
                             .fill(AngularGradient(colors: Self.bubblePastels, center: .center))
                             .frame(width: 42, height: 42)
-                            .mask(
+                            .opacity(0.60)
+                            .rotationEffect(.degrees(orbDrift ? 360 : 0))
+
+                        Circle()
+                            .fill(
                                 RadialGradient(
-                                    colors: [.clear, .white],
+                                    colors: [.white.opacity(0.38), .white.opacity(0.06), .clear],
                                     center: .center,
-                                    startRadius: 7,
-                                    endRadius: 21
+                                    startRadius: 1,
+                                    endRadius: 19
                                 )
                             )
-                            .opacity(0.55)
-                            .rotationEffect(.degrees(orbDrift ? 360 : 0))
+                            .frame(width: 42, height: 42)
 
                         Circle()
                             .strokeBorder(.white.opacity(0.25), lineWidth: 1)

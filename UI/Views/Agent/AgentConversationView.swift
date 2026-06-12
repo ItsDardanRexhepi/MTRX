@@ -358,15 +358,17 @@ struct AgentConversationView: View {
 
                     Circle()
                         .fill(AngularGradient(colors: bubblePalette(agent), center: .center))
-                        .mask(
+                        .opacity(0.80)
+
+                    Circle()
+                        .fill(
                             RadialGradient(
-                                colors: [.clear, .white],
+                                colors: [.white.opacity(0.40), .clear],
                                 center: .center,
-                                startRadius: isActive ? 4 : 3,
-                                endRadius: isActive ? 12 : 10
+                                startRadius: 1,
+                                endRadius: isActive ? 11 : 9
                             )
                         )
-                        .opacity(0.75)
 
                     Circle()
                         .strokeBorder(.white.opacity(0.30), lineWidth: 0.8)
