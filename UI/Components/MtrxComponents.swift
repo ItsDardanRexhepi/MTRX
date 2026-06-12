@@ -48,6 +48,28 @@ struct MtrxGradientBackground: View {
     }
 }
 
+// MARK: - Liquid Glass
+
+extension View {
+    /// The app's measured take on Liquid Glass: real system glass on
+    /// iOS 26 — refraction, depth, the live sheen — with a graceful
+    /// material fallback elsewhere. One call, any shape.
+    @ViewBuilder
+    func mtrxLiquidGlass<S: Shape>(in shape: S) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular, in: shape)
+        } else {
+            self
+                .background(.ultraThinMaterial)
+                .clipShape(shape)
+        }
+    }
+
+    func mtrxLiquidGlass(cornerRadius: CGFloat = Spacing.CornerRadius.lg) -> some View {
+        mtrxLiquidGlass(in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
 // MARK: - Glass Card
 
 struct MtrxCard<Content: View>: View {
@@ -60,28 +82,35 @@ struct MtrxCard<Content: View>: View {
     }
 
     var body: some View {
-        content()
-            .padding(Spacing.cardPadding)
-            .background(cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
-            .overlay(accentOverlay)
-            .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
+        Group {
+            if style == .standard || style == .glass {
+                // Liquid glass body with a breath of signature tint.
+                content()
+                    .padding(Spacing.cardPadding)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.trinityPrimary.opacity(0.055), Color.clear],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
+            } else {
+                content()
+                    .padding(Spacing.cardPadding)
+                    .background(cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+            }
+        }
+        .overlay(accentOverlay)
+        .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
     }
 
     @ViewBuilder
     private var cardBackground: some View {
         switch style {
         case .standard, .glass:
-            // Layered glass: material, a breath of signature tint,
-            // light falling from the top-left.
-            ZStack {
-                Color.clear.background(.ultraThinMaterial)
-                LinearGradient(
-                    colors: [Color.trinityPrimary.opacity(0.055), Color.clear],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
+            Color.clear
         case .elevated:
             ZStack {
                 Color.surfaceElevated.opacity(0.65)

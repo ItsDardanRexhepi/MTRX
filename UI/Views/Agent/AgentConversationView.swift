@@ -313,8 +313,7 @@ struct AgentConversationView: View {
             }
         }
         .padding(4)
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
+        .mtrxLiquidGlass(in: Capsule())
         .overlay(Capsule().stroke(.white.opacity(0.08), lineWidth: 1))
         .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
         // Swipe across the capsule to slide between agents — left for

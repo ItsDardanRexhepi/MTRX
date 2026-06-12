@@ -337,9 +337,8 @@ struct HomeView: View {
             .padding(.vertical, Spacing.xs)
             .padding(.horizontal, Spacing.ms)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .background(.ultraThinMaterial)
             .background(service.color.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+            .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
             .overlay(
                 RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
                     .stroke(service.color.opacity(0.22), lineWidth: 1)
@@ -374,9 +373,8 @@ struct HomeView: View {
             .padding(.vertical, Spacing.xs)
             .padding(.horizontal, Spacing.ms)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .background(.ultraThinMaterial)
             .background(color.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+            .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
             .overlay(
                 RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
                     .stroke(color.opacity(0.22), lineWidth: 1)
@@ -441,9 +439,8 @@ struct HomeView: View {
                 }
             }
             .padding(Spacing.ms)
-            .background(.ultraThinMaterial)
             .background(Color.trinityPrimary.opacity(0.035))
-            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+            .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
             .overlay(
                 RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
                     .stroke(
@@ -503,9 +500,8 @@ struct HomeView: View {
                         .lineLimit(3)
                         .padding(Spacing.ms)
                         .frame(maxHeight: .infinity, alignment: .top)
-                        .background(.ultraThinMaterial)
                         .background(Color.trinityPrimary.opacity(0.03))
-                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+                        .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
                         .overlay(
                             RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
                                 .stroke(
