@@ -381,41 +381,30 @@ struct FloatingAgentOrb: View {
             // button, and everything else that lives in the corners.
             let current = position ?? CGPoint(x: geo.size.width - 44, y: geo.size.height * 0.40)
 
-            // Airy, not heavy: a glass bubble — barely-there material,
-            // a breath of the agent's color, light running around the
-            // rim, and a glow instead of a drop shadow. Nothing solid.
+            // Pure presence, no color: a transparent circle of barely-
+            // there glass with a soft aura of light around it. No shine,
+            // no reflections, nothing solid — just a quiet ring of light.
             ZStack {
                 Circle()
                     .fill(.ultraThinMaterial)
-                    .opacity(0.55)
+                    .opacity(0.32)
 
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [tint.opacity(0.30), tint.opacity(0.05), .clear],
-                            center: .init(x: 0.42, y: 0.36),
-                            startRadius: 2,
-                            endRadius: 28
+                            colors: [.white.opacity(0.09), .clear],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 27
                         )
                     )
 
                 Circle()
-                    .strokeBorder(
-                        AngularGradient(
-                            colors: [tint.opacity(0.9), .white.opacity(0.85), tint.opacity(0.12), tint.opacity(0.9)],
-                            center: .center
-                        ),
-                        lineWidth: 1.2
-                    )
-
-                // Specular kiss of light.
-                Circle()
-                    .fill(.white.opacity(0.8))
-                    .frame(width: 5, height: 5)
-                    .offset(x: -11, y: -13)
+                    .strokeBorder(.white.opacity(0.22), lineWidth: 1)
             }
             .frame(width: 54, height: 54)
-            .shadow(color: tint.opacity(0.35), radius: 14)
+            .shadow(color: .white.opacity(0.30), radius: 14)
+            .shadow(color: .white.opacity(0.10), radius: 30)
                 .position(current)
                 .gesture(
                     DragGesture()

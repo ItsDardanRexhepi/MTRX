@@ -195,6 +195,8 @@ struct HomeView: View {
                 Spacer()
 
                 // The agent orb, top right — one tap into the agent space.
+                // Colorless and transparent: a circle of glass breathing
+                // inside a soft aura of pure light.
                 Button {
                     MtrxHaptics.impact(.medium)
                     presentedChat = ChatLaunch(agent: .trinity)
@@ -202,36 +204,39 @@ struct HomeView: View {
                     ZStack {
                         Circle()
                             .fill(
-                                AngularGradient(
-                                    colors: [.trinityPrimary, .purple, .statusError, .orange, .statusSuccess, .trinityPrimary],
-                                    center: .center
-                                )
-                            )
-                            .frame(width: 56, height: 56)
-                            .mask(
                                 RadialGradient(
-                                    colors: [.white, .white.opacity(0)],
+                                    colors: [.white.opacity(0.15), .clear],
                                     center: .center,
-                                    startRadius: 11,
-                                    endRadius: 28
+                                    startRadius: 13,
+                                    endRadius: 30
                                 )
                             )
-                            .opacity(orbPulse ? 0.95 : 0.55)
+                            .frame(width: 60, height: 60)
+                            .opacity(orbPulse ? 1.0 : 0.5)
+
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.32)
+                            .frame(width: 42, height: 42)
 
                         Circle()
                             .fill(
                                 RadialGradient(
-                                    colors: [.white.opacity(0.95), .trinityPrimary, .trinitySecondary.opacity(0.8)],
-                                    center: .init(x: 0.35, y: 0.3),
-                                    startRadius: 2,
-                                    endRadius: 27
+                                    colors: [.white.opacity(0.09), .clear],
+                                    center: .center,
+                                    startRadius: 3,
+                                    endRadius: 21
                                 )
                             )
                             .frame(width: 42, height: 42)
-                            .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
-                            .scaleEffect(orbPulse ? 1.04 : 0.97)
+
+                        Circle()
+                            .strokeBorder(.white.opacity(0.24), lineWidth: 1)
+                            .frame(width: 42, height: 42)
+                            .scaleEffect(orbPulse ? 1.03 : 0.98)
                     }
                     .frame(width: 46, height: 46)
+                    .shadow(color: .white.opacity(0.22), radius: 10)
                 }
                 .buttonStyle(.plain)
                 .onAppear {

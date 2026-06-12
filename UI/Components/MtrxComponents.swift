@@ -140,11 +140,12 @@ struct MtrxCard<Content: View>: View {
             RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
                 .stroke(Color.separatorStandard, lineWidth: 0.5)
         } else {
-            // Lit hairline — the edge that catches the light.
+            // Lit hairline — light falls from above, so the top edge
+            // catches it and the bottom edge falls quietly away.
             RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
                 .stroke(
                     LinearGradient(
-                        colors: [.white.opacity(0.12), .white.opacity(0.02)],
+                        colors: [.white.opacity(0.16), .white.opacity(0.015)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
@@ -171,11 +172,13 @@ struct MtrxCard<Content: View>: View {
         }
     }
 
+    // Deep, diffuse, unhurried — shadows that suggest weight without
+    // ever looking attached to the card.
     private var shadowColor: Color {
-        style == .elevated ? Color.black.opacity(0.30) : Color.black.opacity(0.20)
+        style == .elevated ? Color.black.opacity(0.32) : Color.black.opacity(0.24)
     }
-    private var shadowRadius: CGFloat { style == .elevated ? 16 : 10 }
-    private var shadowY: CGFloat { style == .elevated ? 6 : 4 }
+    private var shadowRadius: CGFloat { style == .elevated ? 20 : 15 }
+    private var shadowY: CGFloat { style == .elevated ? 9 : 7 }
 }
 
 // MARK: - Button Styles
