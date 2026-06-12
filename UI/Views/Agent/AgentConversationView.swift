@@ -38,19 +38,23 @@ struct AgentConversationView: View {
             MtrxGradientBackground(style: .trinityGlow)
 
             // The room takes on its agent's signature color — a faint
-            // aurora that shifts with who's listening. Radial gradient,
-            // not a live blur: identical look, none of the GPU cost.
-            RadialGradient(
-                colors: [agentAccent.opacity(0.13), .clear],
-                center: .center,
-                startRadius: 0,
-                endRadius: 230
-            )
-            .frame(width: 460, height: 460)
-            .offset(y: -270)
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-            .animation(.easeInOut(duration: 0.7), value: viewModel.activeAgent)
+            // aurora that shifts with who's listening. Hosted in an
+            // overlay on a clear layer so its oversized glow can never
+            // widen the layout past the screen.
+            Color.clear
+                .overlay(alignment: .top) {
+                    RadialGradient(
+                        colors: [agentAccent.opacity(0.13), .clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 230
+                    )
+                    .frame(width: 460, height: 460)
+                    .offset(y: -180)
+                }
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .animation(.easeInOut(duration: 0.7), value: viewModel.activeAgent)
 
             VStack(spacing: 0) {
                 // The agent space wears its own header; the tab-style
@@ -680,8 +684,9 @@ struct MessageBubble: View {
                     .padding(.leading, Spacing.xs)
                 }
 
-                // Bubble
-                Text(message.text)
+                // Bubble — agents speak markdown (bold, lists); render it
+                // instead of showing literal asterisks.
+                Text(formattedText)
                     .font(.mtrxBody)
                     .foregroundStyle(isUser ? .white : Color.labelPrimary)
                     .padding(.horizontal, 14)
@@ -704,6 +709,16 @@ struct MessageBubble: View {
 
             if !isUser { Spacer(minLength: 56) }
         }
+    }
+
+    /// Inline markdown (bold, italics, code) parsed per line so list
+    /// dashes and line breaks survive; plain text passes through untouched.
+    private var formattedText: AttributedString {
+        let options = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace
+        )
+        return (try? AttributedString(markdown: message.text, options: options))
+            ?? AttributedString(message.text)
     }
 
     private var bubbleBackground: some View {

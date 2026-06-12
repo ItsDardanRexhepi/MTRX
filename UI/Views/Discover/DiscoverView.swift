@@ -205,11 +205,13 @@ enum DiscoverCategory: String, CaseIterable, Identifiable {
 
 // MARK: - DeFi Sub-Destination
 
-/// Sub-destinations for the "Browse DeFi" section on Discover.
+/// Sub-destinations for the "Explore DeFi" section on Discover.
 enum DeFiSubDestination: String, Hashable, Identifiable {
     case lending
     case liquidity
     case yield
+    case realWorld
+    case governance
 
     var id: String { rawValue }
 }
@@ -291,7 +293,8 @@ struct DiscoverView: View {
 
     private var contentView: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: Spacing.sectionGap) {
+            // Generous section rhythm — each section gets room to breathe.
+            LazyVStack(spacing: Spacing.xl) {
                 searchBar
                     .mtrxStaggeredAppearance(index: 0, isVisible: viewModel.contentAppeared)
 
@@ -307,27 +310,18 @@ struct DiscoverView: View {
                 fundraiserSection
                     .mtrxStaggeredAppearance(index: 4, isVisible: viewModel.contentAppeared)
 
-                partnerSection
-                    .mtrxStaggeredAppearance(index: 5, isVisible: viewModel.contentAppeared)
-
                 // Web3 discovery cards
                 portfolioCard
-                    .mtrxStaggeredAppearance(index: 6, isVisible: viewModel.contentAppeared)
+                    .mtrxStaggeredAppearance(index: 5, isVisible: viewModel.contentAppeared)
 
                 yieldOpportunitiesSection
+                    .mtrxStaggeredAppearance(index: 6, isVisible: viewModel.contentAppeared)
+
+                exploreDeFiSection
                     .mtrxStaggeredAppearance(index: 7, isVisible: viewModel.contentAppeared)
 
-                activeGovernanceSection
-                    .mtrxStaggeredAppearance(index: 8, isVisible: viewModel.contentAppeared)
-
-                rwaSection
-                    .mtrxStaggeredAppearance(index: 9, isVisible: viewModel.contentAppeared)
-
-                defiBrowseSection
-                    .mtrxStaggeredAppearance(index: 10, isVisible: viewModel.contentAppeared)
-
                 recentActivitySection
-                    .mtrxStaggeredAppearance(index: 11, isVisible: viewModel.contentAppeared)
+                    .mtrxStaggeredAppearance(index: 8, isVisible: viewModel.contentAppeared)
 
                 // Bottom padding for tab bar
                 Spacer().frame(height: Spacing.xxl)
@@ -427,71 +421,75 @@ struct DiscoverView: View {
             LiquidityView()
         case .yield:
             YieldView()
+        case .realWorld:
+            RWAView()
+        case .governance:
+            GovernanceView()
         }
     }
 
-    // MARK: - DeFi Browse Section
+    // MARK: - Explore DeFi Section
 
-    private var defiBrowseSection: some View {
+    /// One browse category for everything financial on Discover:
+    /// lending, liquidity, yield, real-world assets, and governance.
+    private var exploreDeFiSection: some View {
         VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
-            MtrxSectionHeader(title: "Browse DeFi")
+            MtrxSectionHeader(title: "Explore DeFi")
                 .padding(.horizontal, Spacing.contentPadding)
 
             VStack(spacing: Spacing.sm) {
-                Button {
-                    MtrxHaptics.selection()
+                exploreRow(systemName: "banknote.fill", title: "Lending", subtitle: "Borrow and lend assets") {
                     pushedDeFi = .lending
-                } label: {
-                    defiBrowseRow(icon: "fee", systemName: "banknote.fill", title: "Lending", subtitle: "Borrow and lend assets")
                 }
-                .buttonStyle(.plain)
-
-                Button {
-                    MtrxHaptics.selection()
+                exploreRow(systemName: "drop.fill", title: "Liquidity Pools", subtitle: "Provide liquidity, earn fees") {
                     pushedDeFi = .liquidity
-                } label: {
-                    defiBrowseRow(icon: "drop", systemName: "drop.fill", title: "Liquidity Pools", subtitle: "Provide liquidity, earn fees")
                 }
-                .buttonStyle(.plain)
-
-                Button {
-                    MtrxHaptics.selection()
+                exploreRow(systemName: "chart.line.uptrend.xyaxis", title: "Yield Farming", subtitle: "Optimize returns across protocols") {
                     pushedDeFi = .yield
-                } label: {
-                    defiBrowseRow(icon: "chart", systemName: "chart.line.uptrend.xyaxis", title: "Yield Farming", subtitle: "Optimize returns across protocols")
                 }
-                .buttonStyle(.plain)
+                exploreRow(systemName: "building.columns.fill", title: "Real World Assets", subtitle: "Bonds, property & commodities") {
+                    pushedDeFi = .realWorld
+                }
+                exploreRow(systemName: "checkmark.seal.fill", title: "Governance", subtitle: "Vote on active proposals") {
+                    pushedDeFi = .governance
+                }
             }
             .padding(.horizontal, Spacing.contentPadding)
         }
     }
 
-    private func defiBrowseRow(icon: String, systemName: String, title: String, subtitle: String) -> some View {
-        MtrxCard(style: .standard) {
-            HStack(spacing: Spacing.md) {
-                Image(systemName: systemName)
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(Color.accentPrimary)
-                    .frame(width: 40, height: 40)
-                    .background(Color.accentPrimary.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+    private func exploreRow(systemName: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
+        Button {
+            MtrxHaptics.selection()
+            action()
+        } label: {
+            MtrxCard(style: .standard) {
+                HStack(spacing: Spacing.md) {
+                    Image(systemName: systemName)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(Color.accentPrimary)
+                        .frame(width: 40, height: 40)
+                        .background(Color.accentPrimary.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.mtrxHeadline)
-                        .foregroundStyle(Color.labelPrimary)
-                    Text(subtitle)
-                        .font(.mtrxCaption1)
-                        .foregroundStyle(Color.labelSecondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.labelPrimary)
+                        Text(subtitle)
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: Symbols.forward)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.labelTertiary)
                 }
-
-                Spacer()
-
-                Image(systemName: Symbols.forward)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.labelTertiary)
             }
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Featured Section
@@ -535,7 +533,9 @@ struct DiscoverView: View {
     // MARK: - Trending Section
 
     private var trendingSection: some View {
-        let listings = viewModel.filteredListings
+        // Trending is a top-10, not the whole catalog — the full list
+        // lives behind See All and search.
+        let listings = Array(viewModel.filteredListings.prefix(10))
         return VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
             MtrxSectionHeader(title: "Trending", action: {
                 MtrxHaptics.impact(.light)
@@ -597,26 +597,6 @@ struct DiscoverView: View {
         }
     }
 
-    // MARK: - Partner Section
-
-    private var partnerSection: some View {
-        let partners = viewModel.filteredPartners
-        return VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
-            MtrxSectionHeader(title: "Partner Network")
-                .padding(.horizontal, Spacing.contentPadding)
-
-            if !partners.isEmpty {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.md) {
-                    ForEach(Array(partners.enumerated()), id: \.element.id) { index, partner in
-                        PartnerCardView(partner: partner)
-                            .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
-                    }
-                }
-                .padding(.horizontal, Spacing.contentPadding)
-            }
-        }
-    }
-
     // MARK: - Portfolio Card
 
     private var portfolioCard: some View {
@@ -628,7 +608,7 @@ struct DiscoverView: View {
                 Text("Portfolio")
             } label: {
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("Total Value")
                             .font(.mtrxCaption)
                             .foregroundStyle(Color.labelSecondary)
@@ -637,7 +617,7 @@ struct DiscoverView: View {
                             .foregroundStyle(Color.labelPrimary)
                     }
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
+                    VStack(alignment: .trailing, spacing: 6) {
                         Text("24h Change")
                             .font(.mtrxCaption)
                             .foregroundStyle(Color.labelSecondary)
@@ -646,7 +626,7 @@ struct DiscoverView: View {
                             .foregroundStyle(walletManager.portfolioChange24h >= 0 ? Color.statusSuccess : Color.statusError)
                     }
                 }
-                .padding(Spacing.md)
+                .padding(Spacing.ml)
                 .background(Color.surfaceOverlay)
                 .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
             }
@@ -674,7 +654,7 @@ struct DiscoverView: View {
     }
 
     private func yieldCard(name: String, apy: String, risk: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(name)
                 .font(.mtrxSubheadline)
                 .foregroundStyle(Color.labelPrimary)
@@ -685,85 +665,8 @@ struct DiscoverView: View {
                 .font(.mtrxCaption)
                 .foregroundStyle(color)
         }
-        .frame(width: 150)
-        .padding(Spacing.md)
-        .background(Color.surfaceOverlay)
-        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
-    }
-
-    // MARK: - Active Governance Section
-
-    private var activeGovernanceSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
-            MtrxSectionHeader(title: "Active Proposals")
-                .padding(.horizontal, Spacing.contentPadding)
-
-            VStack(spacing: Spacing.sm) {
-                proposalRow(dao: "Uniswap", title: "Fee switch activation", endsIn: "2 days")
-                proposalRow(dao: "Aave", title: "Risk parameter update", endsIn: "5 days")
-            }
-            .padding(.horizontal, Spacing.contentPadding)
-        }
-    }
-
-    private func proposalRow(dao: String, title: String, endsIn: String) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(dao)
-                    .font(.mtrxCaptionBold)
-                    .foregroundStyle(Color.accentPrimary)
-                Text(title)
-                    .font(.mtrxSubheadline)
-                    .foregroundStyle(Color.labelPrimary)
-            }
-            Spacer()
-            Text("Ends in \(endsIn)")
-                .font(.mtrxCaption)
-                .foregroundStyle(Color.labelSecondary)
-        }
-        .padding(Spacing.md)
-        .background(Color.surfaceOverlay)
-        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
-    }
-
-    // MARK: - RWA Section
-
-    private var rwaSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
-            MtrxSectionHeader(title: "Real World Assets")
-                .padding(.horizontal, Spacing.contentPadding)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.md) {
-                    rwaCard(name: "Treasury Bonds", apy: "5.1%", category: "Fixed Income", minInvestment: "$100")
-                    rwaCard(name: "Real Estate Fund", apy: "8.3%", category: "Property", minInvestment: "$500")
-                    rwaCard(name: "Gold Token", apy: "—", category: "Commodity", minInvestment: "$50")
-                }
-                .padding(.horizontal, Spacing.contentPadding)
-            }
-        }
-    }
-
-    private func rwaCard(name: String, apy: String, category: String, minInvestment: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(category)
-                .font(.mtrxCaption)
-                .foregroundStyle(Color.accentPrimary)
-            Text(name)
-                .font(.mtrxSubheadline)
-                .foregroundStyle(Color.labelPrimary)
-            HStack {
-                Text("APY: \(apy)")
-                    .font(.mtrxCaption)
-                    .foregroundStyle(Color.labelSecondary)
-                Spacer()
-                Text("Min: \(minInvestment)")
-                    .font(.mtrxCaption)
-                    .foregroundStyle(Color.labelSecondary)
-            }
-        }
-        .frame(width: 180)
-        .padding(Spacing.md)
+        .frame(width: 156, alignment: .leading)
+        .padding(Spacing.ml)
         .background(Color.surfaceOverlay)
         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
     }
@@ -1038,53 +941,6 @@ struct FundraiserCardView: View {
         }
         .frame(width: 280)
         .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.lg)
-    }
-}
-
-// MARK: - Partner Card View
-
-struct PartnerCardView: View {
-    let partner: PartnerItem
-    @State private var isPressed: Bool = false
-
-    var body: some View {
-        MtrxCard(style: .glass) {
-            VStack(spacing: Spacing.ms) {
-                // Logo
-                ZStack {
-                    Circle()
-                        .fill(partner.brandColor.opacity(0.12))
-                        .frame(width: 52, height: 52)
-
-                    Image(systemName: partner.icon)
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(partner.brandColor)
-                }
-
-                // Name
-                Text(partner.name)
-                    .font(.mtrxHeadline)
-                    .foregroundStyle(Color.labelPrimary)
-                    .lineLimit(1)
-
-                Text(partner.category)
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelSecondary)
-                    .lineLimit(1)
-
-                // Verified badge
-                if partner.isVerified {
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: Symbols.verified)
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Verified")
-                            .font(.mtrxCaptionBold)
-                    }
-                    .foregroundStyle(Color.accentPrimary)
-                }
-            }
-            .frame(maxWidth: .infinity)
-        }
     }
 }
 

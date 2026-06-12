@@ -166,6 +166,12 @@ struct MainTabView: View {
         .onChange(of: selectedTab) { _, _ in
             MtrxHaptics.selection()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .mtrxSwitchTab)) { note in
+            if let index = note.userInfo?["index"] as? Int,
+               let tab = AppTab(rawValue: index) {
+                selectedTab = tab
+            }
+        }
     }
 }
 

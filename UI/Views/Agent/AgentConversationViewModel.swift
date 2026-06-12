@@ -165,8 +165,10 @@ final class AgentConversationViewModel: ObservableObject {
         }
         if let existing = store.mostRecent(agent: target) {
             openConversation(existing)
+            // Resuming a chat that already has history — greet like a
+            // returning conversation, never like a brand-new one.
             messages.append(AgentMessage(
-                text: Self.openingLine(for: target),
+                text: Self.resumeLine(for: target),
                 role: .agent,
                 agentName: Self.displayName(of: target)
             ))
@@ -188,6 +190,16 @@ final class AgentConversationViewModel: ObservableObject {
         case .trinity: return "New conversation — what do you need?"
         case .morpheus: return "You have my attention. Speak."
         case .neo: return "Channel open. Report."
+        }
+    }
+
+    /// Said when stepping back into an existing chat — picks the thread
+    /// up rather than pretending it's new.
+    private static func resumeLine(for agent: AgentAccessControl.ActiveAgent) -> String {
+        switch agent {
+        case .trinity: return "Back with you — where were we?"
+        case .morpheus: return "I'm listening again."
+        case .neo: return "Channel re-opened."
         }
     }
 

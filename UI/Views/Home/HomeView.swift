@@ -19,6 +19,8 @@ struct HomeView: View {
     @State private var nameDraft = ""
     @State private var askedForName = false
     @State private var presentedService: HomeService?
+    @State private var showDailyFlow = false
+    @State private var flowDestination: DailyFlow.Goal?
 
     /// What to open the chat with: an agent and an optional prefill.
     struct ChatLaunch: Identifiable {
@@ -31,8 +33,10 @@ struct HomeView: View {
         ZStack {
             MtrxGradientBackground(style: .trinityGlow)
 
+            // Sized so the whole dashboard — greeting through Services —
+            // fits one screen above the dock. Even 20pt section rhythm.
             ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.lg) {
+                VStack(alignment: .leading, spacing: Spacing.ml) {
                     greetingHeader
                         .mtrxStaggeredAppearance(index: 0, isVisible: appeared)
 
@@ -49,7 +53,7 @@ struct HomeView: View {
                         .mtrxStaggeredAppearance(index: 4, isVisible: appeared)
                 }
                 .padding(.horizontal, Spacing.contentPadding)
-                .padding(.top, Spacing.lg)
+                .padding(.top, Spacing.md)
                 .padding(.bottom, 96)
             }
         }
@@ -75,17 +79,51 @@ struct HomeView: View {
             .environmentObject(appState)
             .environmentObject(walletManager)
         }
+        .sheet(isPresented: $showDailyFlow, onDismiss: {
+            // Navigate only after the sheet has fully closed — switching
+            // tabs mid-dismissal cancels the dismissal.
+            guard let destination = flowDestination else { return }
+            flowDestination = nil
+            switch destination {
+            case .agent:
+                presentedChat = ChatLaunch(agent: .trinity)
+            case .social:
+                NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": 3])
+            case .explore:
+                NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": 0])
+            }
+        }) {
+            DailyFlowSheet(
+                onAgent: {
+                    flowDestination = .agent
+                    showDailyFlow = false
+                },
+                onSocial: {
+                    flowDestination = .social
+                    showDailyFlow = false
+                },
+                onExplore: {
+                    flowDestination = .explore
+                    showDailyFlow = false
+                }
+            )
+            .presentationDetents([.height(420)])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(.ultraThinMaterial)
+        }
     }
 
     // MARK: - Greeting
 
     private var greetingHeader: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
-            Text(timeGreeting)
+            // Greeting and date share one eyebrow line — the dashboard
+            // below needs the vertical room more than the calendar does.
+            Text("\(timeGreeting) · \(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()))")
                 .font(.mtrxCaption1)
                 .foregroundStyle(Color.trinityPrimary.opacity(0.85))
                 .textCase(.uppercase)
-                .kerning(1.6)
+                .kerning(1.2)
 
             HStack(spacing: Spacing.sm) {
                 Text(firstName)
@@ -112,32 +150,32 @@ struct HomeView: View {
 
                 // A real open loop: fills as the day is actually
                 // lived — agent, social, exploration — and resets at
-                // midnight. Unfinished loops pull people back.
-                VStack(spacing: 2) {
+                // midnight. Tap it to see the goals and jump to them.
+                Button {
+                    MtrxHaptics.impact(.light)
+                    showDailyFlow = true
+                } label: {
                     ZStack {
                         MtrxProgressRing(
                             progress: max(dailyFlow.progress, 0.04),
-                            size: 38,
+                            size: 40,
                             lineWidth: 4,
                             color: dailyFlow.isComplete ? .statusSuccess : .trinityPrimary,
                             showLabel: false
                         )
                         if dailyFlow.isComplete {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(.system(size: 13, weight: .bold))
                                 .foregroundStyle(Color.statusSuccess)
                         } else {
                             Text("\(dailyFlow.completed.count)/3")
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(Color.labelPrimary)
                         }
                     }
                     .mtrxGlow(color: dailyFlow.isComplete ? .statusSuccess : .clear, radius: 5)
-
-                    Text(dailyFlow.isComplete ? "In flow" : "Daily flow")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(dailyFlow.isComplete ? Color.statusSuccess : Color.labelTertiary)
                 }
+                .buttonStyle(.plain)
             }
             .alert("Your Name", isPresented: $showNameEditor) {
                 TextField("Name", text: $nameDraft)
@@ -147,10 +185,6 @@ struct HomeView: View {
                 Text("Shown in your greeting and on your posts.")
             }
 
-            Text(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                .font(.mtrxSubheadline)
-                .foregroundStyle(Color.labelTertiary)
-
             // A calm, reassuring beat before any numbers — people stay
             // where they feel things are under control.
             Text(reassuranceLine)
@@ -158,7 +192,6 @@ struct HomeView: View {
                 .foregroundStyle(Color.trinityPrimary.opacity(0.75))
                 .padding(.top, 2)
         }
-        .padding(.top, Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             // Soft signature glow rising behind the greeting — a radial
@@ -308,7 +341,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: Spacing.ms) {
             sectionTitle("Quick actions")
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.ms) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.xs) {
                 quickAction("Send Money", icon: "arrow.up.circle.fill", color: .accentPrimary, prompt: "Send $")
                 quickAction("Swap", icon: "arrow.triangle.2.circlepath.circle.fill", color: .trinityPrimary, prompt: "Swap 1 ETH to USDC")
                 quickAction("Stake", icon: "lock.circle.fill", color: .statusSuccess, prompt: "Stake 0.5 ETH")
@@ -328,9 +361,9 @@ struct HomeView: View {
                 ZStack {
                     Circle()
                         .fill(color.opacity(0.14))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 30, height: 30)
                     Image(systemName: icon)
-                        .font(.system(size: 17, weight: .medium))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(color)
                 }
 
@@ -342,8 +375,9 @@ struct HomeView: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(Spacing.ms)
-            .frame(maxWidth: .infinity, minHeight: 58)
+            .padding(.vertical, Spacing.xs)
+            .padding(.horizontal, Spacing.ms)
+            .frame(maxWidth: .infinity, minHeight: 48)
             .background(.ultraThinMaterial)
             .background(color.opacity(0.04))
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
@@ -434,16 +468,16 @@ struct HomeView: View {
                             MtrxHaptics.impact(.light)
                             presentedService = service
                         } label: {
-                            VStack(spacing: 7) {
+                            VStack(spacing: 6) {
                                 Image(systemName: service.icon)
-                                    .font(.system(size: 20, weight: .medium))
+                                    .font(.system(size: 19, weight: .medium))
                                     .foregroundStyle(service.color)
-                                    .frame(width: 52, height: 52)
+                                    .frame(width: 48, height: 48)
                                     .background(.ultraThinMaterial)
                                     .background(service.color.opacity(0.10))
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
                                             .stroke(service.color.opacity(0.25), lineWidth: 1)
                                     )
 
@@ -627,5 +661,114 @@ final class DailyFlow: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.set(todayKey, forKey: storageKey + ".day")
         defaults.set(Array(completed), forKey: storageKey + ".done")
+    }
+}
+
+// MARK: - Tab Switching
+
+extension Notification.Name {
+    /// Posted with userInfo ["index": Int] to switch the root tab bar.
+    static let mtrxSwitchTab = Notification.Name("com.mtrx.switchTab")
+}
+
+// MARK: - Daily Flow Sheet
+
+/// The ring, opened up: shows the three goals of the day, which are
+/// done, and jumps straight into whichever one is still open.
+struct DailyFlowSheet: View {
+    @ObservedObject private var dailyFlow = DailyFlow.shared
+    @Environment(\.dismiss) private var dismiss
+
+    let onAgent: () -> Void
+    let onSocial: () -> Void
+    let onExplore: () -> Void
+
+    var body: some View {
+        VStack(spacing: Spacing.ml) {
+            // The ring, large and honest.
+            VStack(spacing: Spacing.sm) {
+                ZStack {
+                    MtrxProgressRing(
+                        progress: max(dailyFlow.progress, 0.04),
+                        size: 72,
+                        lineWidth: 7,
+                        color: dailyFlow.isComplete ? .statusSuccess : .trinityPrimary,
+                        showLabel: false
+                    )
+                    if dailyFlow.isComplete {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(Color.statusSuccess)
+                    } else {
+                        Text("\(dailyFlow.completed.count)/3")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.labelPrimary)
+                    }
+                }
+                .mtrxGlow(color: dailyFlow.isComplete ? .statusSuccess : .trinityPrimary.opacity(0.5), radius: 8)
+
+                Text(dailyFlow.isComplete ? "In flow" : "Daily flow")
+                    .font(.mtrxTitle3)
+                    .foregroundStyle(Color.labelPrimary)
+
+                Text(dailyFlow.isComplete
+                     ? "All three done — you lived the whole day in one app."
+                     : "Three small moves a day keep everything in motion.")
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, Spacing.lg)
+
+            VStack(spacing: Spacing.sm) {
+                goalRow(.agent, icon: "bubble.left.and.bubble.right.fill", action: onAgent)
+                goalRow(.social, icon: "globe", action: onSocial)
+                goalRow(.explore, icon: "safari.fill", action: onExplore)
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+
+            Text("Resets at midnight")
+                .font(.mtrxCaption2)
+                .foregroundStyle(Color.labelTertiary)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func goalRow(_ goal: DailyFlow.Goal, icon: String, action: @escaping () -> Void) -> some View {
+        let done = dailyFlow.completed.contains(goal.rawValue)
+        return Button {
+            MtrxHaptics.impact(.light)
+            action()
+        } label: {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(done ? Color.statusSuccess : Color.trinityPrimary)
+                    .frame(width: 36, height: 36)
+                    .background((done ? Color.statusSuccess : Color.trinityPrimary).opacity(0.12))
+                    .clipShape(Circle())
+
+                Text(goal.label)
+                    .font(.mtrxCalloutBold)
+                    .foregroundStyle(Color.labelPrimary)
+
+                Spacer()
+
+                if done {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Color.statusSuccess)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.labelTertiary)
+                }
+            }
+            .padding(Spacing.ms)
+            .background(Color.surfaceOverlay.opacity(done ? 0.5 : 1))
+            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
