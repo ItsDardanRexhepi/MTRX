@@ -202,15 +202,19 @@ struct AgentConversationView: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 24)
                 .onChanged { value in
-                    // Only from the header zone, only downward — never
-                    // fights the message scroll or the keyboard.
+                    // Only from the header zone, only when the drag is
+                    // clearly downward — never fights the message scroll,
+                    // the keyboard, or sliding across the agent switcher.
                     guard isModal, value.startLocation.y < 190,
-                          value.translation.height > 0 else { return }
+                          value.translation.height > 0,
+                          value.translation.height > abs(value.translation.width) else { return }
                     dismissDrag = value.translation.height
                 }
                 .onEnded { value in
                     guard isModal else { return }
-                    if value.startLocation.y < 190, value.translation.height > 130 {
+                    if value.startLocation.y < 190,
+                       value.translation.height > 130,
+                       value.translation.height > abs(value.translation.width) {
                         dismissToOrb()
                     } else {
                         withAnimation(Motion.springSnappy) { dismissDrag = 0 }
@@ -265,6 +269,10 @@ struct AgentConversationView: View {
     // between agents with a shared-element morph.
 
     @Namespace private var agentSegmentNS
+    /// Finger position while sliding across the switcher, and the
+    /// capsule's measured size — for the dock-style glass lens.
+    @State private var slideX: CGFloat?
+    @State private var switcherSize: CGSize = .zero
 
     private var availableAgents: [AgentAccessControl.ActiveAgent] {
         AgentAccessControl.shared.userType(for: userID) == .owner
@@ -316,23 +324,49 @@ struct AgentConversationView: View {
         .mtrxLiquidGlass(in: Capsule())
         .overlay(Capsule().stroke(.white.opacity(0.08), lineWidth: 1))
         .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
-        // Swipe across the capsule to slide between agents — left for
-        // the next, right for the previous — like sliding along the
-        // dock. simultaneousGesture so the segment buttons can't
-        // swallow the drag before it reaches us. Tapping still works.
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { switcherSize = geo.size }
+                    .onChange(of: geo.size) { _, newSize in switcherSize = newSize }
+            }
+        )
+        // The dock interaction: while your finger slides across the
+        // capsule, a liquid-glass lens rides under it and the agents
+        // switch live as you cross them. Tapping still works.
+        .overlay {
+            if let x = slideX {
+                Capsule()
+                    .fill(.clear)
+                    .mtrxLiquidGlass(in: Capsule())
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.35), lineWidth: 1))
+                    .frame(width: 58, height: max(switcherSize.height - 6, 30))
+                    .position(
+                        x: min(max(x, 29), max(switcherSize.width - 29, 29)),
+                        y: switcherSize.height / 2
+                    )
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+        }
         .simultaneousGesture(
-            DragGesture(minimumDistance: 18)
-                .onEnded { value in
-                    guard abs(value.translation.width) > 32,
-                          abs(value.translation.width) > abs(value.translation.height) else { return }
+            DragGesture(minimumDistance: 10)
+                .onChanged { value in
+                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                    withAnimation(Motion.springSnappy) { slideX = value.location.x }
                     let agents = availableAgents
-                    guard let index = agents.firstIndex(of: viewModel.activeAgent) else { return }
-                    let next = value.translation.width < 0 ? index + 1 : index - 1
-                    guard agents.indices.contains(next) else { return }
-                    MtrxHaptics.impact(.medium)
-                    withAnimation(Motion.springSnappy) {
-                        viewModel.openAgentChat(agents[next])
+                    guard switcherSize.width > 0, !agents.isEmpty else { return }
+                    let zone = switcherSize.width / CGFloat(agents.count)
+                    let index = min(max(Int(value.location.x / zone), 0), agents.count - 1)
+                    if agents[index] != viewModel.activeAgent {
+                        MtrxHaptics.selection()
+                        withAnimation(Motion.springSnappy) {
+                            viewModel.openAgentChat(agents[index])
+                        }
                     }
+                }
+                .onEnded { _ in
+                    withAnimation(Motion.springSnappy) { slideX = nil }
                 }
         )
     }
