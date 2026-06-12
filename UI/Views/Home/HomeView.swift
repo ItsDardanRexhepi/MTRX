@@ -21,6 +21,8 @@ struct HomeView: View {
     @State private var presentedService: HomeService?
     @State private var showDailyFlow = false
     @State private var flowDestination: DailyFlow.Goal?
+    @State private var showPortfolio = false
+    @State private var portfolioPrompt: String?
 
     /// What to open the chat with: an agent and an optional prefill.
     struct ChatLaunch: Identifiable {
@@ -43,14 +45,8 @@ struct HomeView: View {
                     portfolioSnapshot
                         .mtrxStaggeredAppearance(index: 1, isVisible: appeared)
 
-                    agentOrbSection
-                        .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
-
                     quickActionsSection
-                        .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
-
-                    servicesSection
-                        .mtrxStaggeredAppearance(index: 4, isVisible: appeared)
+                        .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
                 }
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.top, Spacing.md)
@@ -117,6 +113,33 @@ struct HomeView: View {
             .presentationDragIndicator(.visible)
             .presentationBackground(.ultraThinMaterial)
         }
+        .sheet(item: $presentedService) { service in
+            NavigationStack {
+                service.destination
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { presentedService = nil }
+                        }
+                    }
+            }
+        }
+        .sheet(isPresented: $showPortfolio, onDismiss: {
+            // Money moves open the agent chat — but only after the
+            // sheet has fully closed, so presentations never collide.
+            if let prompt = portfolioPrompt {
+                portfolioPrompt = nil
+                presentedChat = ChatLaunch(agent: .trinity, prompt: prompt)
+            }
+        }) {
+            PortfolioActionsSheet { prompt in
+                portfolioPrompt = prompt
+                showPortfolio = false
+            }
+            .environmentObject(walletManager)
+            .presentationDetents([.height(540), .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(.ultraThinMaterial)
+        }
     }
 
     // MARK: - Greeting
@@ -132,6 +155,7 @@ struct HomeView: View {
                 .kerning(1.2)
 
             HStack(spacing: Spacing.sm) {
+                // The name edits itself — tap it, no pencil needed.
                 Text(firstName)
                     .font(.mtrxLargeTitle)
                     .foregroundStyle(
@@ -141,22 +165,14 @@ struct HomeView: View {
                             endPoint: .trailing
                         )
                     )
+                    .onTapGesture {
+                        MtrxHaptics.impact(.light)
+                        nameDraft = appState.displayName
+                        showNameEditor = true
+                    }
 
-                Button {
-                    nameDraft = appState.displayName
-                    showNameEditor = true
-                } label: {
-                    Image(systemName: "pencil.circle")
-                        .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(Color.labelTertiary)
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
-
-                // A real open loop: fills as the day is actually
-                // lived — agent, social, exploration — and resets at
-                // midnight. Tap it to see the goals and jump to them.
+                // Daily flow lives where the pencil was — a real open
+                // loop that fills as the day is lived. Tap for the goals.
                 Button {
                     MtrxHaptics.impact(.light)
                     showDailyFlow = true
@@ -164,24 +180,72 @@ struct HomeView: View {
                     ZStack {
                         MtrxProgressRing(
                             progress: max(dailyFlow.progress, 0.04),
-                            size: 40,
-                            lineWidth: 4,
+                            size: 34,
+                            lineWidth: 3.5,
                             color: dailyFlow.isComplete ? .statusSuccess : .trinityPrimary,
                             showLabel: false
                         )
                         if dailyFlow.isComplete {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(Color.statusSuccess)
                         } else {
                             Text("\(dailyFlow.completed.count)/3")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(Color.labelPrimary)
                         }
                     }
                     .mtrxGlow(color: dailyFlow.isComplete ? .statusSuccess : .clear, radius: 5)
                 }
                 .buttonStyle(.plain)
+
+                Spacer()
+
+                // The agent orb, top right — one tap into the agent space.
+                Button {
+                    MtrxHaptics.impact(.medium)
+                    presentedChat = ChatLaunch(agent: .trinity)
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                AngularGradient(
+                                    colors: [.trinityPrimary, .purple, .statusError, .orange, .statusSuccess, .trinityPrimary],
+                                    center: .center
+                                )
+                            )
+                            .frame(width: 62, height: 62)
+                            .mask(
+                                RadialGradient(
+                                    colors: [.white, .white.opacity(0)],
+                                    center: .center,
+                                    startRadius: 12,
+                                    endRadius: 31
+                                )
+                            )
+                            .opacity(orbPulse ? 0.95 : 0.55)
+
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [.white.opacity(0.95), .trinityPrimary, .trinitySecondary.opacity(0.8)],
+                                    center: .init(x: 0.35, y: 0.3),
+                                    startRadius: 2,
+                                    endRadius: 30
+                                )
+                            )
+                            .frame(width: 46, height: 46)
+                            .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
+                            .scaleEffect(orbPulse ? 1.04 : 0.97)
+                    }
+                    .frame(width: 52, height: 52)
+                }
+                .buttonStyle(.plain)
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+                        orbPulse = true
+                    }
+                }
             }
             .alert("Your Name", isPresented: $showNameEditor) {
                 TextField("Name", text: $nameDraft)
@@ -231,131 +295,62 @@ struct HomeView: View {
         return name.isEmpty ? "Welcome" : name
     }
 
-    // MARK: - Agents (the orb gateway)
-
-    /// One tap into the agent space — a glowing 3D orb, in the spirit
-    /// of Apple's Siri light. Opens straight into Trinity; Morpheus and
-    /// Neo are one bubble away inside.
+    /// Drives the breathing of the header orb.
     @State private var orbPulse = false
-
-    private var agentOrbSection: some View {
-        Button {
-            MtrxHaptics.impact(.medium)
-            presentedChat = ChatLaunch(agent: .trinity)
-        } label: {
-            HStack(spacing: Spacing.md) {
-                // Layered gradient sphere with breathing glow. The halo fades
-                // out through a radial mask instead of a blur, so it dissolves
-                // softly into the card — no rasterized square edge.
-                ZStack {
-                    Circle()
-                        .fill(
-                            AngularGradient(
-                                colors: [.trinityPrimary, .purple, .statusError, .orange, .statusSuccess, .trinityPrimary],
-                                center: .center
-                            )
-                        )
-                        .frame(width: 80, height: 80)
-                        .mask(
-                            RadialGradient(
-                                colors: [.white, .white.opacity(0)],
-                                center: .center,
-                                startRadius: 16,
-                                endRadius: 40
-                            )
-                        )
-                        .opacity(orbPulse ? 0.95 : 0.55)
-
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [.white.opacity(0.95), .trinityPrimary, .trinitySecondary.opacity(0.8)],
-                                center: .init(x: 0.35, y: 0.3),
-                                startRadius: 2,
-                                endRadius: 36
-                            )
-                        )
-                        .frame(width: 54, height: 54)
-                        .overlay(
-                            Circle()
-                                .stroke(.white.opacity(0.35), lineWidth: 1)
-                        )
-                        .scaleEffect(orbPulse ? 1.04 : 0.97)
-                }
-                .frame(width: 64, height: 64)
-                .onAppear {
-                    withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
-                        orbPulse = true
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Agents")
-                        .font(.mtrxHeadline)
-                        .foregroundStyle(Color.labelPrimary)
-
-                    Text(agentOrbSubtitle)
-                        .font(.mtrxCaption2)
-                        .foregroundStyle(Color.labelSecondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.trinityPrimary.opacity(0.8))
-            }
-            .padding(Spacing.ms)
-            .background(.ultraThinMaterial)
-            .background(Color.trinityPrimary.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.trinityPrimary.opacity(0.5), Color.purple.opacity(0.2), Color.trinityPrimary.opacity(0.08)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            )
-            .shadow(color: Color.trinityPrimary.opacity(0.12), radius: 16, y: 6)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var agentOrbSubtitle: String {
-        if let preview = lastMessagePreview(for: .trinity) {
-            return preview
-        }
-        let owner = AgentAccessControl.shared.userType(for: appState.currentUserID) == .owner
-        return owner ? "Trinity · Morpheus · Neo" : "Trinity · Morpheus"
-    }
-
-    private func lastMessagePreview(for agent: AgentAccessControl.ActiveAgent) -> String? {
-        guard let last = chatStore.mostRecent(agent: agent)?.messages.last else { return nil }
-        let prefix = last.role == .user ? "You: " : ""
-        let flattened = last.text.replacingOccurrences(of: "\n", with: " ")
-        return prefix + flattened
-    }
 
     // MARK: - Quick Actions
 
+    /// The services ARE the quick actions now: money moves live inside
+    /// the tappable Portfolio card, markets live at the top of Invest,
+    /// and everything else in the app is one tap from here.
     private var quickActionsSection: some View {
         VStack(alignment: .leading, spacing: Spacing.ms) {
             sectionTitle("Quick actions")
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.xs) {
-                quickAction("Send Money", icon: "arrow.up.circle.fill", color: .accentPrimary, prompt: "Send $")
-                quickAction("Swap", icon: "arrow.triangle.2.circlepath.circle.fill", color: .trinityPrimary, prompt: "Swap 1 ETH to USDC")
-                quickAction("Stake", icon: "lock.circle.fill", color: .statusSuccess, prompt: "Stake 0.5 ETH")
                 quickAction("Deploy Contract", icon: "doc.badge.gearshape.fill", color: .accentTertiary, prompt: "Deploy a smart contract called ")
-                quickAction("Check Balance", icon: "chart.pie.fill", color: .statusInfo, prompt: "What's my balance?")
-                quickAction("Market Check", icon: "chart.line.uptrend.xyaxis.circle.fill", color: .trinitySecondary, prompt: "What's bitcoin at right now?")
+                ForEach(HomeService.allCases) { service in
+                    serviceAction(service)
+                }
             }
         }
+    }
+
+    private func serviceAction(_ service: HomeService) -> some View {
+        Button {
+            MtrxHaptics.impact(.light)
+            presentedService = service
+        } label: {
+            HStack(spacing: Spacing.sm) {
+                ZStack {
+                    Circle()
+                        .fill(service.color.opacity(0.14))
+                        .frame(width: 30, height: 30)
+                    Image(systemName: service.icon)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(service.color)
+                }
+
+                Text(service.title)
+                    .font(.mtrxCaptionBold)
+                    .foregroundStyle(Color.labelPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, Spacing.xs)
+            .padding(.horizontal, Spacing.ms)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(.ultraThinMaterial)
+            .background(service.color.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
+                    .stroke(service.color.opacity(0.22), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func quickAction(_ title: String, icon: String, color: Color, prompt: String) -> some View {
@@ -401,7 +396,18 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: Spacing.ms) {
             sectionTitle("Portfolio")
 
-            VStack(alignment: .leading, spacing: Spacing.sm) {
+            Button {
+                MtrxHaptics.impact(.light)
+                showPortfolio = true
+            } label: {
+                portfolioCardLabel
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var portfolioCardLabel: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(
                         walletManager.totalPortfolioValue,
@@ -455,59 +461,6 @@ struct HomeView: View {
                     )
             )
             .shadow(color: Color.trinityPrimary.opacity(0.08), radius: 14, y: 6)
-        }
-    }
-
-    // MARK: - Services (the super-app layer)
-
-    /// One life, one app: every MTRX service is a tap from Home —
-    /// pay, invest, shop, insure, play, meet, store — no other apps
-    /// needed through the day.
-    private var servicesSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.ms) {
-            sectionTitle("Services")
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.md) {
-                    ForEach(HomeService.allCases) { service in
-                        Button {
-                            MtrxHaptics.impact(.light)
-                            presentedService = service
-                        } label: {
-                            VStack(spacing: 6) {
-                                Image(systemName: service.icon)
-                                    .font(.system(size: 19, weight: .medium))
-                                    .foregroundStyle(service.color)
-                                    .frame(width: 48, height: 48)
-                                    .background(.ultraThinMaterial)
-                                    .background(service.color.opacity(0.10))
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .stroke(service.color.opacity(0.25), lineWidth: 1)
-                                    )
-
-                                Text(service.title)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(Color.labelSecondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.vertical, 2)
-            }
-        }
-        .sheet(item: $presentedService) { service in
-            NavigationStack {
-                service.destination
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Done") { presentedService = nil }
-                        }
-                    }
-            }
-        }
     }
 
     // MARK: - Helpers
@@ -667,6 +620,102 @@ final class DailyFlow: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.set(todayKey, forKey: storageKey + ".day")
         defaults.set(Array(completed), forKey: storageKey + ".done")
+    }
+}
+
+// MARK: - Portfolio Actions Sheet
+
+/// The portfolio, opened up: full holdings plus the money moves —
+/// send, swap, stake — one tap each, straight into the agent.
+struct PortfolioActionsSheet: View {
+    @EnvironmentObject var walletManager: WalletManager
+    let onAction: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.ml) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text("Portfolio")
+                    .font(.mtrxTitle3)
+                    .foregroundStyle(Color.labelPrimary)
+
+                HStack(alignment: .firstTextBaseline) {
+                    Text(
+                        walletManager.totalPortfolioValue,
+                        format: .currency(code: "USD").precision(.fractionLength(2))
+                    )
+                    .font(.mtrxTitle1)
+                    .foregroundStyle(Color.labelPrimary)
+
+                    Spacer()
+
+                    HStack(spacing: 3) {
+                        Image(systemName: walletManager.portfolioChange24h >= 0 ? "arrow.up.right" : "arrow.down.right")
+                            .font(.system(size: 11, weight: .bold))
+                        Text(String(format: "%.2f%%", abs(walletManager.portfolioChange24h)))
+                            .font(.mtrxCaptionBold)
+                    }
+                    .foregroundStyle(walletManager.portfolioChange24h >= 0 ? Color.statusSuccess : Color.statusError)
+                }
+            }
+
+            VStack(spacing: Spacing.xs) {
+                ForEach(walletManager.tokens.filter { $0.balance > 0 }, id: \.symbol) { token in
+                    HStack {
+                        Text(token.symbol)
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(Color.labelSecondary)
+                        Spacer()
+                        Text(String(format: "%.4f", token.balance))
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(Color.labelPrimary)
+                    }
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, Spacing.ms)
+                    .background(Color.surfaceOverlay.opacity(0.6))
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.xs, style: .continuous))
+                }
+            }
+
+            VStack(spacing: Spacing.sm) {
+                portfolioMove("Send Money", icon: "arrow.up.circle.fill", color: .accentPrimary, prompt: "Send $")
+                portfolioMove("Swap", icon: "arrow.triangle.2.circlepath.circle.fill", color: .trinityPrimary, prompt: "Swap 1 ETH to USDC")
+                portfolioMove("Stake", icon: "lock.circle.fill", color: .statusSuccess, prompt: "Stake 0.5 ETH")
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(Spacing.contentPadding)
+        .padding(.top, Spacing.sm)
+    }
+
+    private func portfolioMove(_ title: String, icon: String, color: Color, prompt: String) -> some View {
+        Button {
+            MtrxHaptics.impact(.light)
+            onAction(prompt)
+        } label: {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(color)
+                    .frame(width: 36, height: 36)
+                    .background(color.opacity(0.14))
+                    .clipShape(Circle())
+
+                Text(title)
+                    .font(.mtrxCalloutBold)
+                    .foregroundStyle(Color.labelPrimary)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.labelTertiary)
+            }
+            .padding(Spacing.ms)
+            .background(Color.surfaceOverlay)
+            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 

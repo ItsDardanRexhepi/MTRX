@@ -165,10 +165,19 @@ struct AgentConversationView: View {
                 }
 
                 // Quick action chips
-                quickActionChips
-
-                // Input bar
-                inputBar
+                // Chips + input share one continuous material band that
+                // bleeds past the bottom edge, so the keyboard's rounded
+                // corners never expose dark notches at the seam.
+                VStack(spacing: 0) {
+                    quickActionChips
+                    inputBar
+                }
+                .background {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .padding(.bottom, -40)
+                        .ignoresSafeArea(edges: .bottom)
+                }
             }
 
             // Morpheus overlay
@@ -636,7 +645,6 @@ struct AgentConversationView: View {
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
-        .background(.ultraThinMaterial)
     }
 }
 

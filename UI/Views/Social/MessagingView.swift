@@ -530,7 +530,14 @@ struct ConversationDetailView: View {
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
-        .background(Color.backgroundPrimary)
+        .background {
+            // Bleeds past the bottom so the keyboard's rounded corners
+            // never expose dark notches at the seam.
+            Rectangle()
+                .fill(Color.backgroundPrimary)
+                .padding(.bottom, -40)
+                .ignoresSafeArea(edges: .bottom)
+        }
     }
 }
 
