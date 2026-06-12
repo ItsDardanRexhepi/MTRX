@@ -543,11 +543,16 @@ struct AgentConversationView: View {
         }
     }
 
+    // The room's accents follow the bubble: each agent's pastel lead
+    // colors the aurora, the focus ring, and the send button.
     private var agentGradientColors: [Color] {
         switch viewModel.activeAgent {
-        case .trinity: return [.trinityPrimary, .trinitySecondary]
-        case .morpheus: return [.statusError, .statusError.opacity(0.7)]
-        case .neo: return [.statusSuccess, .accentPrimary]
+        case .trinity:
+            return [Color(red: 0.62, green: 0.90, blue: 0.92), Color(red: 0.72, green: 0.78, blue: 0.98)]
+        case .morpheus:
+            return [Color(red: 0.99, green: 0.74, blue: 0.76), Color(red: 0.99, green: 0.86, blue: 0.72)]
+        case .neo:
+            return [Color(red: 0.68, green: 0.93, blue: 0.76), Color(red: 0.90, green: 0.97, blue: 0.70)]
         }
     }
 
@@ -580,9 +585,9 @@ struct AgentConversationView: View {
 
     private func agentDotColor(for name: String?) -> Color {
         switch name {
-        case "Morpheus": return .statusError
-        case "Neo": return .statusSuccess
-        default: return .trinityPrimary
+        case "Morpheus": return Color(red: 0.99, green: 0.74, blue: 0.76)
+        case "Neo": return Color(red: 0.68, green: 0.93, blue: 0.76)
+        default: return Color(red: 0.62, green: 0.90, blue: 0.92)
         }
     }
 
@@ -789,11 +794,12 @@ struct MessageBubble: View {
         RoundedRectangle(cornerRadius: 18, style: .continuous)
     }
 
+    // Pastel keys matching each agent's bubble — soft, never alarming.
     private var agentDotColor: Color {
         switch message.agentName {
-        case "Morpheus": return .statusError
-        case "Neo": return .statusSuccess
-        default: return .trinityPrimary
+        case "Morpheus": return Color(red: 0.99, green: 0.74, blue: 0.76)
+        case "Neo": return Color(red: 0.68, green: 0.93, blue: 0.76)
+        default: return Color(red: 0.62, green: 0.90, blue: 0.92)
         }
     }
 }

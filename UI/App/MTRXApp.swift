@@ -176,30 +176,53 @@ struct MainTabView: View {
             }
         }
         // The docked agent: after she navigates the app for the user she
-        // stays as a floating orb — drag her anywhere on screen, tap for
-        // a quick popup chat right where you are, and only a swipe fully
-        // off the screen sends her away.
+        // stays as a floating orb — drag her anywhere on screen, tap and
+        // the popup chat grows out of the orb itself, and only a swipe
+        // fully off the screen sends her away.
         .overlay {
-            if let agent = presence.docked {
-                FloatingAgentOrb(agent: agent) {
-                    miniAgent = AgentReopen(agent: agent)
+            GeometryReader { geo in
+                ZStack {
+                    if let launch = miniAgent {
+                        // Tap anywhere outside to fold her back into the orb.
+                        Color.black.opacity(0.22)
+                            .ignoresSafeArea()
+                            .onTapGesture {
+                                withAnimation(Motion.springSnappy) { miniAgent = nil }
+                            }
+                            .transition(.opacity)
+
+                        VStack {
+                            Spacer()
+                            MiniAgentChat(
+                                agent: launch.agent,
+                                onExpand: {
+                                    miniAgent = nil
+                                    expandedAgent = AgentReopen(agent: launch.agent)
+                                },
+                                onClose: {
+                                    withAnimation(Motion.springSnappy) { miniAgent = nil }
+                                }
+                            )
+                            .frame(height: 460)
+                            .padding(.horizontal, 14)
+                            .padding(.bottom, 10)
+                        }
+                        .transition(
+                            .scale(scale: 0.06, anchor: popupAnchor(in: geo.size))
+                            .combined(with: .opacity)
+                        )
+                    } else if let agent = presence.docked {
+                        FloatingAgentOrb(agent: agent) {
+                            withAnimation(Motion.springDefault) {
+                                miniAgent = AgentReopen(agent: agent)
+                            }
+                        }
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    }
                 }
-                .transition(.scale(scale: 0.4).combined(with: .opacity))
             }
         }
         .animation(Motion.springDefault, value: presence.docked)
-        .sheet(item: $miniAgent) { launch in
-            MiniAgentChat(agent: launch.agent) {
-                // Expand into the full agent space.
-                miniAgent = nil
-                expandedAgent = AgentReopen(agent: launch.agent)
-            }
-            .environmentObject(appState)
-            .environmentObject(walletManager)
-            .presentationDetents([.height(460), .large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(.ultraThinMaterial)
-        }
         .fullScreenCover(item: $expandedAgent) { launch in
             AgentConversationView(
                 userID: appState.currentUserID,
@@ -220,28 +243,42 @@ struct MainTabView: View {
 struct MiniAgentChat: View {
     let agent: AgentAccessControl.ActiveAgent
     let onExpand: () -> Void
+    var onClose: () -> Void = {}
 
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var walletManager: WalletManager
-    @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = AgentConversationViewModel()
     @FocusState private var inputFocused: Bool
+    @State private var drift = false
 
+    /// The agent's pastel lead — used for the send button and accents.
     private var tint: Color {
-        switch agent {
-        case .trinity: return .trinityPrimary
-        case .morpheus: return Color(red: 0.95, green: 0.36, blue: 0.42)
-        case .neo: return .statusSuccess
-        }
+        agentBubblePalette(agent).first ?? .trinityPrimary
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Compact header.
+            // Compact header — the agent's own little bubble leads it.
             HStack(spacing: Spacing.sm) {
-                Circle()
-                    .fill(tint)
-                    .frame(width: 9, height: 9)
+                ZStack {
+                    Circle().fill(.ultraThinMaterial).opacity(0.35)
+                    Circle()
+                        .fill(AngularGradient(colors: agentBubblePalette(agent), center: .center))
+                        .opacity(0.8)
+                        .rotationEffect(.degrees(drift ? 360 : 0))
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [.white.opacity(0.40), .clear],
+                                center: .center,
+                                startRadius: 1,
+                                endRadius: 10
+                            )
+                        )
+                    Circle().strokeBorder(.white.opacity(0.30), lineWidth: 0.8)
+                }
+                .frame(width: 22, height: 22)
+
                 Text(AgentConversationViewModel.displayName(of: agent))
                     .font(.mtrxCalloutBold)
                     .foregroundStyle(Color.labelPrimary)
@@ -256,6 +293,17 @@ struct MiniAgentChat: View {
                     onExpand()
                 } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.labelSecondary)
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    MtrxHaptics.impact(.light)
+                    onClose()
+                } label: {
+                    Image(systemName: "chevron.down")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.labelSecondary)
                         .frame(width: 30, height: 30)
@@ -327,16 +375,42 @@ struct MiniAgentChat: View {
             .padding(.horizontal, Spacing.contentPadding)
             .padding(.vertical, Spacing.sm)
         }
+        // The window wears the orb's skin: liquid glass, a film of the
+        // agent's pastels around the edge, and a soft glow of light —
+        // one continuous material from bubble to chat.
+        .background(
+            LinearGradient(
+                colors: [tint.opacity(0.08), .clear],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .mtrxLiquidGlass(cornerRadius: 28)
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(
+                    AngularGradient(
+                        colors: agentBubblePalette(agent).map { $0.opacity(0.45) },
+                        center: .center
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .shadow(color: .white.opacity(0.14), radius: 18)
+        .shadow(color: .black.opacity(0.30), radius: 24, y: 10)
         .onAppear {
             viewModel.setup(userID: appState.currentUserID, walletManager: walletManager)
             viewModel.openAgentChat(agent)
+            withAnimation(.linear(duration: 14).repeatForever(autoreverses: false)) {
+                drift = true
+            }
         }
         .onChange(of: viewModel.dismissRequested) {
-            // She navigated somewhere new from the popup — let it close;
+            // She navigated somewhere new from the popup — fold it away;
             // the orb stays docked wherever it was.
             if viewModel.dismissRequested {
                 viewModel.dismissRequested = false
-                dismiss()
+                onClose()
             }
         }
     }
@@ -350,9 +424,38 @@ struct MiniAgentChat: View {
 final class AgentPresence: ObservableObject {
     static let shared = AgentPresence()
     @Published var docked: AgentAccessControl.ActiveAgent?
+    /// Where the orb floats — shared so the popup can grow out of it.
+    @Published var position: CGPoint?
 
     func dock(_ agent: AgentAccessControl.ActiveAgent) { docked = agent }
     func clear() { docked = nil }
+}
+
+/// Each agent's pastel film — the same soap-bubble light in their key.
+func agentBubblePalette(_ agent: AgentAccessControl.ActiveAgent) -> [Color] {
+    switch agent {
+    case .trinity:
+        return [
+            Color(red: 0.62, green: 0.90, blue: 0.92),
+            Color(red: 0.72, green: 0.78, blue: 0.98),
+            Color(red: 0.85, green: 0.92, blue: 0.99),
+            Color(red: 0.62, green: 0.90, blue: 0.92),
+        ]
+    case .morpheus:
+        return [
+            Color(red: 0.99, green: 0.74, blue: 0.76),
+            Color(red: 0.99, green: 0.86, blue: 0.72),
+            Color(red: 0.96, green: 0.78, blue: 0.94),
+            Color(red: 0.99, green: 0.74, blue: 0.76),
+        ]
+    case .neo:
+        return [
+            Color(red: 0.68, green: 0.93, blue: 0.76),
+            Color(red: 0.90, green: 0.97, blue: 0.70),
+            Color(red: 0.64, green: 0.92, blue: 0.88),
+            Color(red: 0.68, green: 0.93, blue: 0.76),
+        ]
+    }
 }
 
 struct AgentReopen: Identifiable {
@@ -364,10 +467,15 @@ struct FloatingAgentOrb: View {
     let agent: AgentAccessControl.ActiveAgent
     let onTap: () -> Void
 
-    /// Where she lives on screen — wherever the user last put her.
-    @State private var position: CGPoint?
-    /// Drives the slow drift of the bubble's iridescence.
+    /// Drives the slow drift of the bubble's iridescence. Position
+    /// lives in AgentPresence so the popup knows where to grow from.
     @State private var drift = false
+    @ObservedObject private var presence = AgentPresence.shared
+
+    private var position: CGPoint? {
+        get { presence.position }
+        nonmutating set { presence.position = newValue }
+    }
 
     /// Soft pastel film — mint, lavender, peach, butter — like light
     /// catching a soap bubble. Playful, never loud.
@@ -506,6 +614,18 @@ enum AppTab: Int, CaseIterable {
 }
 
 extension MainTabView {
+    /// Where the popup grows from: the orb's spot on screen, expressed
+    /// as an anchor inside the popup's resting area — so the window
+    /// visually unfolds out of the bubble itself.
+    func popupAnchor(in size: CGSize) -> UnitPoint {
+        let orb = AgentPresence.shared.position
+            ?? CGPoint(x: size.width - 44, y: size.height * 0.40)
+        let panelTop = max(size.height - 460 - 80, 0)
+        let x = min(max(orb.x / max(size.width, 1), 0.05), 0.95)
+        let y = min(max((orb.y - panelTop) / 460, 0.0), 1.0)
+        return UnitPoint(x: x, y: y)
+    }
+
     /// The selected-tab accent slides along a green→cyan gradient as
     /// the user moves left→right through the tabs: Discover sits at the
     /// green end, Account at the cyan end, with a smooth blend between.
