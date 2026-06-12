@@ -22,7 +22,6 @@ struct HomeView: View {
     @State private var showDailyFlow = false
     @State private var flowDestination: DailyFlow.Goal?
     @State private var showPortfolio = false
-    @State private var portfolioPrompt: String?
 
     /// What to open the chat with: an agent and an optional prefill.
     struct ChatLaunch: Identifiable {
@@ -123,22 +122,11 @@ struct HomeView: View {
                     }
             }
         }
-        .sheet(isPresented: $showPortfolio, onDismiss: {
-            // Money moves open the agent chat — but only after the
-            // sheet has fully closed, so presentations never collide.
-            if let prompt = portfolioPrompt {
-                portfolioPrompt = nil
-                presentedChat = ChatLaunch(agent: .trinity, prompt: prompt)
-            }
-        }) {
-            PortfolioActionsSheet { prompt in
-                portfolioPrompt = prompt
-                showPortfolio = false
-            }
-            .environmentObject(walletManager)
-            .presentationDetents([.height(540), .large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(.ultraThinMaterial)
+        .sheet(isPresented: $showPortfolio) {
+            // The portfolio opens like a banking app: balance, moves,
+            // holdings, and activity — everything happens in here.
+            PortfolioSheet()
+                .environmentObject(walletManager)
         }
     }
 
@@ -309,7 +297,9 @@ struct HomeView: View {
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.xs) {
                 quickAction("Deploy Contract", icon: "doc.badge.gearshape.fill", color: .accentTertiary, prompt: "Deploy a smart contract called ")
-                ForEach(HomeService.allCases) { service in
+                // Money lives in Portfolio now — these are the doors to
+                // the rest of life in the app, in this exact order.
+                ForEach([HomeService.shop, .insure, .game, .events, .domains]) { service in
                     serviceAction(service)
                 }
             }
@@ -623,99 +613,437 @@ final class DailyFlow: ObservableObject {
     }
 }
 
-// MARK: - Portfolio Actions Sheet
+// MARK: - Portfolio Sheet (the bank inside the app)
 
-/// The portfolio, opened up: full holdings plus the money moves —
-/// send, swap, stake — one tap each, straight into the agent.
-struct PortfolioActionsSheet: View {
+/// The portfolio opens like a banking app: balance up top, a row of
+/// money moves, holdings, and recent activity — and every move (pay,
+/// swap, stake, earn, invest) happens right here, never leaving it.
+struct PortfolioSheet: View {
     @EnvironmentObject var walletManager: WalletManager
-    let onAction: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var activeMove: PortfolioMove?
+
+    enum PortfolioMove: String, Identifiable, Hashable {
+        case pay, swap, stake, earn, invest
+        var id: String { rawValue }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.ml) {
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Portfolio")
-                    .font(.mtrxTitle3)
-                    .foregroundStyle(Color.labelPrimary)
+        NavigationStack {
+            ZStack {
+                MtrxGradientBackground(style: .primary)
 
-                HStack(alignment: .firstTextBaseline) {
-                    Text(
-                        walletManager.totalPortfolioValue,
-                        format: .currency(code: "USD").precision(.fractionLength(2))
-                    )
-                    .font(.mtrxTitle1)
-                    .foregroundStyle(Color.labelPrimary)
-
-                    Spacer()
-
-                    HStack(spacing: 3) {
-                        Image(systemName: walletManager.portfolioChange24h >= 0 ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 11, weight: .bold))
-                        Text(String(format: "%.2f%%", abs(walletManager.portfolioChange24h)))
-                            .font(.mtrxCaptionBold)
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: Spacing.lg) {
+                        balanceHeader
+                        moveRow
+                        holdingsSection
+                        activitySection
                     }
-                    .foregroundStyle(walletManager.portfolioChange24h >= 0 ? Color.statusSuccess : Color.statusError)
+                    .padding(.horizontal, Spacing.contentPadding)
+                    .padding(.top, Spacing.sm)
+                    .padding(.bottom, Spacing.xl)
                 }
             }
-
-            VStack(spacing: Spacing.xs) {
-                ForEach(walletManager.tokens.filter { $0.balance > 0 }, id: \.symbol) { token in
-                    HStack {
-                        Text(token.symbol)
-                            .font(.mtrxCaptionBold)
-                            .foregroundStyle(Color.labelSecondary)
-                        Spacer()
-                        Text(String(format: "%.4f", token.balance))
-                            .font(.mtrxCaptionBold)
+            .navigationTitle("Portfolio")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.labelPrimary)
                     }
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, Spacing.ms)
-                    .background(Color.surfaceOverlay.opacity(0.6))
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.xs, style: .continuous))
                 }
             }
-
-            VStack(spacing: Spacing.sm) {
-                portfolioMove("Send Money", icon: "arrow.up.circle.fill", color: .accentPrimary, prompt: "Send $")
-                portfolioMove("Swap", icon: "arrow.triangle.2.circlepath.circle.fill", color: .trinityPrimary, prompt: "Swap 1 ETH to USDC")
-                portfolioMove("Stake", icon: "lock.circle.fill", color: .statusSuccess, prompt: "Stake 0.5 ETH")
+            .navigationDestination(item: $activeMove) { move in
+                switch move {
+                case .pay:
+                    MoneyMoveForm(mode: .pay) { activeMove = nil }
+                case .swap:
+                    MoneyMoveForm(mode: .swap) { activeMove = nil }
+                case .stake:
+                    MoneyMoveForm(mode: .stake) { activeMove = nil }
+                case .earn:
+                    YieldView()
+                case .invest:
+                    TradingView()
+                }
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(Spacing.contentPadding)
+    }
+
+    // The number that matters, stated calmly.
+    private var balanceHeader: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Text("Total balance")
+                .font(.mtrxCaption1)
+                .foregroundStyle(Color.labelSecondary)
+
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                Text(
+                    walletManager.totalPortfolioValue,
+                    format: .currency(code: "USD").precision(.fractionLength(2))
+                )
+                .font(.system(size: 40, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color.labelPrimary)
+
+                HStack(spacing: 3) {
+                    Image(systemName: walletManager.portfolioChange24h >= 0 ? "arrow.up.right" : "arrow.down.right")
+                        .font(.system(size: 10, weight: .bold))
+                    Text(String(format: "%.2f%%", abs(walletManager.portfolioChange24h)))
+                        .font(.mtrxCaptionBold)
+                }
+                .foregroundStyle(walletManager.portfolioChange24h >= 0 ? Color.statusSuccess : Color.statusError)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background((walletManager.portfolioChange24h >= 0 ? Color.statusSuccess : Color.statusError).opacity(0.12))
+                .clipShape(Capsule())
+            }
+        }
         .padding(.top, Spacing.sm)
     }
 
-    private func portfolioMove(_ title: String, icon: String, color: Color, prompt: String) -> some View {
+    // The banking-app row: five round doors, evenly spread.
+    private var moveRow: some View {
+        HStack(spacing: 0) {
+            moveButton(.pay, "Pay", icon: "arrow.up", color: .accentPrimary)
+            moveButton(.swap, "Swap", icon: "arrow.triangle.2.circlepath", color: .trinityPrimary)
+            moveButton(.stake, "Stake", icon: "lock.fill", color: .statusSuccess)
+            moveButton(.earn, "Earn", icon: "percent", color: .purple)
+            moveButton(.invest, "Invest", icon: "chart.line.uptrend.xyaxis", color: .statusInfo)
+        }
+    }
+
+    private func moveButton(_ move: PortfolioMove, _ title: String, icon: String, color: Color) -> some View {
         Button {
             MtrxHaptics.impact(.light)
-            onAction(prompt)
+            activeMove = move
         } label: {
-            HStack(spacing: Spacing.md) {
+            VStack(spacing: 7) {
                 Image(systemName: icon)
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(color)
-                    .frame(width: 36, height: 36)
-                    .background(color.opacity(0.14))
+                    .frame(width: 54, height: 54)
+                    .background(.ultraThinMaterial)
+                    .background(color.opacity(0.10))
                     .clipShape(Circle())
+                    .overlay(Circle().stroke(color.opacity(0.30), lineWidth: 1))
 
                 Text(title)
-                    .font(.mtrxCalloutBold)
-                    .foregroundStyle(Color.labelPrimary)
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.labelTertiary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.labelSecondary)
             }
-            .padding(Spacing.ms)
-            .background(Color.surfaceOverlay)
-            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+            .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
+    }
+
+    private var holdingsSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("Holdings")
+                .font(.mtrxHeadline)
+                .foregroundStyle(Color.labelPrimary)
+
+            VStack(spacing: Spacing.xs) {
+                ForEach(walletManager.tokens.filter { $0.balance > 0 }, id: \.symbol) { token in
+                    HStack(spacing: Spacing.ms) {
+                        Text(String(token.symbol.prefix(1)))
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.trinityPrimary)
+                            .frame(width: 36, height: 36)
+                            .background(Color.trinityPrimary.opacity(0.12))
+                            .clipShape(Circle())
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(token.symbol)
+                                .font(.mtrxCaptionBold)
+                                .foregroundStyle(Color.labelPrimary)
+                            Text(String(format: "%.4f", token.balance))
+                                .font(.mtrxCaption2)
+                                .foregroundStyle(Color.labelTertiary)
+                        }
+
+                        Spacer()
+
+                        Text(token.balance * token.priceUSD, format: .currency(code: "USD").precision(.fractionLength(2)))
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(Color.labelPrimary)
+                    }
+                    .padding(Spacing.ms)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private var activitySection: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("Recent activity")
+                .font(.mtrxHeadline)
+                .foregroundStyle(Color.labelPrimary)
+
+            if walletManager.transactions.isEmpty {
+                Text("Your moves will show up here.")
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelTertiary)
+                    .padding(.vertical, Spacing.sm)
+            } else {
+                VStack(spacing: Spacing.xs) {
+                    ForEach(walletManager.transactions.prefix(5)) { tx in
+                        HStack(spacing: Spacing.ms) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(tx.title)
+                                    .font(.mtrxCaptionBold)
+                                    .foregroundStyle(Color.labelPrimary)
+                                Text(tx.subtitle)
+                                    .font(.mtrxCaption2)
+                                    .foregroundStyle(Color.labelTertiary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(tx.amount)
+                                    .font(.mtrxCaptionBold)
+                                    .foregroundStyle(tx.amount.hasPrefix("+") ? Color.statusSuccess : Color.labelPrimary)
+                                Text(tx.timestamp, style: .time)
+                                    .font(.mtrxCaption2)
+                                    .foregroundStyle(Color.labelQuaternary)
+                            }
+                        }
+                        .padding(Spacing.ms)
+                        .background(Color.surfaceOverlay.opacity(0.55))
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Money Move Form
+
+/// One clean form for pay / swap / stake — amount, the few details the
+/// move needs, one confirm button, and a success beat. All in-place.
+struct MoneyMoveForm: View {
+    enum Mode { case pay, swap, stake }
+
+    let mode: Mode
+    let onDone: () -> Void
+
+    @EnvironmentObject var walletManager: WalletManager
+    @State private var amountText = ""
+    @State private var recipient = ""
+    @State private var fromToken = "ETH"
+    @State private var toToken = "USDC"
+    @State private var stakeToken = "ETH"
+    @State private var errorMessage: String?
+    @State private var succeeded = false
+    @FocusState private var amountFocused: Bool
+
+    var body: some View {
+        ZStack {
+            MtrxGradientBackground(style: .primary)
+
+            if succeeded {
+                successView
+            } else {
+                formView
+            }
+        }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { amountFocused = true }
+    }
+
+    private var title: String {
+        switch mode {
+        case .pay: return "Send money"
+        case .swap: return "Swap"
+        case .stake: return "Stake"
+        }
+    }
+
+    private var formView: some View {
+        VStack(spacing: Spacing.lg) {
+            // The amount is the hero — big, centered, focused.
+            VStack(spacing: Spacing.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    if mode == .pay { Text("$").font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(Color.labelSecondary) }
+                    TextField("0", text: $amountText)
+                        .keyboardType(.decimalPad)
+                        .focused($amountFocused)
+                        .font(.system(size: 44, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color.labelPrimary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize()
+                    if mode != .pay {
+                        Text(mode == .swap ? fromToken : stakeToken)
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+                }
+                Text(availableLine)
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelTertiary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, Spacing.xl)
+
+            // The few details the move actually needs.
+            VStack(spacing: Spacing.sm) {
+                switch mode {
+                case .pay:
+                    TextField("To — name, @handle, or address", text: $recipient)
+                        .font(.mtrxBody)
+                        .padding(Spacing.ms)
+                        .background(Color.surfaceOverlay)
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                case .swap:
+                    tokenPicker("From", selection: $fromToken)
+                    tokenPicker("To", selection: $toToken)
+                case .stake:
+                    tokenPicker("Token", selection: $stakeToken)
+                }
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.statusError)
+            }
+
+            Spacer()
+
+            Button {
+                confirm()
+            } label: {
+                Text(confirmLabel)
+                    .font(.mtrxCalloutBold)
+                    .foregroundStyle(Color.backgroundPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(canConfirm ? Color.accentPrimary : Color.labelQuaternary)
+                    .clipShape(Capsule())
+            }
+            .disabled(!canConfirm)
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.bottom, Spacing.lg)
+        }
+    }
+
+    private var successView: some View {
+        VStack(spacing: Spacing.md) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(Color.statusSuccess)
+                .symbolRenderingMode(.hierarchical)
+
+            Text(successLine)
+                .font(.mtrxTitle3)
+                .foregroundStyle(Color.labelPrimary)
+                .multilineTextAlignment(.center)
+
+            Text("Reflected in your balance instantly.")
+                .font(.mtrxCaption1)
+                .foregroundStyle(Color.labelSecondary)
+        }
+        .padding(Spacing.contentPadding)
+        .transition(.scale(scale: 0.8).combined(with: .opacity))
+    }
+
+    private var availableLine: String {
+        switch mode {
+        case .pay:
+            let cash = walletManager.tokens.first { $0.symbol == "USDC" }?.balance ?? 0
+            return String(format: "Cash available: $%.2f", cash)
+        case .swap:
+            let bal = walletManager.tokens.first { $0.symbol == fromToken }?.balance ?? 0
+            return String(format: "Available: %.4f %@", bal, fromToken)
+        case .stake:
+            let bal = walletManager.tokens.first { $0.symbol == stakeToken }?.balance ?? 0
+            return String(format: "Available: %.4f %@ · 8.7%% APY", bal, stakeToken)
+        }
+    }
+
+    private var confirmLabel: String {
+        switch mode {
+        case .pay: return "Send"
+        case .swap: return "Swap \(fromToken) → \(toToken)"
+        case .stake: return "Stake \(stakeToken)"
+        }
+    }
+
+    private var successLine: String {
+        switch mode {
+        case .pay: return "Sent $\(amountText) to \(recipient)"
+        case .swap: return "Swapped \(amountText) \(fromToken) → \(toToken)"
+        case .stake: return "Staked \(amountText) \(stakeToken)"
+        }
+    }
+
+    private var canConfirm: Bool {
+        guard let amount = Double(amountText), amount > 0 else { return false }
+        if mode == .pay && recipient.trimmingCharacters(in: .whitespaces).isEmpty { return false }
+        if mode == .swap && fromToken == toToken { return false }
+        return true
+    }
+
+    private func confirm() {
+        guard let amount = Double(amountText) else { return }
+        amountFocused = false
+        let ok: Bool
+        switch mode {
+        case .pay:
+            ok = walletManager.demoSendFiat(amount: amount, currency: "USD", recipient: recipient)
+        case .swap:
+            ok = walletManager.demoSwap(amount: amount, from: fromToken, to: toToken) != nil
+        case .stake:
+            ok = walletManager.demoStake(amount: amount, tokenSymbol: stakeToken)
+        }
+        if ok {
+            MtrxHaptics.success()
+            withAnimation(Motion.springDefault) { succeeded = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { onDone() }
+        } else {
+            MtrxHaptics.error()
+            withAnimation(Motion.springSnappy) {
+                errorMessage = "Not enough balance for that move."
+            }
+        }
+    }
+
+    private func tokenPicker(_ label: String, selection: Binding<String>) -> some View {
+        HStack(spacing: Spacing.sm) {
+            Text(label)
+                .font(.mtrxCaption1)
+                .foregroundStyle(Color.labelSecondary)
+                .frame(width: 44, alignment: .leading)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Spacing.xs) {
+                    ForEach(walletManager.tokens.filter { $0.balance > 0 || $0.symbol == selection.wrappedValue }, id: \.symbol) { token in
+                        Button {
+                            MtrxHaptics.selection()
+                            selection.wrappedValue = token.symbol
+                        } label: {
+                            Text(token.symbol)
+                                .font(.mtrxCaptionBold)
+                                .foregroundStyle(selection.wrappedValue == token.symbol ? Color.backgroundPrimary : Color.labelPrimary)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(selection.wrappedValue == token.symbol ? Color.accentPrimary : Color.surfaceOverlay)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(Spacing.ms)
+        .background(Color.surfaceOverlay.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
     }
 }
 
