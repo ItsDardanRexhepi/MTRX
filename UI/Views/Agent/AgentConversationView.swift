@@ -317,6 +317,23 @@ struct AgentConversationView: View {
         .clipShape(Capsule())
         .overlay(Capsule().stroke(.white.opacity(0.08), lineWidth: 1))
         .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+        // Swipe across the capsule to slide between agents — left for
+        // the next, right for the previous. Tapping still works.
+        .gesture(
+            DragGesture(minimumDistance: 18)
+                .onEnded { value in
+                    guard abs(value.translation.width) > 32,
+                          abs(value.translation.width) > abs(value.translation.height) else { return }
+                    let agents = availableAgents
+                    guard let index = agents.firstIndex(of: viewModel.activeAgent) else { return }
+                    let next = value.translation.width < 0 ? index + 1 : index - 1
+                    guard agents.indices.contains(next) else { return }
+                    MtrxHaptics.impact(.medium)
+                    withAnimation(Motion.springSnappy) {
+                        viewModel.openAgentChat(agents[next])
+                    }
+                }
+        )
     }
 
     private func agentSegment(_ agent: AgentAccessControl.ActiveAgent) -> some View {

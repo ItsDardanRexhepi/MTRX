@@ -116,7 +116,8 @@ struct MainTabView: View {
     @EnvironmentObject var walletManager: WalletManager
     @State private var selectedTab: AppTab = .home
     @ObservedObject private var presence = AgentPresence.shared
-    @State private var reopenedAgent: AgentReopen?
+    @State private var miniAgent: AgentReopen?
+    @State private var expandedAgent: AgentReopen?
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -175,18 +176,31 @@ struct MainTabView: View {
             }
         }
         // The docked agent: after she navigates the app for the user she
-        // stays as a floating orb — drag her anywhere on screen, tap to
-        // reopen, and only a swipe fully off the screen sends her away.
+        // stays as a floating orb — drag her anywhere on screen, tap for
+        // a quick popup chat right where you are, and only a swipe fully
+        // off the screen sends her away.
         .overlay {
             if let agent = presence.docked {
                 FloatingAgentOrb(agent: agent) {
-                    reopenedAgent = AgentReopen(agent: agent)
+                    miniAgent = AgentReopen(agent: agent)
                 }
                 .transition(.scale(scale: 0.4).combined(with: .opacity))
             }
         }
         .animation(Motion.springDefault, value: presence.docked)
-        .fullScreenCover(item: $reopenedAgent) { launch in
+        .sheet(item: $miniAgent) { launch in
+            MiniAgentChat(agent: launch.agent) {
+                // Expand into the full agent space.
+                miniAgent = nil
+                expandedAgent = AgentReopen(agent: launch.agent)
+            }
+            .environmentObject(appState)
+            .environmentObject(walletManager)
+            .presentationDetents([.height(460), .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(.ultraThinMaterial)
+        }
+        .fullScreenCover(item: $expandedAgent) { launch in
             AgentConversationView(
                 userID: appState.currentUserID,
                 initialAgent: launch.agent,
@@ -194,6 +208,136 @@ struct MainTabView: View {
             )
             .environmentObject(appState)
             .environmentObject(walletManager)
+        }
+    }
+}
+
+// MARK: - Mini Agent Chat (the popup)
+
+/// The popup the orb opens: a quick word with the agent right where
+/// you are — last few messages, an input bar, and an expand button if
+/// the conversation deserves the full room. The orb stays docked.
+struct MiniAgentChat: View {
+    let agent: AgentAccessControl.ActiveAgent
+    let onExpand: () -> Void
+
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var walletManager: WalletManager
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var viewModel = AgentConversationViewModel()
+    @FocusState private var inputFocused: Bool
+
+    private var tint: Color {
+        switch agent {
+        case .trinity: return .trinityPrimary
+        case .morpheus: return Color(red: 0.95, green: 0.36, blue: 0.42)
+        case .neo: return .statusSuccess
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Compact header.
+            HStack(spacing: Spacing.sm) {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 9, height: 9)
+                Text(AgentConversationViewModel.displayName(of: agent))
+                    .font(.mtrxCalloutBold)
+                    .foregroundStyle(Color.labelPrimary)
+                Text("online")
+                    .font(.mtrxCaption2)
+                    .foregroundStyle(Color.labelTertiary)
+
+                Spacer()
+
+                Button {
+                    MtrxHaptics.impact(.light)
+                    onExpand()
+                } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.labelSecondary)
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.top, Spacing.md)
+            .padding(.bottom, Spacing.sm)
+
+            // The last stretch of conversation.
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: Spacing.ms) {
+                        ForEach(viewModel.messages.suffix(12)) { message in
+                            MessageBubble(message: message)
+                                .id(message.id)
+                        }
+                        if viewModel.isTyping {
+                            TypingIndicator(agent: viewModel.activeAgent)
+                                .id("miniTyping")
+                        }
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+                    .padding(.vertical, Spacing.xs)
+                }
+                .onChange(of: viewModel.messages.count) {
+                    if let last = viewModel.messages.last {
+                        withAnimation(Motion.springSnappy) {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                }
+                .onChange(of: viewModel.isTyping) {
+                    if viewModel.isTyping {
+                        withAnimation(Motion.springSnappy) {
+                            proxy.scrollTo("miniTyping", anchor: .bottom)
+                        }
+                    }
+                }
+            }
+
+            // Input bar.
+            HStack(spacing: Spacing.sm) {
+                TextField("Ask \(AgentConversationViewModel.displayName(of: agent))...", text: $viewModel.inputText, axis: .vertical)
+                    .font(.mtrxBody)
+                    .lineLimit(1...3)
+                    .focused($inputFocused)
+                    .padding(.horizontal, Spacing.ms)
+                    .padding(.vertical, Spacing.sm)
+                    .background(Color.surfaceOverlay)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous))
+
+                Button {
+                    MtrxHaptics.impact(.light)
+                    viewModel.sendMessage()
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(
+                            viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? Color.labelTertiary
+                                : tint
+                        )
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.vertical, Spacing.sm)
+        }
+        .onAppear {
+            viewModel.setup(userID: appState.currentUserID, walletManager: walletManager)
+            viewModel.openAgentChat(agent)
+        }
+        .onChange(of: viewModel.dismissRequested) {
+            // She navigated somewhere new from the popup — let it close;
+            // the orb stays docked wherever it was.
+            if viewModel.dismissRequested {
+                viewModel.dismissRequested = false
+                dismiss()
+            }
         }
     }
 }
@@ -223,11 +367,11 @@ struct FloatingAgentOrb: View {
     /// Where she lives on screen — wherever the user last put her.
     @State private var position: CGPoint?
 
-    private var sphereColors: [Color] {
+    private var tint: Color {
         switch agent {
-        case .trinity: return [.white.opacity(0.95), .trinityPrimary, Color(red: 0.02, green: 0.45, blue: 0.55)]
-        case .morpheus: return [.white.opacity(0.9), Color(red: 0.95, green: 0.36, blue: 0.42), Color(red: 0.58, green: 0.10, blue: 0.24)]
-        case .neo: return [.white.opacity(0.9), .statusSuccess, Color(red: 0.04, green: 0.36, blue: 0.18)]
+        case .trinity: return .trinityPrimary
+        case .morpheus: return Color(red: 0.95, green: 0.36, blue: 0.42)
+        case .neo: return .statusSuccess
         }
     }
 
@@ -237,18 +381,41 @@ struct FloatingAgentOrb: View {
             // button, and everything else that lives in the corners.
             let current = position ?? CGPoint(x: geo.size.width - 44, y: geo.size.height * 0.40)
 
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: sphereColors,
-                        center: .init(x: 0.35, y: 0.3),
-                        startRadius: 2,
-                        endRadius: 34
+            // Airy, not heavy: a glass bubble — barely-there material,
+            // a breath of the agent's color, light running around the
+            // rim, and a glow instead of a drop shadow. Nothing solid.
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.55)
+
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [tint.opacity(0.30), tint.opacity(0.05), .clear],
+                            center: .init(x: 0.42, y: 0.36),
+                            startRadius: 2,
+                            endRadius: 28
+                        )
                     )
-                )
-                .frame(width: 54, height: 54)
-                .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
-                .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+
+                Circle()
+                    .strokeBorder(
+                        AngularGradient(
+                            colors: [tint.opacity(0.9), .white.opacity(0.85), tint.opacity(0.12), tint.opacity(0.9)],
+                            center: .center
+                        ),
+                        lineWidth: 1.2
+                    )
+
+                // Specular kiss of light.
+                Circle()
+                    .fill(.white.opacity(0.8))
+                    .frame(width: 5, height: 5)
+                    .offset(x: -11, y: -13)
+            }
+            .frame(width: 54, height: 54)
+            .shadow(color: tint.opacity(0.35), radius: 14)
                 .position(current)
                 .gesture(
                     DragGesture()
