@@ -88,7 +88,7 @@ struct LaunchView: View {
                         .opacity(wordmarkOpacity)
                         .offset(y: wordmarkOffset)
 
-                    Text("Your whole day. One app.")
+                    Text("Enter the Matrix.")
                         .font(.system(size: 15, weight: .medium, design: .rounded))
                         .foregroundStyle(Color.labelSecondary)
                         .opacity(taglineOpacity)

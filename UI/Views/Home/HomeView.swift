@@ -39,7 +39,7 @@ struct HomeView: View {
             // Sized so the whole dashboard — greeting through Services —
             // fits one screen above the dock. Even 20pt section rhythm.
             ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.ml) {
+                VStack(alignment: .leading, spacing: Spacing.md) {
                     greetingHeader
                         .mtrxStaggeredAppearance(index: 0, isVisible: appeared)
 
@@ -53,7 +53,7 @@ struct HomeView: View {
                         .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
                 }
                 .padding(.horizontal, Spacing.contentPadding)
-                .padding(.top, Spacing.md)
+                .padding(.top, Spacing.sm)
                 .padding(.bottom, 96)
             }
         }
@@ -207,13 +207,13 @@ struct HomeView: View {
                                     center: .center
                                 )
                             )
-                            .frame(width: 62, height: 62)
+                            .frame(width: 56, height: 56)
                             .mask(
                                 RadialGradient(
                                     colors: [.white, .white.opacity(0)],
                                     center: .center,
-                                    startRadius: 12,
-                                    endRadius: 31
+                                    startRadius: 11,
+                                    endRadius: 28
                                 )
                             )
                             .opacity(orbPulse ? 0.95 : 0.55)
@@ -224,14 +224,14 @@ struct HomeView: View {
                                     colors: [.white.opacity(0.95), .trinityPrimary, .trinitySecondary.opacity(0.8)],
                                     center: .init(x: 0.35, y: 0.3),
                                     startRadius: 2,
-                                    endRadius: 30
+                                    endRadius: 27
                                 )
                             )
-                            .frame(width: 46, height: 46)
+                            .frame(width: 42, height: 42)
                             .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
                             .scaleEffect(orbPulse ? 1.04 : 0.97)
                     }
-                    .frame(width: 52, height: 52)
+                    .frame(width: 46, height: 46)
                 }
                 .buttonStyle(.plain)
                 .onAppear {
@@ -336,7 +336,7 @@ struct HomeView: View {
             }
             .padding(.vertical, Spacing.xs)
             .padding(.horizontal, Spacing.ms)
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(.ultraThinMaterial)
             .background(service.color.opacity(0.04))
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
@@ -373,7 +373,7 @@ struct HomeView: View {
             }
             .padding(.vertical, Spacing.xs)
             .padding(.horizontal, Spacing.ms)
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(.ultraThinMaterial)
             .background(color.opacity(0.04))
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
@@ -402,7 +402,7 @@ struct HomeView: View {
     }
 
     private var portfolioCardLabel: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(
                         walletManager.totalPortfolioValue,
@@ -440,7 +440,7 @@ struct HomeView: View {
                     }
                 }
             }
-            .padding(Spacing.md)
+            .padding(Spacing.ms)
             .background(.ultraThinMaterial)
             .background(Color.trinityPrimary.opacity(0.035))
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
@@ -500,7 +500,7 @@ struct HomeView: View {
                             onLike: { socialFeed.toggleLike(postId: post.id) },
                             onRepost: { socialFeed.toggleRepost(postId: post.id) }
                         )
-                        .lineLimit(4)
+                        .lineLimit(3)
                         .padding(Spacing.ms)
                         .frame(maxHeight: .infinity, alignment: .top)
                         .background(.ultraThinMaterial)
