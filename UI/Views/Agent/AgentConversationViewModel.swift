@@ -259,6 +259,12 @@ final class AgentConversationViewModel: ObservableObject {
             return
         }
 
+        // In-app tasks — "make a social post about...", "change my bio
+        // to...", "set my theme to violet". The agent does it, right here.
+        if handleAppTask(text: text) {
+            return
+        }
+
         // App navigation — "open my social feed", "take me to the wallet",
         // "open events". The agent drives the app there, then docks as a
         // floating orb so she stays one tap away until swiped off.
@@ -343,6 +349,148 @@ final class AgentConversationViewModel: ObservableObject {
             // Silently ignore banned users
             break
         }
+    }
+
+    // MARK: - In-App Tasks
+
+    /// The agent's hands: anything the user could do themselves in the
+    /// app, they can just ask for. Returns true when the message was a
+    /// task and has been handled.
+    private func handleAppTask(text: String) -> Bool {
+        let lower = text.lowercased()
+        let speaker = conversationID.flatMap { store.conversation(id: $0)?.agent } ?? activeAgent
+
+        // 1 — Publish a social post. Dictated content posts verbatim;
+        // "about X" gets written by the agent first, then posted.
+        let postVerbs = ["make", "write", "create", "publish", "put up", "post"]
+        let mentionsPost = lower.contains("post") || lower.contains("tweet")
+        if mentionsPost, postVerbs.contains(where: { lower.contains($0) }) {
+            if let dictated = Self.quotedContent(in: text) ?? Self.content(after: ["saying ", "that says "], in: text) {
+                publishToFeed(dictated, as: speaker)
+                return true
+            }
+            if let topic = Self.content(after: ["about ", "on "], in: text) {
+                composeAndPost(topic: topic, as: speaker)
+                return true
+            }
+            // "Make a social post for me" with no topic — ask once.
+            messages.append(AgentMessage(
+                text: "Happy to. What should the post say — or give me a topic and I'll write it.",
+                role: .agent,
+                agentName: Self.displayName(of: speaker)
+            ))
+            return true
+        }
+
+        // 2 — Update bio.
+        if lower.contains("bio"), lower.contains("my"),
+           ["set", "change", "update", "make"].contains(where: { lower.contains($0) }),
+           let newBio = Self.content(after: ["to "], in: text) {
+            SocialIdentity.shared.bio = newBio
+            confirmTask("Done — your bio now reads \"\(newBio)\".", as: speaker)
+            return true
+        }
+
+        // 3 — Update username / handle.
+        if (lower.contains("username") || lower.contains("handle")), lower.contains("my"),
+           ["set", "change", "update", "make"].contains(where: { lower.contains($0) }),
+           let newHandle = Self.content(after: ["to "], in: text) {
+            let cleaned = newHandle.replacingOccurrences(of: " ", with: "").lowercased()
+            SocialIdentity.shared.username = cleaned
+            confirmTask("Done — you're \(cleaned.hasPrefix("@") ? cleaned : "@" + cleaned) now.", as: speaker)
+            return true
+        }
+
+        // 4 — Social theme color.
+        if lower.contains("theme"),
+           ["set", "change", "update", "switch", "make"].contains(where: { lower.contains($0) }) {
+            for preset in SocialTheme.presets {
+                let key = preset.name.lowercased()
+                if lower.contains(key) || key.split(separator: " ").contains(where: { lower.contains($0) }) {
+                    SocialTheme.shared.set(preset.color)
+                    confirmTask("Theme switched to \(preset.name).", as: speaker)
+                    return true
+                }
+            }
+            let names = SocialTheme.presets.map(\.name).joined(separator: ", ")
+            confirmTask("Which color? I can set: \(names).", as: speaker)
+            return true
+        }
+
+        return false
+    }
+
+    /// Text inside straight or smart double quotes, if any. Single
+    /// quotes are skipped — apostrophes would false-match.
+    private static func quotedContent(in text: String) -> String? {
+        for (open, close) in [("\"", "\""), ("\u{201C}", "\u{201D}")] {
+            if let start = text.range(of: open),
+               let end = text.range(of: close, range: start.upperBound..<text.endIndex) {
+                let inner = String(text[start.upperBound..<end.lowerBound])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if inner.count > 2 { return inner }
+            }
+        }
+        return nil
+    }
+
+    /// Everything after the first matching marker, cleaned up.
+    private static func content(after markers: [String], in text: String) -> String? {
+        let lower = text.lowercased()
+        for marker in markers {
+            if let range = lower.range(of: marker) {
+                let tail = String(text[range.upperBound...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\"'.\u{201C}\u{201D}"))
+                if tail.count > 1 { return tail }
+            }
+        }
+        return nil
+    }
+
+    private func publishToFeed(_ content: String, as speaker: AgentAccessControl.ActiveAgent) {
+        let social = SocialViewModel.shared
+        social.composerText = content
+        social.composerImageData = nil
+        social.composerVideoFileName = nil
+        social.composerLink = ""
+        social.attachProof = false
+        social.publishPost(displayName: UserDefaults.standard.string(forKey: "displayName") ?? "You")
+        social.composerText = ""
+        DailyFlow.shared.mark(.social)
+        confirmTask("Posted to your feed:\n\n\"\(content)\"\n\nIt's live on Social and in your Home feed window.", as: speaker)
+    }
+
+    /// Writes the post with the on-device model, then publishes it.
+    private func composeAndPost(topic: String, as speaker: AgentAccessControl.ActiveAgent) {
+        isTyping = true
+        let persona: InferenceRouter.Persona = {
+            switch speaker {
+            case .trinity: return .trinity
+            case .morpheus: return .morpheus
+            case .neo: return .neo
+            }
+        }()
+        Task { @MainActor in
+            let draft = await inference.generateOnDeviceOnly(
+                prompt: "Write a short, natural social media post (under 220 characters) about: \(topic). Reply with ONLY the post text — no quotes, no preamble.",
+                context: Self.dateTimeLine(),
+                persona: persona
+            )
+            isTyping = false
+            let content = (draft ?? "\(topic) — watch this space.")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            publishToFeed(content, as: speaker)
+        }
+    }
+
+    private func confirmTask(_ line: String, as speaker: AgentAccessControl.ActiveAgent) {
+        messages.append(AgentMessage(
+            text: line,
+            role: .agent,
+            agentName: Self.displayName(of: speaker)
+        ))
     }
 
     // MARK: - App Navigation
