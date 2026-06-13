@@ -52,22 +52,24 @@ struct LaunchView: View {
         withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
             breathe = true
         }
-        // The portal opens.
+        // The portal opens — gently, so it never flashes bright.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.7) {
             // Ocean + aura fade first → Home is revealed beneath the orb.
-            withAnimation(.easeInOut(duration: 0.45)) {
+            withAnimation(.easeInOut(duration: 0.55)) {
                 bgOpacity = 0
                 auraOpacity = 0
             }
-            // The glass orb expands into a full-screen window over Home.
-            withAnimation(.easeIn(duration: 0.7)) {
-                portalScale = 24
+            // The glass orb expands, but a softer scale so it doesn't
+            // engulf the screen in light.
+            withAnimation(.easeInOut(duration: 0.85)) {
+                portalScale = 13
             }
-            // …then the glass itself dissolves, leaving you in Home.
-            withAnimation(.easeOut(duration: 0.4).delay(0.42)) {
+            // The glass dissolves as it grows — overlapping the zoom so
+            // the brightness peels away instead of filling the screen.
+            withAnimation(.easeInOut(duration: 0.7).delay(0.18)) {
                 orbExitOpacity = 0
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.78) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
                 onComplete()
             }
         }

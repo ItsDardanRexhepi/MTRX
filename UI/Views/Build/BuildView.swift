@@ -139,6 +139,7 @@ enum BuildContractStatus: String {
 struct BuildView: View {
     @StateObject private var viewModel = BuildViewModel()
     @ObservedObject private var meshOutbox = MeshOutbox.shared
+    @State private var statFilter: BuildContractStatus?
 
     var body: some View {
         NavigationStack {
@@ -192,12 +193,8 @@ struct BuildView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
+                    MtrxGlassCircleButton(icon: Symbols.filter) {
                         viewModel.showContractFilter = true
-                        MtrxHaptics.impact(.light)
-                    } label: {
-                        Image(systemName: Symbols.filter)
-                            .foregroundStyle(Color.accentPrimary)
                     }
                 }
             }
@@ -340,8 +337,8 @@ struct BuildView: View {
                         statsRow
                             .mtrxStaggeredAppearance(index: 0, isVisible: viewModel.contentAppeared)
 
-                        // Contract list
-                        ForEach(Array(viewModel.contracts.enumerated()), id: \.element.id) { index, contract in
+                        // Contract list (honors the tapped stat filter)
+                        ForEach(Array(displayedContracts.enumerated()), id: \.element.id) { index, contract in
                             NavigationLink {
                                 ContractDetailView(contract: contract)
                             } label: {
@@ -367,24 +364,41 @@ struct BuildView: View {
 
     private var statsRow: some View {
         HStack(spacing: Spacing.sm) {
-            MtrxStatCard(
-                title: "Active",
-                value: "\(viewModel.activeCount)",
-                icon: Symbols.contractActive
-            )
-
-            MtrxStatCard(
-                title: "Pending",
-                value: "\(viewModel.pendingCount)",
-                icon: Symbols.pending
-            )
-
-            MtrxStatCard(
-                title: "Total Value",
-                value: viewModel.totalValue,
-                icon: Symbols.wallet
-            )
+            statButton(.active) {
+                MtrxStatCard(title: "Active", value: "\(viewModel.activeCount)", icon: Symbols.contractActive)
+            }
+            statButton(.pending) {
+                MtrxStatCard(title: "Pending", value: "\(viewModel.pendingCount)", icon: Symbols.pending)
+            }
+            // Total Value clears any filter — tap to see everything.
+            statButton(nil) {
+                MtrxStatCard(title: "Total Value", value: viewModel.totalValue, icon: Symbols.wallet)
+            }
         }
+    }
+
+    /// Tappable stat — toggles the contract list filter. Tap an active
+    /// filter again to clear it; tap Total Value to show all.
+    private func statButton<Content: View>(_ status: BuildContractStatus?, @ViewBuilder _ content: () -> Content) -> some View {
+        Button {
+            MtrxHaptics.selection()
+            withAnimation(Motion.springSnappy) {
+                statFilter = (statFilter == status) ? nil : status
+            }
+        } label: {
+            content()
+                .overlay(
+                    RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
+                        .stroke(statFilter == status && status != nil ? Color.accentPrimary : Color.clear, lineWidth: 1.5)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The contracts shown, honoring the tapped stat filter.
+    private var displayedContracts: [ContractListItem] {
+        guard let f = statFilter else { return viewModel.contracts }
+        return viewModel.contracts.filter { $0.status == f }
     }
 
     // MARK: - Templates View

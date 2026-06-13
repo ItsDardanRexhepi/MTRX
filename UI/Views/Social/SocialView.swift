@@ -132,6 +132,20 @@ final class SocialViewModel: ObservableObject {
     @Published var delegationPower: String = "12,450 MTRX"
     @Published var delegatedTo: String = "Self"
 
+    // AI features (Social) — each genuinely shapes the feed.
+    @Published var aiSmartSort = UserDefaults.standard.bool(forKey: "com.mtrx.social.ai.smartSort") {
+        didSet { UserDefaults.standard.set(aiSmartSort, forKey: "com.mtrx.social.ai.smartSort") }
+    }
+    @Published var aiHideLowSignal = UserDefaults.standard.bool(forKey: "com.mtrx.social.ai.hideLow") {
+        didSet { UserDefaults.standard.set(aiHideLowSignal, forKey: "com.mtrx.social.ai.hideLow") }
+    }
+    @Published var aiVerifiedFirst = UserDefaults.standard.bool(forKey: "com.mtrx.social.ai.verifiedFirst") {
+        didSet { UserDefaults.standard.set(aiVerifiedFirst, forKey: "com.mtrx.social.ai.verifiedFirst") }
+    }
+    @Published var aiHideReposts = UserDefaults.standard.bool(forKey: "com.mtrx.social.ai.hideReposts") {
+        didSet { UserDefaults.standard.set(aiHideReposts, forKey: "com.mtrx.social.ai.hideReposts") }
+    }
+
     // MARK: Init
 
     init() {
@@ -141,16 +155,32 @@ final class SocialViewModel: ObservableObject {
     // MARK: Filtered Posts
 
     var filteredPosts: [SocialPostDisplay] {
+        var result: [SocialPostDisplay]
         switch selectedFilter {
         case .all:
-            return posts
+            result = posts
         case .verified:
-            return posts.filter { $0.isVerified }
+            result = posts.filter { $0.isVerified }
         case .following:
-            return posts.filter { ["@elena.eth", "@ravi_dao", "@sofia.base"].contains($0.handle) }
+            result = posts.filter { ["@elena.eth", "@ravi_dao", "@sofia.base"].contains($0.handle) }
         case .trending:
-            return posts.sorted { ($0.likeCount + $0.repostCount) > ($1.likeCount + $1.repostCount) }
+            result = posts.sorted { ($0.likeCount + $0.repostCount) > ($1.likeCount + $1.repostCount) }
         }
+
+        // AI features layer on top, in order.
+        if aiHideReposts { result = result.filter { !$0.isReposted } }
+        if aiHideLowSignal { result = result.filter { ($0.likeCount + $0.repostCount) >= 50 } }
+        if aiSmartSort {
+            result = result.sorted { (engagement($0)) > (engagement($1)) }
+        }
+        if aiVerifiedFirst {
+            result = result.sorted { $0.isVerified && !$1.isVerified }
+        }
+        return result
+    }
+
+    private func engagement(_ p: SocialPostDisplay) -> Int {
+        p.likeCount * 3 + p.repostCount * 4 + p.commentCount * 2
     }
 
     // MARK: Actions
@@ -330,6 +360,7 @@ struct SocialView: View {
     @State private var showNotifications = false
     @State private var showSocialSettings = false
     @State private var showUpsell = false
+    @State private var showAIFeatures = false
     @AppStorage("com.mtrx.subscriptionTier") private var tierRaw: String = SubscriptionTier.free.rawValue
     private var currentTier: SubscriptionTier { SubscriptionTier(rawValue: tierRaw) ?? .free }
     @Namespace private var tabUnderlineNS
@@ -423,16 +454,10 @@ struct SocialView: View {
                         }
 
                         Button {
-                            MtrxHaptics.selection()
-                            if currentTier >= .enterprise {
-                                withAnimation(Motion.springSnappy) {
-                                    viewModel.selectedFilter =
-                                        viewModel.selectedFilter == .trending ? .all : .trending
-                                }
-                            } else { showUpsell = true }
+                            MtrxHaptics.impact(.light)
+                            showAIFeatures = true
                         } label: {
-                            Label(currentTier >= .enterprise ? "AI curation" : "AI curation (Enterprise)",
-                                  systemImage: currentTier >= .enterprise ? "sparkles" : "lock.fill")
+                            Label("AI features", systemImage: "sparkles")
                         }
 
                         Divider()
@@ -459,6 +484,9 @@ struct SocialView: View {
             }
             .sheet(isPresented: $showUpsell) {
                 SubscriptionView()
+            }
+            .sheet(isPresented: $showAIFeatures) {
+                AIFeaturesSheet(currentTier: currentTier, viewModel: viewModel)
             }
             .sheet(isPresented: $showProfile) {
                 SocialProfileSheet(
@@ -567,47 +595,45 @@ struct SocialView: View {
     /// reads as part of the header, not a row of chunky pills sitting on
     /// top of it. The active tab lights up with an animated accent
     /// underline; the rest stay quiet.
-    private var tabSelector: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Spacing.lg) {
-                ForEach(SocialTab.allCases, id: \.self) { tab in
-                    let isActive = viewModel.selectedTab == tab
-                    Button {
-                        withAnimation(Motion.springSnappy) { viewModel.selectedTab = tab }
-                        MtrxHaptics.selection()
-                    } label: {
-                        VStack(spacing: 6) {
-                            HStack(spacing: 6) {
-                                Image(systemName: tab.icon)
-                                    .font(.system(size: 12, weight: .semibold))
-                                Text(tab.rawValue)
-                                    .font(.system(size: 14, weight: isActive ? .bold : .medium))
-                            }
-                            .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
+    /// The four top sections — Network lives on the profile now and Live
+    /// surfaces inside the feed, so these four fit without scrolling.
+    private var topTabs: [SocialTab] { [.feed, .governance, .messaging, .groups] }
 
-                            // The animated underline rides under the active tab.
-                            ZStack {
-                                Capsule().fill(Color.clear).frame(height: 2.5)
-                                if isActive {
-                                    Capsule()
-                                        .fill(theme.accent)
-                                        .frame(height: 2.5)
-                                        .matchedGeometryEffect(id: "socialTabUnderline", in: tabUnderlineNS)
-                                }
+    private var tabSelector: some View {
+        HStack(spacing: 0) {
+            ForEach(topTabs, id: \.self) { tab in
+                let isActive = viewModel.selectedTab == tab
+                Button {
+                    withAnimation(Motion.springSnappy) { viewModel.selectedTab = tab }
+                    MtrxHaptics.selection()
+                } label: {
+                    VStack(spacing: 6) {
+                        HStack(spacing: 5) {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: 11, weight: .semibold))
+                            Text(tab.rawValue)
+                                .font(.system(size: 13, weight: isActive ? .bold : .medium))
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                        }
+                        .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
+
+                        ZStack {
+                            Capsule().fill(Color.clear).frame(height: 2.5)
+                            if isActive {
+                                Capsule()
+                                    .fill(theme.accent)
+                                    .frame(height: 2.5)
+                                    .matchedGeometryEffect(id: "socialTabUnderline", in: tabUnderlineNS)
                             }
                         }
                     }
-                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, Spacing.contentPadding)
-            .padding(.top, Spacing.sm)
         }
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color.separatorStandard.opacity(0.4))
-                .frame(height: 0.5)
-        }
+        .padding(.horizontal, Spacing.contentPadding)
+        .padding(.top, Spacing.sm)
     }
 
     // MARK: - Tab Content
@@ -1097,6 +1123,7 @@ struct PostCardView: View {
                 .font(.system(size: 15))
                 .foregroundStyle(Color.labelPrimary)
                 .lineSpacing(3)
+                .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
 
             if post.body.count > expandThreshold {
@@ -1658,4 +1685,99 @@ struct CommentRow: View {
         .preferredColorScheme(.dark)
         .environmentObject(AppState())
         .environmentObject(WalletManager())
+}
+
+// MARK: - AI Features Sheet
+
+/// Four meaningful AI features for the social feed — two unlock on Pro,
+/// two more on Enterprise. Each genuinely reshapes the feed so they can
+/// be toggled and tested live.
+struct AIFeaturesSheet: View {
+    let currentTier: SubscriptionTier
+    @ObservedObject var viewModel: SocialViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var showUpsell = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: Spacing.lg) {
+                    tierGroup(
+                        "Pro",
+                        unlocked: currentTier >= .pro,
+                        rows: [
+                            ("Smart sort", "Reorders your feed by what's actually getting traction.", "wand.and.stars",
+                             Binding(get: { viewModel.aiSmartSort }, set: { viewModel.aiSmartSort = $0 })),
+                            ("Hide low-signal", "Filters out posts with little engagement.", "line.3.horizontal.decrease.circle",
+                             Binding(get: { viewModel.aiHideLowSignal }, set: { viewModel.aiHideLowSignal = $0 })),
+                        ]
+                    )
+
+                    tierGroup(
+                        "Enterprise",
+                        unlocked: currentTier >= .enterprise,
+                        rows: [
+                            ("Verified first", "Floats verified accounts to the top of your feed.", "checkmark.seal.fill",
+                             Binding(get: { viewModel.aiVerifiedFirst }, set: { viewModel.aiVerifiedFirst = $0 })),
+                            ("Hide reposts", "Shows only original posts — no reposts in the feed.", "arrow.2.squarepath",
+                             Binding(get: { viewModel.aiHideReposts }, set: { viewModel.aiHideReposts = $0 })),
+                        ]
+                    )
+                }
+                .padding(Spacing.contentPadding)
+            }
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("AI features")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $showUpsell) { SubscriptionView() }
+        }
+    }
+
+    private func tierGroup(_ title: String, unlocked: Bool, rows: [(String, String, String, Binding<Bool>)]) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack {
+                MtrxSectionHeader(title: title)
+                Spacer()
+                if !unlocked {
+                    Button {
+                        MtrxHaptics.impact(.light)
+                        showUpsell = true
+                    } label: {
+                        Text("Unlock")
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(Color.accentSecondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            ForEach(rows, id: \.0) { row in
+                HStack(spacing: Spacing.md) {
+                    Image(systemName: unlocked ? row.2 : "lock.fill")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(unlocked ? Color.trinityPrimary : Color.labelTertiary)
+                        .frame(width: 38, height: 38)
+                        .background((unlocked ? Color.trinityPrimary : Color.labelTertiary).opacity(0.12))
+                        .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(row.0).font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary)
+                        Text(row.1).font(.mtrxCaption2).foregroundStyle(Color.labelSecondary)
+                    }
+                    Spacer()
+                    if unlocked {
+                        Toggle("", isOn: row.3).labelsHidden().tint(Color.accentPrimary)
+                    }
+                }
+                .padding(Spacing.ms)
+                .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
+                .opacity(unlocked ? 1 : 0.6)
+            }
+        }
+    }
 }

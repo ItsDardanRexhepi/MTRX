@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage("mtrx_currency") private var selectedCurrency = "USD"
     @AppStorage("mtrx_theme") private var selectedTheme = "System"
     @AppStorage("mtrx_haptics") private var hapticFeedback = true
+    @AppStorage("com.mtrx.blackout") private var blackoutMode = false
 
     // MARK: - Network
     @AppStorage("mtrx_chain") private var defaultChain = "Base"
@@ -171,6 +172,19 @@ struct SettingsView: View {
                 }
             }
             .onChange(of: selectedTheme) { _, _ in triggerHaptic() }
+
+            // Blackout mode — pure-black background across the whole app.
+            Toggle(isOn: $blackoutMode) {
+                Label {
+                    Text("Blackout Mode")
+                        .font(.mtrxBody)
+                        .foregroundStyle(Color.labelPrimary)
+                } icon: {
+                    SettingsIcon(symbol: "moon.stars.fill", color: .labelPrimary)
+                }
+            }
+            .tint(Color.accentPrimary)
+            .onChange(of: blackoutMode) { _, _ in triggerHaptic() }
 
             // Haptic Feedback — toggle
             Toggle(isOn: $hapticFeedback) {

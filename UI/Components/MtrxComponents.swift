@@ -10,12 +10,22 @@ import SwiftUI
 
 struct MtrxGradientBackground: View {
     var style: GradientStyle = .primary
+    @AppStorage("com.mtrx.blackout") private var blackout = false
 
     enum GradientStyle {
         case primary, subtle, dark, trinityGlow
     }
 
     var body: some View {
+        if blackout {
+            Color.black.ignoresSafeArea()
+        } else {
+            field
+        }
+    }
+
+    @ViewBuilder
+    private var field: some View {
         switch style {
         case .primary, .trinityGlow:
             // One signature field everywhere: deep night base, a cyan
@@ -72,6 +82,36 @@ extension View {
 
     func mtrxLiquidGlass(cornerRadius: CGFloat = Spacing.CornerRadius.lg) -> some View {
         mtrxLiquidGlass(in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
+// MARK: - Glass Circle Button
+
+/// A single clean cyan liquid-glass circle with an icon — the circle IS
+/// the whole button, no second ring around it. Used for the Discover
+/// menu, the Build filter, and other circular toolbar actions.
+struct MtrxGlassCircleButton: View {
+    let icon: String
+    var tint: Color = .accentPrimary
+    var size: CGFloat = 34
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: {
+            MtrxHaptics.impact(.light)
+            action()
+        }) {
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(0.18))
+                    .mtrxLiquidGlass(in: Circle())
+                Image(systemName: icon)
+                    .font(.system(size: size * 0.46, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            .frame(width: size, height: size)
+        }
+        .buttonStyle(.plain)
     }
 }
 

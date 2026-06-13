@@ -31,6 +31,25 @@ struct AgentConversationView: View {
     @State private var showSearch = false
     @State private var showChats = false
     @State private var dismissDrag: CGFloat = 0
+    @State private var greeting = ""
+
+    /// Rotating openers — a different one almost every time, like the
+    /// modern assistants. Shown centered until the user starts typing.
+    private static let greetings = [
+        "What are we building today?",
+        "Good to see you. Where to?",
+        "I'm here. What do you need?",
+        "Ready when you are.",
+        "What's on your mind?",
+        "Let's make something happen.",
+        "How can I help right now?",
+        "Pick up where we left off?",
+    ]
+
+    /// The centered greeting shows until the first user message exists.
+    private var showCenteredGreeting: Bool {
+        viewModel.messages.allSatisfy { $0.role != .user } && !viewModel.isTyping && dismissDrag == 0
+    }
 
     var body: some View {
         ZStack {
@@ -152,6 +171,8 @@ struct AgentConversationView: View {
                         }
                         .padding(.horizontal, Spacing.md)
                         .padding(.vertical, Spacing.sm)
+                        .opacity(showCenteredGreeting ? 0 : 1)
+                        .animation(.easeInOut(duration: 0.25), value: showCenteredGreeting)
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .onChange(of: viewModel.messages.count) {
@@ -160,6 +181,23 @@ struct AgentConversationView: View {
                     .onChange(of: viewModel.isTyping) {
                         if viewModel.isTyping {
                             scrollToBottom(proxy: proxy, anchor: .bottom)
+                        }
+                    }
+                    // A centered greeting before the conversation begins —
+                    // like every modern assistant. It fades the moment the
+                    // user starts typing or sends their first message.
+                    .overlay {
+                        if showCenteredGreeting {
+                            VStack(spacing: Spacing.sm) {
+                                GlassOrb(size: 64, tint: agentGlassTint(viewModel.activeAgent))
+                                Text(greeting)
+                                    .font(.mtrxTitle2)
+                                    .foregroundStyle(Color.labelPrimary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, Spacing.xl)
+                            }
+                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                            .allowsHitTesting(false)
                         }
                     }
                 }
@@ -236,7 +274,7 @@ struct AgentConversationView: View {
             }
         }
         .onAppear {
-            DailyFlow.shared.mark(.agent)
+            greeting = Self.greetings.randomElement() ?? "How can I help?"
             viewModel.setup(userID: userID, walletManager: walletManager)
             if let initialAgent {
                 viewModel.openAgentChat(initialAgent)
@@ -749,6 +787,7 @@ struct MessageBubble: View {
                 Text(formattedText)
                     .font(.mtrxBody)
                     .foregroundStyle(isUser ? .white : Color.labelPrimary)
+                    .textSelection(.enabled)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(bubbleBackground)

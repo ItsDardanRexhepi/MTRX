@@ -327,7 +327,7 @@ struct AccountView: View {
 
     private var portfolioSummary: some View {
         MtrxCard(style: .standard) {
-            VStack(spacing: Spacing.ms) {
+            VStack(spacing: Spacing.sm) {
                 HStack {
                     Text("Portfolio Value")
                         .font(.mtrxCaption1)
@@ -338,7 +338,7 @@ struct AccountView: View {
                 HStack(alignment: .firstTextBaseline) {
                     MtrxAnimatedValue(
                         value: walletManager.totalPortfolioValue,
-                        font: .mtrxMonoLarge
+                        font: .system(size: 34, weight: .heavy, design: .rounded)
                     )
 
                     Spacer()
@@ -432,13 +432,13 @@ struct AccountView: View {
     }
 
     private var workspaceSection: some View {
+        // Treasury and Licenses now live inside Governance — four clean
+        // workspace tiles.
         spaceGrid("Your workspace", delay: 0.09) {
             QuickActionCard(icon: Symbols.dao, label: "Governance", color: .accentTertiary, destination: .governance, onOpen: { presentedDestination = $0 })
             QuickActionCard(icon: Symbols.message, label: "Messaging", color: .statusSuccess, destination: .messaging, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: "building.columns", label: "Treasury", color: .accentPrimary, destination: .treasury, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: "checkmark.seal.fill", label: "Attestations", color: .statusSuccess, destination: .attestations, onOpen: { presentedDestination = $0 })
             QuickActionCard(icon: "gift.fill", label: "Rewards", color: .accentSecondary, destination: .loyalty, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: "doc.text.fill", label: "Licenses", color: .statusInfo, destination: .licensing, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: "checkmark.seal.fill", label: "Attestations", color: .statusSuccess, destination: .attestations, onOpen: { presentedDestination = $0 })
         }
     }
 

@@ -244,6 +244,9 @@ final class AgentConversationViewModel: ObservableObject {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
+        // The user actually talked to an agent — that completes the goal.
+        DailyFlow.shared.mark(.agent)
+
         // Add user message
         messages.append(AgentMessage(text: text, role: .user))
         inputText = ""

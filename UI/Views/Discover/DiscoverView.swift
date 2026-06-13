@@ -230,6 +230,7 @@ struct DiscoverView: View {
     @State private var pushedDeFi: DeFiSubDestination?
     @State private var showFilters = false
     @State private var showDiscoverMenu = false
+    @State private var showTrendingAll = false
     @State private var backingFundraiser: FundraiserItem?
 
     var body: some View {
@@ -245,18 +246,12 @@ struct DiscoverView: View {
                     }
                 }
             }
-            .onAppear { DailyFlow.shared.mark(.explore) }
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        MtrxHaptics.impact(.light)
+                    MtrxGlassCircleButton(icon: "line.3.horizontal") {
                         showDiscoverMenu = true
-                    } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(Color.accentPrimary)
                     }
                 }
             }
@@ -287,6 +282,10 @@ struct DiscoverView: View {
             await viewModel.loadAll()
             startAutoAdvance()
         }
+        // "Explore something new" completes only when the user actually
+        // drills into a category, a DeFi hub, or a featured item.
+        .onChange(of: pushedCategory) { _, v in if v != nil { DailyFlow.shared.mark(.explore) } }
+        .onChange(of: pushedDeFi) { _, v in if v != nil { DailyFlow.shared.mark(.explore) } }
         .onDisappear {
             stopAutoAdvance()
         }
@@ -443,19 +442,19 @@ struct DiscoverView: View {
                 .padding(.horizontal, Spacing.contentPadding)
 
             VStack(spacing: Spacing.sm) {
-                exploreRow(systemName: "banknote.fill", title: "Lending", subtitle: "Borrow and lend assets") {
+                exploreRow(systemName: "banknote.fill", title: "Lending", subtitle: "Borrow and lend assets", color: .statusInfo) {
                     pushedDeFi = .lending
                 }
-                exploreRow(systemName: "drop.fill", title: "Liquidity Pools", subtitle: "Provide liquidity, earn fees") {
+                exploreRow(systemName: "drop.fill", title: "Liquidity Pools", subtitle: "Provide liquidity, earn fees", color: .trinityPrimary) {
                     pushedDeFi = .liquidity
                 }
-                exploreRow(systemName: "chart.line.uptrend.xyaxis", title: "Yield Farming", subtitle: "Optimize returns across protocols") {
+                exploreRow(systemName: "chart.line.uptrend.xyaxis", title: "Yield Farming", subtitle: "Optimize returns across protocols", color: .statusSuccess) {
                     pushedDeFi = .yield
                 }
-                exploreRow(systemName: "building.columns.fill", title: "Real World Assets", subtitle: "Bonds, property & commodities") {
+                exploreRow(systemName: "building.columns.fill", title: "Real World Assets", subtitle: "Bonds, property & commodities", color: .accentSecondary) {
                     pushedDeFi = .realWorld
                 }
-                exploreRow(systemName: "checkmark.seal.fill", title: "Governance", subtitle: "Vote on active proposals") {
+                exploreRow(systemName: "checkmark.seal.fill", title: "Governance", subtitle: "Vote on active proposals", color: .purple) {
                     pushedDeFi = .governance
                 }
             }
@@ -463,7 +462,7 @@ struct DiscoverView: View {
         }
     }
 
-    private func exploreRow(systemName: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
+    private func exploreRow(systemName: String, title: String, subtitle: String, color: Color, action: @escaping () -> Void) -> some View {
         Button {
             MtrxHaptics.selection()
             action()
@@ -472,9 +471,9 @@ struct DiscoverView: View {
                 HStack(spacing: Spacing.md) {
                     Image(systemName: systemName)
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(Color.accentPrimary)
+                        .foregroundStyle(color)
                         .frame(width: 40, height: 40)
-                        .background(Color.accentPrimary.opacity(0.12))
+                        .background(color.opacity(0.14))
                         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 2) {
@@ -512,6 +511,7 @@ struct DiscoverView: View {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         FeaturedCardView(item: item, onExplore: {
                             selectedFeaturedItem = item
+                            DailyFlow.shared.mark(.explore)
                         })
                             .padding(.horizontal, Spacing.contentPadding)
                             .tag(index)
@@ -538,34 +538,19 @@ struct DiscoverView: View {
     // MARK: - Trending Section
 
     private var trendingSection: some View {
-        // One combined Trending section: the live fundraisers ride at the
-        // top, then the top-10 trending listings. Full lists via search.
-        let listings = Array(viewModel.filteredListings.prefix(10))
-        let fundraisers = viewModel.filteredFundraisers
+        // Trending: a ranked top-5 list, then a side-scrolling carousel of
+        // the next five — ten total, with everything behind See All.
+        let all = viewModel.filteredListings
+        let topFive = Array(all.prefix(5))
+        let nextFive = Array(all.dropFirst(5).prefix(5))
         return VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
             MtrxSectionHeader(title: "Trending", action: {
                 MtrxHaptics.impact(.light)
-                alertTitle = "Trending"
-                alertMessage = "Showing all trending listings"
-                showAlert = true
+                showTrendingAll = true
             })
             .padding(.horizontal, Spacing.contentPadding)
 
-            if !fundraisers.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: Spacing.md) {
-                        ForEach(fundraisers) { fundraiser in
-                            FundraiserCardView(fundraiser: fundraiser, onBack: {
-                                backingFundraiser = fundraiser
-                            })
-                        }
-                    }
-                    .padding(.horizontal, Spacing.contentPadding)
-                }
-                .padding(.bottom, Spacing.xs)
-            }
-
-            if listings.isEmpty && fundraisers.isEmpty {
+            if topFive.isEmpty {
                 MtrxEmptyState(
                     icon: Symbols.search,
                     title: "No Results",
@@ -574,7 +559,7 @@ struct DiscoverView: View {
                 .frame(height: 180)
             } else {
                 LazyVStack(spacing: Spacing.xs) {
-                    ForEach(Array(listings.enumerated()), id: \.element.id) { index, listing in
+                    ForEach(Array(topFive.enumerated()), id: \.element.id) { index, listing in
                         NavigationLink {
                             MarketplaceListingDetail(listing: listing)
                         } label: {
@@ -582,10 +567,32 @@ struct DiscoverView: View {
                                 .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
                         }
                         .buttonStyle(.plain)
+                        .simultaneousGesture(TapGesture().onEnded { DailyFlow.shared.mark(.explore) })
                     }
                 }
                 .padding(.horizontal, Spacing.contentPadding)
+
+                if !nextFive.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: Spacing.md) {
+                            ForEach(nextFive) { listing in
+                                NavigationLink {
+                                    MarketplaceListingDetail(listing: listing)
+                                } label: {
+                                    TrendingMiniCard(listing: listing)
+                                }
+                                .buttonStyle(.plain)
+                                .simultaneousGesture(TapGesture().onEnded { DailyFlow.shared.mark(.explore) })
+                            }
+                        }
+                        .padding(.horizontal, Spacing.contentPadding)
+                    }
+                    .padding(.top, Spacing.xs)
+                }
             }
+        }
+        .sheet(isPresented: $showTrendingAll) {
+            TrendingAllSheet(listings: all)
         }
     }
 
@@ -848,6 +855,74 @@ struct TrendingListingRow: View {
                             .font(.mtrxCaptionBold)
                     }
                     .foregroundStyle(listing.change24h >= 0 ? Color.priceUp : Color.priceDown)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Trending Mini Card (the side-scrolling five)
+
+struct TrendingMiniCard: View {
+    let listing: MarketplaceListing
+
+    var body: some View {
+        MtrxCard(style: .standard) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                MtrxAvatar(symbol: listing.icon, color: listing.avatarColor, size: Spacing.Size.avatarMedium)
+                Text(listing.name)
+                    .font(.mtrxCalloutBold)
+                    .foregroundStyle(Color.labelPrimary)
+                    .lineLimit(1)
+                MtrxBadge(text: listing.category, style: .neutral)
+                HStack(spacing: Spacing.sm) {
+                    Text(listing.price)
+                        .font(.mtrxMonoSmall)
+                        .foregroundStyle(Color.labelPrimary)
+                    HStack(spacing: 2) {
+                        Image(systemName: listing.change24h >= 0 ? Symbols.trendUp : Symbols.trendDown)
+                            .font(.system(size: 9, weight: .bold))
+                        Text(String(format: "%.1f%%", abs(listing.change24h)))
+                            .font(.mtrxCaption2)
+                    }
+                    .foregroundStyle(listing.change24h >= 0 ? Color.priceUp : Color.priceDown)
+                }
+            }
+            .frame(width: 150, alignment: .leading)
+        }
+    }
+}
+
+// MARK: - Trending All Sheet (See All)
+
+struct TrendingAllSheet: View {
+    let listings: [MarketplaceListing]
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(spacing: Spacing.xs) {
+                    ForEach(Array(listings.enumerated()), id: \.element.id) { index, listing in
+                        NavigationLink {
+                            MarketplaceListingDetail(listing: listing)
+                        } label: {
+                            TrendingListingRow(listing: listing, rank: index + 1)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(Spacing.contentPadding)
+            }
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("All Trending")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark").font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.labelPrimary)
+                    }
                 }
             }
         }
@@ -1591,7 +1666,9 @@ struct DiscoverMenuSheet: View {
                     VStack(alignment: .leading, spacing: Spacing.sm) {
                         MtrxSectionHeader(title: "Categories")
                         LazyVGrid(columns: columns, spacing: Spacing.sm) {
-                            ForEach(DiscoverCategory.allCases) { category in
+                            // Advanced variants are folded into their parents
+                            // (DeFi Advanced → DeFi, NFT Finance → NFTs).
+                            ForEach(DiscoverCategory.allCases.filter { $0 != .defiAdvanced && $0 != .nftFinance }) { category in
                                 Button {
                                     MtrxHaptics.selection()
                                     onCategory(category)
@@ -1603,7 +1680,7 @@ struct DiscoverMenuSheet: View {
                                             .frame(width: 30, height: 30)
                                             .background(Color.accentPrimary.opacity(0.12))
                                             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-                                        Text(category.rawValue.capitalized)
+                                        Text(category.displayName)
                                             .font(.mtrxCaptionBold)
                                             .foregroundStyle(Color.labelPrimary)
                                             .lineLimit(1)

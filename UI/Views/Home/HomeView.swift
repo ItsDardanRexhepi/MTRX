@@ -43,19 +43,38 @@ struct HomeView: View {
                     greetingHeader
                         .mtrxStaggeredAppearance(index: 0, isVisible: appeared)
 
-                    portfolioSnapshot
-                        .mtrxStaggeredAppearance(index: 1, isVisible: appeared)
+                    // While the ask bar is focused, the rest of the page
+                    // gently recedes so the bar is what you're working in —
+                    // but everything stays tappable underneath.
+                    Group {
+                        portfolioSnapshot
+                            .mtrxStaggeredAppearance(index: 1, isVisible: appeared)
 
-                    quickActionsSection
-                        .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
+                        quickActionsSection
+                            .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
 
-                    homeFeedSection
-                        .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
+                        homeFeedSection
+                            .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
+                    }
+                    .opacity(askFocused ? 0.42 : 1)
+                    .blur(radius: askFocused ? 1.5 : 0)
+                    .animation(.easeInOut(duration: 0.4), value: askFocused)
                 }
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.top, Spacing.sm)
                 .padding(.bottom, 96)
+                // In edit mode, tapping empty space exits jiggle — no need
+                // to reach for Done.
+                .background {
+                    if editingActions {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { exitEditMode() }
+                    }
+                }
             }
+            // Swipe down on the page to dismiss the keyboard when done.
+            .scrollDismissesKeyboard(.interactively)
         }
         .onReceive(NotificationCenter.default.publisher(for: .mtrxOpenService)) { note in
             if let raw = note.userInfo?["service"] as? String,
@@ -149,24 +168,29 @@ struct HomeView: View {
                 .kerning(1.2)
 
             HStack(spacing: Spacing.sm) {
-                // The name edits itself — tap it, no pencil needed.
-                Text(firstName)
-                    .font(.mtrxLargeTitle)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .layoutPriority(1)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color.labelPrimary, Color.trinityPrimary],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                // The name edits itself — tap it, no pencil needed. Its
+                // colors drift slowly and endlessly, a gentle living sheen.
+                TimelineView(.animation) { context in
+                    let t = context.date.timeIntervalSinceReferenceDate
+                    let shift = CGFloat(sin(t * 0.25)) * 0.5
+                    Text(firstName)
+                        .font(.mtrxLargeTitle)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .layoutPriority(1)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.labelPrimary, Color.trinityPrimary, Color(red: 0.72, green: 0.78, blue: 0.99), Color.labelPrimary],
+                                startPoint: UnitPoint(x: -0.5 + shift, y: 0.5),
+                                endPoint: UnitPoint(x: 1.0 + shift, y: 0.5)
+                            )
                         )
-                    )
-                    .onTapGesture {
-                        MtrxHaptics.impact(.light)
-                        nameDraft = appState.displayName
-                        showNameEditor = true
-                    }
+                }
+                .onTapGesture {
+                    MtrxHaptics.impact(.light)
+                    nameDraft = appState.displayName
+                    showNameEditor = true
+                }
 
                 // Daily flow ring — the open loop of the day.
                 Button {
@@ -246,8 +270,6 @@ struct HomeView: View {
         return name.isEmpty ? "Welcome" : name
     }
 
-    /// Drives the breathing of the header orb (aura pulse).
-    @State private var orbPulse = false
     /// The Home ask bar — type a command or talk to Trinity.
     @State private var askText = ""
     @FocusState private var askFocused: Bool
@@ -255,11 +277,18 @@ struct HomeView: View {
     /// Transparent liquid-glass field that extends from the orb. The
     /// placeholder shows only while empty (standard search-bar behavior);
     /// submitting hands the text to Trinity to action or answer.
+    /// The orb's pastel palette — the bar flows through these colors.
+    private static let askFlowColors: [Color] = [
+        Color(red: 0.60, green: 0.92, blue: 0.96),
+        Color(red: 0.78, green: 0.80, blue: 0.99),
+        Color(red: 0.99, green: 0.82, blue: 0.93),
+        Color(red: 0.99, green: 0.94, blue: 0.80),
+        Color(red: 0.70, green: 0.97, blue: 0.88),
+        Color(red: 0.60, green: 0.92, blue: 0.96),
+    ]
+
     private var homeAskOrb: some View {
         HStack(spacing: 8) {
-            Image(systemName: "sparkle.magnifyingglass")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color.trinityPrimary.opacity(0.8))
             TextField("What are we doing today", text: $askText)
                 .font(.mtrxCaption1)
                 .foregroundStyle(Color.labelPrimary)
@@ -267,6 +296,7 @@ struct HomeView: View {
                 .submitLabel(.go)
                 .onSubmit(runHomeAsk)
                 .tint(Color.trinityPrimary)
+                .padding(.leading, 6)
             // The orb lives at the end of the field — tap to open the
             // full agent space.
             Button {
@@ -274,35 +304,47 @@ struct HomeView: View {
                 presentedChat = ChatLaunch(agent: .trinity)
             } label: {
                 GlassOrb(size: 30)
-                    .scaleEffect(orbPulse ? 1.04 : 0.98)
             }
             .buttonStyle(.plain)
         }
         .padding(.leading, 11)
         .padding(.trailing, 5)
         .padding(.vertical, 5)
-        .background(
-            // The pill wears the orb's iridescent glass skin.
+        .background(askBarFlow)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule().stroke(.white.opacity(askFocused ? 0.22 : 0.12), lineWidth: 1)
+        )
+        // Pops out a touch and lifts when you start typing — silky, no jolt.
+        .scaleEffect(askFocused ? 1.045 : 1.0)
+        .shadow(color: Color(red: 0.62, green: 0.78, blue: 0.98).opacity(askFocused ? 0.45 : 0.0),
+                radius: askFocused ? 18 : 0)
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: askFocused)
+        .zIndex(2)
+    }
+
+    /// The continuously flowing iridescent fill — frame-driven by a
+    /// TimelineView so it eases endlessly with zero spring jitter.
+    private var askBarFlow: some View {
+        TimelineView(.animation) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            // A slow sine sweep gives the gradient its ebb and flow; a
+            // gentle continuous hue drift keeps the color alive.
+            let sweep = CGFloat(sin(t * 0.45)) * 0.55
+            let hue = (t * 9).truncatingRemainder(dividingBy: 360)
             ZStack {
                 Capsule().fill(.ultraThinMaterial)
                 Capsule()
-                    .fill(AngularGradient(
-                        colors: [
-                            Color(red: 0.60, green: 0.92, blue: 0.96),
-                            Color(red: 0.78, green: 0.80, blue: 0.99),
-                            Color(red: 0.70, green: 0.97, blue: 0.88),
-                            Color(red: 0.60, green: 0.92, blue: 0.96),
-                        ],
-                        center: .center))
-                    .opacity(0.07)
+                    .fill(
+                        LinearGradient(
+                            colors: Self.askFlowColors,
+                            startPoint: UnitPoint(x: -0.4 + sweep, y: 0.5),
+                            endPoint: UnitPoint(x: 1.4 + sweep, y: 0.5)
+                        )
+                    )
+                    .hueRotation(.degrees(hue))
+                    .opacity(askFocused ? 0.40 : 0.26)
                     .blendMode(.screen)
-            }
-        )
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
-        .onAppear {
-            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
-                orbPulse = true
             }
         }
     }
@@ -327,11 +369,14 @@ struct HomeView: View {
     @State private var jiggle = false
     @State private var showActionPicker = false
 
+    /// Hard cap — the home screen always holds at most six quick actions.
+    static let maxQuickActions = 6
+
     private var chosenActions: [HomeAction] {
-        quickActionsRaw.split(separator: ",").compactMap { HomeAction(rawValue: String($0)) }
+        Array(quickActionsRaw.split(separator: ",").compactMap { HomeAction(rawValue: String($0)) }.prefix(Self.maxQuickActions))
     }
     private func setActions(_ list: [HomeAction]) {
-        quickActionsRaw = list.map(\.rawValue).joined(separator: ",")
+        quickActionsRaw = list.prefix(Self.maxQuickActions).map(\.rawValue).joined(separator: ",")
     }
 
     private var quickActionsSection: some View {
@@ -355,7 +400,7 @@ struct HomeView: View {
                 ForEach(chosenActions) { action in
                     actionTile(action)
                 }
-                if editingActions {
+                if editingActions && chosenActions.count < Self.maxQuickActions {
                     addActionTile
                 }
             }
@@ -379,6 +424,13 @@ struct HomeView: View {
             .presentationDragIndicator(.visible)
             .presentationBackground(.ultraThinMaterial)
         }
+    }
+
+    private func exitEditMode() {
+        guard editingActions else { return }
+        MtrxHaptics.impact(.light)
+        withAnimation(Motion.springSnappy) { editingActions = false }
+        startJiggle(false)
     }
 
     private func startJiggle(_ on: Bool) {
@@ -564,7 +616,7 @@ struct HomeView: View {
     /// window — swipe through chronologically, like and repost right
     /// here, and it's the same feed the Social tab shows.
     private var feedPosts: [SocialPostDisplay] {
-        Array(socialFeed.posts.sorted { $0.timestamp > $1.timestamp }.prefix(12))
+        Array(socialFeed.posts.sorted { $0.timestamp > $1.timestamp }.prefix(5))
     }
 
     private var homeFeedSection: some View {
@@ -599,7 +651,6 @@ struct HomeView: View {
                 TabView(selection: $feedPage) {
                     ForEach(loopFeed.indices, id: \.self) { i in
                         feedCard(loopFeed[i])
-                            .padding(.horizontal, 2)
                             .tag(i)
                     }
                 }
@@ -1430,7 +1481,7 @@ struct DailyFlowSheet: View {
                     .foregroundStyle(Color.labelPrimary)
 
                 Text(dailyFlow.isComplete
-                     ? "All three done — you lived the whole day in one app."
+                     ? "All three done for today."
                      : "Three small moves a day keep everything in motion.")
                     .font(.mtrxCaption1)
                     .foregroundStyle(Color.labelSecondary)
