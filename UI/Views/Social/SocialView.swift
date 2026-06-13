@@ -397,8 +397,6 @@ struct SocialView: View {
                 // switcher — everything social, without leaving Social.
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: Spacing.ms) {
-                        NetworkTopologyIndicator()
-
                         Button {
                             MtrxHaptics.impact(.light)
                             showNotifications = true

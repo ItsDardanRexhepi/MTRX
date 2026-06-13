@@ -259,9 +259,6 @@ struct DiscoverView: View {
                             .foregroundStyle(Color.accentPrimary)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    NetworkTopologyIndicator()
-                }
             }
             .sheet(isPresented: $showDiscoverMenu) {
                 DiscoverMenuSheet(

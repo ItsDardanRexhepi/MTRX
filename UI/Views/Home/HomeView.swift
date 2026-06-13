@@ -142,15 +142,11 @@ struct HomeView: View {
             // Greeting and date share one eyebrow line — the dashboard
             // below needs the vertical room more than the calendar does.
             // The live transport indicator rides at the trailing edge.
-            HStack(spacing: Spacing.sm) {
-                Text("\(timeGreeting) · \(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()))")
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.trinityPrimary.opacity(0.85))
-                    .textCase(.uppercase)
-                    .kerning(1.2)
-                Spacer()
-                NetworkTopologyIndicator()
-            }
+            Text("\(timeGreeting) · \(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()))")
+                .font(.mtrxCaption1)
+                .foregroundStyle(Color.trinityPrimary.opacity(0.85))
+                .textCase(.uppercase)
+                .kerning(1.2)
 
             HStack(spacing: Spacing.sm) {
                 // The name edits itself — tap it, no pencil needed.

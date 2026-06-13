@@ -183,9 +183,6 @@ struct BuildView: View {
             .navigationTitle("Build")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    NetworkTopologyIndicator()
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         viewModel.showContractFilter = true

@@ -98,11 +98,6 @@ struct AccountView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Account")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    NetworkTopologyIndicator()
-                }
-            }
             .refreshable {
                 MtrxHaptics.impact(.light)
                 try? await Task.sleep(for: .seconds(0.6))
