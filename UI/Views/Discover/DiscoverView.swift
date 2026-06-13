@@ -322,10 +322,10 @@ struct DiscoverView: View {
                 featuredSection
                     .mtrxStaggeredAppearance(index: 1, isVisible: viewModel.contentAppeared)
 
-                trendingSection
+                exploreDeFiSection
                     .mtrxStaggeredAppearance(index: 2, isVisible: viewModel.contentAppeared)
 
-                exploreDeFiSection
+                trendingSection
                     .mtrxStaggeredAppearance(index: 3, isVisible: viewModel.contentAppeared)
 
                 // Bottom padding for tab bar

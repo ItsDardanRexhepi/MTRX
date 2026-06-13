@@ -97,6 +97,14 @@ enum BuildSegment: String, CaseIterable {
     case contracts = "My Contracts"
     case templates = "Templates"
     case create = "Create"
+
+    var tabIcon: String {
+        switch self {
+        case .contracts: return "doc.text"
+        case .templates: return "square.grid.2x2"
+        case .create: return "plus.circle"
+        }
+    }
 }
 
 // MARK: - Contract Status
@@ -252,32 +260,43 @@ struct BuildView: View {
 
     // MARK: - Custom Segment Control
 
+    @Namespace private var buildSegmentNS
+
+    /// A clean underline tab strip with an icon per section — clearer and
+    /// less chunky than the old pill-in-a-capsule.
     private var segmentControl: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: Spacing.lg) {
             ForEach(BuildSegment.allCases, id: \.self) { segment in
+                let isActive = viewModel.selectedSegment == segment
                 Button {
-                    withAnimation(Motion.springSnappy) {
-                        viewModel.selectedSegment = segment
-                    }
+                    withAnimation(Motion.springSnappy) { viewModel.selectedSegment = segment }
                     MtrxHaptics.selection()
                 } label: {
-                    Text(segment.rawValue)
-                        .font(.mtrxCaptionBold)
-                        .foregroundStyle(viewModel.selectedSegment == segment ? .white : Color.labelSecondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 36)
-                        .background(
-                            viewModel.selectedSegment == segment
-                                ? Capsule().fill(Color.accentPrimary)
-                                : Capsule().fill(Color.clear)
-                        )
+                    VStack(spacing: 6) {
+                        HStack(spacing: 6) {
+                            Image(systemName: segment.tabIcon)
+                                .font(.system(size: 12, weight: .semibold))
+                            Text(segment.rawValue)
+                                .font(.system(size: 14, weight: isActive ? .bold : .medium))
+                        }
+                        .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
+
+                        ZStack {
+                            Capsule().fill(Color.clear).frame(height: 2.5)
+                            if isActive {
+                                Capsule().fill(Color.accentPrimary).frame(height: 2.5)
+                                    .matchedGeometryEffect(id: "buildSegment", in: buildSegmentNS)
+                            }
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
             }
+            Spacer()
         }
-        .padding(3)
-        .background(Color.surfaceOverlay)
-        .clipShape(Capsule())
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.separatorStandard.opacity(0.4)).frame(height: 0.5)
+        }
     }
 
     // MARK: - FAB

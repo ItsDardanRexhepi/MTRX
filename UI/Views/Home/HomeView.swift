@@ -359,6 +359,16 @@ struct HomeView: View {
                     addActionTile
                 }
             }
+            // Press and hold anywhere in the Quick actions area to enter
+            // edit mode — no need to reach for the Edit button.
+            .contentShape(Rectangle())
+            .onLongPressGesture(minimumDuration: 0.45) {
+                if !editingActions {
+                    MtrxHaptics.impact(.medium)
+                    withAnimation(Motion.springSnappy) { editingActions = true }
+                    startJiggle(true)
+                }
+            }
         }
         .sheet(isPresented: $showActionPicker) {
             QuickActionPicker(chosen: chosenActions) { added in
@@ -384,35 +394,44 @@ struct HomeView: View {
     }
 
     private func actionTile(_ action: HomeAction) -> some View {
-        Button {
+        // A plain styled view (not a Button) so tap and press-and-hold can
+        // coexist: a quick tap opens the action, a hold enters edit mode.
+        HStack(spacing: Spacing.sm) {
+            ZStack {
+                Circle().fill(action.color.opacity(0.14)).frame(width: 30, height: 30)
+                Image(systemName: action.icon)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(action.color)
+            }
+            Text(action.title)
+                .font(.mtrxCaptionBold)
+                .foregroundStyle(Color.labelPrimary)
+                .lineLimit(1).minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, Spacing.xs)
+        .padding(.horizontal, Spacing.ms)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .background(action.color.opacity(0.04))
+        .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
+        .overlay(
+            RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
+                .stroke(action.color.opacity(0.22), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+        // Hold to edit — recognized first, so it wins over the tap.
+        .onLongPressGesture(minimumDuration: 0.45) {
+            if !editingActions {
+                MtrxHaptics.impact(.medium)
+                withAnimation(Motion.springSnappy) { editingActions = true }
+                startJiggle(true)
+            }
+        }
+        .onTapGesture {
             guard !editingActions else { return }
             MtrxHaptics.impact(.light)
             open(action)
-        } label: {
-            HStack(spacing: Spacing.sm) {
-                ZStack {
-                    Circle().fill(action.color.opacity(0.14)).frame(width: 30, height: 30)
-                    Image(systemName: action.icon)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(action.color)
-                }
-                Text(action.title)
-                    .font(.mtrxCaptionBold)
-                    .foregroundStyle(Color.labelPrimary)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                Spacer(minLength: 0)
-            }
-            .padding(.vertical, Spacing.xs)
-            .padding(.horizontal, Spacing.ms)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background(action.color.opacity(0.04))
-            .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
-            .overlay(
-                RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
-                    .stroke(action.color.opacity(0.22), lineWidth: 1)
-            )
         }
-        .buttonStyle(.plain)
         .overlay(alignment: .topLeading) {
             if editingActions {
                 Button {
@@ -429,13 +448,6 @@ struct HomeView: View {
             }
         }
         .rotationEffect(.degrees(editingActions ? (jiggle ? 0.7 : -0.7) : 0))
-        .onLongPressGesture {
-            if !editingActions {
-                MtrxHaptics.impact(.medium)
-                withAnimation(Motion.springSnappy) { editingActions = true }
-                startJiggle(true)
-            }
-        }
     }
 
     private var addActionTile: some View {
@@ -581,48 +593,85 @@ struct HomeView: View {
                     .foregroundStyle(Color.labelTertiary)
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else {
+                // Looping carousel: a clone of the last post sits before
+                // the first and a clone of the first sits after the last,
+                // so swiping past either end wraps seamlessly both ways.
                 TabView(selection: $feedPage) {
-                    ForEach(Array(feedPosts.enumerated()), id: \.element.id) { index, post in
-                        PostCardView(
-                            post: post,
-                            onLike: { socialFeed.toggleLike(postId: post.id) },
-                            onRepost: { socialFeed.toggleRepost(postId: post.id) }
-                        )
-                        .lineLimit(3)
-                        .padding(Spacing.ms)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                        .background(Color.trinityPrimary.opacity(0.03))
-                        .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [.white.opacity(0.10), .white.opacity(0.02)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 1
-                                )
-                        )
-                        .tag(index)
+                    ForEach(loopFeed.indices, id: \.self) { i in
+                        feedCard(loopFeed[i])
+                            .padding(.horizontal, 2)
+                            .tag(i)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .frame(height: 204)
+                .onAppear {
+                    if feedPosts.count > 1 && feedPage == 0 { feedPage = 1 }
+                }
+                .onChange(of: feedPage) { _, new in
+                    let n = feedPosts.count
+                    guard n > 1 else { return }
+                    if new == 0 { jumpFeed(to: n) }          // before first → real last
+                    else if new == n + 1 { jumpFeed(to: 1) } // after last → real first
+                }
 
-                // Quiet position dots — you always know where you are.
+                // Quiet position dots — track the real index.
                 HStack(spacing: 5) {
-                    ForEach(0..<min(feedPosts.count, 12), id: \.self) { index in
+                    ForEach(0..<feedPosts.count, id: \.self) { index in
                         Capsule()
-                            .fill(index == feedPage ? Color.trinityPrimary : Color.labelQuaternary.opacity(0.5))
-                            .frame(width: index == feedPage ? 14 : 5, height: 5)
-                            .animation(Motion.springSnappy, value: feedPage)
+                            .fill(index == realFeedIndex ? Color.trinityPrimary : Color.labelQuaternary.opacity(0.5))
+                            .frame(width: index == realFeedIndex ? 14 : 5, height: 5)
+                            .animation(Motion.springSnappy, value: realFeedIndex)
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .offset(y: -5)
             }
         }
+    }
+
+    /// The feed padded with wrap-around clones for seamless looping.
+    private var loopFeed: [SocialPostDisplay] {
+        let posts = feedPosts
+        guard posts.count > 1 else { return posts }
+        return [posts[posts.count - 1]] + posts + [posts[0]]
+    }
+
+    /// The real post index the carousel is currently showing.
+    private var realFeedIndex: Int {
+        let n = feedPosts.count
+        guard n > 1 else { return 0 }
+        return ((feedPage - 1) % n + n) % n
+    }
+
+    private func jumpFeed(to index: Int) {
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t) { feedPage = index }
+    }
+
+    private func feedCard(_ post: SocialPostDisplay) -> some View {
+        PostCardView(
+            post: post,
+            onLike: { socialFeed.toggleLike(postId: post.id) },
+            onRepost: { socialFeed.toggleRepost(postId: post.id) }
+        )
+        .lineLimit(3)
+        .padding(Spacing.ms)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color.trinityPrimary.opacity(0.03))
+        .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
+        .overlay(
+            RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.10), .white.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
     }
 
     // MARK: - Helpers
