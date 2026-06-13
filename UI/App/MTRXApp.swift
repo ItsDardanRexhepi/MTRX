@@ -86,24 +86,25 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
+            // Home is mounted underneath the launch overlay from the very
+            // first frame — so when the splash orb opens, the user comes
+            // straight through the portal into Home with no black buffer.
+            Group {
+                if appState.isAuthenticated {
+                    MainTabView()
+                } else {
+                    OnboardingView()
+                }
+            }
+            .animation(Motion.springDefault, value: appState.isAuthenticated)
+
             if showLaunch {
                 LaunchView {
-                    withAnimation(.easeInOut(duration: 0.4)) {
-                        showLaunch = false
-                    }
+                    // The launch view has already faded itself to reveal
+                    // Home beneath — just remove the (now invisible) overlay.
+                    showLaunch = false
                 }
-                .transition(.opacity)
                 .zIndex(10)
-            } else {
-                Group {
-                    if appState.isAuthenticated {
-                        MainTabView()
-                    } else {
-                        OnboardingView()
-                    }
-                }
-                .transition(.opacity)
-                .animation(Motion.springDefault, value: appState.isAuthenticated)
             }
         }
     }

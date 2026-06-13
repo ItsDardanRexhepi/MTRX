@@ -1,10 +1,10 @@
 // LaunchView.swift
 // MTRX
 //
-// The launch is a portal: a single glass orb breathes into existence,
-// then rushes forward and opens straight into the Home screen with a
-// silky liquid-glass transition. No wordmark, no tagline — just the orb
-// and the door it opens.
+// The launch is a portal: a glass orb breathes into existence, then the
+// ocean dissolves and the orb expands as a clear glass window — Home is
+// already mounted beneath, so you come straight through the portal into
+// the app with one continuous transition and no black buffer.
 
 import SwiftUI
 
@@ -14,15 +14,18 @@ struct LaunchView: View {
     @State private var orbScale: CGFloat = 0.35
     @State private var orbOpacity: Double = 0
     @State private var auraOpacity: Double = 0
+    @State private var bgOpacity: Double = 1
     @State private var breathe = false
-    @State private var sceneOpacity: Double = 1
-    /// Expands the orb forward to "open" the portal into Home.
+    /// Expands the orb into a full-screen glass window onto Home.
     @State private var portalScale: CGFloat = 1
+    @State private var orbExitOpacity: Double = 1
 
     var body: some View {
         ZStack {
-            // The ocean field — same world Home lives in.
-            Color.backgroundPrimary.ignoresSafeArea()
+            // The ocean field — fades early so Home shows through the orb.
+            Color.backgroundPrimary
+                .ignoresSafeArea()
+                .opacity(bgOpacity)
 
             RadialGradient(
                 colors: [Color.trinityPrimary.opacity(0.16), .clear],
@@ -32,12 +35,12 @@ struct LaunchView: View {
             .ignoresSafeArea()
             .opacity(auraOpacity)
 
-            // The signature glass orb — clear, reflective, iridescent.
+            // The signature glass orb — transparent, so as it expands it
+            // becomes a window onto Home beneath.
             GlassOrb(size: 132)
                 .scaleEffect(orbScale * (breathe ? 1.03 : 0.99) * portalScale)
-                .opacity(orbOpacity)
+                .opacity(orbOpacity * orbExitOpacity)
         }
-        .opacity(sceneOpacity)
         .onAppear(perform: run)
     }
 
@@ -49,16 +52,22 @@ struct LaunchView: View {
         withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
             breathe = true
         }
-        // The portal opens: the orb rushes forward, its glass filling the
-        // screen, and dissolves straight into Home.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.9) {
-            withAnimation(.easeIn(duration: 0.6)) {
-                portalScale = 18
+        // The portal opens.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.7) {
+            // Ocean + aura fade first → Home is revealed beneath the orb.
+            withAnimation(.easeInOut(duration: 0.45)) {
+                bgOpacity = 0
+                auraOpacity = 0
             }
-            withAnimation(.easeIn(duration: 0.5).delay(0.18)) {
-                sceneOpacity = 0
+            // The glass orb expands into a full-screen window over Home.
+            withAnimation(.easeIn(duration: 0.7)) {
+                portalScale = 24
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.62) {
+            // …then the glass itself dissolves, leaving you in Home.
+            withAnimation(.easeOut(duration: 0.4).delay(0.42)) {
+                orbExitOpacity = 0
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.78) {
                 onComplete()
             }
         }

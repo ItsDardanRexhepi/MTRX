@@ -193,38 +193,10 @@ struct HomeView: View {
                 }
                 .buttonStyle(.plain)
 
-                // A transparent liquid-glass ask bar that extends to the
-                // orb: type a command or talk to Trinity right from here.
-                homeAskBar
-
-                // The agent orb — clear glass, breathing inside a soft aura.
-                Button {
-                    MtrxHaptics.impact(.medium)
-                    presentedChat = ChatLaunch(agent: .trinity)
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [.white.opacity(0.14), .clear],
-                                    center: .center, startRadius: 13, endRadius: 30
-                                )
-                            )
-                            .frame(width: 60, height: 60)
-                            .opacity(orbPulse ? 1.0 : 0.5)
-
-                        GlassOrb(size: 44)
-                            .scaleEffect(orbPulse ? 1.03 : 0.98)
-                    }
-                    .frame(width: 46, height: 46)
-                    .shadow(color: .white.opacity(0.16), radius: 9)
-                }
-                .buttonStyle(.plain)
-                .onAppear {
-                    withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
-                        orbPulse = true
-                    }
-                }
+                // The ask bar and the orb are one element now: a single
+                // glass pill — wearing the orb's own iridescent skin —
+                // with the orb living at its trailing end. Type to Trinity.
+                homeAskOrb
             }
             .alert("Your Name", isPresented: $showNameEditor) {
                 TextField("Name", text: $nameDraft)
@@ -283,8 +255,8 @@ struct HomeView: View {
     /// Transparent liquid-glass field that extends from the orb. The
     /// placeholder shows only while empty (standard search-bar behavior);
     /// submitting hands the text to Trinity to action or answer.
-    private var homeAskBar: some View {
-        HStack(spacing: 6) {
+    private var homeAskOrb: some View {
+        HStack(spacing: 8) {
             Image(systemName: "sparkle.magnifyingglass")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Color.trinityPrimary.opacity(0.8))
@@ -295,13 +267,44 @@ struct HomeView: View {
                 .submitLabel(.go)
                 .onSubmit(runHomeAsk)
                 .tint(Color.trinityPrimary)
+            // The orb lives at the end of the field — tap to open the
+            // full agent space.
+            Button {
+                MtrxHaptics.impact(.medium)
+                presentedChat = ChatLaunch(agent: .trinity)
+            } label: {
+                GlassOrb(size: 30)
+                    .scaleEffect(orbPulse ? 1.04 : 0.98)
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 9)
-        .background(.ultraThinMaterial)
-        .background(Color.trinityPrimary.opacity(0.04))
+        .padding(.leading, 11)
+        .padding(.trailing, 5)
+        .padding(.vertical, 5)
+        .background(
+            // The pill wears the orb's iridescent glass skin.
+            ZStack {
+                Capsule().fill(.ultraThinMaterial)
+                Capsule()
+                    .fill(AngularGradient(
+                        colors: [
+                            Color(red: 0.60, green: 0.92, blue: 0.96),
+                            Color(red: 0.78, green: 0.80, blue: 0.99),
+                            Color(red: 0.70, green: 0.97, blue: 0.88),
+                            Color(red: 0.60, green: 0.92, blue: 0.96),
+                        ],
+                        center: .center))
+                    .opacity(0.07)
+                    .blendMode(.screen)
+            }
+        )
         .clipShape(Capsule())
-        .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
+        .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+                orbPulse = true
+            }
+        }
     }
 
     private func runHomeAsk() {

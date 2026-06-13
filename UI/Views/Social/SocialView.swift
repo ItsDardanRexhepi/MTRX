@@ -14,6 +14,17 @@ enum SocialTab: String, CaseIterable {
     case groups = "Groups"
     case network = "Network"
     case live = "Live"
+
+    var icon: String {
+        switch self {
+        case .feed: return "house"
+        case .governance: return "building.columns"
+        case .messaging: return "bubble.left.and.bubble.right"
+        case .groups: return "person.3"
+        case .network: return "point.3.connected.trianglepath.dotted"
+        case .live: return "dot.radiowaves.left.and.right"
+        }
+    }
 }
 
 // MARK: - Feed Filters
@@ -374,11 +385,10 @@ struct SocialView: View {
                         }
                         .frame(width: 30, height: 30)
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(.white.opacity(0.28), lineWidth: 1))
-                        // A subtle ambient glow in the photo's own
-                        // average color — noticeable, never loud.
-                        .shadow(color: socialIdentity.avatarGlow.opacity(0.65), radius: 6)
-                        .shadow(color: socialIdentity.avatarGlow.opacity(0.25), radius: 12)
+                        // The photo fills the whole circle, no outline — just
+                        // a subtle ambient glow in the photo's own color.
+                        .shadow(color: socialIdentity.avatarGlow.opacity(0.6), radius: 6)
+                        .shadow(color: socialIdentity.avatarGlow.opacity(0.22), radius: 12)
                     }
                 }
 
@@ -393,52 +403,25 @@ struct SocialView: View {
                         .mtrxGlow(color: theme.accent, radius: 4)
                 }
 
-                // Notifications, settings, theme, and the timeline
-                // switcher — everything social, without leaving Social.
+                // One settings entry — notifications, theme, and the AI
+                // tools all live inside it now.
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: Spacing.ms) {
+                    Menu {
                         Button {
                             MtrxHaptics.impact(.light)
                             showNotifications = true
                         } label: {
-                            Image(systemName: "bell")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(Color.labelSecondary)
+                            Label("Notifications", systemImage: "bell")
                         }
 
                         Button {
                             MtrxHaptics.impact(.light)
-                            showSocialSettings = true
+                            if currentTier >= .pro { showThemePicker = true } else { showUpsell = true }
                         } label: {
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(Color.labelSecondary)
+                            Label(currentTier >= .pro ? "Theme color" : "Theme color (Pro)",
+                                  systemImage: currentTier >= .pro ? "paintpalette" : "lock.fill")
                         }
 
-                        // Theme color — a Pro+ feature.
-                        Button {
-                            MtrxHaptics.impact(.light)
-                            if currentTier >= .pro {
-                                showThemePicker = true
-                            } else {
-                                showUpsell = true
-                            }
-                        } label: {
-                            ZStack(alignment: .topTrailing) {
-                                Image(systemName: "paintpalette")
-                                    .font(.system(size: 15, weight: .medium))
-                                    .foregroundStyle(currentTier >= .pro ? theme.accent : Color.labelTertiary)
-                                if currentTier < .pro {
-                                    Image(systemName: "lock.fill")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundStyle(Color.accentSecondary)
-                                        .offset(x: 4, y: -4)
-                                }
-                            }
-                        }
-
-                        // Advanced AI curation — the top-tier feature,
-                        // Enterprise only.
                         Button {
                             MtrxHaptics.selection()
                             if currentTier >= .enterprise {
@@ -446,25 +429,24 @@ struct SocialView: View {
                                     viewModel.selectedFilter =
                                         viewModel.selectedFilter == .trending ? .all : .trending
                                 }
-                            } else {
-                                showUpsell = true
-                            }
+                            } else { showUpsell = true }
                         } label: {
-                            ZStack(alignment: .topTrailing) {
-                                Image(systemName: viewModel.selectedFilter == .trending
-                                      ? "sparkles" : "sparkle")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundStyle(currentTier >= .enterprise
-                                                     ? (viewModel.selectedFilter == .trending ? theme.accent : Color.labelSecondary)
-                                                     : Color.labelTertiary)
-                                if currentTier < .enterprise {
-                                    Image(systemName: "lock.fill")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundStyle(Color.accentSecondary)
-                                        .offset(x: 4, y: -4)
-                                }
-                            }
+                            Label(currentTier >= .enterprise ? "AI curation" : "AI curation (Enterprise)",
+                                  systemImage: currentTier >= .enterprise ? "sparkles" : "lock.fill")
                         }
+
+                        Divider()
+
+                        Button {
+                            MtrxHaptics.impact(.light)
+                            showSocialSettings = true
+                        } label: {
+                            Label("Settings", systemImage: "gearshape")
+                        }
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Color.labelSecondary)
                     }
                 }
             }
@@ -581,34 +563,51 @@ struct SocialView: View {
 
     // MARK: - Tab Selector
 
+    /// Redesigned from scratch: a clean icon + label underline strip that
+    /// reads as part of the header, not a row of chunky pills sitting on
+    /// top of it. The active tab lights up with an animated accent
+    /// underline; the rest stay quiet.
     private var tabSelector: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Spacing.xs) {
+            HStack(spacing: Spacing.lg) {
                 ForEach(SocialTab.allCases, id: \.self) { tab in
+                    let isActive = viewModel.selectedTab == tab
                     Button {
-                        withAnimation(Motion.springSnappy) {
-                            viewModel.selectedTab = tab
-                        }
+                        withAnimation(Motion.springSnappy) { viewModel.selectedTab = tab }
                         MtrxHaptics.selection()
                     } label: {
-                        Text(tab.rawValue)
-                            .font(.mtrxCaptionBold)
-                            .foregroundStyle(viewModel.selectedTab == tab ? .white : Color.labelSecondary)
-                            .padding(.horizontal, Spacing.md)
-                            .padding(.vertical, Spacing.sm)
-                            .background(
-                                viewModel.selectedTab == tab
-                                ? Capsule().fill(Color.accentPrimary)
-                                : Capsule().fill(Color.surfaceOverlay)
-                            )
+                        VStack(spacing: 6) {
+                            HStack(spacing: 6) {
+                                Image(systemName: tab.icon)
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text(tab.rawValue)
+                                    .font(.system(size: 14, weight: isActive ? .bold : .medium))
+                            }
+                            .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
+
+                            // The animated underline rides under the active tab.
+                            ZStack {
+                                Capsule().fill(Color.clear).frame(height: 2.5)
+                                if isActive {
+                                    Capsule()
+                                        .fill(theme.accent)
+                                        .frame(height: 2.5)
+                                        .matchedGeometryEffect(id: "socialTabUnderline", in: tabUnderlineNS)
+                                }
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, Spacing.contentPadding)
-            .padding(.vertical, Spacing.sm)
+            .padding(.top, Spacing.sm)
         }
-        .background(Color.backgroundPrimary)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.separatorStandard.opacity(0.4))
+                .frame(height: 0.5)
+        }
     }
 
     // MARK: - Tab Content

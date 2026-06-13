@@ -37,38 +37,26 @@ struct GlassOrb: View {
                 .fill(.ultraThinMaterial)
                 .opacity(0.22)
 
-            // Iridescent refraction, dissolving softly at the rim.
+            // Smooth iridescent refraction filling the whole sphere and
+            // dissolving softly toward the edge. No bright blobs, no rim.
             Circle()
                 .fill(AngularGradient(colors: film, center: .center))
                 .mask(
-                    RadialGradient(colors: [.white, .white.opacity(0.15)],
-                                   center: .center, startRadius: 1, endRadius: size * 0.5)
+                    RadialGradient(colors: [.white, .white.opacity(0.35), .white.opacity(0)],
+                                   center: .center, startRadius: 1, endRadius: size * 0.52)
                 )
-                .opacity(0.42)
+                .opacity(0.40)
                 .blendMode(.screen)
                 .rotationEffect(.degrees(drift ? 360 : 0))
 
-            // A bright streak of refracted light across the glass.
-            Capsule()
+            // A gentle off-center sheen — light through glass, not a dot.
+            Circle()
                 .fill(
-                    LinearGradient(colors: [.clear, .white.opacity(0.75), .clear],
-                                   startPoint: .leading, endPoint: .trailing)
+                    RadialGradient(colors: [.white.opacity(0.30), .clear],
+                                   center: .init(x: 0.36, y: 0.32),
+                                   startRadius: 0, endRadius: size * 0.42)
                 )
-                .frame(width: size * 0.96, height: size * 0.14)
-                .rotationEffect(.degrees(drift ? 405 : 25))
-                .opacity(0.55)
                 .blendMode(.screen)
-                .mask(Circle())
-
-            // Specular kiss of light.
-            Circle()
-                .fill(.white.opacity(0.55))
-                .frame(width: size * 0.13, height: size * 0.13)
-                .offset(x: -size * 0.17, y: -size * 0.2)
-
-            // Thin glass rim.
-            Circle()
-                .strokeBorder(.white.opacity(0.26), lineWidth: max(0.8, size * 0.018))
         }
         .frame(width: size, height: size)
         .onAppear {
