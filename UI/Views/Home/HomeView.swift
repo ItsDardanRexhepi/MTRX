@@ -13,7 +13,7 @@ struct HomeView: View {
     @ObservedObject private var chatStore = ConversationStore.shared
     @ObservedObject private var dailyFlow = DailyFlow.shared
     @ObservedObject private var socialFeed = SocialViewModel.shared
-    @State private var feedPage = 0
+    @State private var feedScrollIndex: Int?
 
     @State private var presentedChat: ChatLaunch?
     @State private var appeared = false
@@ -70,11 +70,19 @@ struct HomeView: View {
                         Color.clear
                             .contentShape(Rectangle())
                             .onTapGesture { exitEditMode() }
+                    } else if askFocused {
+                        // Tap any empty (unclickable) area to leave the search
+                        // bar and drop the keyboard. Quick actions and the
+                        // portfolio stay tappable — their own taps are
+                        // consumed before reaching this catcher.
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { askFocused = false }
                     }
                 }
             }
-            // Swipe down on the page to dismiss the keyboard when done.
-            .scrollDismissesKeyboard(.interactively)
+            // Any scroll drops the keyboard instantly — the easiest way out.
+            .scrollDismissesKeyboard(.immediately)
         }
         .onReceive(NotificationCenter.default.publisher(for: .mtrxOpenService)) { note in
             if let raw = note.userInfo?["service"] as? String,
@@ -317,6 +325,9 @@ struct HomeView: View {
         )
         // Pops out a touch and lifts when you start typing — silky, no jolt.
         .scaleEffect(askFocused ? 1.045 : 1.0)
+        // A quiet resting shadow gives the pill depth; the colored glow
+        // blooms only on focus.
+        .shadow(color: .black.opacity(0.16), radius: 6, y: 3)
         .shadow(color: Color(red: 0.62, green: 0.78, blue: 0.98).opacity(askFocused ? 0.45 : 0.0),
                 radius: askFocused ? 18 : 0)
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: askFocused)
@@ -645,60 +656,36 @@ struct HomeView: View {
                     .foregroundStyle(Color.labelTertiary)
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else {
-                // Looping carousel: a clone of the last post sits before
-                // the first and a clone of the first sits after the last,
-                // so swiping past either end wraps seamlessly both ways.
-                TabView(selection: $feedPage) {
-                    ForEach(loopFeed.indices, id: \.self) { i in
-                        feedCard(loopFeed[i])
-                            .tag(i)
+                // A tidy paged carousel: each card is exactly the content
+                // width and snaps cleanly, with only a small, controlled
+                // gutter between cards — no wide channel mid-swipe.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Spacing.sm) {
+                        ForEach(Array(feedPosts.enumerated()), id: \.element.id) { index, post in
+                            feedCard(post)
+                                .containerRelativeFrame(.horizontal)
+                                .id(index)
+                        }
                     }
+                    .scrollTargetLayout()
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 204)
-                .onAppear {
-                    if feedPosts.count > 1 && feedPage == 0 { feedPage = 1 }
-                }
-                .onChange(of: feedPage) { _, new in
-                    let n = feedPosts.count
-                    guard n > 1 else { return }
-                    if new == 0 { jumpFeed(to: n) }          // before first → real last
-                    else if new == n + 1 { jumpFeed(to: 1) } // after last → real first
-                }
+                .frame(height: 188)
+                .scrollTargetBehavior(.viewAligned)
+                .scrollPosition(id: $feedScrollIndex)
 
-                // Quiet position dots — track the real index.
+                // Quiet position dots — track the visible card.
                 HStack(spacing: 5) {
-                    ForEach(0..<feedPosts.count, id: \.self) { index in
+                    ForEach(feedPosts.indices, id: \.self) { index in
                         Capsule()
-                            .fill(index == realFeedIndex ? Color.trinityPrimary : Color.labelQuaternary.opacity(0.5))
-                            .frame(width: index == realFeedIndex ? 14 : 5, height: 5)
-                            .animation(Motion.springSnappy, value: realFeedIndex)
+                            .fill(index == (feedScrollIndex ?? 0) ? Color.trinityPrimary : Color.labelQuaternary.opacity(0.5))
+                            .frame(width: index == (feedScrollIndex ?? 0) ? 14 : 5, height: 5)
+                            .animation(Motion.springSnappy, value: feedScrollIndex)
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .offset(y: -5)
+                .padding(.top, 2)
             }
         }
-    }
-
-    /// The feed padded with wrap-around clones for seamless looping.
-    private var loopFeed: [SocialPostDisplay] {
-        let posts = feedPosts
-        guard posts.count > 1 else { return posts }
-        return [posts[posts.count - 1]] + posts + [posts[0]]
-    }
-
-    /// The real post index the carousel is currently showing.
-    private var realFeedIndex: Int {
-        let n = feedPosts.count
-        guard n > 1 else { return 0 }
-        return ((feedPage - 1) % n + n) % n
-    }
-
-    private func jumpFeed(to index: Int) {
-        var t = Transaction()
-        t.disablesAnimations = true
-        withTransaction(t) { feedPage = index }
     }
 
     private func feedCard(_ post: SocialPostDisplay) -> some View {

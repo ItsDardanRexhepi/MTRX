@@ -269,7 +269,6 @@ struct DiscoverView: View {
                 )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(.ultraThinMaterial)
             }
             .navigationDestination(item: $pushedCategory) { category in
                 categoryDestination(for: category)
@@ -513,7 +512,9 @@ struct DiscoverView: View {
                             selectedFeaturedItem = item
                             DailyFlow.shared.mark(.explore)
                         })
-                            .padding(.horizontal, Spacing.contentPadding)
+                            // Half the previous inset → the channel between
+                            // adjacent cards is halved while they stay coherent.
+                            .padding(.horizontal, Spacing.xs)
                             .tag(index)
                     }
                 }
@@ -558,20 +559,8 @@ struct DiscoverView: View {
                 )
                 .frame(height: 180)
             } else {
-                LazyVStack(spacing: Spacing.xs) {
-                    ForEach(Array(topFive.enumerated()), id: \.element.id) { index, listing in
-                        NavigationLink {
-                            MarketplaceListingDetail(listing: listing)
-                        } label: {
-                            TrendingListingRow(listing: listing, rank: index + 1)
-                                .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
-                        }
-                        .buttonStyle(.plain)
-                        .simultaneousGesture(TapGesture().onEnded { DailyFlow.shared.mark(.explore) })
-                    }
-                }
-                .padding(.horizontal, Spacing.contentPadding)
-
+                // The side-scrolling carousel rides on top; the ranked
+                // top-five list sits beneath it.
                 if !nextFive.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Spacing.md) {
@@ -587,8 +576,22 @@ struct DiscoverView: View {
                         }
                         .padding(.horizontal, Spacing.contentPadding)
                     }
-                    .padding(.top, Spacing.xs)
                 }
+
+                LazyVStack(spacing: Spacing.xs) {
+                    ForEach(Array(topFive.enumerated()), id: \.element.id) { index, listing in
+                        NavigationLink {
+                            MarketplaceListingDetail(listing: listing)
+                        } label: {
+                            TrendingListingRow(listing: listing, rank: index + 1)
+                                .mtrxStaggeredAppearance(index: index, isVisible: viewModel.contentAppeared)
+                        }
+                        .buttonStyle(.plain)
+                        .simultaneousGesture(TapGesture().onEnded { DailyFlow.shared.mark(.explore) })
+                    }
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+                .padding(.top, nextFive.isEmpty ? 0 : Spacing.xs)
             }
         }
         .sheet(isPresented: $showTrendingAll) {
@@ -1713,7 +1716,7 @@ struct DiscoverMenuSheet: View {
                 }
                 .padding(Spacing.contentPadding)
             }
-            .background(MtrxGradientBackground(style: .primary).opacity(0.0))
+            .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Menu")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

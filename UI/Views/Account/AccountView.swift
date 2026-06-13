@@ -171,8 +171,10 @@ struct AccountView: View {
     // MARK: - Profile Card
 
     private var profileCard: some View {
+        // Compact horizontal header — sized to sit level with the Portfolio
+        // Value card beneath it instead of towering over it.
         MtrxCard(style: .glass) {
-            VStack(spacing: Spacing.md) {
+            HStack(spacing: Spacing.md) {
                 // Avatar with gradient ring
                 Button {
                     MtrxHaptics.impact(.light)
@@ -187,27 +189,27 @@ struct AccountView: View {
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     ),
-                                    lineWidth: 3
+                                    lineWidth: 2.5
                                 )
-                                .frame(width: Spacing.Size.avatarXLarge + 6, height: Spacing.Size.avatarXLarge + 6)
+                                .frame(width: Spacing.Size.avatarLarge + 5, height: Spacing.Size.avatarLarge + 5)
 
                             if let photo = accountAvatar.image {
                                 Image(uiImage: photo)
                                     .resizable()
                                     .scaledToFill()
-                                    .frame(width: Spacing.Size.avatarXLarge, height: Spacing.Size.avatarXLarge)
+                                    .frame(width: Spacing.Size.avatarLarge, height: Spacing.Size.avatarLarge)
                                     .clipShape(Circle())
                             } else {
                                 MtrxAvatar(
                                     text: appState.displayName.isEmpty ? "M" : String(appState.displayName.prefix(2)),
                                     color: accountAvatar.monogramColor,
-                                    size: Spacing.Size.avatarXLarge
+                                    size: Spacing.Size.avatarLarge
                                 )
                             }
                         }
 
                         Image(systemName: "camera.circle.fill")
-                            .font(.system(size: 22))
+                            .font(.system(size: 18))
                             .foregroundStyle(Color.accentPrimary)
                             .background(Circle().fill(Color.backgroundPrimary))
                     }
@@ -277,46 +279,55 @@ struct AccountView: View {
                     .presentationBackground(.thinMaterial)
                 }
 
-                // Display name
-                Text(appState.displayName.isEmpty ? "MTRX User" : appState.displayName)
-                    .font(.mtrxTitle2)
-                    .foregroundStyle(Color.labelPrimary)
-
-                // DID identifier
-                HStack(spacing: Spacing.sm) {
-                    Text(truncatedDID)
-                        .font(.mtrxMonoSmall)
-                        .foregroundStyle(Color.labelSecondary)
+                // Identity column
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(appState.displayName.isEmpty ? "MTRX User" : appState.displayName)
+                        .font(.mtrxTitle3)
+                        .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.7)
 
-                    Button {
-                        UIPasteboard.general.string = fullDID
-                        withAnimation(Motion.springSnappy) { copiedDID = true }
-                        MtrxHaptics.success()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            withAnimation { copiedDID = false }
+                    HStack(spacing: Spacing.xs) {
+                        Text(truncatedDID)
+                            .font(.mtrxMonoSmall)
+                            .foregroundStyle(Color.labelSecondary)
+                            .lineLimit(1)
+
+                        Button {
+                            UIPasteboard.general.string = fullDID
+                            withAnimation(Motion.springSnappy) { copiedDID = true }
+                            MtrxHaptics.success()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                withAnimation { copiedDID = false }
+                            }
+                        } label: {
+                            Image(systemName: copiedDID ? Symbols.complete : Symbols.copy)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(copiedDID ? Color.statusSuccess : Color.accentPrimary)
                         }
-                    } label: {
-                        Image(systemName: copiedDID ? Symbols.complete : Symbols.copy)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(copiedDID ? Color.statusSuccess : Color.accentPrimary)
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+
+                    Text("Member since \(memberSinceString)")
+                        .font(.mtrxCaption2)
+                        .foregroundStyle(Color.labelTertiary)
                 }
 
-                // Member since
-                Text("Member since \(memberSinceString)")
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelTertiary)
+                Spacer(minLength: 0)
 
-                // Edit profile button
+                // Edit profile — compact icon button
                 Button {
                     showEditProfile = true
                     MtrxHaptics.impact(.light)
                 } label: {
-                    Text("Edit Profile")
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                        .frame(width: 36, height: 36)
+                        .background(Color.accentPrimary.opacity(0.12))
+                        .clipShape(Circle())
                 }
-                .buttonStyle(MtrxButtonStyle(variant: .ghost, size: .compact))
+                .buttonStyle(.plain)
             }
             .frame(maxWidth: .infinity)
         }
@@ -368,8 +379,8 @@ struct AccountView: View {
                     .foregroundStyle(Color.accentPrimary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, Spacing.sm)
-                    .background(Color.accentPrimary.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                    .background(Color.accentPrimary.opacity(0.12))
+                    .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.sm)
                 }
                 .buttonStyle(.plain)
 

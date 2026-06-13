@@ -110,6 +110,16 @@ struct MtrxGlassCircleButton: View {
                     .foregroundStyle(tint)
             }
             .frame(width: size, height: size)
+            // Light falls from above — a lit top rim and a soft, diffuse
+            // drop shadow lift the glass disc off the surface.
+            .overlay(
+                Circle().stroke(
+                    LinearGradient(colors: [.white.opacity(0.28), .white.opacity(0.04)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 0.8
+                )
+            )
+            .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
         }
         .buttonStyle(.plain)
     }
@@ -397,10 +407,11 @@ struct MtrxSearchBar: View {
                 }
             }
         }
-        .padding(.horizontal, Spacing.ms)
-        .frame(height: 40)
+        .padding(.horizontal, Spacing.md)
+        .frame(height: 42)
         .background(Color.surfaceOverlay)
-        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+        // Softer, rounder field — the Discover search reads friendlier.
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
     }
 }
 

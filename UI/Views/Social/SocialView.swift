@@ -377,6 +377,25 @@ struct SocialView: View {
                     tabSelector
                     tabContent
                 }
+                .background(alignment: .top) {
+                    // On the feed, a colorful wash falls from the very top of
+                    // the screen and dissolves into the tab's own background —
+                    // honoring light / dark / blackout, with no hard purple
+                    // band. It sits in front of the base field but behind all
+                    // content.
+                    if viewModel.selectedTab == .feed {
+                        LinearGradient(
+                            colors: [theme.accent.opacity(0.30),
+                                     theme.accent.opacity(0.10),
+                                     .clear],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                        .frame(height: 300)
+                        .frame(maxWidth: .infinity, alignment: .top)
+                        .ignoresSafeArea(edges: .top)
+                        .allowsHitTesting(false)
+                    }
+                }
                 .background(MtrxGradientBackground(style: .primary))
 
                 composeButton
@@ -401,32 +420,39 @@ struct SocialView: View {
                         MtrxHaptics.impact(.light)
                         showProfile = true
                     } label: {
-                        Group {
-                            if let avatar = socialIdentity.avatarImage {
-                                Image(uiImage: avatar).resizable().scaledToFill()
-                            } else {
-                                LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
-                                               startPoint: .topLeading, endPoint: .bottomTrailing)
-                                    .overlay(
-                                        Image(systemName: "person.fill")
-                                            .font(.system(size: 13))
-                                            .foregroundStyle(.white)
-                                    )
+                        ZStack {
+                            // Same liquid-glass circle concept as the Discover
+                            // menu button — a cyan glass disc; the photo (or
+                            // person glyph) sits inside its glass rim.
+                            Circle()
+                                .fill(Color.accentPrimary.opacity(0.18))
+                                .mtrxLiquidGlass(in: Circle())
+
+                            Group {
+                                if let avatar = socialIdentity.avatarImage {
+                                    Image(uiImage: avatar).resizable().scaledToFill()
+                                } else {
+                                    LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
+                                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                                        .overlay(
+                                            Image(systemName: "person.fill")
+                                                .font(.system(size: 12))
+                                                .foregroundStyle(.white)
+                                        )
+                                }
                             }
+                            .frame(width: 27, height: 27)
+                            .clipShape(Circle())
                         }
-                        .frame(width: 30, height: 30)
-                        .clipShape(Circle())
-                        // The photo fills the whole circle, no outline — just
-                        // a subtle ambient glow in the photo's own color.
-                        .shadow(color: socialIdentity.avatarGlow.opacity(0.6), radius: 6)
-                        .shadow(color: socialIdentity.avatarGlow.opacity(0.22), radius: 12)
+                        .frame(width: 34, height: 34)
+                        .shadow(color: socialIdentity.avatarGlow.opacity(0.45), radius: 6)
                     }
                 }
 
                 // The MTRX mark sits center, like every timeline app.
                 ToolbarItem(placement: .principal) {
                     Text("M")
-                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                        .font(.system(size: 30, weight: .heavy, design: .rounded))
                         .foregroundStyle(
                             LinearGradient(colors: [theme.accent, theme.accent.opacity(0.6)],
                                            startPoint: .top, endPoint: .bottom)
@@ -600,8 +626,11 @@ struct SocialView: View {
     private var topTabs: [SocialTab] { [.feed, .governance, .messaging, .groups] }
 
     private var tabSelector: some View {
+        // Naturally-sized labels with equal gaps between them — the spacing
+        // reads as even and intentional instead of short words floating in
+        // wide quarters.
         HStack(spacing: 0) {
-            ForEach(topTabs, id: \.self) { tab in
+            ForEach(Array(topTabs.enumerated()), id: \.element) { idx, tab in
                 let isActive = viewModel.selectedTab == tab
                 Button {
                     withAnimation(Motion.springSnappy) { viewModel.selectedTab = tab }
@@ -610,9 +639,9 @@ struct SocialView: View {
                     VStack(spacing: 6) {
                         HStack(spacing: 5) {
                             Image(systemName: tab.icon)
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.system(size: 10, weight: .semibold))
                             Text(tab.rawValue)
-                                .font(.system(size: 13, weight: isActive ? .bold : .medium))
+                                .font(.system(size: 12.5, weight: isActive ? .bold : .medium))
                                 .lineLimit(1).minimumScaleFactor(0.8)
                         }
                         .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
@@ -627,9 +656,12 @@ struct SocialView: View {
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity)
+                    .layoutPriority(1)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+
+                if idx < topTabs.count - 1 { Spacer(minLength: Spacing.xs) }
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
@@ -828,26 +860,13 @@ struct SocialView: View {
 
     private var feedSection: some View {
         VStack(spacing: 0) {
-            // A colorful wash behind the stories + tabs that fades down
-            // into the feed — the top of Social feels alive, the colors
-            // dissolving as you move into the timeline.
+            // The colorful top wash now lives at the screen level (see body)
+            // so it falls from the very top and dissolves into the tab's own
+            // background — here we just lay out the stories and tabs.
             VStack(spacing: 0) {
                 StoriesRail()
                 filterChips
             }
-            .background(
-                LinearGradient(
-                    colors: [
-                        theme.accent.opacity(0.22),
-                        Color.purple.opacity(0.12),
-                        Color.pink.opacity(0.06),
-                        .clear
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-                .ignoresSafeArea(edges: .top)
-                .allowsHitTesting(false)
-            )
 
             ScrollView {
                 // Flat, edge-to-edge timeline rows with hairline
