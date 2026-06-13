@@ -316,6 +316,8 @@ struct SocialView: View {
     @State private var videoPickerItem: PhotosPickerItem?
     @State private var showProfile = false
     @State private var showThemePicker = false
+    @State private var showNotifications = false
+    @State private var showSocialSettings = false
     @Namespace private var tabUnderlineNS
     @State private var appeared = false
     @State private var showProofPicker = false
@@ -370,6 +372,10 @@ struct SocialView: View {
                         .frame(width: 30, height: 30)
                         .clipShape(Circle())
                         .overlay(Circle().stroke(.white.opacity(0.28), lineWidth: 1))
+                        // A subtle ambient glow in the photo's own
+                        // average color — noticeable, never loud.
+                        .shadow(color: socialIdentity.avatarGlow.opacity(0.65), radius: 6)
+                        .shadow(color: socialIdentity.avatarGlow.opacity(0.25), radius: 12)
                     }
                 }
 
@@ -384,9 +390,30 @@ struct SocialView: View {
                         .mtrxGlow(color: theme.accent, radius: 4)
                 }
 
-                // Theme color (Pro) + timeline switcher.
+                // Notifications, settings, theme, and the timeline
+                // switcher — everything social, without leaving Social.
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: Spacing.ms) {
+                        NetworkTopologyIndicator()
+
+                        Button {
+                            MtrxHaptics.impact(.light)
+                            showNotifications = true
+                        } label: {
+                            Image(systemName: "bell")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(Color.labelSecondary)
+                        }
+
+                        Button {
+                            MtrxHaptics.impact(.light)
+                            showSocialSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(Color.labelSecondary)
+                        }
+
                         Button {
                             MtrxHaptics.impact(.light)
                             showThemePicker = true
@@ -413,6 +440,12 @@ struct SocialView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showNotifications) {
+                NotificationCenterView()
+            }
+            .sheet(isPresented: $showSocialSettings) {
+                SettingsView()
+            }
             .sheet(isPresented: $showProfile) {
                 SocialProfileSheet(
                     myPosts: viewModel.posts.filter {

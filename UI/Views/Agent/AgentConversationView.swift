@@ -275,9 +275,8 @@ struct AgentConversationView: View {
     // between agents with a shared-element morph.
 
     @Namespace private var agentSegmentNS
-    /// Finger position while sliding across the switcher, and the
-    /// capsule's measured size — for the dock-style glass lens.
-    @State private var slideX: CGFloat?
+    /// The capsule's measured size — maps finger position to agents
+    /// while sliding across the switcher.
     @State private var switcherSize: CGSize = .zero
 
     private var availableAgents: [AgentAccessControl.ActiveAgent] {
@@ -340,33 +339,12 @@ struct AgentConversationView: View {
         // The dock interaction: while your finger slides across the
         // capsule, a liquid-glass lens rides under it and the agents
         // switch live as you cross them. Tapping still works.
-        .overlay {
-            if let x = slideX {
-                // A ring of light, not a frosted blob — the name stays
-                // perfectly readable underneath while you slide.
-                Capsule()
-                    .fill(.white.opacity(0.08))
-                    .overlay(Capsule().strokeBorder(.white.opacity(0.45), lineWidth: 1.2))
-                    .frame(width: 58, height: max(switcherSize.height - 8, 28))
-                    .position(
-                        x: min(max(x, 29), max(switcherSize.width - 29, 29)),
-                        y: switcherSize.height / 2
-                    )
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
-            }
-        }
         .simultaneousGesture(
             DragGesture(minimumDistance: 10)
                 .onChanged { value in
-                    guard abs(value.translation.width) > abs(value.translation.height) else {
-                        // The drag turned vertical — retire the lens.
-                        if slideX != nil {
-                            withAnimation(Motion.springSnappy) { slideX = nil }
-                        }
-                        return
-                    }
-                    withAnimation(Motion.springSnappy) { slideX = value.location.x }
+                    // Slide between agents with nothing riding under the
+                    // finger — the morphing pill is the only feedback.
+                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
                     let agents = availableAgents
                     guard switcherSize.width > 0, !agents.isEmpty else { return }
                     let zone = switcherSize.width / CGFloat(agents.count)
@@ -378,11 +356,7 @@ struct AgentConversationView: View {
                         }
                     }
                 }
-                .onEnded { _ in
-                    withAnimation(Motion.springSnappy) { slideX = nil }
-                }
         )
-        .onDisappear { slideX = nil }
     }
 
     private func agentSegment(_ agent: AgentAccessControl.ActiveAgent) -> some View {

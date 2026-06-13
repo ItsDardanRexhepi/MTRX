@@ -84,6 +84,16 @@ final class ContractViewModel: ObservableObject {
     // MARK: - Deploy
 
     func deploy() {
+        // Off-grid: route the deployment through the local mesh outbox
+        // instead of blocking on a network that isn't there.
+        if NetworkPathMonitor.shared.isOffline {
+            let name = contractName.isEmpty ? (selectedTemplate?.rawValue ?? "Contract") : contractName
+            MeshOutbox.shared.enqueue(LocalIntent(kind: .contract, reference: name, note: "deploy"))
+            isDeploying = false
+            deploySuccess = true
+            return
+        }
+
         isDeploying = true
         MtrxHaptics.impact(.heavy)
 

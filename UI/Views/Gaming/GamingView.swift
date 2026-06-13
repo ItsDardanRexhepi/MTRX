@@ -12,6 +12,16 @@ struct GameItem: Identifiable {
     let name: String
     let assetCount: Int
     let playerCount: Int
+    var kind: GameKind = .targets
+    var accent: Color = Color(red: 0.0, green: 0.675, blue: 0.694)
+}
+
+/// The three demo mechanics — each game card maps to one so they play
+/// differently. All run fully on-device, no network.
+enum GameKind {
+    case targets   // tap the glowing nodes before they fade
+    case reflex    // tap only when the ring turns teal
+    case sequence  // repeat the growing pattern
 }
 
 struct TournamentItem: Identifiable {
@@ -48,12 +58,12 @@ class GamingViewModel: ObservableObject {
     }
 
     static let sampleGames: [GameItem] = [
-        GameItem(name: "Neon Arena", assetCount: 2_450, playerCount: 18_300),
-        GameItem(name: "CryptoQuest", assetCount: 8_120, playerCount: 42_600),
-        GameItem(name: "Pixel Kingdoms", assetCount: 5_680, playerCount: 31_200),
-        GameItem(name: "Chain Racers", assetCount: 1_890, playerCount: 12_400),
-        GameItem(name: "DeFi Dungeons", assetCount: 3_340, playerCount: 9_800),
-        GameItem(name: "Meta Tactics", assetCount: 4_100, playerCount: 22_700)
+        GameItem(name: "Neon Arena", assetCount: 2_450, playerCount: 18_300, kind: .targets, accent: Color(red: 0.13, green: 0.83, blue: 0.93)),
+        GameItem(name: "CryptoQuest", assetCount: 8_120, playerCount: 42_600, kind: .sequence, accent: Color(red: 0.62, green: 0.40, blue: 0.96)),
+        GameItem(name: "Pixel Kingdoms", assetCount: 5_680, playerCount: 31_200, kind: .targets, accent: Color(red: 0.20, green: 0.84, blue: 0.40)),
+        GameItem(name: "Chain Racers", assetCount: 1_890, playerCount: 12_400, kind: .reflex, accent: Color(red: 0.98, green: 0.65, blue: 0.15)),
+        GameItem(name: "DeFi Dungeons", assetCount: 3_340, playerCount: 9_800, kind: .sequence, accent: Color(red: 0.97, green: 0.30, blue: 0.55)),
+        GameItem(name: "Meta Tactics", assetCount: 4_100, playerCount: 22_700, kind: .reflex, accent: Color(red: 0.25, green: 0.55, blue: 0.98))
     ]
 
     static let sampleTournaments: [TournamentItem] = [
@@ -68,6 +78,7 @@ class GamingViewModel: ObservableObject {
 
 struct GamingView: View {
     @StateObject private var viewModel = GamingViewModel()
+    @State private var activeGame: GameItem?
 
     private let gridColumns = [
         GridItem(.flexible(), spacing: Spacing.sm),
@@ -94,6 +105,9 @@ struct GamingView: View {
             .navigationTitle("Gaming")
             .navigationBarTitleDisplayMode(.large)
             .task { await viewModel.load() }
+            .fullScreenCover(item: $activeGame) { game in
+                GameRunnerView(game: game)
+            }
         }
     }
 
@@ -131,51 +145,66 @@ struct GamingView: View {
     }
 
     private func gameCard(_ game: GameItem) -> some View {
-        MtrxCard(style: .standard) {
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.0, green: 0.675, blue: 0.694).opacity(0.2),
-                                    Color(red: 0.0, green: 0.675, blue: 0.694).opacity(0.05)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+        Button {
+            MtrxHaptics.impact(.medium)
+            activeGame = game
+        } label: {
+            MtrxCard(style: .standard) {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [game.accent.opacity(0.25), game.accent.opacity(0.05)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
-                        )
-                        .frame(height: 60)
+                            .frame(height: 60)
 
-                    Image(systemName: "gamecontroller.fill")
-                        .font(.system(size: 24))
-                        .foregroundStyle(Color(red: 0.0, green: 0.675, blue: 0.694))
-                }
+                        Image(systemName: "gamecontroller.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(game.accent)
 
-                Text(game.name)
-                    .font(.mtrxBodyBold)
-                    .foregroundStyle(Color.labelPrimary)
-                    .lineLimit(1)
-
-                HStack(spacing: Spacing.md) {
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: "cube.fill")
-                            .font(.system(size: 10))
-                        Text(formatCount(game.assetCount))
-                            .font(.mtrxCaption2)
+                        // A clear "playable" cue in the corner.
+                        VStack {
+                            HStack {
+                                Spacer()
+                                Image(systemName: "play.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(game.accent)
+                                    .padding(6)
+                            }
+                            Spacer()
+                        }
                     }
-                    .foregroundStyle(Color.labelSecondary)
 
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: "person.2.fill")
-                            .font(.system(size: 10))
-                        Text(formatCount(game.playerCount))
-                            .font(.mtrxCaption2)
+                    Text(game.name)
+                        .font(.mtrxBodyBold)
+                        .foregroundStyle(Color.labelPrimary)
+                        .lineLimit(1)
+
+                    HStack(spacing: Spacing.md) {
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: "cube.fill")
+                                .font(.system(size: 10))
+                            Text(formatCount(game.assetCount))
+                                .font(.mtrxCaption2)
+                        }
+                        .foregroundStyle(Color.labelSecondary)
+
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: "person.2.fill")
+                                .font(.system(size: 10))
+                            Text(formatCount(game.playerCount))
+                                .font(.mtrxCaption2)
+                        }
+                        .foregroundStyle(Color.labelSecondary)
                     }
-                    .foregroundStyle(Color.labelSecondary)
                 }
             }
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Tournaments Section

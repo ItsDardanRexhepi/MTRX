@@ -333,6 +333,42 @@ struct AccountWalletView: View {
     @State private var showBrowseAlert = false
     @State private var showSwapSheet = false
     @State private var showErrorAlert = false
+    @State private var showAlerts = false
+    @State private var showMultiSig = false
+
+    private var moneyShortcuts: some View {
+        HStack(spacing: Spacing.sm) {
+            moneyShortcut("lock.fill", "Staking & DeFi", .accentPrimary) { showStaking = true }
+            moneyShortcut("bell.fill", "Alerts", .statusError) { showAlerts = true }
+            moneyShortcut("lock.shield", "Multi-Sig", .statusWarning) { showMultiSig = true }
+        }
+        .padding(.horizontal, Spacing.contentPadding)
+        .padding(.bottom, Spacing.sm)
+    }
+
+    private func moneyShortcut(_ icon: String, _ label: String, _ color: Color, action: @escaping () -> Void) -> some View {
+        Button {
+            MtrxHaptics.impact(.light)
+            action()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(color)
+                Text(label)
+                    .font(.mtrxCaption2)
+                    .foregroundStyle(Color.labelPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(color.opacity(0.10))
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(color.opacity(0.25), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -343,11 +379,21 @@ struct AccountWalletView: View {
             } else {
                 portfolioHeader
                 actionButtons
+                moneyShortcuts
                 tabSelector
                 tabContent
             }
         }
         .navigationTitle("Wallet")
+        // All of "your money" lives in here now — staking, alerts, and
+        // multi-sig are one tap from the wallet, not a separate section.
+        .sheet(isPresented: $showAlerts) {
+            AlertsView()
+        }
+        .sheet(isPresented: $showMultiSig) {
+            MultiSigView()
+                .environmentObject(walletManager)
+        }
         .sheet(isPresented: $viewModel.showSendSheet) {
             sendSheet
         }

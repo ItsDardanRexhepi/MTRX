@@ -269,6 +269,13 @@
 		E89DA464BAA3574A5A5D44F3 /* LedgerBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E76603E0373DA6297E6253 /* LedgerBridge.swift */; };
 		D72833AE066FB976BF316C47 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF571B31F424F56C472006AA /* HomeView.swift */; };
 		BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 865035F886D6A8D182DB316D /* TrinityTools.swift */; };
+		C05327F172E04FF8804BF566 /* GameRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E007D59DDAF3432FA3BB226F /* GameRunnerView.swift */; };
+		231E8C4C1EF94081B392A02C /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 613B772D292A4642BA89733C /* NetworkPathMonitor.swift */; };
+		BABA3453E2BF4CD494A3AE03 /* HyperCompression.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6C1EDE4DCB0463183DC5F07 /* HyperCompression.swift */; };
+		77060FFD42E84EE485C04C58 /* MeshOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E6A53FC1D6F49A5A20F7AF2 /* MeshOutbox.swift */; };
+		F2535B9F6F4544BB9E5C3338 /* RexhepiGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0A6ECAB02446F0AE199554 /* RexhepiGate.swift */; };
+		BCA813DBC463469491FC0E40 /* HeartbeatWatchdog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1993541F6F6248EF912E476C /* HeartbeatWatchdog.swift */; };
+		C3B675A698034B6CA11B5335 /* NetworkTopologyIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14133CBFA5F34408871F3A52 /* NetworkTopologyIndicator.swift */; };
 		C7F8FF5D8F0EA7B097F0A853 /* SocialPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DBE44DAC69EF541A7F28F5A /* SocialPlatform.swift */; };
 		2592595F59A503D9C16F5BEA /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B51CC9575EBEA9143DD070F /* ConversationStore.swift */; };
 		9B0D61499BEA348A65C8FB76 /* TrinitySiri.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFCDD086642D4A0858146C8B /* TrinitySiri.swift */; };
@@ -545,6 +552,13 @@
 		C9E76603E0373DA6297E6253 /* LedgerBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LedgerBridge.swift"; path = "Core/Wallet/LedgerBridge.swift"; sourceTree = SOURCE_ROOT; };
 		DF571B31F424F56C472006AA /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HomeView.swift"; path = "UI/Views/Home/HomeView.swift"; sourceTree = SOURCE_ROOT; };
 		865035F886D6A8D182DB316D /* TrinityTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TrinityTools.swift"; path = "Core/Trinity/TrinityTools.swift"; sourceTree = SOURCE_ROOT; };
+		E007D59DDAF3432FA3BB226F /* GameRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameRunnerView.swift"; path = "UI/Views/Gaming/GameRunnerView.swift"; sourceTree = SOURCE_ROOT; };
+		613B772D292A4642BA89733C /* NetworkPathMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "NetworkPathMonitor.swift"; path = "Core/Network/NetworkPathMonitor.swift"; sourceTree = SOURCE_ROOT; };
+		A6C1EDE4DCB0463183DC5F07 /* HyperCompression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HyperCompression.swift"; path = "Core/Network/HyperCompression.swift"; sourceTree = SOURCE_ROOT; };
+		3E6A53FC1D6F49A5A20F7AF2 /* MeshOutbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MeshOutbox.swift"; path = "Core/Mesh/MeshOutbox.swift"; sourceTree = SOURCE_ROOT; };
+		EE0A6ECAB02446F0AE199554 /* RexhepiGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RexhepiGate.swift"; path = "Core/Rexhepi/RexhepiGate.swift"; sourceTree = SOURCE_ROOT; };
+		1993541F6F6248EF912E476C /* HeartbeatWatchdog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HeartbeatWatchdog.swift"; path = "Core/Security/HeartbeatWatchdog.swift"; sourceTree = SOURCE_ROOT; };
+		14133CBFA5F34408871F3A52 /* NetworkTopologyIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "NetworkTopologyIndicator.swift"; path = "UI/Components/NetworkTopologyIndicator.swift"; sourceTree = SOURCE_ROOT; };
 		8DBE44DAC69EF541A7F28F5A /* SocialPlatform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SocialPlatform.swift"; path = "UI/Views/Social/SocialPlatform.swift"; sourceTree = SOURCE_ROOT; };
 		6B51CC9575EBEA9143DD070F /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ConversationStore.swift"; path = "UI/Views/Agent/ConversationStore.swift"; sourceTree = SOURCE_ROOT; };
 		DFCDD086642D4A0858146C8B /* TrinitySiri.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TrinitySiri.swift"; path = "Apple/AppIntents/TrinitySiri.swift"; sourceTree = SOURCE_ROOT; };
@@ -1590,6 +1604,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */,
+				C05327F172E04FF8804BF566 /* GameRunnerView.swift in Sources */,
+				231E8C4C1EF94081B392A02C /* NetworkPathMonitor.swift in Sources */,
+				BABA3453E2BF4CD494A3AE03 /* HyperCompression.swift in Sources */,
+				77060FFD42E84EE485C04C58 /* MeshOutbox.swift in Sources */,
+				F2535B9F6F4544BB9E5C3338 /* RexhepiGate.swift in Sources */,
+				BCA813DBC463469491FC0E40 /* HeartbeatWatchdog.swift in Sources */,
+				C3B675A698034B6CA11B5335 /* NetworkTopologyIndicator.swift in Sources */,
 				C7F8FF5D8F0EA7B097F0A853 /* SocialPlatform.swift in Sources */,
 				2592595F59A503D9C16F5BEA /* ConversationStore.swift in Sources */,
 				9B0D61499BEA348A65C8FB76 /* TrinitySiri.swift in Sources */,

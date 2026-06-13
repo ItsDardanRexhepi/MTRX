@@ -87,11 +87,8 @@ struct AccountView: View {
                 VStack(spacing: Spacing.sectionGap) {
                     profileCard
                     portfolioSummary
-                    moneySection
-                    identitySection
                     workspaceSection
                     appSection
-                    supportSection
                     signOutButton
                 }
                 .padding(.horizontal, Spacing.contentPadding)
@@ -101,6 +98,11 @@ struct AccountView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Account")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    NetworkTopologyIndicator()
+                }
+            }
             .refreshable {
                 MtrxHaptics.impact(.light)
                 try? await Task.sleep(for: .seconds(0.6))
@@ -375,9 +377,41 @@ struct AccountView: View {
                     .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
                 }
                 .buttonStyle(.plain)
+
+                // Identity lives here too — verification, credentials,
+                // reputation, and access control, one tap from the top.
+                HStack(spacing: Spacing.sm) {
+                    portfolioChip("person.text.rectangle", "Verify", .statusInfo, .kyc)
+                    portfolioChip("seal.fill", "Credentials", .statusSuccess, .credentials)
+                    portfolioChip("star.fill", "Reputation", .accentTertiary, .reputation)
+                    portfolioChip("key.fill", "Access", .accentPrimary, .accessControl)
+                }
             }
         }
         .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.05)
+    }
+
+    private func portfolioChip(_ icon: String, _ label: String, _ color: Color, _ destination: AccountNavDestination) -> some View {
+        Button {
+            MtrxHaptics.impact(.light)
+            presentedDestination = destination
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(color)
+                    .frame(width: 32, height: 32)
+                    .background(color.opacity(0.13))
+                    .clipShape(Circle())
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.labelSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Chunked Spaces
@@ -402,24 +436,6 @@ struct AccountView: View {
         .mtrxFadeInFromBottom(isVisible: appeared, delay: delay)
     }
 
-    private var moneySection: some View {
-        spaceGrid("Your money", delay: 0.05) {
-            QuickActionCard(icon: Symbols.wallet, label: "Wallet & Portfolio", color: .statusInfo, destination: .wallet, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: Symbols.stake, label: "Staking & DeFi", color: .accentPrimary, destination: .staking, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: "bell.fill", label: "Alerts", color: .statusError, destination: .alerts, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: "lock.shield", label: "Multi-Sig", color: .statusWarning, destination: .multiSig, onOpen: { presentedDestination = $0 })
-        }
-    }
-
-    private var identitySection: some View {
-        spaceGrid("Your identity", delay: 0.07) {
-            QuickActionCard(icon: "person.text.rectangle", label: "Verification", color: .statusInfo, destination: .kyc, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: "seal.fill", label: "Credentials", color: .statusSuccess, destination: .credentials, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: "star.fill", label: "Reputation", color: .accentTertiary, destination: .reputation, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: "key.fill", label: "Access Control", color: .accentPrimary, destination: .accessControl, onOpen: { presentedDestination = $0 })
-        }
-    }
-
     private var workspaceSection: some View {
         spaceGrid("Your workspace", delay: 0.09) {
             QuickActionCard(icon: Symbols.dao, label: "Governance", color: .accentTertiary, destination: .governance, onOpen: { presentedDestination = $0 })
@@ -431,31 +447,19 @@ struct AccountView: View {
         }
     }
 
+    /// One home for everything app-level: settings (notifications live
+    /// inside), privacy, subscription, help, and about.
     private var appSection: some View {
         VStack(spacing: 0) {
-            MtrxSectionHeader(title: "App")
+            MtrxSectionHeader(title: "App & Support")
                 .padding(.bottom, Spacing.sm)
 
             VStack(spacing: 0) {
-                identityRow(destination: .settings, icon: Symbols.settings, iconColor: .labelSecondary, title: "Preferences")
+                identityRow(destination: .settings, icon: Symbols.settings, iconColor: .labelSecondary, title: "Settings")
                 identityDivider()
                 identityRow(destination: .privacy, icon: "lock.fill", iconColor: .statusWarning, title: "Privacy & Security")
                 identityDivider()
                 identityRow(destination: .subscription, icon: "crown.fill", iconColor: .accentSecondary, title: "Subscription")
-            }
-            .background(Color.surfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
-        }
-        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.11)
-    }
-
-    private var supportSection: some View {
-        VStack(spacing: 0) {
-            MtrxSectionHeader(title: "Support")
-                .padding(.bottom, Spacing.sm)
-
-            VStack(spacing: 0) {
-                identityRow(destination: .notifications, icon: "bell.badge.fill", iconColor: .statusInfo, title: "Notifications")
                 identityDivider()
 
                 Button {
@@ -478,7 +482,7 @@ struct AccountView: View {
             .background(Color.surfaceCard)
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
         }
-        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.13)
+        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.11)
     }
 
     private func identityRow(destination: AccountNavDestination, icon: String, iconColor: Color, title: String) -> some View {

@@ -55,6 +55,31 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Notifications (lives inside Settings now)
+
+    @State private var showNotificationCenter = false
+
+    private var notificationsSection: some View {
+        Section("Notifications") {
+            Button {
+                MtrxHaptics.impact(.light)
+                showNotificationCenter = true
+            } label: {
+                HStack {
+                    Label("Notification Center", systemImage: "bell.badge.fill")
+                        .foregroundStyle(Color.labelPrimary)
+                    Spacer()
+                    Image(systemName: Symbols.forward)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.labelTertiary)
+                }
+            }
+            .sheet(isPresented: $showNotificationCenter) {
+                NotificationCenterView()
+            }
+        }
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -62,6 +87,7 @@ struct SettingsView: View {
             ZStack(alignment: .bottom) {
                 List {
                     generalSection
+                    notificationsSection
                     networkSection
                     trinitySection
                     securitySection

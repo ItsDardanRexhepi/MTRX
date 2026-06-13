@@ -248,6 +248,9 @@ struct DiscoverView: View {
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    NetworkTopologyIndicator()
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         MtrxHaptics.impact(.light)

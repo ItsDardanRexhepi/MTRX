@@ -13,6 +13,28 @@ import SwiftUI
 
 // MARK: - Social Identity
 
+extension UIImage {
+    /// On-device average color — used for the avatar's ambient glow.
+    /// All computation is local (CoreImage), nothing leaves the device.
+    var averageColor: UIColor? {
+        guard let inputImage = CIImage(image: self) else { return nil }
+        let extent = inputImage.extent
+        let filter = CIFilter(name: "CIAreaAverage",
+                              parameters: [kCIInputImageKey: inputImage,
+                                           kCIInputExtentKey: CIVector(cgRect: extent)])
+        guard let output = filter?.outputImage else { return nil }
+        var bitmap = [UInt8](repeating: 0, count: 4)
+        let context = CIContext(options: [.workingColorSpace: kCFNull as Any])
+        context.render(output, toBitmap: &bitmap, rowBytes: 4,
+                       bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                       format: .RGBA8, colorSpace: nil)
+        return UIColor(red: CGFloat(bitmap[0]) / 255,
+                       green: CGFloat(bitmap[1]) / 255,
+                       blue: CGFloat(bitmap[2]) / 255,
+                       alpha: 1)
+    }
+}
+
 /// The user's social identity. Avatar image is stored on disk;
 /// everything else in UserDefaults.
 @MainActor
@@ -51,6 +73,15 @@ final class SocialIdentity: ObservableObject {
         }
     }
 
+    /// A soft ambient color sampled from the avatar — averages the
+    /// image's pixels on-device so the glow matches the photo. Falls
+    /// back to the signature teal when there's no photo.
+    var avatarGlow: Color {
+        guard let image = avatarImage,
+              let avg = image.averageColor else { return .trinityPrimary }
+        return Color(avg)
+    }
+
     func updateBanner(_ image: UIImage) {
         bannerImage = image
         if let data = image.jpegData(compressionQuality: 0.85) {
@@ -82,6 +113,12 @@ final class SocialIdentity: ObservableObject {
 
 // MARK: - Stories
 
+/// Who can see a story — everyone, or just close friends (green ring).
+enum StoryAudience: String, Codable {
+    case everyone
+    case closeFriends
+}
+
 struct SocialStory: Identifiable {
     let id = UUID()
     let author: String
@@ -92,6 +129,8 @@ struct SocialStory: Identifiable {
     let caption: String
     let timestamp: Date
     var isMine: Bool = false
+    var audience: StoryAudience = .everyone
+    var fileName: String?
 }
 
 @MainActor
@@ -100,42 +139,126 @@ final class StoryStore: ObservableObject {
     static let shared = StoryStore()
 
     @Published var stories: [SocialStory] = []
+    /// Handles allowed to see close-friends stories. Persisted.
+    @Published var closeFriends: Set<String> {
+        didSet { UserDefaults.standard.set(Array(closeFriends), forKey: "com.mtrx.social.closeFriends") }
+    }
+
+    /// The follower roster offered when picking close friends.
+    static let followers: [String] = [
+        "@elena.eth", "@ravi_dao", "@sofia.base", "@nomad_anon",
+        "@vitalik.eth", "@maria.lens", "@kenji.sol", "@aisha.dao",
+    ]
+
+    private var indexURL: URL { SocialIdentity.mediaDirectory.appendingPathComponent("my-stories.json") }
+
+    private struct MyStoryMeta: Codable {
+        let fileName: String
+        let timestamp: Date
+        let audience: StoryAudience
+    }
 
     private init() {
+        closeFriends = Set(UserDefaults.standard.stringArray(forKey: "com.mtrx.social.closeFriends") ?? [])
         let now = Date()
         stories = [
             SocialStory(author: "Elena Vasquez", initials: "EV", color: .accentPrimary, image: nil,
                         caption: "Escrow contract live on Base 🚀", timestamp: now.addingTimeInterval(-5400)),
+            SocialStory(author: "Elena Vasquez", initials: "EV", color: .accentPrimary, image: nil,
+                        caption: "AMA on trustless escrow at 6pm — bring questions", timestamp: now.addingTimeInterval(-4800)),
             SocialStory(author: "Ravi Patel", initials: "RP", color: .statusInfo, image: nil,
                         caption: "Vote on Proposal #47 before Friday", timestamp: now.addingTimeInterval(-9000)),
             SocialStory(author: "Sofia Nakamura", initials: "SN", color: .accentTertiary, image: nil,
                         caption: "8.7% APY on the 90-day vault", timestamp: now.addingTimeInterval(-12600)),
         ]
-        // Restore the user's story from disk if one was posted recently.
-        let url = SocialIdentity.mediaDirectory.appendingPathComponent("my-story.jpg")
-        if let data = try? Data(contentsOf: url),
-           let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-           let modified = attrs[.modificationDate] as? Date,
-           Date().timeIntervalSince(modified) < 24 * 60 * 60,
-           let image = UIImage(data: data) {
-            stories.insert(SocialStory(author: "Your Story", initials: "ME", color: .trinityPrimary,
-                                       image: image, caption: "", timestamp: modified, isMine: true), at: 0)
+        restoreMyStories()
+    }
+
+    private func restoreMyStories() {
+        var restored: [SocialStory] = []
+        if let data = try? Data(contentsOf: indexURL),
+           let metas = try? JSONDecoder().decode([MyStoryMeta].self, from: data) {
+            for meta in metas where Date().timeIntervalSince(meta.timestamp) < 24 * 60 * 60 {
+                if let d = try? Data(contentsOf: SocialIdentity.mediaURL(meta.fileName)),
+                   let image = UIImage(data: d) {
+                    restored.append(SocialStory(author: "Your Story", initials: "ME", color: .trinityPrimary,
+                                                image: image, caption: "", timestamp: meta.timestamp,
+                                                isMine: true, audience: meta.audience, fileName: meta.fileName))
+                }
+            }
+        } else {
+            // Legacy single-story migration.
+            let url = SocialIdentity.mediaDirectory.appendingPathComponent("my-story.jpg")
+            if let data = try? Data(contentsOf: url),
+               let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+               let modified = attrs[.modificationDate] as? Date,
+               Date().timeIntervalSince(modified) < 24 * 60 * 60,
+               let image = UIImage(data: data) {
+                restored.append(SocialStory(author: "Your Story", initials: "ME", color: .trinityPrimary,
+                                            image: image, caption: "", timestamp: modified,
+                                            isMine: true, audience: .everyone, fileName: "my-story.jpg"))
+            }
         }
+        stories.insert(contentsOf: restored.sorted { $0.timestamp < $1.timestamp }, at: 0)
     }
 
     /// Stories live for 24 hours, then vanish — pruned on every read.
     func prune() {
         stories.removeAll { Date().timeIntervalSince($0.timestamp) > 24 * 60 * 60 }
+        persistIndex()
     }
 
-    func setMyStory(_ image: UIImage, author: String) {
-        stories.removeAll { $0.isMine }
-        stories.insert(SocialStory(author: author.isEmpty ? "Your Story" : author,
-                                   initials: "ME", color: .trinityPrimary,
-                                   image: image, caption: "", timestamp: Date(), isMine: true), at: 0)
+    /// Add a new story — stacks behind any you've already posted today,
+    /// exactly like adding to an Instagram story.
+    func addMyStory(_ image: UIImage, author: String, audience: StoryAudience) {
+        let fileName = "my-story-\(UUID().uuidString).jpg"
         if let data = image.jpegData(compressionQuality: 0.85) {
-            try? data.write(to: SocialIdentity.mediaDirectory.appendingPathComponent("my-story.jpg"), options: .atomic)
+            try? data.write(to: SocialIdentity.mediaURL(fileName), options: .atomic)
         }
+        let story = SocialStory(author: author.isEmpty ? "Your Story" : author,
+                                initials: "ME", color: .trinityPrimary,
+                                image: image, caption: "", timestamp: Date(),
+                                isMine: true, audience: audience, fileName: fileName)
+        let insertAt = stories.lastIndex(where: { $0.isMine }).map { $0 + 1 } ?? 0
+        stories.insert(story, at: insertAt)
+        persistIndex()
+    }
+
+    /// Delete any of your stories, any time.
+    func deleteStory(_ id: UUID) {
+        guard let idx = stories.firstIndex(where: { $0.id == id }), stories[idx].isMine else { return }
+        if let file = stories[idx].fileName {
+            try? FileManager.default.removeItem(at: SocialIdentity.mediaURL(file))
+        }
+        stories.remove(at: idx)
+        persistIndex()
+    }
+
+    private func persistIndex() {
+        let metas = stories.filter(\.isMine).compactMap { story in
+            story.fileName.map { MyStoryMeta(fileName: $0, timestamp: story.timestamp, audience: story.audience) }
+        }
+        if let data = try? JSONEncoder().encode(metas) {
+            try? data.write(to: indexURL, options: .atomic)
+        }
+    }
+
+    /// Stories grouped per author, yours first — the unit the viewer
+    /// plays through, Instagram-style.
+    var groups: [[SocialStory]] {
+        var order: [String] = []
+        var byAuthor: [String: [SocialStory]] = [:]
+        for story in stories {
+            let key = story.isMine ? "ME" : story.author
+            if byAuthor[key] == nil { order.append(key) }
+            byAuthor[key, default: []].append(story)
+        }
+        var result = order.compactMap { byAuthor[$0] }
+        if let mineIndex = result.firstIndex(where: { $0.first?.isMine == true }), mineIndex != 0 {
+            let mine = result.remove(at: mineIndex)
+            result.insert(mine, at: 0)
+        }
+        return result
     }
 }
 
@@ -148,18 +271,23 @@ struct StoriesRail: View {
 
     @State private var viewerStart: StoryViewerStart?
     @State private var storyPickerItem: PhotosPickerItem?
+    @State private var pendingImage: UIImage?
+    @State private var showAudienceSheet = false
 
     struct StoryViewerStart: Identifiable {
         let id = UUID()
-        let index: Int
+        let groupIndex: Int
     }
+
+    private var groups: [[SocialStory]] { store.groups }
+    private var myGroupIndex: Int? { groups.firstIndex { $0.first?.isMine == true } }
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Spacing.md) {
-                // Your story — add or view.
-                if let mine = store.stories.first(where: { $0.isMine }) {
-                    storyBubble(mine)
+                // Your story — view your stack, or add the first one.
+                if let mineIndex = myGroupIndex {
+                    storyBubble(group: groups[mineIndex], groupIndex: mineIndex, addsMore: true)
                 } else {
                     PhotosPicker(selection: $storyPickerItem, matching: .images) {
                         VStack(spacing: 6) {
@@ -178,8 +306,10 @@ struct StoriesRail: View {
                     .buttonStyle(.plain)
                 }
 
-                ForEach(store.stories.filter { !$0.isMine }) { story in
-                    storyBubble(story)
+                ForEach(Array(groups.enumerated()), id: \.element.first?.id) { index, group in
+                    if group.first?.isMine != true {
+                        storyBubble(group: group, groupIndex: index, addsMore: false)
+                    }
                 }
             }
             .padding(.horizontal, Spacing.contentPadding)
@@ -190,14 +320,32 @@ struct StoriesRail: View {
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self),
                    let image = UIImage(data: data) {
-                    store.setMyStory(image, author: appState.displayName.isEmpty ? "Your Story" : appState.displayName)
-                    MtrxHaptics.success()
+                    pendingImage = image
+                    showAudienceSheet = true
                 }
                 storyPickerItem = nil
             }
         }
+        .sheet(isPresented: $showAudienceSheet) {
+            StoryAudienceSheet(
+                onPost: { audience in
+                    if let image = pendingImage {
+                        store.addMyStory(image,
+                                         author: appState.displayName.isEmpty ? "Your Story" : appState.displayName,
+                                         audience: audience)
+                        MtrxHaptics.success()
+                    }
+                    pendingImage = nil
+                    showAudienceSheet = false
+                },
+                onCancel: { pendingImage = nil; showAudienceSheet = false }
+            )
+            .presentationDetents([.height(440)])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(.ultraThinMaterial)
+        }
         .fullScreenCover(item: $viewerStart) { start in
-            StoryViewer(stories: store.stories, startIndex: start.index)
+            StoryViewer(groups: groups, startGroup: start.groupIndex)
         }
         .onAppear { store.prune() }
     }
@@ -221,38 +369,55 @@ struct StoriesRail: View {
         .clipShape(Circle())
     }
 
-    private func storyBubble(_ story: SocialStory) -> some View {
-        Button {
+    private func storyBubble(group: [SocialStory], groupIndex: Int, addsMore: Bool) -> some View {
+        let story = group.first ?? group[0]
+        // Close-friends stories wear the green ring, like Instagram.
+        let isCloseFriends = story.audience == .closeFriends
+        return Button {
             MtrxHaptics.impact(.light)
-            if let index = store.stories.firstIndex(where: { $0.id == story.id }) {
-                viewerStart = StoryViewerStart(index: index)
-            }
+            viewerStart = StoryViewerStart(groupIndex: groupIndex)
         } label: {
             VStack(spacing: 6) {
-                ZStack {
-                    Circle()
-                        .stroke(
-                            LinearGradient(colors: [.trinityPrimary, .accentPrimary, .statusSuccess],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing),
-                            lineWidth: 2.5
-                        )
-                        .frame(width: 68, height: 68)
+                ZStack(alignment: .bottomTrailing) {
+                    ZStack {
+                        Circle()
+                            .stroke(
+                                isCloseFriends
+                                    ? LinearGradient(colors: [.statusSuccess, .statusSuccess.opacity(0.6)],
+                                                     startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    : LinearGradient(colors: [.trinityPrimary, .accentPrimary, .statusSuccess],
+                                                     startPoint: .topLeading, endPoint: .bottomTrailing),
+                                lineWidth: 2.5
+                            )
+                            .frame(width: 68, height: 68)
 
-                    Group {
-                        if let image = story.image {
-                            Image(uiImage: image).resizable().scaledToFill()
-                        } else {
-                            LinearGradient(colors: [story.color, story.color.opacity(0.5)],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing)
-                                .overlay(
-                                    Text(story.initials)
-                                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                                        .foregroundStyle(.white)
-                                )
+                        Group {
+                            if let image = story.image {
+                                Image(uiImage: image).resizable().scaledToFill()
+                            } else {
+                                LinearGradient(colors: [story.color, story.color.opacity(0.5)],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    .overlay(
+                                        Text(story.initials)
+                                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                                            .foregroundStyle(.white)
+                                    )
+                            }
                         }
+                        .frame(width: 60, height: 60)
+                        .clipShape(Circle())
                     }
-                    .frame(width: 60, height: 60)
-                    .clipShape(Circle())
+
+                    // Add-more affordance on your own ring.
+                    if addsMore {
+                        PhotosPicker(selection: $storyPickerItem, matching: .images) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(Color.accentPrimary)
+                                .background(Circle().fill(Color.backgroundPrimary))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
 
                 Text(story.isMine ? "Your Story" : story.author.split(separator: " ").first.map(String.init) ?? story.author)
@@ -265,142 +430,342 @@ struct StoriesRail: View {
     }
 }
 
+// MARK: - Story Audience Sheet
+
+/// Before posting, choose who sees it — everyone, or close friends you
+/// pick from your followers. Mirrors Instagram's audience control.
+struct StoryAudienceSheet: View {
+    let onPost: (StoryAudience) -> Void
+    let onCancel: () -> Void
+
+    @ObservedObject private var store = StoryStore.shared
+    @State private var audience: StoryAudience = .everyone
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text("Share story")
+                .font(.mtrxTitle3)
+                .foregroundStyle(Color.labelPrimary)
+                .padding(.top, Spacing.md)
+
+            // Audience toggle.
+            HStack(spacing: Spacing.sm) {
+                audienceChip("Everyone", icon: "globe", value: .everyone, color: .trinityPrimary)
+                audienceChip("Close Friends", icon: "star.fill", value: .closeFriends, color: .statusSuccess)
+            }
+
+            if audience == .closeFriends {
+                Text("Only these followers will see it")
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelSecondary)
+
+                ScrollView {
+                    VStack(spacing: Spacing.xs) {
+                        ForEach(StoryStore.followers, id: \.self) { handle in
+                            Button {
+                                MtrxHaptics.selection()
+                                if store.closeFriends.contains(handle) {
+                                    store.closeFriends.remove(handle)
+                                } else {
+                                    store.closeFriends.insert(handle)
+                                }
+                            } label: {
+                                HStack {
+                                    Text(handle)
+                                        .font(.mtrxCaptionBold)
+                                        .foregroundStyle(Color.labelPrimary)
+                                    Spacer()
+                                    Image(systemName: store.closeFriends.contains(handle)
+                                          ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(store.closeFriends.contains(handle)
+                                                         ? Color.statusSuccess : Color.labelTertiary)
+                                }
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, Spacing.ms)
+                                .background(Color.surfaceOverlay.opacity(0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(maxHeight: 160)
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                onPost(audience)
+            } label: {
+                Text("Share to Story")
+                    .font(.mtrxCalloutBold)
+                    .foregroundStyle(Color.backgroundPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(Color.accentPrimary)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, Spacing.contentPadding)
+        .padding(.bottom, Spacing.lg)
+    }
+
+    private func audienceChip(_ label: String, icon: String, value: StoryAudience, color: Color) -> some View {
+        Button {
+            MtrxHaptics.selection()
+            withAnimation(Motion.springSnappy) { audience = value }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: icon).font(.system(size: 13, weight: .semibold))
+                Text(label).font(.mtrxCaptionBold)
+            }
+            .foregroundStyle(audience == value ? Color.backgroundPrimary : Color.labelPrimary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
+            .background(audience == value ? color : Color.surfaceOverlay)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Story Viewer
 
-/// Full-screen story playback: tap anywhere to jump to the next story
-/// (across people) until there are none left; swipe down to leave.
+/// Full-screen Instagram-style playback: tap right to advance through a
+/// person's stack and on to the next person; tap left to go back; swipe
+/// sideways to jump between people; swipe down to leave; delete your own.
 struct StoryViewer: View {
-    let stories: [SocialStory]
-    let startIndex: Int
+    let groups: [[SocialStory]]
+    let startGroup: Int
 
     @Environment(\.dismiss) private var dismiss
-    @State private var index: Int = 0
-    @State private var progress: CGFloat = 0
-    @State private var dragOffset: CGFloat = 0
-    @State private var advanceToken = 0
+    @ObservedObject private var store = StoryStore.shared
 
-    private var story: SocialStory { stories[index] }
+    @State private var groupIndex: Int = 0
+    @State private var storyIndex: Int = 0
+    @State private var progress: CGFloat = 0
+    @State private var dragOffset: CGSize = .zero
+    @State private var advanceToken = 0
+    @State private var showDeleteConfirm = false
+
+    private var liveGroups: [[SocialStory]] { groups }
+    private var currentGroup: [SocialStory] {
+        guard liveGroups.indices.contains(groupIndex) else { return [] }
+        return liveGroups[groupIndex]
+    }
+    private var story: SocialStory? {
+        currentGroup.indices.contains(storyIndex) ? currentGroup[storyIndex] : nil
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
             Color.black.ignoresSafeArea()
 
-            Group {
-                if let image = story.image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                } else {
-                    LinearGradient(colors: [story.color, .black], startPoint: .top, endPoint: .bottom)
-                        .overlay(
-                            Text(story.caption)
-                                .font(.mtrxTitle2)
-                                .foregroundStyle(.white)
-                                .multilineTextAlignment(.center)
-                                .padding(Spacing.xl)
-                        )
+            if let story {
+                Group {
+                    if let image = story.image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                    } else {
+                        LinearGradient(colors: [story.color, .black], startPoint: .top, endPoint: .bottom)
+                            .overlay(
+                                Text(story.caption)
+                                    .font(.mtrxTitle2)
+                                    .foregroundStyle(.white)
+                                    .multilineTextAlignment(.center)
+                                    .padding(Spacing.xl)
+                            )
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .id(story.id)
-            .transition(.opacity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .id(story.id)
+                .transition(.opacity)
 
-            VStack(spacing: Spacing.ms) {
-                // One progress segment per story, like every story UI.
-                HStack(spacing: 4) {
-                    ForEach(Array(stories.enumerated()), id: \.element.id) { i, _ in
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(.white.opacity(0.25))
-                                Capsule()
-                                    .fill(.white)
-                                    .frame(width: i < index ? geo.size.width
-                                           : (i == index ? geo.size.width * progress : 0))
+                // Invisible tap zones: left third = back, right = forward.
+                HStack(spacing: 0) {
+                    Color.clear.contentShape(Rectangle())
+                        .onTapGesture { goBack() }
+                        .frame(maxWidth: .infinity)
+                    Color.clear.contentShape(Rectangle())
+                        .onTapGesture { advance() }
+                        .frame(maxWidth: .infinity)
+                        .frame(width: nil)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                VStack(spacing: Spacing.ms) {
+                    // One segment per story in THIS person's group.
+                    HStack(spacing: 4) {
+                        ForEach(Array(currentGroup.enumerated()), id: \.element.id) { i, _ in
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    Capsule().fill(.white.opacity(0.25))
+                                    Capsule()
+                                        .fill(.white)
+                                        .frame(width: i < storyIndex ? geo.size.width
+                                               : (i == storyIndex ? geo.size.width * progress : 0))
+                                }
+                            }
+                            .frame(height: 3)
+                        }
+                    }
+
+                    HStack(spacing: Spacing.ms) {
+                        Circle()
+                            .fill(story.color)
+                            .frame(width: 34, height: 34)
+                            .overlay(
+                                Text(story.initials)
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+                            )
+
+                        Text(story.isMine ? "Your Story" : story.author)
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(.white)
+
+                        Text(story.timestamp.formatted(.relative(presentation: .named)))
+                            .font(.mtrxCaption2)
+                            .foregroundStyle(.white.opacity(0.7))
+
+                        if story.audience == .closeFriends {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color.statusSuccess)
+                        }
+
+                        Spacer()
+
+                        // Delete — only your own stories.
+                        if story.isMine {
+                            Button {
+                                showDeleteConfirm = true
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 36, height: 36)
                             }
                         }
-                        .frame(height: 3)
-                    }
-                }
 
-                HStack(spacing: Spacing.ms) {
-                    Circle()
-                        .fill(story.color)
-                        .frame(width: 34, height: 34)
-                        .overlay(
-                            Text(story.initials)
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(.white)
-                        )
-
-                    Text(story.author)
-                        .font(.mtrxCaptionBold)
-                        .foregroundStyle(.white)
-
-                    Text(story.timestamp.formatted(.relative(presentation: .named)))
-                        .font(.mtrxCaption2)
-                        .foregroundStyle(.white.opacity(0.7))
-
-                    Spacer()
-
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 36, height: 36)
+                                .frame(width: 36, height: 36)
+                        }
                     }
                 }
+                .padding(.horizontal, Spacing.md)
+                .padding(.top, Spacing.sm)
             }
-            .padding(.horizontal, Spacing.md)
-            .padding(.top, Spacing.sm)
         }
-        .offset(y: dragOffset)
-        .opacity(dragOffset > 0 ? max(0.4, 1 - dragOffset / 600) : 1)
-        // Swipe down anywhere to leave the stories.
+        .offset(dragOffset)
+        .opacity(dragOffset.height > 0 ? max(0.4, 1 - dragOffset.height / 600) : 1)
+        // Drag down to leave; drag sideways to change person.
         .gesture(
-            DragGesture(minimumDistance: 12)
+            DragGesture(minimumDistance: 18)
                 .onChanged { value in
-                    if value.translation.height > 0 {
-                        dragOffset = value.translation.height
+                    if value.translation.height > abs(value.translation.width) {
+                        dragOffset = CGSize(width: 0, height: max(0, value.translation.height))
+                    } else {
+                        dragOffset = CGSize(width: value.translation.width, height: 0)
                     }
                 }
                 .onEnded { value in
                     if value.translation.height > 110 {
                         dismiss()
+                    } else if value.translation.width < -70 {
+                        withAnimation(Motion.springSnappy) { dragOffset = .zero }
+                        nextGroup()
+                    } else if value.translation.width > 70 {
+                        withAnimation(Motion.springSnappy) { dragOffset = .zero }
+                        previousGroup()
                     } else {
-                        withAnimation(Motion.springSnappy) { dragOffset = 0 }
+                        withAnimation(Motion.springSnappy) { dragOffset = .zero }
                     }
                 }
         )
-        // Tap to jump to whatever story is next.
-        .onTapGesture { advance() }
+        .confirmationDialog("Delete this story?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { deleteCurrent() }
+            Button("Cancel", role: .cancel) {}
+        }
         .onAppear {
-            index = min(startIndex, max(stories.count - 1, 0))
+            groupIndex = min(startGroup, max(liveGroups.count - 1, 0))
+            storyIndex = 0
             startProgress()
         }
     }
 
+    // MARK: - Playback
+
     private func advance() {
-        if index + 1 < stories.count {
-            withAnimation(.easeInOut(duration: 0.18)) { index += 1 }
+        if storyIndex + 1 < currentGroup.count {
+            withAnimation(.easeInOut(duration: 0.16)) { storyIndex += 1 }
+            startProgress()
+        } else {
+            nextGroup()
+        }
+    }
+
+    private func goBack() {
+        if storyIndex > 0 {
+            withAnimation(.easeInOut(duration: 0.16)) { storyIndex -= 1 }
+            startProgress()
+        } else {
+            previousGroup()
+        }
+    }
+
+    private func nextGroup() {
+        if groupIndex + 1 < liveGroups.count {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                groupIndex += 1
+                storyIndex = 0
+            }
             startProgress()
         } else {
             dismiss()
         }
     }
 
-    /// 5 seconds per story; auto-advances unless the user already
-    /// tapped ahead (token guards stale timers).
+    private func previousGroup() {
+        if groupIndex > 0 {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                groupIndex -= 1
+                storyIndex = 0
+            }
+            startProgress()
+        } else {
+            startProgress()
+        }
+    }
+
+    private func deleteCurrent() {
+        guard let story else { return }
+        let wasLast = currentGroup.count <= 1
+        store.deleteStory(story.id)
+        MtrxHaptics.warning()
+        if wasLast {
+            dismiss()
+        } else {
+            storyIndex = min(storyIndex, max(currentGroup.count - 1, 0))
+            startProgress()
+        }
+    }
+
+    /// 5 seconds per story; auto-advances unless the viewer tapped or
+    /// swiped ahead (token guards stale timers).
     private func startProgress() {
         advanceToken += 1
         let token = advanceToken
         progress = 0
         withAnimation(.linear(duration: 5)) { progress = 1 }
         DispatchQueue.main.asyncAfter(deadline: .now() + 5.05) {
-            if token == advanceToken {
-                advance()
-            }
+            if token == advanceToken { advance() }
         }
     }
 }

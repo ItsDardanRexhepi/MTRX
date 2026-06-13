@@ -130,6 +130,7 @@ enum BuildContractStatus: String {
 
 struct BuildView: View {
     @StateObject private var viewModel = BuildViewModel()
+    @ObservedObject private var meshOutbox = MeshOutbox.shared
 
     var body: some View {
         NavigationStack {
@@ -143,6 +144,19 @@ struct BuildView: View {
                     segmentControl
                         .padding(.horizontal, Spacing.contentPadding)
                         .padding(.vertical, Spacing.ms)
+
+                    // Off-grid: actions initialized while disconnected ride
+                    // the local mesh outbox — surfaced here, non-blocking.
+                    if !meshOutbox.entries.isEmpty {
+                        VStack(spacing: Spacing.sm) {
+                            ForEach(meshOutbox.entries) { entry in
+                                MeshOutboxCard(entry: entry)
+                            }
+                        }
+                        .padding(.horizontal, Spacing.contentPadding)
+                        .padding(.bottom, Spacing.sm)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
 
                     Group {
                         if viewModel.isLoading && viewModel.contracts.isEmpty {
@@ -169,6 +183,9 @@ struct BuildView: View {
             .navigationTitle("Build")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    NetworkTopologyIndicator()
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         viewModel.showContractFilter = true
