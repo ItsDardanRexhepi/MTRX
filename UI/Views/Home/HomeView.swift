@@ -371,11 +371,12 @@ struct HomeView: View {
     private func startJiggle(_ on: Bool) {
         if on {
             jiggle = false
-            withAnimation(.easeInOut(duration: 0.14).repeatForever(autoreverses: true)) {
+            // Slow, gentle sway — a soft breathing tilt, not a buzz.
+            withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
                 jiggle = true
             }
         } else {
-            withAnimation(.default) { jiggle = false }
+            withAnimation(.easeInOut(duration: 0.25)) { jiggle = false }
         }
     }
 
@@ -424,7 +425,7 @@ struct HomeView: View {
                 .offset(x: -6, y: -6)
             }
         }
-        .rotationEffect(.degrees(editingActions ? (jiggle ? 1.4 : -1.4) : 0))
+        .rotationEffect(.degrees(editingActions ? (jiggle ? 0.7 : -0.7) : 0))
         .onLongPressGesture {
             if !editingActions {
                 MtrxHaptics.impact(.medium)
@@ -459,7 +460,7 @@ struct HomeView: View {
             )
         }
         .buttonStyle(.plain)
-        .rotationEffect(.degrees(jiggle ? 1.4 : -1.4))
+        .rotationEffect(.degrees(jiggle ? 0.7 : -0.7))
     }
 
     private func open(_ action: HomeAction) {
