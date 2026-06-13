@@ -371,33 +371,9 @@ struct AgentConversationView: View {
             }
         } label: {
             HStack(spacing: 6) {
-                // Each agent is a little soap bubble: glass center, a
-                // film of their pastel hues around the rim, no solids.
-                ZStack {
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                        .opacity(0.35)
-
-                    Circle()
-                        .fill(AngularGradient(colors: bubblePalette(agent), center: .center))
-                        .opacity(0.80)
-
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [.white.opacity(0.40), .clear],
-                                center: .center,
-                                startRadius: 1,
-                                endRadius: isActive ? 11 : 9
-                            )
-                        )
-
-                    Circle()
-                        .strokeBorder(.white.opacity(0.30), lineWidth: 0.8)
-                }
-                .frame(width: isActive ? 24 : 20, height: isActive ? 24 : 20)
-                .shadow(color: .white.opacity(isActive ? 0.30 : 0.0), radius: 5)
-
+                // Inactive agents show their little glass bubble. The
+                // SELECTED agent shows only its name + status dot — no
+                // bubble in the active pill.
                 if isActive {
                     Text(AgentConversationViewModel.displayName(of: agent))
                         .font(.system(size: 14, weight: .semibold))
@@ -408,9 +384,11 @@ struct AgentConversationView: View {
                     Circle()
                         .fill(Color.statusSuccess)
                         .frame(width: 5, height: 5)
+                } else {
+                    GlassOrb(size: 20, tint: bubblePalette(agent))
                 }
             }
-            .padding(.horizontal, isActive ? 12 : 7)
+            .padding(.horizontal, isActive ? 14 : 7)
             .padding(.vertical, 6)
             .background {
                 if isActive {

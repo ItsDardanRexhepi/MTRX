@@ -156,6 +156,9 @@ struct HomeView: View {
                 // The name edits itself — tap it, no pencil needed.
                 Text(firstName)
                     .font(.mtrxLargeTitle)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .layoutPriority(1)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [Color.labelPrimary, Color.trinityPrimary],
@@ -169,8 +172,7 @@ struct HomeView: View {
                         showNameEditor = true
                     }
 
-                // Daily flow lives where the pencil was — a real open
-                // loop that fills as the day is lived. Tap for the goals.
+                // Daily flow ring — the open loop of the day.
                 Button {
                     MtrxHaptics.impact(.light)
                     showDailyFlow = true
@@ -178,30 +180,28 @@ struct HomeView: View {
                     ZStack {
                         MtrxProgressRing(
                             progress: max(dailyFlow.progress, 0.04),
-                            size: 34,
-                            lineWidth: 3.5,
+                            size: 30, lineWidth: 3.5,
                             color: dailyFlow.isComplete ? .statusSuccess : .trinityPrimary,
                             showLabel: false
                         )
                         if dailyFlow.isComplete {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(Color.statusSuccess)
                         } else {
                             Text("\(dailyFlow.completed.count)/3")
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(Color.labelPrimary)
                         }
                     }
-                    .mtrxGlow(color: dailyFlow.isComplete ? .statusSuccess : .clear, radius: 5)
                 }
                 .buttonStyle(.plain)
 
-                Spacer()
+                // A transparent liquid-glass ask bar that extends to the
+                // orb: type a command or talk to Trinity right from here.
+                homeAskBar
 
-                // The agent orb, top right — one tap into the agent space.
-                // A soap bubble: glass with a film of pastel iridescence
-                // drifting around the rim, breathing inside a soft aura.
+                // The agent orb — clear glass, breathing inside a soft aura.
                 Button {
                     MtrxHaptics.impact(.medium)
                     presentedChat = ChatLaunch(agent: .trinity)
@@ -211,52 +211,22 @@ struct HomeView: View {
                             .fill(
                                 RadialGradient(
                                     colors: [.white.opacity(0.14), .clear],
-                                    center: .center,
-                                    startRadius: 13,
-                                    endRadius: 30
+                                    center: .center, startRadius: 13, endRadius: 30
                                 )
                             )
                             .frame(width: 60, height: 60)
                             .opacity(orbPulse ? 1.0 : 0.5)
 
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .opacity(0.32)
-                            .frame(width: 42, height: 42)
-
-                        Circle()
-                            .fill(AngularGradient(colors: Self.bubblePastels, center: .center))
-                            .frame(width: 42, height: 42)
-                            .opacity(0.60)
-                            .rotationEffect(.degrees(orbDrift ? 360 : 0))
-
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [.white.opacity(0.38), .white.opacity(0.06), .clear],
-                                    center: .center,
-                                    startRadius: 1,
-                                    endRadius: 19
-                                )
-                            )
-                            .frame(width: 42, height: 42)
-
-                        Circle()
-                            .strokeBorder(.white.opacity(0.25), lineWidth: 1)
-                            .frame(width: 42, height: 42)
+                        GlassOrb(size: 44)
                             .scaleEffect(orbPulse ? 1.03 : 0.98)
                     }
                     .frame(width: 46, height: 46)
-                    .shadow(color: .white.opacity(0.18), radius: 9)
-                    .shadow(color: Color(red: 0.72, green: 0.78, blue: 0.98).opacity(0.25), radius: 16)
+                    .shadow(color: .white.opacity(0.16), radius: 9)
                 }
                 .buttonStyle(.plain)
                 .onAppear {
                     withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
                         orbPulse = true
-                    }
-                    withAnimation(.linear(duration: 14).repeatForever(autoreverses: false)) {
-                        orbDrift = true
                     }
                 }
             }
@@ -308,111 +278,200 @@ struct HomeView: View {
         return name.isEmpty ? "Welcome" : name
     }
 
-    /// Drives the breathing of the header orb.
+    /// Drives the breathing of the header orb (aura pulse).
     @State private var orbPulse = false
-    /// Drives the slow drift of its pastel film.
-    @State private var orbDrift = false
+    /// The Home ask bar — type a command or talk to Trinity.
+    @State private var askText = ""
+    @FocusState private var askFocused: Bool
 
-    /// Soft pastel film — mint, lavender, peach, butter — like light
-    /// catching a soap bubble.
-    static let bubblePastels: [Color] = [
-        Color(red: 0.62, green: 0.90, blue: 0.85),
-        Color(red: 0.72, green: 0.78, blue: 0.98),
-        Color(red: 0.99, green: 0.80, blue: 0.78),
-        Color(red: 0.99, green: 0.92, blue: 0.72),
-        Color(red: 0.62, green: 0.90, blue: 0.85),
-    ]
+    /// Transparent liquid-glass field that extends from the orb. The
+    /// placeholder shows only while empty (standard search-bar behavior);
+    /// submitting hands the text to Trinity to action or answer.
+    private var homeAskBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "sparkle.magnifyingglass")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.trinityPrimary.opacity(0.8))
+            TextField("What are we doing today", text: $askText)
+                .font(.mtrxCaption1)
+                .foregroundStyle(Color.labelPrimary)
+                .focused($askFocused)
+                .submitLabel(.go)
+                .onSubmit(runHomeAsk)
+                .tint(Color.trinityPrimary)
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .background(.ultraThinMaterial)
+        .background(Color.trinityPrimary.opacity(0.04))
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
+    }
 
-    // MARK: - Quick Actions
+    private func runHomeAsk() {
+        let text = askText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        askFocused = false
+        askText = ""
+        presentedChat = ChatLaunch(agent: .trinity, prompt: text)
+    }
 
-    /// The services ARE the quick actions now: money moves live inside
-    /// the tappable Portfolio card, markets live at the top of Invest,
-    /// and everything else in the app is one tap from here.
+
+    // MARK: - Quick Actions (editable, jiggle-mode)
+
+    /// The user's chosen quick actions, persisted and reorderable. Long-
+    /// press any tile (or tap Edit) to enter jiggle mode: remove with the
+    /// red badge, add from the picker. Their home screen, their choices.
+    @AppStorage("com.mtrx.home.quickActions") private var quickActionsRaw =
+        "deploy,shop,insure,play,events,identity"
+    @State private var editingActions = false
+    @State private var jiggle = false
+    @State private var showActionPicker = false
+
+    private var chosenActions: [HomeAction] {
+        quickActionsRaw.split(separator: ",").compactMap { HomeAction(rawValue: String($0)) }
+    }
+    private func setActions(_ list: [HomeAction]) {
+        quickActionsRaw = list.map(\.rawValue).joined(separator: ",")
+    }
+
     private var quickActionsSection: some View {
         VStack(alignment: .leading, spacing: Spacing.ms) {
-            sectionTitle("Quick actions")
+            HStack {
+                sectionTitle("Quick actions")
+                Spacer()
+                Button {
+                    MtrxHaptics.impact(.light)
+                    withAnimation(Motion.springSnappy) { editingActions.toggle() }
+                    startJiggle(editingActions)
+                } label: {
+                    Text(editingActions ? "Done" : "Edit")
+                        .font(.mtrxCaptionBold)
+                        .foregroundStyle(Color.trinityPrimary)
+                }
+                .buttonStyle(.plain)
+            }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.xs) {
-                quickAction("Deploy Contract", icon: "doc.badge.gearshape.fill", color: .accentTertiary, prompt: "Deploy a smart contract called ")
-                // Money lives in Portfolio now — these are the doors to
-                // the rest of life in the app, in this exact order.
-                ForEach([HomeService.shop, .insure, .game, .events, .domains]) { service in
-                    serviceAction(service)
+                ForEach(chosenActions) { action in
+                    actionTile(action)
+                }
+                if editingActions {
+                    addActionTile
                 }
             }
         }
+        .sheet(isPresented: $showActionPicker) {
+            QuickActionPicker(chosen: chosenActions) { added in
+                setActions(chosenActions + [added])
+                showActionPicker = false
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(.ultraThinMaterial)
+        }
     }
 
-    private func serviceAction(_ service: HomeService) -> some View {
+    private func startJiggle(_ on: Bool) {
+        if on {
+            jiggle = false
+            withAnimation(.easeInOut(duration: 0.14).repeatForever(autoreverses: true)) {
+                jiggle = true
+            }
+        } else {
+            withAnimation(.default) { jiggle = false }
+        }
+    }
+
+    private func actionTile(_ action: HomeAction) -> some View {
         Button {
+            guard !editingActions else { return }
             MtrxHaptics.impact(.light)
-            presentedService = service
+            open(action)
         } label: {
             HStack(spacing: Spacing.sm) {
                 ZStack {
-                    Circle()
-                        .fill(service.color.opacity(0.14))
-                        .frame(width: 30, height: 30)
-                    Image(systemName: service.icon)
+                    Circle().fill(action.color.opacity(0.14)).frame(width: 30, height: 30)
+                    Image(systemName: action.icon)
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(service.color)
+                        .foregroundStyle(action.color)
                 }
-
-                Text(service.title)
+                Text(action.title)
                     .font(.mtrxCaptionBold)
                     .foregroundStyle(Color.labelPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-
+                    .lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 0)
             }
             .padding(.vertical, Spacing.xs)
             .padding(.horizontal, Spacing.ms)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .background(service.color.opacity(0.04))
+            .background(action.color.opacity(0.04))
             .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
             .overlay(
                 RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
-                    .stroke(service.color.opacity(0.22), lineWidth: 1)
+                    .stroke(action.color.opacity(0.22), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
+        .overlay(alignment: .topLeading) {
+            if editingActions {
+                Button {
+                    MtrxHaptics.impact(.light)
+                    setActions(chosenActions.filter { $0 != action })
+                } label: {
+                    Image(systemName: "minus.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.white, Color.statusError)
+                        .background(Circle().fill(Color.backgroundPrimary).frame(width: 14, height: 14))
+                }
+                .buttonStyle(.plain)
+                .offset(x: -6, y: -6)
+            }
+        }
+        .rotationEffect(.degrees(editingActions ? (jiggle ? 1.4 : -1.4) : 0))
+        .onLongPressGesture {
+            if !editingActions {
+                MtrxHaptics.impact(.medium)
+                withAnimation(Motion.springSnappy) { editingActions = true }
+                startJiggle(true)
+            }
+        }
     }
 
-    private func quickAction(_ title: String, icon: String, color: Color, prompt: String) -> some View {
+    private var addActionTile: some View {
         Button {
             MtrxHaptics.impact(.light)
+            showActionPicker = true
+        } label: {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "plus")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color.trinityPrimary)
+                    .frame(width: 30, height: 30)
+                Text("Add")
+                    .font(.mtrxCaptionBold)
+                    .foregroundStyle(Color.labelSecondary)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, Spacing.xs)
+            .padding(.horizontal, Spacing.ms)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .overlay(
+                RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .foregroundStyle(Color.trinityPrimary.opacity(0.4))
+            )
+        }
+        .buttonStyle(.plain)
+        .rotationEffect(.degrees(jiggle ? 1.4 : -1.4))
+    }
+
+    private func open(_ action: HomeAction) {
+        if let prompt = action.prompt {
             presentedChat = ChatLaunch(agent: .trinity, prompt: prompt)
-        } label: {
-            HStack(spacing: Spacing.sm) {
-                ZStack {
-                    Circle()
-                        .fill(color.opacity(0.14))
-                        .frame(width: 30, height: 30)
-                    Image(systemName: icon)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(color)
-                }
-
-                Text(title)
-                    .font(.mtrxCaptionBold)
-                    .foregroundStyle(Color.labelPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-
-                Spacer(minLength: 0)
-            }
-            .padding(.vertical, Spacing.xs)
-            .padding(.horizontal, Spacing.ms)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background(color.opacity(0.04))
-            .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
-            .overlay(
-                RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
-                    .stroke(color.opacity(0.22), lineWidth: 1)
-            )
+        } else if let service = action.service {
+            presentedService = service
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Portfolio Snapshot
@@ -594,6 +653,118 @@ struct HomeView: View {
 // MARK: - Home Services
 
 /// The mini-app launcher: each case opens a full MTRX service.
+// MARK: - Home Quick Action (editable)
+
+/// One pickable quick action on Home — either the special Deploy flow
+/// (handed to Trinity) or any of the app's services.
+enum HomeAction: String, CaseIterable, Identifiable {
+    case deploy
+    case pay, invest, earn, shop, insure, play, events, identity, storage, bridge
+
+    var id: String { rawValue }
+
+    /// The underlying service, or nil for the special Deploy action.
+    var service: HomeService? {
+        switch self {
+        case .deploy:   return nil
+        case .pay:      return .pay
+        case .invest:   return .invest
+        case .earn:     return .defi
+        case .shop:     return .shop
+        case .insure:   return .insure
+        case .play:     return .game
+        case .events:   return .events
+        case .identity: return .domains
+        case .storage:  return .storage
+        case .bridge:   return .bridge
+        }
+    }
+
+    /// Prompt for Trinity (Deploy only).
+    var prompt: String? {
+        self == .deploy ? "Deploy a smart contract called " : nil
+    }
+
+    var title: String {
+        self == .deploy ? "Deploy Contract" : (service?.title ?? rawValue.capitalized)
+    }
+    var icon: String {
+        self == .deploy ? "doc.badge.gearshape.fill" : (service?.icon ?? "square.grid.2x2")
+    }
+    var color: Color {
+        self == .deploy ? .accentTertiary : (service?.color ?? .trinityPrimary)
+    }
+}
+
+// MARK: - Quick Action Picker
+
+/// The add-action sheet: every action not already on the home screen,
+/// one tap to add.
+struct QuickActionPicker: View {
+    let chosen: [HomeAction]
+    let onAdd: (HomeAction) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private var available: [HomeAction] {
+        HomeAction.allCases.filter { !chosen.contains($0) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.sm) {
+                    ForEach(available) { action in
+                        Button {
+                            MtrxHaptics.impact(.light)
+                            onAdd(action)
+                        } label: {
+                            HStack(spacing: Spacing.sm) {
+                                ZStack {
+                                    Circle().fill(action.color.opacity(0.14)).frame(width: 32, height: 32)
+                                    Image(systemName: action.icon)
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundStyle(action.color)
+                                }
+                                Text(action.title)
+                                    .font(.mtrxCaptionBold)
+                                    .foregroundStyle(Color.labelPrimary)
+                                    .lineLimit(1).minimumScaleFactor(0.8)
+                                Spacer(minLength: 0)
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(Color.trinityPrimary)
+                            }
+                            .padding(Spacing.ms)
+                            .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
+                                    .stroke(.white.opacity(0.08), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(Spacing.contentPadding)
+
+                if available.isEmpty {
+                    Text("Every action is already on your home screen.")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelTertiary)
+                        .padding(Spacing.xl)
+                }
+            }
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("Add Quick Action")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
 enum HomeService: String, CaseIterable, Identifiable {
     case pay, invest, defi, shop, insure, game, events, domains, storage, bridge
 

@@ -258,26 +258,9 @@ struct MiniAgentChat: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Compact header — the agent's own little bubble leads it.
+            // Compact header — the agent's own little glass orb leads it.
             HStack(spacing: Spacing.sm) {
-                ZStack {
-                    Circle().fill(.ultraThinMaterial).opacity(0.35)
-                    Circle()
-                        .fill(AngularGradient(colors: agentBubblePalette(agent), center: .center))
-                        .opacity(0.8)
-                        .rotationEffect(.degrees(drift ? 360 : 0))
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [.white.opacity(0.40), .clear],
-                                center: .center,
-                                startRadius: 1,
-                                endRadius: 10
-                            )
-                        )
-                    Circle().strokeBorder(.white.opacity(0.30), lineWidth: 0.8)
-                }
-                .frame(width: 22, height: 22)
+                GlassOrb(size: 22, tint: agentGlassTint(agent))
 
                 Text(AgentConversationViewModel.displayName(of: agent))
                     .font(.mtrxCalloutBold)
@@ -467,32 +450,13 @@ struct FloatingAgentOrb: View {
     let agent: AgentAccessControl.ActiveAgent
     let onTap: () -> Void
 
-    /// Drives the slow drift of the bubble's iridescence. Position
-    /// lives in AgentPresence so the popup knows where to grow from.
-    @State private var drift = false
+    /// Position lives in AgentPresence so the popup knows where to grow
+    /// from when the orb is tapped.
     @ObservedObject private var presence = AgentPresence.shared
 
     private var position: CGPoint? {
         get { presence.position }
         nonmutating set { presence.position = newValue }
-    }
-
-    /// Soft pastel film — mint, lavender, peach, butter — like light
-    /// catching a soap bubble. Playful, never loud.
-    private static let bubblePastels: [Color] = [
-        Color(red: 0.62, green: 0.90, blue: 0.85),
-        Color(red: 0.72, green: 0.78, blue: 0.98),
-        Color(red: 0.99, green: 0.80, blue: 0.78),
-        Color(red: 0.99, green: 0.92, blue: 0.72),
-        Color(red: 0.62, green: 0.90, blue: 0.85),
-    ]
-
-    private var tint: Color {
-        switch agent {
-        case .trinity: return .trinityPrimary
-        case .morpheus: return Color(red: 0.95, green: 0.36, blue: 0.42)
-        case .neo: return .statusSuccess
-        }
     }
 
     var body: some View {
@@ -501,43 +465,11 @@ struct FloatingAgentOrb: View {
             // button, and everything else that lives in the corners.
             let current = position ?? CGPoint(x: geo.size.width - 44, y: geo.size.height * 0.40)
 
-            // A soap bubble: transparent glass with a film of soft
-            // pastel iridescence drifting slowly around the rim, and a
-            // gentle aura of light. Playful and light — never solid,
-            // never loud.
-            ZStack {
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.32)
-
-                // Pastel light fills the whole bubble — no hollow center,
-                // just color softening into a bright heart of light.
-                Circle()
-                    .fill(AngularGradient(colors: Self.bubblePastels, center: .center))
-                    .opacity(0.60)
-                    .rotationEffect(.degrees(drift ? 360 : 0))
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [.white.opacity(0.38), .white.opacity(0.06), .clear],
-                            center: .center,
-                            startRadius: 1,
-                            endRadius: 24
-                        )
-                    )
-
-                Circle()
-                    .strokeBorder(.white.opacity(0.25), lineWidth: 1)
-            }
-            .frame(width: 54, height: 54)
-            .shadow(color: .white.opacity(0.22), radius: 12)
-            .shadow(color: Color(red: 0.72, green: 0.78, blue: 0.98).opacity(0.30), radius: 24)
-            .onAppear {
-                withAnimation(.linear(duration: 14).repeatForever(autoreverses: false)) {
-                    drift = true
-                }
-            }
+            // Transparent liquid glass with a drifting iridescent
+            // refraction — reflective and clear, the app's signature orb.
+            GlassOrb(size: 54, tint: agentGlassTint(agent))
+                .shadow(color: .white.opacity(0.18), radius: 12)
+                .shadow(color: Color(red: 0.72, green: 0.78, blue: 0.98).opacity(0.22), radius: 24)
                 .position(current)
                 .gesture(
                     DragGesture()

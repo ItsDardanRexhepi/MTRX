@@ -318,6 +318,9 @@ struct SocialView: View {
     @State private var showThemePicker = false
     @State private var showNotifications = false
     @State private var showSocialSettings = false
+    @State private var showUpsell = false
+    @AppStorage("com.mtrx.subscriptionTier") private var tierRaw: String = SubscriptionTier.free.rawValue
+    private var currentTier: SubscriptionTier { SubscriptionTier(rawValue: tierRaw) ?? .free }
     @Namespace private var tabUnderlineNS
     @State private var appeared = false
     @State private var showProofPicker = false
@@ -414,27 +417,55 @@ struct SocialView: View {
                                 .foregroundStyle(Color.labelSecondary)
                         }
 
+                        // Theme color — a Pro+ feature.
                         Button {
                             MtrxHaptics.impact(.light)
-                            showThemePicker = true
-                        } label: {
-                            Image(systemName: "paintpalette")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(theme.accent)
-                        }
-
-                        Button {
-                            MtrxHaptics.selection()
-                            withAnimation(Motion.springSnappy) {
-                                viewModel.selectedFilter =
-                                    viewModel.selectedFilter == .trending ? .all : .trending
+                            if currentTier >= .pro {
+                                showThemePicker = true
+                            } else {
+                                showUpsell = true
                             }
                         } label: {
-                            Image(systemName: viewModel.selectedFilter == .trending
-                                  ? "sparkles" : "sparkle")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(viewModel.selectedFilter == .trending
-                                                 ? theme.accent : Color.labelSecondary)
+                            ZStack(alignment: .topTrailing) {
+                                Image(systemName: "paintpalette")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundStyle(currentTier >= .pro ? theme.accent : Color.labelTertiary)
+                                if currentTier < .pro {
+                                    Image(systemName: "lock.fill")
+                                        .font(.system(size: 8, weight: .bold))
+                                        .foregroundStyle(Color.accentSecondary)
+                                        .offset(x: 4, y: -4)
+                                }
+                            }
+                        }
+
+                        // Advanced AI curation — the top-tier feature,
+                        // Enterprise only.
+                        Button {
+                            MtrxHaptics.selection()
+                            if currentTier >= .enterprise {
+                                withAnimation(Motion.springSnappy) {
+                                    viewModel.selectedFilter =
+                                        viewModel.selectedFilter == .trending ? .all : .trending
+                                }
+                            } else {
+                                showUpsell = true
+                            }
+                        } label: {
+                            ZStack(alignment: .topTrailing) {
+                                Image(systemName: viewModel.selectedFilter == .trending
+                                      ? "sparkles" : "sparkle")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(currentTier >= .enterprise
+                                                     ? (viewModel.selectedFilter == .trending ? theme.accent : Color.labelSecondary)
+                                                     : Color.labelTertiary)
+                                if currentTier < .enterprise {
+                                    Image(systemName: "lock.fill")
+                                        .font(.system(size: 8, weight: .bold))
+                                        .foregroundStyle(Color.accentSecondary)
+                                        .offset(x: 4, y: -4)
+                                }
+                            }
                         }
                     }
                 }
@@ -445,6 +476,9 @@ struct SocialView: View {
             }
             .sheet(isPresented: $showSocialSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: $showUpsell) {
+                SubscriptionView()
             }
             .sheet(isPresented: $showProfile) {
                 SocialProfileSheet(
@@ -771,8 +805,27 @@ struct SocialView: View {
 
     private var feedSection: some View {
         VStack(spacing: 0) {
-            StoriesRail()
-            filterChips
+            // A colorful wash behind the stories + tabs that fades down
+            // into the feed — the top of Social feels alive, the colors
+            // dissolving as you move into the timeline.
+            VStack(spacing: 0) {
+                StoriesRail()
+                filterChips
+            }
+            .background(
+                LinearGradient(
+                    colors: [
+                        theme.accent.opacity(0.22),
+                        Color.purple.opacity(0.12),
+                        Color.pink.opacity(0.06),
+                        .clear
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+            )
+
             ScrollView {
                 // Flat, edge-to-edge timeline rows with hairline
                 // separators — the modern feed look.

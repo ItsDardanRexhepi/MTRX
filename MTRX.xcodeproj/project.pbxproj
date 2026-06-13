@@ -269,6 +269,7 @@
 		E89DA464BAA3574A5A5D44F3 /* LedgerBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E76603E0373DA6297E6253 /* LedgerBridge.swift */; };
 		D72833AE066FB976BF316C47 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF571B31F424F56C472006AA /* HomeView.swift */; };
 		BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 865035F886D6A8D182DB316D /* TrinityTools.swift */; };
+		72DA692B2BC4452FA776E3D2 /* GlassOrb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C38656A8CD24196A5849E67 /* GlassOrb.swift */; };
 		C05327F172E04FF8804BF566 /* GameRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E007D59DDAF3432FA3BB226F /* GameRunnerView.swift */; };
 		231E8C4C1EF94081B392A02C /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 613B772D292A4642BA89733C /* NetworkPathMonitor.swift */; };
 		BABA3453E2BF4CD494A3AE03 /* HyperCompression.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6C1EDE4DCB0463183DC5F07 /* HyperCompression.swift */; };
@@ -552,6 +553,7 @@
 		C9E76603E0373DA6297E6253 /* LedgerBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LedgerBridge.swift"; path = "Core/Wallet/LedgerBridge.swift"; sourceTree = SOURCE_ROOT; };
 		DF571B31F424F56C472006AA /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HomeView.swift"; path = "UI/Views/Home/HomeView.swift"; sourceTree = SOURCE_ROOT; };
 		865035F886D6A8D182DB316D /* TrinityTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TrinityTools.swift"; path = "Core/Trinity/TrinityTools.swift"; sourceTree = SOURCE_ROOT; };
+		8C38656A8CD24196A5849E67 /* GlassOrb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GlassOrb.swift"; path = "UI/Components/GlassOrb.swift"; sourceTree = SOURCE_ROOT; };
 		E007D59DDAF3432FA3BB226F /* GameRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameRunnerView.swift"; path = "UI/Views/Gaming/GameRunnerView.swift"; sourceTree = SOURCE_ROOT; };
 		613B772D292A4642BA89733C /* NetworkPathMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "NetworkPathMonitor.swift"; path = "Core/Network/NetworkPathMonitor.swift"; sourceTree = SOURCE_ROOT; };
 		A6C1EDE4DCB0463183DC5F07 /* HyperCompression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HyperCompression.swift"; path = "Core/Network/HyperCompression.swift"; sourceTree = SOURCE_ROOT; };
@@ -1604,6 +1606,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */,
+				72DA692B2BC4452FA776E3D2 /* GlassOrb.swift in Sources */,
 				C05327F172E04FF8804BF566 /* GameRunnerView.swift in Sources */,
 				231E8C4C1EF94081B392A02C /* NetworkPathMonitor.swift in Sources */,
 				BABA3453E2BF4CD494A3AE03 /* HyperCompression.swift in Sources */,

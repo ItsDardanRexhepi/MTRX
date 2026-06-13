@@ -783,89 +783,61 @@ struct SocialProfileSheet: View {
     var onImport: ([SocialPostDisplay]) -> Void = { _ in }
 
     @State private var showImport = false
-
-    @State private var avatarPickerItem: PhotosPickerItem?
-    @State private var bannerPickerItem: PhotosPickerItem?
-    @State private var editingName = ""
-    @State private var editingUsername = ""
-    @State private var editingBio = ""
-    @State private var saved = false
-    @State private var isEditing = false
+    @State private var showEditProfile = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Banner with the avatar overlapping its bottom edge.
-                    // The banner itself is a photo picker — tap to set yours.
+                    // Clean display only — all editing lives in Edit profile.
                     ZStack(alignment: .bottomLeading) {
-                        PhotosPicker(selection: $bannerPickerItem, matching: .images) {
-                            ZStack(alignment: .topTrailing) {
-                                Group {
-                                    if let banner = identity.bannerImage {
-                                        Image(uiImage: banner)
-                                            .resizable()
-                                            .scaledToFill()
-                                    } else {
-                                        LinearGradient(
-                                            colors: [Color.trinityPrimary.opacity(0.55), Color.trinitySecondary.opacity(0.35), Color.backgroundPrimary],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    }
-                                }
-                                .frame(height: 130)
-                                .frame(maxWidth: .infinity)
-                                .clipped()
-
-                                Image(systemName: "camera.circle.fill")
-                                    .font(.system(size: 24))
-                                    .foregroundStyle(Color.accentPrimary)
-                                    .background(Circle().fill(Color.backgroundPrimary))
-                                    .padding(Spacing.sm)
+                        Group {
+                            if let banner = identity.bannerImage {
+                                Image(uiImage: banner)
+                                    .resizable()
+                                    .scaledToFill()
+                            } else {
+                                LinearGradient(
+                                    colors: [Color.trinityPrimary.opacity(0.55), Color.trinitySecondary.opacity(0.35), Color.backgroundPrimary],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             }
                         }
-                        .buttonStyle(.plain)
+                        .frame(height: 130)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
 
-                        PhotosPicker(selection: $avatarPickerItem, matching: .images) {
-                            ZStack(alignment: .bottomTrailing) {
-                                Group {
-                                    if let avatar = identity.avatarImage {
-                                        Image(uiImage: avatar).resizable().scaledToFill()
-                                    } else {
-                                        LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
-                                                       startPoint: .topLeading, endPoint: .bottomTrailing)
-                                            .overlay(
-                                                Text(initials)
-                                                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                                                    .foregroundStyle(.white)
-                                            )
-                                    }
-                                }
-                                .frame(width: 84, height: 84)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.backgroundPrimary, lineWidth: 4))
-
-                                Image(systemName: "camera.circle.fill")
-                                    .font(.system(size: 24))
-                                    .foregroundStyle(Color.accentPrimary)
-                                    .background(Circle().fill(Color.backgroundPrimary))
+                        Group {
+                            if let avatar = identity.avatarImage {
+                                Image(uiImage: avatar).resizable().scaledToFill()
+                            } else {
+                                LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    .overlay(
+                                        Text(initials)
+                                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                                            .foregroundStyle(.white)
+                                    )
                             }
                         }
-                        .buttonStyle(.plain)
+                        .frame(width: 84, height: 84)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.backgroundPrimary, lineWidth: 4))
                         .offset(x: Spacing.contentPadding, y: 42)
                     }
                     .padding(.bottom, 46)
 
                     VStack(alignment: .leading, spacing: Spacing.sm) {
-                        // Edit profile pill, right-aligned like every
-                        // profile page the user already knows.
+                        // Edit profile pill — opens the full editor.
                         HStack {
                             Spacer()
                             Button {
-                                withAnimation(Motion.springSnappy) { isEditing.toggle() }
+                                MtrxHaptics.impact(.light)
+                                showEditProfile = true
                             } label: {
-                                Text(isEditing ? "Cancel" : "Edit profile")
+                                Text("Edit profile")
                                     .font(.system(size: 14, weight: .bold))
                                     .foregroundStyle(Color.labelPrimary)
                                     .padding(.horizontal, 16)
@@ -944,58 +916,6 @@ struct SocialProfileSheet: View {
                             }
                         }
                         .padding(.top, 2)
-
-                        // Inline editor — slides in under Edit profile.
-                        if isEditing {
-                            VStack(alignment: .leading, spacing: Spacing.ms) {
-                                fieldLabel("Display name")
-                                TextField("Your name", text: $editingName)
-                                    .textFieldStyle(.plain)
-                                    .font(.mtrxBody)
-                                    .padding(Spacing.ms)
-                                    .background(Color.surfaceCard)
-                                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-
-                                fieldLabel("Username")
-                                TextField("@username", text: $editingUsername)
-                                    .textFieldStyle(.plain)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                                    .font(.mtrxBody)
-                                    .padding(Spacing.ms)
-                                    .background(Color.surfaceCard)
-                                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-
-                                fieldLabel("Bio")
-                                TextField("Tell people about yourself", text: $editingBio, axis: .vertical)
-                                    .textFieldStyle(.plain)
-                                    .lineLimit(2...4)
-                                    .font(.mtrxBody)
-                                    .padding(Spacing.ms)
-                                    .background(Color.surfaceCard)
-                                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-
-                                Button {
-                                    appState.updateDisplayName(editingName)
-                                    identity.username = editingUsername.trimmingCharacters(in: .whitespaces)
-                                    identity.bio = editingBio
-                                    saved = true
-                                    withAnimation(Motion.springSnappy) { isEditing = false }
-                                    MtrxHaptics.success()
-                                } label: {
-                                    Text("Save")
-                                        .font(.system(size: 15, weight: .bold))
-                                        .foregroundStyle(.black)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 11)
-                                        .background(Color.labelPrimary)
-                                        .clipShape(Capsule())
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.top, Spacing.sm)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                        }
                     }
                     .padding(.horizontal, Spacing.contentPadding)
 
@@ -1040,39 +960,9 @@ struct SocialProfileSheet: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .alert("Profile Saved", isPresented: $saved) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Your name, username, and bio are updated everywhere.")
-            }
-            .onAppear {
-                editingName = appState.displayName
-                editingUsername = identity.username.isEmpty
-                    ? identity.handle(displayName: appState.displayName)
-                    : identity.username
-                editingBio = identity.bio
-            }
-            .onChange(of: avatarPickerItem) { _, item in
-                guard let item else { return }
-                Task {
-                    if let data = try? await item.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data) {
-                        identity.updateAvatar(image)
-                        MtrxHaptics.success()
-                    }
-                    avatarPickerItem = nil
-                }
-            }
-            .onChange(of: bannerPickerItem) { _, item in
-                guard let item else { return }
-                Task {
-                    if let data = try? await item.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data) {
-                        identity.updateBanner(image)
-                        MtrxHaptics.success()
-                    }
-                    bannerPickerItem = nil
-                }
+            .sheet(isPresented: $showEditProfile) {
+                EditProfileView()
+                    .environmentObject(appState)
             }
         }
     }
@@ -1099,6 +989,156 @@ struct SocialProfileSheet: View {
         Text(text)
             .font(.mtrxCaption1)
             .foregroundStyle(Color.labelSecondary)
+    }
+}
+
+// MARK: - Edit Profile
+
+/// The full profile editor — change your avatar, banner, name, handle,
+/// and bio in one place. Opened from the Edit profile button.
+struct EditProfileView: View {
+    @EnvironmentObject private var appState: AppState
+    @ObservedObject private var identity = SocialIdentity.shared
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var avatarPickerItem: PhotosPickerItem?
+    @State private var bannerPickerItem: PhotosPickerItem?
+    @State private var name = ""
+    @State private var username = ""
+    @State private var bio = ""
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    // Banner + avatar pickers live here, with clear labels.
+                    ZStack(alignment: .bottomLeading) {
+                        PhotosPicker(selection: $bannerPickerItem, matching: .images) {
+                            ZStack {
+                                Group {
+                                    if let banner = identity.bannerImage {
+                                        Image(uiImage: banner).resizable().scaledToFill()
+                                    } else {
+                                        LinearGradient(colors: [Color.trinityPrimary.opacity(0.5), Color.trinitySecondary.opacity(0.3)],
+                                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    }
+                                }
+                                .frame(height: 120).frame(maxWidth: .infinity).clipped()
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(10)
+                                    .background(.black.opacity(0.35))
+                                    .clipShape(Circle())
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+
+                        PhotosPicker(selection: $avatarPickerItem, matching: .images) {
+                            ZStack {
+                                Group {
+                                    if let avatar = identity.avatarImage {
+                                        Image(uiImage: avatar).resizable().scaledToFill()
+                                    } else {
+                                        LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
+                                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    }
+                                }
+                                .frame(width: 76, height: 76).clipShape(Circle())
+                                .overlay(Circle().stroke(Color.backgroundPrimary, lineWidth: 3))
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(7)
+                                    .background(.black.opacity(0.4))
+                                    .clipShape(Circle())
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .offset(x: Spacing.md, y: 38)
+                    }
+                    .padding(.bottom, 40)
+
+                    VStack(alignment: .leading, spacing: Spacing.md) {
+                        editField("Display name", text: $name, placeholder: "Your name")
+                        editField("Username", text: $username, placeholder: "@username", lower: true)
+                        editField("Bio", text: $bio, placeholder: "Tell people about yourself", multiline: true)
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+                }
+            }
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("Edit profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Save") { save() }
+                        .font(.mtrxCalloutBold)
+                }
+            }
+            .onAppear {
+                name = appState.displayName
+                username = identity.username.isEmpty
+                    ? identity.handle(displayName: appState.displayName)
+                    : identity.username
+                bio = identity.bio
+            }
+            .onChange(of: avatarPickerItem) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        identity.updateAvatar(image); MtrxHaptics.success()
+                    }
+                    avatarPickerItem = nil
+                }
+            }
+            .onChange(of: bannerPickerItem) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        identity.updateBanner(image); MtrxHaptics.success()
+                    }
+                    bannerPickerItem = nil
+                }
+            }
+        }
+    }
+
+    private func save() {
+        appState.updateDisplayName(name)
+        identity.username = username.trimmingCharacters(in: .whitespaces)
+        identity.bio = bio
+        MtrxHaptics.success()
+        dismiss()
+    }
+
+    @ViewBuilder
+    private func editField(_ label: String, text: Binding<String>, placeholder: String, lower: Bool = false, multiline: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.mtrxCaption1).foregroundStyle(Color.labelSecondary)
+            if multiline {
+                TextField(placeholder, text: text, axis: .vertical)
+                    .lineLimit(2...4)
+                    .font(.mtrxBody)
+                    .padding(Spacing.ms)
+                    .background(Color.surfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+            } else {
+                TextField(placeholder, text: text)
+                    .font(.mtrxBody)
+                    .textInputAutocapitalization(lower ? .never : .sentences)
+                    .autocorrectionDisabled(lower)
+                    .padding(Spacing.ms)
+                    .background(Color.surfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+            }
+        }
     }
 }
 

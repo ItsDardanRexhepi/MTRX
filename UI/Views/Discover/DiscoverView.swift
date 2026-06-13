@@ -229,6 +229,7 @@ struct DiscoverView: View {
     @State private var pushedCategory: DiscoverCategory?
     @State private var pushedDeFi: DeFiSubDestination?
     @State private var showFilters = false
+    @State private var showDiscoverMenu = false
     @State private var backingFundraiser: FundraiserItem?
 
     var body: some View {
@@ -249,17 +250,34 @@ struct DiscoverView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    NetworkTopologyIndicator()
-                }
-                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         MtrxHaptics.impact(.light)
-                        showFilters = true
+                        showDiscoverMenu = true
                     } label: {
-                        Image(systemName: Symbols.filter)
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .font(.system(size: 17, weight: .medium))
                             .foregroundStyle(Color.accentPrimary)
                     }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NetworkTopologyIndicator()
+                }
+            }
+            .sheet(isPresented: $showDiscoverMenu) {
+                DiscoverMenuSheet(
+                    selectedCategory: $viewModel.selectedCategory,
+                    onCategory: { category in
+                        if category.hasHubView {
+                            pushedCategory = category
+                        } else {
+                            withAnimation(Motion.springSnappy) { viewModel.selectedCategory = category }
+                        }
+                        showDiscoverMenu = false
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(.ultraThinMaterial)
             }
             .navigationDestination(item: $pushedCategory) { category in
                 categoryDestination(for: category)
@@ -297,34 +315,21 @@ struct DiscoverView: View {
     private var contentView: some View {
         ScrollView(.vertical, showsIndicators: false) {
             // Generous section rhythm — each section gets room to breathe.
-            LazyVStack(spacing: Spacing.xl) {
+            // Leaner Discover: categories + recent activity live in the
+            // menu pop-out; fundraisers fold into Trending; Top Yield is
+            // merged into Yield Farming; Portfolio lives in Account.
+            LazyVStack(spacing: Spacing.lg) {
                 searchBar
                     .mtrxStaggeredAppearance(index: 0, isVisible: viewModel.contentAppeared)
 
-                categoryChips
+                featuredSection
                     .mtrxStaggeredAppearance(index: 1, isVisible: viewModel.contentAppeared)
 
-                featuredSection
+                trendingSection
                     .mtrxStaggeredAppearance(index: 2, isVisible: viewModel.contentAppeared)
 
-                trendingSection
-                    .mtrxStaggeredAppearance(index: 3, isVisible: viewModel.contentAppeared)
-
-                fundraiserSection
-                    .mtrxStaggeredAppearance(index: 4, isVisible: viewModel.contentAppeared)
-
-                // Web3 discovery cards
-                portfolioCard
-                    .mtrxStaggeredAppearance(index: 5, isVisible: viewModel.contentAppeared)
-
-                yieldOpportunitiesSection
-                    .mtrxStaggeredAppearance(index: 6, isVisible: viewModel.contentAppeared)
-
                 exploreDeFiSection
-                    .mtrxStaggeredAppearance(index: 7, isVisible: viewModel.contentAppeared)
-
-                recentActivitySection
-                    .mtrxStaggeredAppearance(index: 8, isVisible: viewModel.contentAppeared)
+                    .mtrxStaggeredAppearance(index: 3, isVisible: viewModel.contentAppeared)
 
                 // Bottom padding for tab bar
                 Spacer().frame(height: Spacing.xxl)
@@ -516,7 +521,7 @@ struct DiscoverView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 280)
+                .frame(height: 196)
 
                 // Page dots
                 HStack(spacing: 6) {
@@ -536,9 +541,10 @@ struct DiscoverView: View {
     // MARK: - Trending Section
 
     private var trendingSection: some View {
-        // Trending is a top-10, not the whole catalog — the full list
-        // lives behind See All and search.
+        // One combined Trending section: the live fundraisers ride at the
+        // top, then the top-10 trending listings. Full lists via search.
         let listings = Array(viewModel.filteredListings.prefix(10))
+        let fundraisers = viewModel.filteredFundraisers
         return VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
             MtrxSectionHeader(title: "Trending", action: {
                 MtrxHaptics.impact(.light)
@@ -548,7 +554,21 @@ struct DiscoverView: View {
             })
             .padding(.horizontal, Spacing.contentPadding)
 
-            if listings.isEmpty {
+            if !fundraisers.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Spacing.md) {
+                        ForEach(fundraisers) { fundraiser in
+                            FundraiserCardView(fundraiser: fundraiser, onBack: {
+                                backingFundraiser = fundraiser
+                            })
+                        }
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+                }
+                .padding(.bottom, Spacing.xs)
+            }
+
+            if listings.isEmpty && fundraisers.isEmpty {
                 MtrxEmptyState(
                     icon: Symbols.search,
                     title: "No Results",
@@ -572,33 +592,7 @@ struct DiscoverView: View {
         }
     }
 
-    // MARK: - Fundraiser Section
-
-    private var fundraiserSection: some View {
-        let fundraisers = viewModel.filteredFundraisers
-        return VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
-            MtrxSectionHeader(title: "Active Fundraisers", action: {
-                MtrxHaptics.impact(.light)
-                alertTitle = "Fundraisers"
-                alertMessage = "Showing all active fundraisers"
-                showAlert = true
-            })
-            .padding(.horizontal, Spacing.contentPadding)
-
-            if !fundraisers.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: Spacing.md) {
-                        ForEach(fundraisers) { fundraiser in
-                            FundraiserCardView(fundraiser: fundraiser, onBack: {
-                                backingFundraiser = fundraiser
-                            })
-                        }
-                    }
-                    .padding(.horizontal, Spacing.contentPadding)
-                }
-            }
-        }
-    }
+    // MARK: - Portfolio Card (removed from Discover — lives in Account)
 
     // MARK: - Portfolio Card
 
@@ -801,7 +795,7 @@ struct FeaturedCardView: View {
                     }
                     .buttonStyle(MtrxButtonStyle(variant: .accent, size: .compact))
                 }
-                .padding(Spacing.lg)
+                .padding(Spacing.md)
             }
             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous))
             .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.xl)
@@ -1480,10 +1474,10 @@ struct FeaturedDetailSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.lg) {
-                    // Hero
+                    // Hero — tightened so the title sits close to the badge.
                     RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous)
                         .fill(item.gradient)
-                        .frame(height: 190)
+                        .frame(height: 128)
                         .overlay {
                             VStack {
                                 HStack {
@@ -1576,5 +1570,105 @@ struct FeaturedDetailSheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Discover Menu (liquid-glass pop-out)
+
+/// The pop-out menu that holds everything that used to clutter the
+/// Discover scroll: the category filters and Recent Activity. Liquid
+/// glass, opened from the menu button on the top-left.
+struct DiscoverMenuSheet: View {
+    @Binding var selectedCategory: DiscoverCategory
+    let onCategory: (DiscoverCategory) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private let columns = [GridItem(.flexible(), spacing: Spacing.sm),
+                           GridItem(.flexible(), spacing: Spacing.sm)]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    // Categories
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        MtrxSectionHeader(title: "Categories")
+                        LazyVGrid(columns: columns, spacing: Spacing.sm) {
+                            ForEach(DiscoverCategory.allCases) { category in
+                                Button {
+                                    MtrxHaptics.selection()
+                                    onCategory(category)
+                                } label: {
+                                    HStack(spacing: Spacing.sm) {
+                                        Image(systemName: category.icon)
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundStyle(Color.accentPrimary)
+                                            .frame(width: 30, height: 30)
+                                            .background(Color.accentPrimary.opacity(0.12))
+                                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                                        Text(category.rawValue.capitalized)
+                                            .font(.mtrxCaptionBold)
+                                            .foregroundStyle(Color.labelPrimary)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.8)
+                                        Spacer(minLength: 0)
+                                    }
+                                    .padding(.vertical, 9)
+                                    .padding(.horizontal, Spacing.ms)
+                                    .background(selectedCategory == category ? Color.accentPrimary.opacity(0.10) : Color.clear)
+                                    .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous)
+                                            .stroke(selectedCategory == category ? Color.accentPrimary.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    // Recent Activity
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        MtrxSectionHeader(title: "Recent Activity")
+                        VStack(spacing: Spacing.xs) {
+                            menuActivityRow("Swap", "0.5 ETH → 900 USDC", "2 min ago", "arrow.triangle.2.circlepath")
+                            menuActivityRow("Stake", "1.0 ETH staked", "1 hour ago", "lock.fill")
+                            menuActivityRow("Received", "250 USDC from vitalik.eth", "3 hours ago", "arrow.down.circle.fill")
+                        }
+                    }
+                }
+                .padding(Spacing.contentPadding)
+            }
+            .background(MtrxGradientBackground(style: .primary).opacity(0.0))
+            .navigationTitle("Menu")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark").font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.labelPrimary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func menuActivityRow(_ type: String, _ detail: String, _ time: String, _ icon: String) -> some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: icon)
+                .font(.system(size: 15))
+                .foregroundStyle(Color.accentPrimary)
+                .frame(width: 32, height: 32)
+                .background(Color.accentPrimary.opacity(0.12))
+                .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 1) {
+                Text(type).font(.mtrxCaptionBold).foregroundStyle(Color.labelPrimary)
+                Text(detail).font(.mtrxCaption2).foregroundStyle(Color.labelTertiary).lineLimit(1)
+            }
+            Spacer()
+            Text(time).font(.mtrxCaption2).foregroundStyle(Color.labelQuaternary)
+        }
+        .padding(Spacing.ms)
+        .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
     }
 }
