@@ -87,6 +87,18 @@ struct HomeView: View {
             }
             // Any scroll drops the keyboard instantly — the easiest way out.
             .scrollDismissesKeyboard(.immediately)
+
+            // The inline chat that grows from the search bar.
+            if homeChatOpen {
+                Color.black.opacity(0.35)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                    .onTapGesture { closeHomeChat() }
+                    .zIndex(40)
+                homeChatPanel
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(50)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .mtrxOpenService)) { note in
             if let raw = note.userInfo?["service"] as? String,
@@ -288,9 +300,15 @@ struct HomeView: View {
         return name.isEmpty ? "Welcome" : name
     }
 
-    /// The Home ask bar — type a command or talk to Trinity.
+    /// The Home ask bar — type a command or talk to Trinity, right here.
     @State private var askText = ""
     @FocusState private var askFocused: Bool
+    /// The inline chat that grows out of the search bar — no full-screen
+    /// Trinity unless the user taps to extend into it.
+    @State private var homeChatLog: [HomeChatMsg] = []
+    @State private var homeChatOpen = false
+    @State private var homeChatDrag: CGFloat = 0
+    @FocusState private var homeChatFocused: Bool
 
     /// Transparent liquid-glass field that extends from the orb. The
     /// placeholder shows only while empty (standard search-bar behavior);
@@ -370,12 +388,205 @@ struct HomeView: View {
         }
     }
 
+    /// Submitting the bar (or the in-chat input) runs the command right here
+    /// in Home — it only opens the full Trinity space if the user asks.
     private func runHomeAsk() {
         let text = askText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        askFocused = false
         askText = ""
-        presentedChat = ChatLaunch(agent: .trinity, prompt: text)
+        askFocused = false
+        homeChatLog.append(HomeChatMsg(isUser: true, text: text))
+        if !homeChatOpen {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) { homeChatOpen = true }
+        }
+        processHomeAsk(text)
+    }
+
+    private func processHomeAsk(_ text: String) {
+        let lower = text.lowercased()
+
+        // Navigation — the action just happens.
+        if let target = homeNavTarget(lower) {
+            appendAgent("Opening \(target.name) for you.")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                closeHomeChat()
+                NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": target.index])
+            }
+            return
+        }
+
+        // "What can you do?" → a real rundown.
+        if AgentConversationViewModel.isCapabilityQuestion(text) {
+            appendAgent("Happy to help. Right from here I can check your balance, send/swap/stake, deploy contracts, post to Social, open any tab, and look up live prices, weather, or anything on the web. What do you need?")
+            return
+        }
+
+        // Money moves confirm in Trinity for safety.
+        if ["send", "swap", "stake", "pay", "transfer", "deploy"].contains(where: { lower.contains($0) }) {
+            appendAgent("I can do that — let's confirm it safely. Tap “Open in Trinity” and I'll carry this over.")
+            return
+        }
+
+        appendAgent("On it. For the full back-and-forth, tap “Open in Trinity” and I'll pick up with everything you've said here.")
+    }
+
+    private func appendAgent(_ text: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            withAnimation(.easeOut(duration: 0.25)) {
+                homeChatLog.append(HomeChatMsg(isUser: false, text: text))
+            }
+        }
+    }
+
+    private func homeNavTarget(_ lower: String) -> (index: Int, name: String)? {
+        guard lower.contains("open") || lower.contains("go to") || lower.contains("take me") || lower.contains("show me") else { return nil }
+        if lower.contains("discover") || lower.contains("marketplace") { return (0, "Discover") }
+        if lower.contains("build") || lower.contains("contract") { return (1, "Build") }
+        if lower.contains("social") || lower.contains("feed") { return (3, "Social") }
+        if lower.contains("account") || lower.contains("wallet") || lower.contains("setting") { return (4, "Account") }
+        if lower.contains("home") || lower.contains("dashboard") { return (2, "Home") }
+        return nil
+    }
+
+    private func extendToTrinity() {
+        let context = homeChatLog
+            .map { ($0.isUser ? "Me: " : "Trinity: ") + $0.text }
+            .joined(separator: "\n")
+        let log = homeChatLog
+        closeHomeChat()
+        presentedChat = ChatLaunch(agent: .trinity, prompt: log.isEmpty ? nil : context)
+    }
+
+    private func closeHomeChat() {
+        homeChatFocused = false
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            homeChatOpen = false
+            homeChatDrag = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            if !homeChatOpen { homeChatLog = [] }
+        }
+    }
+
+    // MARK: - Inline Home Chat Panel
+
+    private var homeChatPanel: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            VStack(spacing: 0) {
+                Capsule()
+                    .fill(Color.labelTertiary.opacity(0.4))
+                    .frame(width: 40, height: 5)
+                    .padding(.top, Spacing.sm)
+                    .padding(.bottom, Spacing.xs)
+
+                // Header — orb + title, Open-in-Trinity, close.
+                HStack(spacing: Spacing.sm) {
+                    GlassOrb(size: 26, tint: agentGlassTint(.trinity))
+                    Text("Trinity")
+                        .font(.mtrxCalloutBold)
+                        .foregroundStyle(Color.labelPrimary)
+                    Spacer()
+                    Button { extendToTrinity() } label: {
+                        HStack(spacing: 4) {
+                            Text("Open in Trinity").font(.mtrxCaption2.weight(.bold))
+                            Image(systemName: "arrow.up.forward").font(.system(size: 10, weight: .bold))
+                        }
+                        .foregroundStyle(Color.trinityPrimary)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(Color.trinityPrimary.opacity(0.12))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    Button { closeHomeChat() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(Color.labelTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, Spacing.md)
+                .padding(.bottom, Spacing.sm)
+
+                // Conversation — grows as it fills, capped so it stays inline.
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: Spacing.sm) {
+                            ForEach(homeChatLog) { msg in
+                                HStack {
+                                    if msg.isUser { Spacer(minLength: 40) }
+                                    Text(msg.text)
+                                        .font(.mtrxCallout)
+                                        .foregroundStyle(msg.isUser ? .white : Color.labelPrimary)
+                                        .padding(.horizontal, Spacing.md)
+                                        .padding(.vertical, Spacing.sm)
+                                        .background(msg.isUser ? Color.trinityPrimary : Color.surfaceOverlay)
+                                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                        .textSelection(.enabled)
+                                    if !msg.isUser { Spacer(minLength: 40) }
+                                }
+                                .id(msg.id)
+                            }
+                        }
+                        .padding(.horizontal, Spacing.md)
+                        .padding(.bottom, Spacing.sm)
+                    }
+                    .frame(maxHeight: 300)
+                    .onChange(of: homeChatLog.count) {
+                        if let last = homeChatLog.last {
+                            withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(last.id, anchor: .bottom) }
+                        }
+                    }
+                }
+
+                // Input — grows with the message, sends inline.
+                HStack(alignment: .bottom, spacing: Spacing.sm) {
+                    TextField("Message Trinity…", text: $askText, axis: .vertical)
+                        .lineLimit(1...5)
+                        .font(.mtrxCallout)
+                        .foregroundStyle(Color.labelPrimary)
+                        .focused($homeChatFocused)
+                        .padding(.horizontal, Spacing.md)
+                        .padding(.vertical, Spacing.sm)
+                        .background(Color.surfaceOverlay)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+
+                    Button { runHomeAsk() } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background(askText.trimmingCharacters(in: .whitespaces).isEmpty ? Color.labelQuaternary : Color.trinityPrimary)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(askText.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .padding(.horizontal, Spacing.md)
+                .padding(.bottom, Spacing.md)
+            }
+            .background(.ultraThinMaterial)
+            .background(Color.backgroundPrimary.opacity(0.6))
+            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .stroke(LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.04)], startPoint: .top, endPoint: .bottom), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.bottom, Spacing.md)
+            .offset(y: max(0, homeChatDrag))
+            .gesture(
+                DragGesture()
+                    .onChanged { v in if v.translation.height > 0 { homeChatDrag = v.translation.height } }
+                    .onEnded { v in
+                        if v.translation.height > 90 { closeHomeChat() }
+                        else { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { homeChatDrag = 0 } }
+                    }
+            )
+        }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
 
@@ -1504,6 +1715,14 @@ struct MoneyMoveForm: View {
 }
 
 // MARK: - Tab Switching
+
+// MARK: - Inline Home Chat Message
+
+struct HomeChatMsg: Identifiable {
+    let id = UUID()
+    let isUser: Bool
+    let text: String
+}
 
 // MARK: - Quick Action Drag-to-Reorder
 
