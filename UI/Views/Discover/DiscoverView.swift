@@ -519,7 +519,9 @@ struct DiscoverView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 184)
+                // Tall enough that the whole rounded card shows — no crop line
+                // at the bottom edge — with room before "Explore DeFi".
+                .frame(height: 208)
                 // Page dots now ride inside the card at its bottom edge, so
                 // there's no separate dots row eating space beneath it.
                 .overlay(alignment: .bottom) {

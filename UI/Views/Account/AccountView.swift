@@ -88,11 +88,12 @@ struct AccountView: View {
                     VStack(spacing: Spacing.lg) {
                         profileCard
                         portfolioSummary
-                        // The workspace grid stretches to fill the gap, so the
-                        // tiles meet Sign Out with no dead space between them.
                         workspaceSection
-                            .frame(maxHeight: .infinity)
+                        // Float Sign Out in the open space, centered evenly
+                        // between the workspace tiles and the floating dock.
+                        Spacer(minLength: Spacing.lg)
                         signOutButton
+                        Spacer(minLength: Spacing.lg)
                     }
                     .padding(.horizontal, Spacing.contentPadding)
                     .padding(.top, Spacing.md)

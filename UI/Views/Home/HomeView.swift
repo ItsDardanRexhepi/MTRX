@@ -496,9 +496,9 @@ struct HomeView: View {
     /// the bar's own design. Trinity answers here with her full capabilities.
     private var homeChatPanel: some View {
         VStack(spacing: 0) {
-            // Tucks right under the search bar so it reads as the bar itself
-            // unfurling into the chat — one continuous surface, no gap.
-            Color.clear.frame(height: 118)
+            // Starts right at the search bar and unfurls downward, so the chat
+            // reads as the bar expanding — not a separate window below it.
+            Color.clear.frame(height: 58)
 
             VStack(spacing: Spacing.sm) {
                 // Drag handle, so it reads as one continuous surface.

@@ -628,6 +628,15 @@ struct SocialView: View {
                     showFeedback("Link copied")
                     postActionTarget = nil
                 }
+                // Only your own posts can be deleted from the feed.
+                if let target = postActionTarget,
+                   target.handle == socialIdentity.handle(displayName: appState.displayName) {
+                    Button("Delete post", role: .destructive) {
+                        viewModel.posts.removeAll { $0.id == target.id }
+                        showFeedback("Post deleted")
+                        postActionTarget = nil
+                    }
+                }
                 Button("Cancel", role: .cancel) {
                     postActionTarget = nil
                 }
@@ -665,7 +674,18 @@ struct SocialView: View {
     }
 
     private var sideMenuWidth: CGFloat {
-        UIScreen.main.bounds.width * 0.80
+        UIScreen.main.bounds.width * 0.85
+    }
+
+    /// Soft rounded surface behind a menu group, so the rows read as a
+    /// cohesive card instead of bare lines.
+    private var sideMenuGroupBackground: some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(Color.white.opacity(0.04))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+            )
     }
 
     private func closeSideMenu() {
@@ -743,36 +763,38 @@ struct SocialView: View {
             .padding(.horizontal, Spacing.contentPadding)
             .padding(.bottom, Spacing.lg)
 
-            // Options — Profile, Trinity, History, then a divider, then
-            // Settings and privacy and Help Center.
-            VStack(alignment: .leading, spacing: 0) {
-                sideMenuRow(icon: "person", title: "Profile") {
-                    closeSideMenu(); showProfile = true
+            // Options grouped into two soft cards — so the menu reads as
+            // tidy sections, not a loose stack of lines.
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                VStack(spacing: 0) {
+                    sideMenuRow(icon: "person", title: "Profile") {
+                        closeSideMenu(); showProfile = true
+                    }
+                    sideMenuRow(icon: "sparkles", title: "Trinity", orb: true) {
+                        closeSideMenu(); showTrinityChat = true
+                    }
+                    sideMenuRow(icon: "clock.arrow.circlepath", title: "History") {
+                        closeSideMenu(); showHistory = true
+                    }
                 }
-                sideMenuRow(icon: "sparkles", title: "Trinity", orb: true) {
-                    closeSideMenu(); showTrinityChat = true
-                }
-                sideMenuRow(icon: "clock.arrow.circlepath", title: "History") {
-                    closeSideMenu(); showHistory = true
-                }
+                .background(sideMenuGroupBackground)
 
-                MtrxDivider()
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.vertical, 10)
-
-                sideMenuRow(icon: "gearshape", title: "Settings and privacy") {
-                    closeSideMenu(); showSocialSettings = true
+                VStack(spacing: 0) {
+                    sideMenuRow(icon: "gearshape", title: "Settings and privacy") {
+                        closeSideMenu(); showSocialSettings = true
+                    }
+                    sideMenuRow(icon: "questionmark.circle", title: "Help Center") {
+                        closeSideMenu(); showHelp = true
+                    }
                 }
-                sideMenuRow(icon: "questionmark.circle", title: "Help Center") {
-                    closeSideMenu(); showHelp = true
-                }
+                .background(sideMenuGroupBackground)
             }
-            .padding(.horizontal, Spacing.sm)
+            .padding(.horizontal, Spacing.contentPadding)
 
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.top, 14)
+        .padding(.top, 6)
         .background {
             ZStack(alignment: .top) {
                 MtrxGradientBackground(style: .primary)
@@ -904,7 +926,7 @@ struct SocialView: View {
                 // Same 36×36 footprint as the avatar so it mirrors it exactly
                 // across the wordmark.
                 Image(systemName: "gearshape")
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(Color.labelSecondary)
                     .frame(width: 36, height: 36)
             }
