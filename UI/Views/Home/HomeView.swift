@@ -551,9 +551,6 @@ struct HomeView: View {
                             Text("Trinity")
                                 .font(.mtrxCalloutBold)
                                 .foregroundStyle(Color.labelPrimary)
-                            Image(systemName: "arrow.up.forward")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(Color.trinityPrimary)
                         }
                         .contentShape(Rectangle())
                     }
@@ -630,6 +627,20 @@ struct HomeView: View {
                     // — so it never overruns the keyboard.
                     .frame(maxHeight: .infinity)
                     .defaultScrollAnchor(.bottom)
+                    // A centered greeting fills the empty chat until the user
+                    // starts typing — the same prompt every time it opens.
+                    .overlay {
+                        if homeChatVM.messages.isEmpty && homeChatInput.isEmpty {
+                            Text("What're we building?")
+                                .font(.system(size: 22, weight: .semibold, design: .rounded))
+                                .foregroundStyle(Color.labelSecondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, Spacing.lg)
+                                .transition(.opacity)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.2), value: homeChatInput.isEmpty)
                     .onChange(of: homeChatVM.messages.count) {
                         if let last = homeChatVM.messages.last {
                             withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(last.id, anchor: .bottom) }
