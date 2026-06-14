@@ -677,6 +677,7 @@ struct SocialView: View {
     @State private var commentingOnPost: SocialPostDisplay? = nil
     @State private var postActionTarget: SocialPostDisplay? = nil
     @State private var detailPost: SocialPostDisplay? = nil
+    @State private var profileAuthor: SocialPostDisplay? = nil
     @State private var actionFeedback: String? = nil
 
     var body: some View {
@@ -836,6 +837,9 @@ struct SocialView: View {
             }
             .sheet(item: $detailPost) { post in
                 PostDetailSheet(postID: post.id)
+            }
+            .sheet(item: $profileAuthor) { post in
+                UserProfileSheet(author: post)
             }
             .confirmationDialog(
                 "Post options",
@@ -1155,11 +1159,6 @@ struct SocialView: View {
             Menu {
                 Button {
                     MtrxHaptics.impact(.light)
-                    showNotifications = true
-                } label: { Label("Notifications", systemImage: "bell") }
-
-                Button {
-                    MtrxHaptics.impact(.light)
                     if currentTier >= .pro { showThemePicker = true } else { showUpsell = true }
                 } label: {
                     Label(currentTier >= .pro ? "Theme color" : "Theme color (Pro)",
@@ -1170,17 +1169,10 @@ struct SocialView: View {
                     MtrxHaptics.impact(.light)
                     showAIFeatures = true
                 } label: { Label("AI features", systemImage: "sparkles") }
-
-                Divider()
-
-                Button {
-                    MtrxHaptics.impact(.light)
-                    showSocialSettings = true
-                } label: { Label("Settings", systemImage: "gearshape") }
             } label: {
-                // Same 36×36 footprint as the avatar so it mirrors it exactly
-                // across the wordmark.
-                Image(systemName: "gearshape")
+                // The AI-stars glyph opens the menu — same 36×36 footprint as
+                // the avatar so it mirrors it across the wordmark.
+                Image(systemName: "sparkles")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(Color.labelSecondary)
                     .frame(width: 36, height: 36)
@@ -1614,7 +1606,8 @@ struct SocialView: View {
                             onMenu: { postActionTarget = post },
                             onComment: { commentingOnPost = post },
                             onVotePoll: { optionID in viewModel.voteOnPoll(postId: post.id, optionID: optionID) },
-                            onOpen: { detailPost = post }
+                            onOpen: { detailPost = post },
+                            onAvatarTap: { profileAuthor = post }
                         )
                         .id(post.id)
                         .mtrxStaggeredAppearance(index: index, isVisible: appeared)
@@ -1814,6 +1807,7 @@ struct PostCardView: View {
     var onComment: () -> Void = {}
     var onVotePoll: (String) -> Void = { _ in }
     var onOpen: () -> Void = {}
+    var onAvatarTap: () -> Void = {}
 
     @State private var isExpanded = false
     @ObservedObject private var bookmarks = SocialBookmarkStore.shared
@@ -1842,13 +1836,20 @@ struct PostCardView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.ms) {
-            if isOwnPost, let photo = identity.avatarImage {
-                Image(uiImage: photo).resizable().scaledToFill()
-                    .frame(width: 40, height: 40)
-                    .clipShape(Circle())
-            } else {
-                MtrxAvatar(text: post.avatarInitials, color: post.avatarColor, size: 40)
+            // Tap the avatar to jump to that account's profile.
+            Button {
+                MtrxHaptics.impact(.light)
+                onAvatarTap()
+            } label: {
+                if isOwnPost, let photo = identity.avatarImage {
+                    Image(uiImage: photo).resizable().scaledToFill()
+                        .frame(width: 40, height: 40)
+                        .clipShape(Circle())
+                } else {
+                    MtrxAvatar(text: post.avatarInitials, color: post.avatarColor, size: 40)
+                }
             }
+            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 7) {
                 headerLine
@@ -2744,6 +2745,143 @@ struct PostDetailSheet: View {
                     Button("Done") { dismiss() }.foregroundStyle(Color.accentPrimary)
                 }
             }
+        }
+    }
+}
+
+// MARK: - User Profile (tap an avatar in the feed)
+
+/// Another account's profile, opened by tapping their avatar in the feed:
+/// header, follow, mute/block, and their posts.
+struct UserProfileSheet: View {
+    let author: SocialPostDisplay
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var viewModel = SocialViewModel.shared
+    @ObservedObject private var moderation = SocialModerationStore.shared
+    @State private var following = false
+    @State private var detailPost: SocialPostDisplay?
+
+    private var authorPosts: [SocialPostDisplay] {
+        viewModel.posts.filter { $0.handle == author.handle }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    // A soft accent header band behind the avatar.
+                    LinearGradient(
+                        colors: [author.avatarColor.opacity(0.5), author.avatarColor.opacity(0.12), .clear],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    .frame(height: 96)
+                    .frame(maxWidth: .infinity)
+
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        HStack(alignment: .bottom) {
+                            MtrxAvatar(text: author.avatarInitials, color: author.avatarColor, size: 76)
+                                .overlay(Circle().stroke(Color.backgroundPrimary, lineWidth: 4))
+                                .offset(y: -34)
+                                .padding(.bottom, -34)
+                            Spacer()
+                            Button {
+                                following.toggle(); MtrxHaptics.impact(.light)
+                            } label: {
+                                Text(following ? "Following" : "Follow")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(following ? Color.labelPrimary : .white)
+                                    .padding(.horizontal, 20).padding(.vertical, 8)
+                                    .background(following ? Color.clear : Color.accentPrimary)
+                                    .overlay(Capsule().stroke(following ? Color.labelTertiary.opacity(0.5) : Color.clear, lineWidth: 1))
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        HStack(spacing: 5) {
+                            Text(author.displayName)
+                                .font(.system(size: 21, weight: .heavy))
+                                .foregroundStyle(Color.labelPrimary)
+                            if author.isVerified {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(Color.accentPrimary)
+                            }
+                        }
+                        Text(author.handle)
+                            .font(.system(size: 15))
+                            .foregroundStyle(Color.labelTertiary)
+                        Text("Building on MTRX — on-chain since day one.")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Color.labelPrimary)
+                            .padding(.top, 2)
+                        HStack(spacing: Spacing.md) {
+                            countLabel("348", "Following")
+                            countLabel("1,284", "Followers")
+                        }
+                        .padding(.top, 2)
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+
+                    Text("Posts")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Color.labelPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, Spacing.lg)
+                        .padding(.bottom, Spacing.sm)
+                        .overlay(alignment: .bottom) { MtrxDivider() }
+
+                    if authorPosts.isEmpty {
+                        Text("No posts yet")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 40)
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(authorPosts) { post in
+                                PostCardView(
+                                    post: post,
+                                    onLike: { viewModel.toggleLike(postId: post.id) },
+                                    onRepost: { viewModel.toggleRepost(postId: post.id) },
+                                    onVotePoll: { viewModel.voteOnPoll(postId: post.id, optionID: $0) },
+                                    onOpen: { detailPost = post }
+                                )
+                                MtrxDivider()
+                            }
+                        }
+                    }
+                }
+                .padding(.bottom, Spacing.xl)
+            }
+            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") { dismiss() }.foregroundStyle(Color.accentPrimary)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(moderation.isMuted(author.handle) ? "Unmute \(author.handle)" : "Mute \(author.handle)") {
+                            moderation.toggleMute(author.handle)
+                        }
+                        Button(moderation.isBlocked(author.handle) ? "Unblock \(author.handle)" : "Block \(author.handle)",
+                               role: .destructive) {
+                            moderation.toggleBlock(author.handle)
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis").foregroundStyle(Color.accentPrimary)
+                    }
+                }
+            }
+            .sheet(item: $detailPost) { p in PostDetailSheet(postID: p.id) }
+        }
+    }
+
+    private func countLabel(_ n: String, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(n).font(.system(size: 14, weight: .bold)).foregroundStyle(Color.labelPrimary)
+            Text(label).font(.system(size: 14)).foregroundStyle(Color.labelTertiary)
         }
     }
 }
