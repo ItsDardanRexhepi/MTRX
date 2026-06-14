@@ -82,6 +82,56 @@ struct SocialPostDisplay: Identifiable {
     var linkURL: String? = nil
     /// Set when this post was brought over from another platform.
     var importedFrom: String? = nil
+    /// An attached poll (Twitter-style) — voters and results.
+    var poll: SocialPoll? = nil
+    /// A quoted post this one wraps with commentary.
+    var quoted: QuotedPost? = nil
+}
+
+// MARK: - Poll & Quote Models
+
+struct PollOption: Identifiable, Equatable {
+    let id: String
+    let text: String
+    var votes: Int
+}
+
+struct SocialPoll: Equatable {
+    var options: [PollOption]
+    /// nil until the user casts their vote.
+    var votedOptionID: String?
+    let endsAt: Date
+
+    var totalVotes: Int { options.reduce(0) { $0 + $1.votes } }
+    var hasVoted: Bool { votedOptionID != nil }
+    var isClosed: Bool { Date() >= endsAt }
+    var showsResults: Bool { hasVoted || isClosed }
+
+    func fraction(_ option: PollOption) -> Double {
+        totalVotes > 0 ? Double(option.votes) / Double(totalVotes) : 0
+    }
+
+    var statusText: String {
+        let votes = "\(totalVotes) vote\(totalVotes == 1 ? "" : "s")"
+        if isClosed { return "\(votes) · Final results" }
+        let secs = endsAt.timeIntervalSinceNow
+        let left: String
+        if secs > 86_400 { left = "\(Int(secs / 86_400))d left" }
+        else if secs > 3_600 { left = "\(Int(secs / 3_600))h left" }
+        else { left = "\(max(1, Int(secs / 60)))m left" }
+        return "\(votes) · \(left)"
+    }
+}
+
+/// A lightweight snapshot of a post being quoted (avoids recursion).
+struct QuotedPost {
+    let id: String
+    let displayName: String
+    let handle: String
+    let avatarInitials: String
+    let avatarColor: Color
+    let body: String
+    let isVerified: Bool
 }
 
 // MARK: - Bookmark Store
@@ -113,6 +163,99 @@ final class SocialDrawerController: ObservableObject {
     static let shared = SocialDrawerController()
     @Published var isOpen = false
     private init() {}
+}
+
+// MARK: - Moderation Store (mute / block)
+
+/// Persisted mute and block lists. Muted and blocked authors are kept out
+/// of your feed; both are manageable from Settings & privacy.
+final class SocialModerationStore: ObservableObject {
+    static let shared = SocialModerationStore()
+    @Published private(set) var muted: Set<String>
+    @Published private(set) var blocked: Set<String>
+    private let mKey = "com.mtrx.social.muted"
+    private let bKey = "com.mtrx.social.blocked"
+
+    private init() {
+        muted = Set(UserDefaults.standard.stringArray(forKey: mKey) ?? [])
+        blocked = Set(UserDefaults.standard.stringArray(forKey: bKey) ?? [])
+    }
+
+    func isMuted(_ handle: String) -> Bool { muted.contains(handle) }
+    func isBlocked(_ handle: String) -> Bool { blocked.contains(handle) }
+    func isHidden(_ handle: String) -> Bool { muted.contains(handle) || blocked.contains(handle) }
+
+    func toggleMute(_ handle: String) {
+        if muted.contains(handle) { muted.remove(handle) } else { muted.insert(handle) }
+        persist()
+    }
+    func toggleBlock(_ handle: String) {
+        if blocked.contains(handle) { blocked.remove(handle) } else { blocked.insert(handle) }
+        persist()
+    }
+    func unmute(_ handle: String) { muted.remove(handle); persist() }
+    func unblock(_ handle: String) { blocked.remove(handle); persist() }
+
+    private func persist() {
+        UserDefaults.standard.set(Array(muted), forKey: mKey)
+        UserDefaults.standard.set(Array(blocked), forKey: bKey)
+    }
+}
+
+// MARK: - Lists Store
+
+struct SocialList: Identifiable, Codable {
+    let id: String
+    var name: String
+    var memberHandles: [String]
+}
+
+/// Persisted user-curated Lists of accounts (Twitter-style).
+final class SocialListStore: ObservableObject {
+    static let shared = SocialListStore()
+    @Published private(set) var lists: [SocialList]
+    private let key = "com.mtrx.social.lists"
+
+    private init() {
+        if let data = UserDefaults.standard.data(forKey: key),
+           let decoded = try? JSONDecoder().decode([SocialList].self, from: data) {
+            lists = decoded
+        } else {
+            lists = []
+        }
+    }
+
+    func addList(name: String) {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        lists.append(SocialList(id: UUID().uuidString, name: clean, memberHandles: []))
+        persist()
+    }
+
+    func deleteList(_ id: String) {
+        lists.removeAll { $0.id == id }
+        persist()
+    }
+
+    func contains(_ handle: String, in listID: String) -> Bool {
+        lists.first(where: { $0.id == listID })?.memberHandles.contains(handle) ?? false
+    }
+
+    func toggleMember(_ handle: String, in listID: String) {
+        guard let i = lists.firstIndex(where: { $0.id == listID }) else { return }
+        if lists[i].memberHandles.contains(handle) {
+            lists[i].memberHandles.removeAll { $0 == handle }
+        } else {
+            lists[i].memberHandles.append(handle)
+        }
+        persist()
+    }
+
+    private func persist() {
+        if let data = try? JSONEncoder().encode(lists) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
 }
 
 // MARK: - Governance Proposal Model
@@ -179,6 +322,11 @@ final class SocialViewModel: ObservableObject {
     @Published var composerImageData: Data?
     @Published var composerVideoFileName: String?
     @Published var composerLink = ""
+    /// Poll composer state.
+    @Published var composerPollEnabled = false
+    @Published var composerPollOptions: [String] = ["", ""]
+    /// The post being quoted, when the composer is opened in quote mode.
+    @Published var quoting: QuotedPost?
     @Published var showPastProposals = false
     @Published var delegationPower: String = "12,450 MTRX"
     @Published var delegatedTo: String = "Self"
@@ -300,12 +448,54 @@ final class SocialViewModel: ObservableObject {
         MtrxHaptics.success()
     }
 
+    /// Cast a vote on a post's poll (one vote, locked in).
+    func voteOnPoll(postId: String, optionID: String) {
+        guard let idx = posts.firstIndex(where: { $0.id == postId }),
+              var poll = posts[idx].poll,
+              !poll.hasVoted, !poll.isClosed,
+              let oi = poll.options.firstIndex(where: { $0.id == optionID }) else { return }
+        poll.options[oi].votes += 1
+        poll.votedOptionID = optionID
+        posts[idx].poll = poll
+        MtrxHaptics.success()
+    }
+
+    /// Open the composer to quote an existing post.
+    func quotePost(_ post: SocialPostDisplay) {
+        quoting = QuotedPost(
+            id: post.id,
+            displayName: post.displayName,
+            handle: post.handle,
+            avatarInitials: post.avatarInitials,
+            avatarColor: post.avatarColor,
+            body: post.body,
+            isVerified: post.isVerified
+        )
+        isComposerPresented = true
+    }
+
     /// Publish the composer text — and any attached photo, video, or
     /// link — as a new post at the top of the feed.
     func publishPost(displayName rawName: String) {
         let displayName = rawName.isEmpty ? "You" : rawName
         let body = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasAttachment = composerImageData != nil || composerVideoFileName != nil
+
+        // Build a poll from the composer if it has at least two real options.
+        var builtPoll: SocialPoll? = nil
+        if composerPollEnabled {
+            let opts = composerPollOptions
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if opts.count >= 2 {
+                builtPoll = SocialPoll(
+                    options: opts.map { PollOption(id: UUID().uuidString, text: $0, votes: 0) },
+                    votedOptionID: nil,
+                    endsAt: Date().addingTimeInterval(86_400)   // 1-day poll
+                )
+            }
+        }
+
+        let hasAttachment = composerImageData != nil || composerVideoFileName != nil || builtPoll != nil || quoting != nil
         guard !body.isEmpty || hasAttachment else { return }
 
         let initials = displayName
@@ -341,7 +531,9 @@ final class SocialViewModel: ObservableObject {
             isReposted: false,
             imageData: composerImageData,
             videoFileName: composerVideoFileName,
-            linkURL: normalizedLink
+            linkURL: normalizedLink,
+            poll: builtPoll,
+            quoted: quoting
         ), at: 0)
 
         composerText = ""
@@ -349,6 +541,9 @@ final class SocialViewModel: ObservableObject {
         composerImageData = nil
         composerVideoFileName = nil
         composerLink = ""
+        composerPollEnabled = false
+        composerPollOptions = ["", ""]
+        quoting = nil
         isComposerPresented = false
         MtrxHaptics.success()
     }
@@ -394,6 +589,10 @@ final class SocialViewModel: ObservableObject {
             SocialPostDisplay(id: "p1", displayName: "Elena Vasquez", handle: "@elena.eth", avatarInitials: "EV", avatarColor: .accentPrimary, timestamp: now.addingTimeInterval(-7200), body: "Just deployed our new escrow contract on Base. Fully audited, open-source, and gas-optimized. The future of trustless agreements is here.", isVerified: true, hasOnChainProof: true, proofHash: "0xa1b2c3...d4e5", governanceTag: nil, likeCount: 142, repostCount: 38, commentCount: 24, isLiked: false, isReposted: false),
 
             SocialPostDisplay(id: "p2", displayName: "Ravi Patel", handle: "@ravi_dao", avatarInitials: "RP", avatarColor: .statusInfo, timestamp: now.addingTimeInterval(-3600), body: "Governance Proposal #47 is live. We are voting on allocating 50,000 MTRX from the treasury toward developer grants. This could accelerate ecosystem growth significantly. Cast your vote before Friday.", isVerified: true, hasOnChainProof: false, proofHash: nil, governanceTag: "Proposal #47", likeCount: 89, repostCount: 52, commentCount: 31, isLiked: true, isReposted: false),
+
+            SocialPostDisplay(id: "p_poll", displayName: "MTRX Foundation", handle: "@mtrx_official", avatarInitials: "MF", avatarColor: .accentPrimary, timestamp: now.addingTimeInterval(-1800), body: "Which feature should we prioritize next quarter? Your vote shapes the roadmap.", isVerified: true, hasOnChainProof: false, proofHash: nil, governanceTag: nil, likeCount: 64, repostCount: 12, commentCount: 30, isLiked: false, isReposted: false, poll: SocialPoll(options: [PollOption(id: "o1", text: "Cross-chain bridges", votes: 412), PollOption(id: "o2", text: "Mobile SDK", votes: 287), PollOption(id: "o3", text: "Fiat on-ramp", votes: 198)], votedOptionID: nil, endsAt: now.addingTimeInterval(43200))),
+
+            SocialPostDisplay(id: "p_quote", displayName: "DeFi Builder", handle: "@defi_build3r", avatarInitials: "DB", avatarColor: .statusSuccess, timestamp: now.addingTimeInterval(-2400), body: "This is exactly the trustless infra we needed. Audited + open-source is the standard now. 🔥", isVerified: false, hasOnChainProof: false, proofHash: nil, governanceTag: nil, likeCount: 51, repostCount: 9, commentCount: 7, isLiked: false, isReposted: false, quoted: QuotedPost(id: "p1", displayName: "Elena Vasquez", handle: "@elena.eth", avatarInitials: "EV", avatarColor: .accentPrimary, body: "Just deployed our new escrow contract on Base. Fully audited, open-source, and gas-optimized. The future of trustless agreements is here.", isVerified: true)),
 
             SocialPostDisplay(id: "p3", displayName: "Sofia Nakamura", handle: "@sofia.base", avatarInitials: "SN", avatarColor: .accentTertiary, timestamp: now.addingTimeInterval(-10800), body: "Staked 25,000 MTRX in the new 90-day vault. APY looking solid at 8.7%. Who else is locking in?", isVerified: true, hasOnChainProof: true, proofHash: "0xf6g7h8...i9j0", governanceTag: nil, likeCount: 67, repostCount: 15, commentCount: 12, isLiked: false, isReposted: true),
 
@@ -451,8 +650,15 @@ struct SocialView: View {
     @State private var showTrinityChat = false
     @State private var showHistory = false
     @State private var showHelp = false
+    @State private var showLists = false
+    @ObservedObject private var moderation = SocialModerationStore.shared
     /// A post the Home carousel asked us to scroll to.
     @State private var pendingOpenPostID: String?
+
+    /// The feed with muted and blocked authors removed.
+    private var feedPosts: [SocialPostDisplay] {
+        viewModel.filteredPosts.filter { !moderation.isHidden($0.handle) }
+    }
     @AppStorage("com.mtrx.subscriptionTier") private var tierRaw: String = SubscriptionTier.free.rawValue
     private var currentTier: SubscriptionTier { SubscriptionTier(rawValue: tierRaw) ?? .free }
     @Namespace private var tabUnderlineNS
@@ -635,32 +841,45 @@ struct SocialView: View {
                 ),
                 titleVisibility: .hidden
             ) {
-                Button("Report post", role: .destructive) {
-                    showFeedback("Post reported")
-                    postActionTarget = nil
-                }
-                Button("Hide from feed") {
-                    showFeedback("Post hidden")
-                    postActionTarget = nil
-                }
-                Button("Block user", role: .destructive) {
-                    showFeedback("User blocked")
-                    postActionTarget = nil
-                }
-                Button("Copy link") {
-                    if let post = postActionTarget {
-                        UIPasteboard.general.string = "https://openmatrix-ai.com/p/\(post.id)"
-                    }
-                    showFeedback("Link copied")
-                    postActionTarget = nil
-                }
-                // Only your own posts can be deleted from the feed.
-                if let target = postActionTarget,
-                   target.handle == socialIdentity.handle(displayName: appState.displayName) {
-                    Button("Delete post", role: .destructive) {
-                        viewModel.posts.removeAll { $0.id == target.id }
-                        showFeedback("Post deleted")
+                if let target = postActionTarget {
+                    let isMine = target.handle == socialIdentity.handle(displayName: appState.displayName)
+
+                    Button("Quote post") {
+                        let post = target
                         postActionTarget = nil
+                        viewModel.quotePost(post)
+                    }
+
+                    if !isMine {
+                        Button(moderation.isMuted(target.handle) ? "Unmute \(target.handle)" : "Mute \(target.handle)") {
+                            moderation.toggleMute(target.handle)
+                            showFeedback(moderation.isMuted(target.handle) ? "Muted \(target.handle)" : "Unmuted \(target.handle)")
+                            postActionTarget = nil
+                        }
+                        Button(moderation.isBlocked(target.handle) ? "Unblock \(target.handle)" : "Block \(target.handle)",
+                               role: .destructive) {
+                            moderation.toggleBlock(target.handle)
+                            showFeedback(moderation.isBlocked(target.handle) ? "Blocked \(target.handle)" : "Unblocked \(target.handle)")
+                            postActionTarget = nil
+                        }
+                        Button("Report post", role: .destructive) {
+                            showFeedback("Post reported")
+                            postActionTarget = nil
+                        }
+                    }
+
+                    Button("Copy link") {
+                        UIPasteboard.general.string = "https://openmatrix-ai.com/p/\(target.id)"
+                        showFeedback("Link copied")
+                        postActionTarget = nil
+                    }
+
+                    if isMine {
+                        Button("Delete post", role: .destructive) {
+                            viewModel.posts.removeAll { $0.id == target.id }
+                            showFeedback("Post deleted")
+                            postActionTarget = nil
+                        }
                     }
                 }
                 Button("Cancel", role: .cancel) {
@@ -696,6 +915,9 @@ struct SocialView: View {
         }
         .sheet(isPresented: $showHelp) {
             HelpSupportSheet()
+        }
+        .sheet(isPresented: $showLists) {
+            SocialListsSheet()
         }
     }
 
@@ -801,6 +1023,9 @@ struct SocialView: View {
                     }
                     sideMenuRow(icon: "clock.arrow.circlepath", title: "History") {
                         closeSideMenu(); showHistory = true
+                    }
+                    sideMenuRow(icon: "list.bullet.rectangle", title: "Lists") {
+                        closeSideMenu(); showLists = true
                     }
                 }
                 .background(sideMenuGroupBackground)
@@ -1092,6 +1317,9 @@ struct SocialView: View {
             HStack {
                 Button {
                     viewModel.composerText = ""
+                    viewModel.composerPollEnabled = false
+                    viewModel.composerPollOptions = ["", ""]
+                    viewModel.quoting = nil
                     viewModel.isComposerPresented = false
                 } label: {
                     Text("Cancel")
@@ -1101,7 +1329,7 @@ struct SocialView: View {
 
                 Spacer()
 
-                Text("New post")
+                Text(viewModel.quoting != nil ? "Quote" : "New post")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(Color.labelPrimary)
 
@@ -1150,7 +1378,7 @@ struct SocialView: View {
                                 .foregroundStyle(Color.labelPrimary)
 
                             if viewModel.composerText.isEmpty {
-                                Text("What's happening?")
+                                Text(viewModel.quoting != nil ? "Add a comment" : "What's happening?")
                                     .font(.system(size: 18))
                                     .foregroundStyle(Color.labelTertiary)
                                     .padding(.top, 8)
@@ -1158,6 +1386,75 @@ struct SocialView: View {
                                     .allowsHitTesting(false)
                             }
                         }
+                    }
+
+                    // Quoted post preview.
+                    if let q = viewModel.quoting {
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack(spacing: 6) {
+                                MtrxAvatar(text: q.avatarInitials, color: q.avatarColor, size: 20)
+                                Text(q.displayName).font(.system(size: 13, weight: .bold)).foregroundStyle(Color.labelPrimary)
+                                Text(q.handle).font(.system(size: 13)).foregroundStyle(Color.labelTertiary).lineLimit(1)
+                                Spacer()
+                                Button { viewModel.quoting = nil } label: {
+                                    Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelTertiary)
+                                }
+                            }
+                            Text(q.body).font(.system(size: 14)).foregroundStyle(Color.labelSecondary).lineLimit(3)
+                        }
+                        .padding(Spacing.sm)
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.12), lineWidth: 1))
+                    }
+
+                    // Poll editor.
+                    if viewModel.composerPollEnabled {
+                        VStack(spacing: Spacing.sm) {
+                            ForEach(viewModel.composerPollOptions.indices, id: \.self) { i in
+                                HStack(spacing: Spacing.sm) {
+                                    TextField("Choice \(i + 1)", text: Binding(
+                                        get: { viewModel.composerPollOptions[i] },
+                                        set: { viewModel.composerPollOptions[i] = $0 }
+                                    ))
+                                    .font(.system(size: 15))
+                                    .padding(Spacing.ms)
+                                    .background(Color.surfaceCard.opacity(0.6))
+                                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                                    if viewModel.composerPollOptions.count > 2 {
+                                        Button { viewModel.composerPollOptions.remove(at: i) } label: {
+                                            Image(systemName: "minus.circle.fill").foregroundStyle(Color.labelTertiary)
+                                        }
+                                    }
+                                }
+                            }
+                            HStack {
+                                if viewModel.composerPollOptions.count < 4 {
+                                    Button {
+                                        viewModel.composerPollOptions.append("")
+                                    } label: {
+                                        Label("Add choice", systemImage: "plus.circle")
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(Color.accentPrimary)
+                                    }
+                                }
+                                Spacer()
+                                Button {
+                                    viewModel.composerPollEnabled = false
+                                    viewModel.composerPollOptions = ["", ""]
+                                } label: {
+                                    Text("Remove poll")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Color.statusError)
+                                }
+                            }
+                            Text("Poll runs for 1 day")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.labelTertiary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(Spacing.sm)
+                        .background(Color.white.opacity(0.03))
+                        .overlay(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
                     }
 
                     // Attachment previews
@@ -1230,6 +1527,19 @@ struct SocialView: View {
                     composerToolIcon(viewModel.attachProof ? "checkmark.seal.fill" : "checkmark.seal",
                                      tint: viewModel.attachProof ? Color.statusSuccess : Color.accentPrimary)
                 }
+                // Poll
+                Button {
+                    MtrxHaptics.impact(.light)
+                    withAnimation(Motion.springSnappy) {
+                        viewModel.composerPollEnabled.toggle()
+                        if viewModel.composerPollEnabled && viewModel.composerPollOptions.isEmpty {
+                            viewModel.composerPollOptions = ["", ""]
+                        }
+                    }
+                } label: {
+                    composerToolIcon("chart.bar.xaxis",
+                                     tint: viewModel.composerPollEnabled ? Color.statusSuccess : Color.accentPrimary)
+                }
 
                 Spacer()
 
@@ -1287,18 +1597,19 @@ struct SocialView: View {
                     StoriesRail()
                     filterChips
 
-                    ForEach(Array(viewModel.filteredPosts.enumerated()), id: \.element.id) { index, post in
+                    ForEach(Array(feedPosts.enumerated()), id: \.element.id) { index, post in
                         PostCardView(
                             post: post,
                             onLike: { viewModel.toggleLike(postId: post.id) },
                             onRepost: { viewModel.toggleRepost(postId: post.id) },
                             onMenu: { postActionTarget = post },
-                            onComment: { commentingOnPost = post }
+                            onComment: { commentingOnPost = post },
+                            onVotePoll: { optionID in viewModel.voteOnPoll(postId: post.id, optionID: optionID) }
                         )
                         .id(post.id)
                         .mtrxStaggeredAppearance(index: index, isVisible: appeared)
                         .onAppear {
-                            if post.id == viewModel.filteredPosts.last?.id {
+                            if post.id == feedPosts.last?.id {
                                 viewModel.loadMoreTimeline()
                             }
                         }
@@ -1491,6 +1802,7 @@ struct PostCardView: View {
     var onRepost: () -> Void = {}
     var onMenu: () -> Void = {}
     var onComment: () -> Void = {}
+    var onVotePoll: (String) -> Void = { _ in }
 
     @State private var isExpanded = false
     @ObservedObject private var bookmarks = SocialBookmarkStore.shared
@@ -1548,6 +1860,16 @@ struct PostCardView: View {
                         .frame(maxWidth: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .padding(.top, 2)
+                }
+
+                // A poll attached to the post.
+                if post.poll != nil {
+                    pollView
+                }
+
+                // A quoted post, wrapped in this one.
+                if let quoted = post.quoted {
+                    quotedEmbed(quoted)
                 }
 
                 if post.hasOnChainProof {
@@ -1653,6 +1975,98 @@ struct PostCardView: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    // MARK: Poll
+
+    @ViewBuilder
+    private var pollView: some View {
+        if let poll = post.poll {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(poll.options) { option in
+                    let isWinner = poll.showsResults
+                        && option.votes == (poll.options.map(\.votes).max() ?? 0)
+                        && poll.totalVotes > 0
+                    Button {
+                        onVotePoll(option.id)
+                    } label: {
+                        ZStack(alignment: .leading) {
+                            // Result fill bar.
+                            GeometryReader { geo in
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill((isWinner ? Color.accentPrimary : Color.labelTertiary).opacity(0.22))
+                                    .frame(width: poll.showsResults ? max(28, geo.size.width * poll.fraction(option)) : 0)
+                            }
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+
+                            HStack {
+                                Text(option.text)
+                                    .font(.system(size: 14, weight: poll.votedOptionID == option.id ? .bold : .medium))
+                                    .foregroundStyle(Color.labelPrimary)
+                                if poll.votedOptionID == option.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Color.accentPrimary)
+                                }
+                                Spacer()
+                                if poll.showsResults {
+                                    Text("\(Int((poll.fraction(option) * 100).rounded()))%")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Color.labelSecondary)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                        }
+                        .frame(height: 38)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(poll.showsResults)
+                }
+                Text(poll.statusText)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.labelTertiary)
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    // MARK: Quoted post embed
+
+    private func quotedEmbed(_ quoted: QuotedPost) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                MtrxAvatar(text: quoted.avatarInitials, color: quoted.avatarColor, size: 20)
+                Text(quoted.displayName)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color.labelPrimary)
+                    .lineLimit(1)
+                if quoted.isVerified {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.accentPrimary)
+                }
+                Text(quoted.handle)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.labelTertiary)
+                    .lineLimit(1)
+            }
+            Text(quoted.body)
+                .font(.system(size: 14))
+                .foregroundStyle(Color.labelSecondary)
+                .lineLimit(4)
+                .multilineTextAlignment(.leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Spacing.sm)
+        .background(Color.white.opacity(0.04))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.top, 2)
     }
 
     // MARK: On-chain proof / governance chips
@@ -2304,6 +2718,7 @@ struct AIFeaturesSheet: View {
 /// app. App-wide settings live in Account ▸ Settings.
 struct SocialSettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var moderation = SocialModerationStore.shared
 
     @AppStorage("com.mtrx.social.privateAccount") private var privateAccount = false
     @AppStorage("com.mtrx.social.autoplay") private var autoplayVideos = true
@@ -2342,8 +2757,29 @@ struct SocialSettingsView: View {
                     Toggle(isOn: $readReceipts) {
                         socialLabel("Read receipts", "checkmark.message.fill", .statusSuccess)
                     }.tint(Color.accentPrimary)
-                } header: { Text("Messaging") } footer: {
-                    Text("These settings only affect your Social experience. App-wide settings live in Account ▸ Settings.")
+                } header: { Text("Messaging") }
+
+                Section {
+                    NavigationLink {
+                        ModerationListView(kind: .muted)
+                    } label: {
+                        HStack {
+                            socialLabel("Muted accounts", "speaker.slash.fill", .accentTertiary)
+                            Spacer()
+                            Text("\(moderation.muted.count)").foregroundStyle(Color.labelTertiary)
+                        }
+                    }
+                    NavigationLink {
+                        ModerationListView(kind: .blocked)
+                    } label: {
+                        HStack {
+                            socialLabel("Blocked accounts", "hand.raised.fill", .statusError)
+                            Spacer()
+                            Text("\(moderation.blocked.count)").foregroundStyle(Color.labelTertiary)
+                        }
+                    }
+                } header: { Text("Safety") } footer: {
+                    Text("Muted and blocked accounts are kept out of your feed. These settings only affect your Social experience; app-wide settings live in Account ▸ Settings.")
                 }
             }
             .listStyle(.insetGrouped)
@@ -2370,6 +2806,55 @@ struct SocialSettingsView: View {
                 .background(color.opacity(0.14))
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
+    }
+}
+
+/// Manages either the muted or blocked list — unmute / unblock per account.
+struct ModerationListView: View {
+    enum Kind { case muted, blocked }
+    let kind: Kind
+    @ObservedObject private var moderation = SocialModerationStore.shared
+
+    private var handles: [String] {
+        Array(kind == .muted ? moderation.muted : moderation.blocked).sorted()
+    }
+
+    var body: some View {
+        Group {
+            if handles.isEmpty {
+                VStack(spacing: Spacing.sm) {
+                    Image(systemName: kind == .muted ? "speaker.slash" : "hand.raised")
+                        .font(.system(size: 32, weight: .light))
+                        .foregroundStyle(Color.labelTertiary)
+                    Text(kind == .muted ? "No muted accounts" : "No blocked accounts")
+                        .font(.mtrxHeadline).foregroundStyle(Color.labelPrimary)
+                    Text("Use the ··· menu on any post to \(kind == .muted ? "mute" : "block") its author.")
+                        .font(.mtrxCaption1).foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center).padding(.horizontal, Spacing.xl)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(handles, id: \.self) { handle in
+                        HStack {
+                            Text(handle).font(.mtrxBody).foregroundStyle(Color.labelPrimary)
+                            Spacer()
+                            Button(kind == .muted ? "Unmute" : "Unblock") {
+                                if kind == .muted { moderation.unmute(handle) } else { moderation.unblock(handle) }
+                            }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.accentPrimary)
+                        }
+                        .listRowBackground(Color.surfaceCard.opacity(0.4))
+                    }
+                }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+            }
+        }
+        .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+        .navigationTitle(kind == .muted ? "Muted accounts" : "Blocked accounts")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -2603,5 +3088,205 @@ struct SocialHistorySheet: View {
                 .padding(.horizontal, Spacing.xl)
         }
         .padding(.top, 80)
+    }
+}
+
+// MARK: - Lists
+
+/// Twitter-style Lists — curated groups of accounts with their own feed.
+struct SocialListsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var store = SocialListStore.shared
+    @State private var showCreate = false
+    @State private var newName = ""
+    @State private var openList: SocialList?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if store.lists.isEmpty {
+                    VStack(spacing: Spacing.sm) {
+                        Image(systemName: "list.bullet.rectangle")
+                            .font(.system(size: 34, weight: .light))
+                            .foregroundStyle(Color.labelTertiary)
+                        Text("No lists yet")
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.labelPrimary)
+                        Text("Group accounts into lists for a focused feed. Tap + to make your first one.")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, Spacing.xl)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(store.lists) { list in
+                            Button { openList = list } label: {
+                                HStack(spacing: Spacing.sm) {
+                                    Image(systemName: "list.bullet.rectangle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(Color.accentPrimary)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.accentPrimary.opacity(0.12))
+                                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(list.name).font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary)
+                                        Text("\(list.memberHandles.count) account\(list.memberHandles.count == 1 ? "" : "s")")
+                                            .font(.mtrxCaption1).foregroundStyle(Color.labelTertiary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(Color.labelTertiary)
+                                }
+                            }
+                            .listRowBackground(Color.surfaceCard.opacity(0.4))
+                        }
+                        .onDelete { offsets in
+                            offsets.map { store.lists[$0].id }.forEach { store.deleteList($0) }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .navigationTitle("Lists")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(Color.accentPrimary)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showCreate = true } label: { Image(systemName: "plus") }
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
+            .alert("New list", isPresented: $showCreate) {
+                TextField("List name", text: $newName)
+                Button("Create") { store.addList(name: newName); newName = "" }
+                Button("Cancel", role: .cancel) { newName = "" }
+            }
+            .sheet(item: $openList) { list in
+                SocialListDetailView(listID: list.id)
+            }
+        }
+    }
+}
+
+/// A single list — its member accounts' posts, plus an account picker.
+struct SocialListDetailView: View {
+    let listID: String
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var store = SocialListStore.shared
+    @ObservedObject private var viewModel = SocialViewModel.shared
+    @State private var showAddMembers = false
+
+    private var list: SocialList? { store.lists.first { $0.id == listID } }
+
+    private struct Author: Identifiable {
+        let handle: String
+        let name: String
+        let initials: String
+        let color: Color
+        var id: String { handle }
+    }
+
+    private var allAuthors: [Author] {
+        var seen = Set<String>()
+        var result: [Author] = []
+        for p in viewModel.posts where !seen.contains(p.handle) {
+            seen.insert(p.handle)
+            result.append(Author(handle: p.handle, name: p.displayName, initials: p.avatarInitials, color: p.avatarColor))
+        }
+        return result.sorted { $0.name < $1.name }
+    }
+
+    private var memberPosts: [SocialPostDisplay] {
+        guard let list else { return [] }
+        let set = Set(list.memberHandles)
+        return viewModel.posts.filter { set.contains($0.handle) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                if let list, !list.memberHandles.isEmpty {
+                    LazyVStack(spacing: 0) {
+                        ForEach(memberPosts) { post in
+                            PostCardView(
+                                post: post,
+                                onLike: { viewModel.toggleLike(postId: post.id) },
+                                onRepost: { viewModel.toggleRepost(postId: post.id) },
+                                onVotePoll: { viewModel.voteOnPoll(postId: post.id, optionID: $0) }
+                            )
+                            MtrxDivider()
+                        }
+                    }
+                } else {
+                    VStack(spacing: Spacing.sm) {
+                        Image(systemName: "person.2")
+                            .font(.system(size: 32, weight: .light))
+                            .foregroundStyle(Color.labelTertiary)
+                        Text("No accounts in this list")
+                            .font(.mtrxHeadline).foregroundStyle(Color.labelPrimary)
+                        Button { showAddMembers = true } label: {
+                            Text("Add accounts")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 20).padding(.vertical, 10)
+                                .background(Capsule().fill(Color.accentPrimary))
+                        }
+                        .padding(.top, 4)
+                    }
+                    .padding(.top, 70)
+                }
+            }
+            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .navigationTitle(list?.name ?? "List")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") { dismiss() }.foregroundStyle(Color.accentPrimary)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showAddMembers = true } label: { Image(systemName: "person.badge.plus") }
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
+            .sheet(isPresented: $showAddMembers) {
+                NavigationStack {
+                    List {
+                        ForEach(allAuthors) { author in
+                            Button { store.toggleMember(author.handle, in: listID) } label: {
+                                HStack(spacing: Spacing.sm) {
+                                    MtrxAvatar(text: author.initials, color: author.color, size: 32)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(author.name).font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary)
+                                        Text(author.handle).font(.mtrxCaption1).foregroundStyle(Color.labelTertiary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: store.contains(author.handle, in: listID) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(store.contains(author.handle, in: listID) ? Color.accentPrimary : Color.labelTertiary)
+                                }
+                            }
+                            .listRowBackground(Color.surfaceCard.opacity(0.4))
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
+                    .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+                    .navigationTitle("Add accounts")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { showAddMembers = false }.foregroundStyle(Color.accentPrimary)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
