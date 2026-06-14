@@ -692,6 +692,22 @@ class AppState: ObservableObject {
 
 // MARK: - Wallet Manager
 
+/// A bank or external crypto wallet the user has linked. Demo-safe: it
+/// stores a nickname, a masked detail, and a balance — never raw bank
+/// numbers or private keys.
+struct LinkedAccount: Identifiable, Codable, Equatable {
+    enum Kind: String, Codable, CaseIterable {
+        case bank, crypto
+        var label: String { self == .bank ? "Bank" : "Crypto wallet" }
+        var icon: String { self == .bank ? "building.columns.fill" : "wallet.pass.fill" }
+    }
+    var id: UUID = UUID()
+    var kind: Kind
+    var name: String
+    var detail: String
+    var balanceUSD: Double
+}
+
 class WalletManager: ObservableObject {
     @Published var isConnected: Bool = false
     @Published var balance: Decimal = Decimal(DemoDataProvider.ethBalance * DemoDataProvider.ethPrice)
@@ -703,8 +719,32 @@ class WalletManager: ObservableObject {
     @Published var defiPositions: [DeFiPositionItem] = DeFiPositionItem.sampleData
     @Published var needsRefresh: Bool = false
 
+    /// Banks and external crypto wallets the user has linked. Their balances
+    /// fold into the total portfolio so it reflects everywhere (Home,
+    /// Account, agent context).
+    @Published var linkedAccounts: [LinkedAccount] = WalletManager.loadLinkedAccounts() {
+        didSet { WalletManager.saveLinkedAccounts(linkedAccounts) }
+    }
+
+    var linkedAccountsValue: Double { linkedAccounts.reduce(0) { $0 + $1.balanceUSD } }
+
     var totalPortfolioValue: Double {
-        tokens.reduce(0) { $0 + $1.valueUSD }
+        tokens.reduce(0) { $0 + $1.valueUSD } + linkedAccountsValue
+    }
+
+    func addLinkedAccount(_ account: LinkedAccount) { linkedAccounts.append(account) }
+    func removeLinkedAccount(_ id: UUID) { linkedAccounts.removeAll { $0.id == id } }
+
+    private static let linkedKey = "com.mtrx.wallet.linkedAccounts"
+    static func loadLinkedAccounts() -> [LinkedAccount] {
+        guard let data = UserDefaults.standard.data(forKey: linkedKey),
+              let list = try? JSONDecoder().decode([LinkedAccount].self, from: data) else { return [] }
+        return list
+    }
+    static func saveLinkedAccounts(_ list: [LinkedAccount]) {
+        if let data = try? JSONEncoder().encode(list) {
+            UserDefaults.standard.set(data, forKey: linkedKey)
+        }
     }
 
     var portfolioChange24h: Double { 2.34 }

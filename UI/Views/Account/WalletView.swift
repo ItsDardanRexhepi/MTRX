@@ -335,6 +335,7 @@ struct AccountWalletView: View {
     @State private var showErrorAlert = false
     @State private var showAlerts = false
     @State private var showMultiSig = false
+    @State private var showAddAccount = false
 
     private var moneyShortcuts: some View {
         HStack(spacing: Spacing.sm) {
@@ -417,6 +418,9 @@ struct AccountWalletView: View {
                 SwapView()
                     .environmentObject(walletManager)
             }
+        }
+        .sheet(isPresented: $showAddAccount) {
+            AddAccountSheet().environmentObject(walletManager)
         }
         .alert("MTRX", isPresented: $showLoadMoreAlert) { Button("OK") {} } message: { Text("All recent transactions are displayed") }
         .alert("MTRX", isPresented: $showBrowseAlert) { Button("OK") {} } message: { Text("Visit Discover tab") }
@@ -536,6 +540,18 @@ struct AccountWalletView: View {
                     Image(systemName: Symbols.swap)
                         .font(.title2)
                     Text("Swap")
+                        .font(.caption.weight(.medium))
+                }
+            }
+
+            // Link a bank or external crypto wallet.
+            Button {
+                showAddAccount = true
+            } label: {
+                VStack(spacing: 6) {
+                    Image(systemName: "plus")
+                        .font(.title2)
+                    Text("Add")
                         .font(.caption.weight(.medium))
                 }
             }
@@ -951,6 +967,162 @@ struct DeFiPositionDetailSheet: View {
             Text(value)
                 .font(font)
                 .foregroundStyle(valueColor)
+        }
+    }
+}
+
+// MARK: - Add Account Sheet (link banks + crypto wallets)
+
+/// Demo-safe linking: pick a provider and "connect" — we surface a balance
+/// that folds into the combined portfolio. No real credentials are ever
+/// collected.
+struct AddAccountSheet: View {
+    @EnvironmentObject private var walletManager: WalletManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var kind: LinkedAccount.Kind = .bank
+    @State private var connecting: String?
+
+    private let banks = ["Chase", "Bank of America", "Wells Fargo", "Citi", "Capital One", "Ally"]
+    private let wallets = ["MetaMask", "Coinbase Wallet", "Ledger", "Rainbow", "Phantom", "Trust Wallet"]
+
+    private var providers: [String] { kind == .bank ? banks : wallets }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: Spacing.lg) {
+                    Picker("", selection: $kind) {
+                        Text("Bank").tag(LinkedAccount.Kind.bank)
+                        Text("Crypto wallet").tag(LinkedAccount.Kind.crypto)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, Spacing.contentPadding)
+
+                    Text(kind == .bank
+                         ? "Securely connect a bank — we never see or store your login, only your balance."
+                         : "Connect an external wallet to see its balance alongside your MTRX wallet.")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, Spacing.xl)
+
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.md) {
+                        ForEach(providers, id: \.self) { provider in
+                            providerTile(provider)
+                        }
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+
+                    if !walletManager.linkedAccounts.isEmpty {
+                        VStack(alignment: .leading, spacing: Spacing.sm) {
+                            MtrxSectionHeader(title: "Linked accounts")
+                            ForEach(walletManager.linkedAccounts) { acct in
+                                linkedRow(acct)
+                            }
+                            HStack {
+                                Text("Linked total")
+                                    .font(.mtrxCaptionBold)
+                                    .foregroundStyle(Color.labelSecondary)
+                                Spacer()
+                                Text(walletManager.linkedAccountsValue, format: .currency(code: "USD"))
+                                    .font(.mtrxMonoSmall)
+                                    .foregroundStyle(Color.accentPrimary)
+                            }
+                            .padding(.top, Spacing.xs)
+                        }
+                        .padding(.horizontal, Spacing.contentPadding)
+                    }
+                }
+                .padding(.vertical, Spacing.lg)
+            }
+            .background(MtrxGradientBackground(style: .primary))
+            .navigationTitle("Add account")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func providerTile(_ provider: String) -> some View {
+        let isConnecting = connecting == provider
+        let alreadyLinked = walletManager.linkedAccounts.contains { $0.name == provider && $0.kind == kind }
+        return Button {
+            connect(provider)
+        } label: {
+            VStack(spacing: Spacing.sm) {
+                Image(systemName: kind.icon)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(kind == .bank ? Color.statusInfo : Color.accentPrimary)
+                    .frame(width: 48, height: 48)
+                    .background((kind == .bank ? Color.statusInfo : Color.accentPrimary).opacity(0.14))
+                    .clipShape(Circle())
+                Text(provider)
+                    .font(.mtrxCaptionBold)
+                    .foregroundStyle(Color.labelPrimary)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                if isConnecting {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text(alreadyLinked ? "Connected" : "Connect")
+                        .font(.mtrxCaption2)
+                        .foregroundStyle(alreadyLinked ? Color.statusSuccess : Color.accentPrimary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Spacing.md)
+            .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
+        }
+        .buttonStyle(.plain)
+        .disabled(isConnecting)
+    }
+
+    private func linkedRow(_ acct: LinkedAccount) -> some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: acct.kind.icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(acct.kind == .bank ? Color.statusInfo : Color.accentPrimary)
+                .frame(width: 34, height: 34)
+                .background((acct.kind == .bank ? Color.statusInfo : Color.accentPrimary).opacity(0.14))
+                .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 1) {
+                Text(acct.name).font(.mtrxCaptionBold).foregroundStyle(Color.labelPrimary)
+                Text(acct.detail).font(.mtrxCaption2).foregroundStyle(Color.labelTertiary)
+            }
+            Spacer()
+            Text(acct.balanceUSD, format: .currency(code: "USD"))
+                .font(.mtrxMonoSmall)
+                .foregroundStyle(Color.labelPrimary)
+            Button {
+                withAnimation(Motion.springSnappy) { walletManager.removeLinkedAccount(acct.id) }
+                MtrxHaptics.impact(.light)
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.white, Color.statusError)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(Spacing.ms)
+        .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
+    }
+
+    private func connect(_ provider: String) {
+        guard connecting == nil else { return }
+        connecting = provider
+        MtrxHaptics.impact(.medium)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+            let balance = Double(Int.random(in: 500...25_000)) + Double(Int.random(in: 0...99)) / 100
+            let detail = kind == .bank
+                ? "••••\(Int.random(in: 1000...9999))"
+                : "0x\(String(format: "%04x", Int.random(in: 0...0xffff)))…\(String(format: "%04x", Int.random(in: 0...0xffff)))"
+            walletManager.addLinkedAccount(
+                LinkedAccount(kind: kind, name: provider, detail: detail, balanceUSD: balance)
+            )
+            connecting = nil
+            MtrxHaptics.success()
         }
     }
 }

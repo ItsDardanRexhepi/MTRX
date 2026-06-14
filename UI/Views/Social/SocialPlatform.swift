@@ -10,6 +10,7 @@
 import AVKit
 import PhotosUI
 import SwiftUI
+import WebKit
 
 // MARK: - Social Identity
 
@@ -1158,69 +1159,133 @@ struct PostAttachmentView: View {
     let videoFileName: String?
     let linkURL: String?
 
-    @State private var playingVideo = false
+    @State private var fullscreenImage: UIImage?
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
+            // Photos render inline; tap to view full-screen.
             if let imageData, let image = UIImage(data: imageData) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxHeight: 260)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
-            }
-
-            if let videoFileName {
-                Button {
-                    playingVideo = true
-                } label: {
-                    HStack(spacing: Spacing.ms) {
-                        Image(systemName: "play.circle.fill")
-                            .font(.system(size: 30))
-                            .foregroundStyle(Color.accentPrimary)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Video")
-                                .font(.mtrxCaptionBold)
-                                .foregroundStyle(Color.labelPrimary)
-                            Text("Tap to play")
-                                .font(.mtrxCaption2)
-                                .foregroundStyle(Color.labelTertiary)
-                        }
-                        Spacer()
-                    }
-                    .padding(Spacing.ms)
-                    .background(Color.surfaceOverlay)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                Button { fullscreenImage = image } label: {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(maxHeight: 260)
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .sheet(isPresented: $playingVideo) {
-                    VideoPlayer(player: AVPlayer(url: SocialIdentity.mediaURL(videoFileName)))
-                        .ignoresSafeArea()
-                        .presentationDetents([.large])
-                }
             }
 
-            if let linkURL, let url = URL(string: linkURL) {
-                Link(destination: url) {
-                    HStack(spacing: Spacing.sm) {
-                        Image(systemName: "link")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.accentPrimary)
-                        Text(linkURL)
-                            .font(.mtrxCaption1)
-                            .foregroundStyle(Color.accentPrimary)
-                            .lineLimit(1)
-                        Spacer()
-                        Image(systemName: "arrow.up.right.square")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color.labelTertiary)
+            // Videos play inline; AVKit's own control expands to full-screen.
+            if let videoFileName {
+                VideoPlayer(player: AVPlayer(url: SocialIdentity.mediaURL(videoFileName)))
+                    .frame(height: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+            }
+
+            if let linkURL {
+                if let ytID = Self.youTubeID(from: linkURL) {
+                    // YouTube links play right in the feed.
+                    YouTubePlayerView(videoID: ytID)
+                        .frame(height: 210)
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                } else if let url = URL(string: linkURL) {
+                    Link(destination: url) {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "link")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.accentPrimary)
+                            Text(linkURL)
+                                .font(.mtrxCaption1)
+                                .foregroundStyle(Color.accentPrimary)
+                                .lineLimit(1)
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.labelTertiary)
+                        }
+                        .padding(Spacing.ms)
+                        .background(Color.accentPrimary.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
                     }
-                    .padding(Spacing.ms)
-                    .background(Color.accentPrimary.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
                 }
             }
         }
+        .fullScreenCover(item: Binding(
+            get: { fullscreenImage.map { ImageWrapper(image: $0) } },
+            set: { fullscreenImage = $0?.image }
+        )) { wrapper in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                Image(uiImage: wrapper.image)
+                    .resizable()
+                    .scaledToFit()
+                    .ignoresSafeArea()
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button { fullscreenImage = nil } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 30))
+                                .foregroundStyle(.white, .black.opacity(0.5))
+                        }
+                        .padding()
+                    }
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    /// Extracts a YouTube video id from the common URL shapes.
+    static func youTubeID(from urlString: String) -> String? {
+        let lower = urlString.lowercased()
+        guard lower.contains("youtube.com") || lower.contains("youtu.be") else { return nil }
+        guard let comps = URLComponents(string: urlString) else { return nil }
+        if let host = comps.host, host.contains("youtu.be") {
+            let id = comps.path.replacingOccurrences(of: "/", with: "")
+            return id.isEmpty ? nil : id
+        }
+        if comps.path.contains("/embed/") {
+            return comps.path.components(separatedBy: "/embed/").last
+        }
+        if let v = comps.queryItems?.first(where: { $0.name == "v" })?.value {
+            return v
+        }
+        return nil
+    }
+}
+
+private struct ImageWrapper: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
+// MARK: - YouTube Player (inline WKWebView)
+
+struct YouTubePlayerView: UIViewRepresentable {
+    let videoID: String
+
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        let web = WKWebView(frame: .zero, configuration: config)
+        web.isOpaque = false
+        web.backgroundColor = .black
+        web.scrollView.isScrollEnabled = false
+        return web
+    }
+
+    func updateUIView(_ web: WKWebView, context: Context) {
+        let html = """
+        <html><head><meta name='viewport' content='initial-scale=1.0'/>
+        <style>html,body{margin:0;background:#000;height:100%}iframe{width:100%;height:100%;border:0}</style>
+        </head><body>
+        <iframe src='https://www.youtube.com/embed/\(videoID)?playsinline=1&rel=0' allow='accelerometer; encrypted-media; gyroscope; picture-in-picture' allowfullscreen></iframe>
+        </body></html>
+        """
+        web.loadHTMLString(html, baseURL: URL(string: "https://www.youtube.com"))
     }
 }
 

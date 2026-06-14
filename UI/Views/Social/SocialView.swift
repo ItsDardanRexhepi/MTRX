@@ -11,9 +11,9 @@ enum SocialTab: String, CaseIterable {
     case feed = "Feed"
     case governance = "Governance"
     case search = "Search"
-    case notifications = "Alerts"
-    case messaging = "Messages"
-    // Groups now lives inside Messages; Network/Live remain for deep links.
+    case notifications = "Notifications"
+    case messaging = "Messaging"
+    // Groups now lives inside Messaging; Network/Live remain for deep links.
     case groups = "Groups"
     case network = "Network"
     case live = "Live"
@@ -641,8 +641,8 @@ struct SocialView: View {
                         Image(systemName: tab.icon)
                             .font(.system(size: 13, weight: .semibold))
                         Text(tab.rawValue)
-                            .font(.system(size: 11, weight: isActive ? .bold : .medium))
-                            .lineLimit(1).minimumScaleFactor(0.7)
+                            .font(.system(size: 10.5, weight: isActive ? .bold : .medium))
+                            .lineLimit(1).minimumScaleFactor(0.55)
                             .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
 
                         ZStack {

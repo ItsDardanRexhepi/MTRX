@@ -150,7 +150,7 @@ struct HomeView: View {
                     showDailyFlow = false
                 }
             )
-            .presentationDetents([.large])
+            .presentationDetents([.height(560)])
             .presentationDragIndicator(.visible)
         }
         .sheet(item: $presentedService) { service in
@@ -691,7 +691,7 @@ struct HomeView: View {
                     }
                     .scrollTargetLayout()
                 }
-                .frame(height: 168)
+                .frame(height: 196)
                 .scrollTargetBehavior(.viewAligned)
                 .scrollPosition(id: $feedScrollIndex)
                 .onAppear {
@@ -772,7 +772,10 @@ struct HomeView: View {
         )
         .lineLimit(3)
         .padding(Spacing.ms)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        // A fixed height so the card can never balloon to its full content
+        // height; mtrxLiquidGlass clips anything past it.
+        .frame(height: 196, alignment: .topLeading)
         .background(Color.trinityPrimary.opacity(0.03))
         .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
         .overlay(
@@ -1584,13 +1587,13 @@ struct DailyFlowSheet: View {
             .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: Spacing.xl) {
+                VStack(spacing: Spacing.lg) {
                     // Hero ring — large, with a gradient stroke that glows.
-                    VStack(spacing: Spacing.md) {
+                    VStack(spacing: Spacing.sm) {
                         ZStack {
                             Circle()
-                                .stroke(accent.opacity(0.14), lineWidth: 12)
-                                .frame(width: 168, height: 168)
+                                .stroke(accent.opacity(0.14), lineWidth: 11)
+                                .frame(width: 132, height: 132)
                             Circle()
                                 .trim(from: 0, to: max(dailyFlow.progress, 0.04))
                                 .stroke(
@@ -1598,29 +1601,29 @@ struct DailyFlowSheet: View {
                                         colors: [accent, accent.opacity(0.55), accent],
                                         center: .center
                                     ),
-                                    style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                                    style: StrokeStyle(lineWidth: 11, lineCap: .round)
                                 )
                                 .rotationEffect(.degrees(-90))
-                                .frame(width: 168, height: 168)
-                                .shadow(color: accent.opacity(0.5), radius: 14)
+                                .frame(width: 132, height: 132)
+                                .shadow(color: accent.opacity(0.5), radius: 12)
                                 .animation(Motion.springDefault, value: dailyFlow.progress)
 
                             VStack(spacing: 2) {
                                 if dailyFlow.isComplete {
                                     Image(systemName: "checkmark")
-                                        .font(.system(size: 44, weight: .bold))
+                                        .font(.system(size: 38, weight: .bold))
                                         .foregroundStyle(Color.statusSuccess)
                                 } else {
                                     Text("\(dailyFlow.completed.count)")
-                                        .font(.system(size: 56, weight: .heavy, design: .rounded))
+                                        .font(.system(size: 46, weight: .heavy, design: .rounded))
                                         .foregroundStyle(Color.labelPrimary)
                                     + Text(" / 3")
-                                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                                        .font(.system(size: 22, weight: .bold, design: .rounded))
                                         .foregroundStyle(Color.labelTertiary)
                                 }
                             }
                         }
-                        .padding(.top, Spacing.xl)
+                        .padding(.top, Spacing.lg)
 
                         Text(dailyFlow.isComplete ? "In flow" : "Daily Flow")
                             .font(.system(size: 28, weight: .heavy, design: .rounded))
