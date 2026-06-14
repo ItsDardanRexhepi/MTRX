@@ -543,24 +543,23 @@ struct HomeView: View {
             Color.clear.frame(height: 12)
 
             VStack(spacing: Spacing.sm) {
-                // Header — orb + title, Open-in-Trinity, close.
+                // Header — tapping Trinity's name opens the full Trinity space
+                // (replacing the old "Open in Trinity" button); X closes.
                 HStack(spacing: Spacing.sm) {
-                    GlassOrb(size: 24, tint: agentGlassTint(.trinity))
-                    Text("Trinity")
-                        .font(.mtrxCalloutBold)
-                        .foregroundStyle(Color.labelPrimary)
-                    Spacer()
                     Button { extendToTrinity() } label: {
-                        HStack(spacing: 4) {
-                            Text("Open in Trinity").font(.mtrxCaption2.weight(.bold))
-                            Image(systemName: "arrow.up.forward").font(.system(size: 10, weight: .bold))
+                        HStack(spacing: Spacing.sm) {
+                            GlassOrb(size: 24, tint: agentGlassTint(.trinity))
+                            Text("Trinity")
+                                .font(.mtrxCalloutBold)
+                                .foregroundStyle(Color.labelPrimary)
+                            Image(systemName: "arrow.up.forward")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(Color.trinityPrimary)
                         }
-                        .foregroundStyle(Color.trinityPrimary)
-                        .padding(.horizontal, 10).padding(.vertical, 6)
-                        .background(Color.trinityPrimary.opacity(0.15))
-                        .clipShape(Capsule())
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    Spacer()
                     Button { closeHomeChat() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 22))
@@ -2111,29 +2110,30 @@ private struct JiggleEffect: ViewModifier {
 /// bar reads as part of the chat card's shape — a notch on the rectangle.
 struct ChatNotchShape: Shape {
     static let notchHeight: CGFloat = 46
-    var notchStart: CGFloat = 0.44   // fraction of width where the notch begins
+    var notchStart: CGFloat = 0.42   // fraction of width where the notch begins
     var radius: CGFloat = 28
-    var notchRadius: CGFloat = 16
 
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         let nh = min(Self.notchHeight, h * 0.5)
         let nx = w * notchStart
         let r = min(radius, max(1, (h - nh) / 2))
-        let nr = min(notchRadius, max(1, (w - nx) / 2))
+        // The notch's top corners are rounded to half its height, so it reads
+        // as the search bar's capsule pill extending up out of the card.
+        let cap = min(nh / 2, max(1, (w - nx) / 2))
         var p = Path()
         p.move(to: CGPoint(x: 0, y: h - r))
         p.addLine(to: CGPoint(x: 0, y: nh + r))
-        p.addQuadCurve(to: CGPoint(x: r, y: nh), control: CGPoint(x: 0, y: nh))      // main top-left
-        p.addLine(to: CGPoint(x: nx, y: nh))                                          // main top → notch base
-        p.addLine(to: CGPoint(x: nx, y: nr))                                          // up the notch wall
-        p.addQuadCurve(to: CGPoint(x: nx + nr, y: 0), control: CGPoint(x: nx, y: 0))  // notch top-left
-        p.addLine(to: CGPoint(x: w - nr, y: 0))                                       // notch top
-        p.addQuadCurve(to: CGPoint(x: w, y: nr), control: CGPoint(x: w, y: 0))        // notch top-right
-        p.addLine(to: CGPoint(x: w, y: h - r))                                        // right edge
-        p.addQuadCurve(to: CGPoint(x: w - r, y: h), control: CGPoint(x: w, y: h))     // bottom-right
+        p.addQuadCurve(to: CGPoint(x: r, y: nh), control: CGPoint(x: 0, y: nh))        // main top-left
+        p.addLine(to: CGPoint(x: nx, y: nh))                                            // main top → notch base
+        p.addLine(to: CGPoint(x: nx, y: cap))                                           // up the notch's left wall
+        p.addQuadCurve(to: CGPoint(x: nx + cap, y: 0), control: CGPoint(x: nx, y: 0))   // pill top-left
+        p.addLine(to: CGPoint(x: w - cap, y: 0))                                        // pill top edge
+        p.addQuadCurve(to: CGPoint(x: w, y: cap), control: CGPoint(x: w, y: 0))         // pill top-right
+        p.addLine(to: CGPoint(x: w, y: h - r))                                          // right edge
+        p.addQuadCurve(to: CGPoint(x: w - r, y: h), control: CGPoint(x: w, y: h))       // bottom-right
         p.addLine(to: CGPoint(x: r, y: h))
-        p.addQuadCurve(to: CGPoint(x: 0, y: h - r), control: CGPoint(x: 0, y: h))     // bottom-left
+        p.addQuadCurve(to: CGPoint(x: 0, y: h - r), control: CGPoint(x: 0, y: h))       // bottom-left
         p.closeSubpath()
         return p
     }
