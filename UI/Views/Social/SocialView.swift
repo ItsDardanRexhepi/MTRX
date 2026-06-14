@@ -915,6 +915,17 @@ struct SocialView: View {
                 sideMenu
                     .frame(width: sideMenuWidth)
                     .frame(maxHeight: .infinity, alignment: .top)
+                    // Swipe left on the drawer to close it — the same gesture
+                    // that opened it, in reverse.
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 24)
+                            .onEnded { value in
+                                if value.translation.width < -55,
+                                   abs(value.translation.width) > abs(value.translation.height) * 1.4 {
+                                    closeSideMenu()
+                                }
+                            }
+                    )
                     .transition(.move(edge: .leading))
                     .zIndex(5)
             }
