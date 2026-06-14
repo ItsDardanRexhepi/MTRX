@@ -231,6 +231,7 @@ struct DiscoverView: View {
     @State private var showFilters = false
     @State private var showDiscoverMenu = false
     @State private var showTrendingAll = false
+    @State private var showExploreMore = false
     @State private var backingFundraiser: FundraiserItem?
 
     var body: some View {
@@ -302,6 +303,12 @@ struct DiscoverView: View {
         }
         .sheet(item: $backingFundraiser) { fundraiser in
             BackFundraiserSheet(fundraiser: fundraiser)
+        }
+        .sheet(isPresented: $showExploreMore) {
+            ExploreMoreSheet(
+                onCategory: { showExploreMore = false; pushedCategory = $0 },
+                onDeFi: { showExploreMore = false; pushedDeFi = $0 }
+            )
         }
     }
 
@@ -437,8 +444,20 @@ struct DiscoverView: View {
     /// lending, liquidity, yield, real-world assets, and governance.
     private var exploreDeFiSection: some View {
         VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
-            MtrxSectionHeader(title: "Explore DeFi")
-                .padding(.horizontal, Spacing.contentPadding)
+            Button {
+                MtrxHaptics.impact(.light)
+                showExploreMore = true
+            } label: {
+                HStack(spacing: 6) {
+                    MtrxSectionHeader(title: "Explore DeFi")
+                    Image(systemName: "chevron.right.circle")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, Spacing.contentPadding)
 
             VStack(spacing: Spacing.sm) {
                 exploreRow(systemName: "banknote.fill", title: "Lending", subtitle: "Borrow and lend assets", color: .statusInfo) {
@@ -1751,5 +1770,99 @@ struct DiscoverMenuSheet: View {
         }
         .padding(Spacing.ms)
         .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
+    }
+}
+
+// MARK: - Explore More (everything the app can do)
+
+/// Opened from the "Explore DeFi" header chevron — a full map of every
+/// space the app opens up, so the user can discover everything MTRX can do.
+struct ExploreMoreSheet: View {
+    var onCategory: (DiscoverCategory) -> Void
+    var onDeFi: (DeFiSubDestination) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+
+    private let defi: [(DeFiSubDestination, String, String)] = [
+        (.lending, "Lending", "banknote.fill"),
+        (.liquidity, "Liquidity Pools", "drop.fill"),
+        (.yield, "Yield Farming", "chart.line.uptrend.xyaxis"),
+        (.realWorld, "Real World Assets", "building.columns.fill"),
+        (.governance, "Governance", "checkmark.seal.fill"),
+    ]
+
+    private var categories: [DiscoverCategory] {
+        DiscoverCategory.allCases.filter { $0 != .all && $0.hasHubView }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    Text("Every space MTRX opens up — tap any one to dive in and discover what it can do for you.")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                        .padding(.horizontal, Spacing.contentPadding)
+
+                    MtrxSectionHeader(title: "DeFi")
+                        .padding(.horizontal, Spacing.contentPadding)
+                    LazyVGrid(columns: columns, spacing: Spacing.sm) {
+                        ForEach(defi, id: \.0) { item in
+                            tile(icon: item.2, title: item.1) { onDeFi(item.0) }
+                        }
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+
+                    MtrxSectionHeader(title: "Everything else")
+                        .padding(.horizontal, Spacing.contentPadding)
+                    LazyVGrid(columns: columns, spacing: Spacing.sm) {
+                        ForEach(categories) { cat in
+                            tile(icon: cat.icon, title: cat.displayName) { onCategory(cat) }
+                        }
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+                }
+                .padding(.vertical, Spacing.md)
+            }
+            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .navigationTitle("Explore everything")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.foregroundStyle(Color.accentPrimary)
+                }
+            }
+        }
+    }
+
+    private func tile(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        Button {
+            MtrxHaptics.selection()
+            action()
+        } label: {
+            VStack(spacing: Spacing.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Color.accentPrimary)
+                    .frame(width: 44, height: 44)
+                    .background(Color.accentPrimary.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                Text(title)
+                    .font(.mtrxCalloutBold)
+                    .foregroundStyle(Color.labelPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Spacing.md)
+            .background(Color.surfaceCard.opacity(0.5))
+            .overlay(
+                RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }

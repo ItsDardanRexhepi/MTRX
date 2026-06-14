@@ -460,7 +460,7 @@ struct HomeView: View {
     /// to the chat's own input — no separate window, just the bar opening up.
     private func openHomeChatFromBar() {
         ensureHomeChatSetup()
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) { homeChatOpen = true }
+        withAnimation(.smooth(duration: 0.42)) { homeChatOpen = true }
         DispatchQueue.main.async {
             askFocused = false
             homeChatFocused = true
@@ -472,7 +472,7 @@ struct HomeView: View {
     private func submitHomeChat(_ text: String) {
         ensureHomeChatSetup()
         if !homeChatOpen {
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) { homeChatOpen = true }
+            withAnimation(.smooth(duration: 0.42)) { homeChatOpen = true }
         }
         homeChatVM.inputText = text
         homeChatVM.sendMessage()
@@ -491,7 +491,7 @@ struct HomeView: View {
         homeChatFocused = false
         homeChatInput = ""
         homeChatVM.dismissRequested = false
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.smooth(duration: 0.4)) {
             homeChatOpen = false
             homeChatDrag = 0
         }
@@ -540,6 +540,7 @@ struct HomeView: View {
     /// expands left (full width) and down to just above the keyboard, wearing
     /// the bar's own design. Trinity answers here with her full capabilities.
     private var homeChatPanel: some View {
+        GeometryReader { geo in
         VStack(spacing: 0) {
             // Starts right at the search bar and unfurls downward, so the chat
             // reads as the bar expanding — not a separate window below it.
@@ -635,7 +636,10 @@ struct HomeView: View {
                             Color.clear.preference(key: HomeChatHeightKey.self, value: g.size.height)
                         })
                     }
-                    .frame(height: min(max(homeConvoHeight, 60), 410))
+                    // Hug the transcript, but never grow past the space above
+                    // the keyboard — the conversation scrolls and the input
+                    // bar always stays put, just above the keys.
+                    .frame(height: min(max(homeConvoHeight, 60), max(150, geo.size.height - 230)))
                     .onPreferenceChange(HomeChatHeightKey.self) { homeConvoHeight = $0 }
                     .onChange(of: homeChatVM.messages.count) {
                         if let last = homeChatVM.messages.last {
@@ -704,6 +708,7 @@ struct HomeView: View {
         .onChange(of: homeChatVM.dismissRequested) {
             // Trinity navigated the app for the user → close the home chat.
             if homeChatVM.dismissRequested { closeHomeChat() }
+        }
         }
     }
 
@@ -1126,8 +1131,10 @@ struct HomeView: View {
         .padding(Spacing.ms)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         // A fixed height so the card can never balloon to its full content
-        // height; mtrxLiquidGlass clips anything past it.
+        // height; the clip keeps any longer content (polls, media) from
+        // bleeding out past the card's rounded edge.
         .frame(height: 196, alignment: .topLeading)
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
         .background(Color.trinityPrimary.opacity(0.03))
         .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
         .overlay(

@@ -738,17 +738,20 @@ struct SocialView: View {
             // No scale — the sliver fills full-height so there's no black gap
             // in the top corner.
             .offset(x: drawer.isOpen ? sideMenuWidth : 0)
-            // Swipe in from the left edge (Social only) to open the drawer —
-            // the single swipe gesture, scoped to this screen.
+            // Swipe right anywhere (Social only) to open the drawer, and
+            // swipe left anywhere to close it — the single drawer gesture.
             .simultaneousGesture(
-                DragGesture(minimumDistance: 18)
+                DragGesture(minimumDistance: 24)
                     .onEnded { value in
-                        guard !drawer.isOpen,
-                              value.startLocation.x < 28,
-                              value.translation.width > 55,
-                              value.translation.width > abs(value.translation.height) * 1.5 else { return }
-                        MtrxHaptics.impact(.light)
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { drawer.isOpen = true }
+                        let w = value.translation.width
+                        let h = value.translation.height
+                        guard abs(w) > 70, abs(w) > abs(h) * 1.6 else { return }
+                        if w > 0 && !drawer.isOpen {
+                            MtrxHaptics.impact(.light)
+                            withAnimation(.smooth(duration: 0.4)) { drawer.isOpen = true }
+                        } else if w < 0 && drawer.isOpen {
+                            closeSideMenu()
+                        }
                     }
             )
             .overlay {
@@ -958,7 +961,7 @@ struct SocialView: View {
     }
 
     private func closeSideMenu() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.smooth(duration: 0.4)) {
             drawer.isOpen = false
         }
     }
@@ -1078,8 +1081,8 @@ struct SocialView: View {
                     ],
                     startPoint: .top, endPoint: .bottom
                 )
-                // Half the previous length — same wash, shorter reach.
-                .frame(height: 180)
+                // A touch longer than half — extended back ~20%.
+                .frame(height: 216)
                 .frame(maxWidth: .infinity, alignment: .top)
                 .allowsHitTesting(false)
             }
@@ -1135,7 +1138,7 @@ struct SocialView: View {
             // Avatar — opens the side menu, Twitter-style.
             Button {
                 MtrxHaptics.impact(.light)
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { drawer.isOpen = true }
+                withAnimation(.smooth(duration: 0.4)) { drawer.isOpen = true }
             } label: {
                 Group {
                     if let avatar = socialIdentity.avatarImage {

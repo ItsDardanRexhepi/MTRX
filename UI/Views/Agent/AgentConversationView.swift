@@ -277,25 +277,29 @@ struct AgentConversationView: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 24)
                 .onChanged { value in
-                    // Only from the header zone, only when the drag is
-                    // clearly downward — never fights the message scroll,
-                    // the keyboard, or sliding across the agent switcher.
                     guard isModal else { return }
-                    if value.startLocation.y < 190,
+                    // A downward drag from the upper area peels the room away.
+                    if value.startLocation.y < 340,
                        value.translation.height > 0,
                        value.translation.height > abs(value.translation.width) {
                         dismissDrag = value.translation.height
                     } else if dismissDrag != 0 {
-                        // The drag turned horizontal — snap the room back
-                        // immediately so no black edge ever lingers.
                         withAnimation(Motion.springSnappy) { dismissDrag = 0 }
                     }
                 }
                 .onEnded { value in
                     guard isModal else { return }
-                    if value.startLocation.y < 190,
-                       value.translation.height > 130,
-                       value.translation.height > abs(value.translation.width) {
+                    let w = value.translation.width
+                    let h = value.translation.height
+                    // Swipe left/right anywhere (below the switcher) to move
+                    // between agents.
+                    if abs(w) > 60, abs(w) > abs(h) * 1.4, value.startLocation.y > 130 {
+                        cycleAgent(forward: w < 0)
+                        withAnimation(Motion.springSnappy) { dismissDrag = 0 }
+                        return
+                    }
+                    // Swipe down from the upper area to exit the room.
+                    if value.startLocation.y < 340, h > 120, h > abs(w) {
                         dismiss()
                     } else {
                         withAnimation(Motion.springSnappy) { dismissDrag = 0 }
@@ -368,6 +372,17 @@ struct AgentConversationView: View {
         AgentAccessControl.shared.userType(for: userID) == .owner
             ? [.trinity, .morpheus, .neo]
             : [.trinity, .morpheus]
+    }
+
+    /// Move to the next/previous agent — driven by a left/right screen swipe.
+    private func cycleAgent(forward: Bool) {
+        let agents = availableAgents
+        guard agents.count > 1,
+              let i = agents.firstIndex(of: viewModel.activeAgent) else { return }
+        let next = forward ? (i + 1) % agents.count
+                           : (i - 1 + agents.count) % agents.count
+        MtrxHaptics.selection()
+        withAnimation(Motion.springSnappy) { viewModel.openAgentChat(agents[next]) }
     }
 
     private var agentSpaceHeader: some View {

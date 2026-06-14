@@ -99,19 +99,20 @@ struct AccountView: View {
                         profileCard
                         portfolioSummary
                         workspaceSection
-                        // Sign Out floats centered in the open space between
-                        // the workspace tiles and the dock — equal Spacers
-                        // above and below keep it balanced.
-                        Spacer(minLength: Spacing.lg)
+                        // A Spacer pushes Sign Out down to float just above the
+                        // dock — no dead space beneath it, and it bounces like
+                        // the Home tab when you reach the bottom.
+                        Spacer(minLength: Spacing.xl)
                         signOutButton
-                        Spacer(minLength: Spacing.lg)
                     }
                     .padding(.horizontal, Spacing.contentPadding)
                     .padding(.top, Spacing.md)
-                    // Reserve the floating dock's area.
-                    .padding(.bottom, 92)
+                    // Clears the floating dock and lifts Sign Out into the gap
+                    // just above it.
+                    .padding(.bottom, 108)
                     .frame(minHeight: proxy.size.height)
                 }
+                .scrollBounceBehavior(.always)
             }
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Account")

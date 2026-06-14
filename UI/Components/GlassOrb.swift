@@ -38,19 +38,7 @@ struct GlassOrb: View {
 
     var body: some View {
         ZStack {
-            // Living halo — a soft breath of the orb's key color so it
-            // reads as alive even on a pure-black field.
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [keyColor.opacity(0.55), keyColor.opacity(0.12), .clear],
-                        center: .center, startRadius: 0, endRadius: size * 0.72
-                    )
-                )
-                .scaleEffect(pulse ? 1.18 : 0.92)
-                .opacity(pulse ? 0.95 : 0.5)
-                .blur(radius: size * 0.10)
-                .blendMode(.screen)
+            // No ambient halo — just the orb itself, nothing radiating from it.
 
             // Clear glass body — barely there, so the page shows through.
             Circle()
