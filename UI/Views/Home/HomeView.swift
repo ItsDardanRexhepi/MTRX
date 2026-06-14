@@ -90,7 +90,10 @@ struct HomeView: View {
 
             // The inline chat that grows from the search bar.
             if homeChatOpen {
-                Color.black.opacity(0.35)
+                // Blur the dashboard so all focus lands on the chat.
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Color.black.opacity(0.18))
                     .ignoresSafeArea()
                     .transition(.opacity)
                     .onTapGesture { closeHomeChat() }
@@ -370,6 +373,10 @@ struct HomeView: View {
         .shadow(color: Color(red: 0.62, green: 0.78, blue: 0.98).opacity(askFocused ? 0.45 : 0.0),
                 radius: askFocused ? 18 : 0)
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: askFocused)
+        // Tapping the bar opens the chat right away — it unfurls from here.
+        .onChange(of: askFocused) { _, focused in
+            if focused && !homeChatOpen { openHomeChatFromBar() }
+        }
         .zIndex(2)
     }
 
@@ -423,6 +430,17 @@ struct HomeView: View {
         guard !text.isEmpty else { return }
         homeChatInput = ""
         submitHomeChat(text)
+    }
+
+    /// Tapping the search bar unfurls the chat immediately and hands focus
+    /// to the chat's own input — no separate window, just the bar opening up.
+    private func openHomeChatFromBar() {
+        ensureHomeChatSetup()
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) { homeChatOpen = true }
+        DispatchQueue.main.async {
+            askFocused = false
+            homeChatFocused = true
+        }
     }
 
     /// Routes the message through the real Trinity model — full capabilities,
@@ -593,7 +611,7 @@ struct HomeView: View {
                             Color.clear.preference(key: HomeChatHeightKey.self, value: g.size.height)
                         })
                     }
-                    .frame(height: min(max(homeConvoHeight, 44), 360))
+                    .frame(height: min(max(homeConvoHeight, 60), 410))
                     .onPreferenceChange(HomeChatHeightKey.self) { homeConvoHeight = $0 }
                     .onChange(of: homeChatVM.messages.count) {
                         if let last = homeChatVM.messages.last {
@@ -1070,7 +1088,9 @@ struct HomeView: View {
         PostCardView(
             post: post,
             onLike: { socialFeed.toggleLike(postId: post.id) },
-            onRepost: { socialFeed.toggleRepost(postId: post.id) }
+            onRepost: { socialFeed.toggleRepost(postId: post.id) },
+            // Tapping the card opens this exact post over in Social.
+            onOpen: { openPostInSocial(post.id) }
         )
         .lineLimit(3)
         .padding(Spacing.ms)
@@ -1080,12 +1100,10 @@ struct HomeView: View {
         .frame(height: 196, alignment: .topLeading)
         .background(Color.trinityPrimary.opacity(0.03))
         .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
-        // Tap the card to open this exact post in the Social feed.
+        // Tapping anywhere on the card also opens it in Social.
         .contentShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
         .onTapGesture {
-            MtrxHaptics.impact(.light)
-            NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": 3])
-            NotificationCenter.default.post(name: .mtrxOpenPost, object: nil, userInfo: ["id": post.id])
+            openPostInSocial(post.id)
         }
         .overlay(
             RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
@@ -1101,6 +1119,13 @@ struct HomeView: View {
     }
 
     // MARK: - Helpers
+
+    /// Jump to Social and surface this exact post in the feed.
+    private func openPostInSocial(_ id: String) {
+        MtrxHaptics.impact(.light)
+        NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": 3])
+        NotificationCenter.default.post(name: .mtrxOpenPost, object: nil, userInfo: ["id": id])
+    }
 
     /// Picks by time of day so the app feels alive, not canned.
     private var reassuranceLine: String {

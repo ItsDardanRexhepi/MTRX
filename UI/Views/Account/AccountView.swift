@@ -80,6 +80,16 @@ struct AccountView: View {
     @State private var showEditProfile = false
     @State private var showHelp = false
     @State private var showAbout = false
+    @State private var showWorkspaceEditor = false
+    /// The four workspace tiles the user has chosen, persisted. Editable
+    /// just like the Home quick actions.
+    @AppStorage("com.mtrx.account.workspace") private var workspaceRaw =
+        "governance,messaging,rewards,settings"
+
+    private var workspaceOptions: [WorkspaceOption] {
+        let chosen = workspaceRaw.split(separator: ",").compactMap { WorkspaceOption(rawValue: String($0)) }
+        return chosen.isEmpty ? [.governance, .messaging, .rewards, .settings] : chosen
+    }
 
     var body: some View {
         NavigationStack {
@@ -97,9 +107,9 @@ struct AccountView: View {
                     }
                     .padding(.horizontal, Spacing.contentPadding)
                     .padding(.top, Spacing.md)
-                    // Reserve the floating dock's area so Sign Out lands just
-                    // above it (the fill height includes under the dock).
-                    .padding(.bottom, 96)
+                    // Reserve the floating dock's area plus a little breathing
+                    // room so Sign Out floats a touch higher off the dock.
+                    .padding(.bottom, 132)
                     .frame(minHeight: proxy.size.height)
                 }
             }
@@ -168,6 +178,9 @@ struct AccountView: View {
                     AlertsView()
                 }
             }
+        }
+        .sheet(isPresented: $showWorkspaceEditor) {
+            WorkspaceEditSheet(workspaceRaw: $workspaceRaw)
         }
         .onAppear {
             withAnimation(Motion.springDefault.delay(0.1)) {
@@ -450,18 +463,58 @@ struct AccountView: View {
     }
 
     private var workspaceSection: some View {
-        // Governance, Messaging, Rewards, and Settings — a 2×2 grid whose
-        // tiles stretch to fill the space down to Sign Out (no dead space).
-        VStack(spacing: Spacing.sm) {
-            MtrxSectionHeader(title: "Your workspace")
-            VStack(spacing: Spacing.sm) {
-                HStack(spacing: Spacing.sm) {
-                    QuickActionCard(icon: Symbols.dao, label: "Governance", color: .accentTertiary, destination: .governance, onOpen: { presentedDestination = $0 })
-                    QuickActionCard(icon: Symbols.message, label: "Messaging", color: .statusInfo, destination: .messaging, onOpen: { presentedDestination = $0 })
+        // A 2×2 grid the user curates — pick any four from the workspace
+        // options, just like Home's quick actions. Tap the header chevron
+        // (or long-press a tile) to customize.
+        let tiles = workspaceOptions
+        return VStack(spacing: Spacing.sm) {
+            Button {
+                MtrxHaptics.impact(.light)
+                showWorkspaceEditor = true
+            } label: {
+                HStack(spacing: 6) {
+                    MtrxSectionHeader(title: "Your workspace")
+                    Image(systemName: "chevron.right.circle")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                    Spacer()
                 }
-                HStack(spacing: Spacing.sm) {
-                    QuickActionCard(icon: "gift.fill", label: "Rewards", color: .accentSecondary, destination: .loyalty, onOpen: { presentedDestination = $0 })
-                    QuickActionCard(icon: Symbols.settings, label: "Settings", color: .labelSecondary, destination: .settings, onOpen: { presentedDestination = $0 })
+            }
+            .buttonStyle(.plain)
+
+            VStack(spacing: Spacing.sm) {
+                ForEach(0..<2, id: \.self) { row in
+                    HStack(spacing: Spacing.sm) {
+                        ForEach(0..<2, id: \.self) { col in
+                            let index = row * 2 + col
+                            if index < tiles.count {
+                                let opt = tiles[index]
+                                QuickActionCard(icon: opt.icon, label: opt.title, color: opt.color,
+                                                destination: opt.destination,
+                                                onOpen: { presentedDestination = $0 })
+                                    .onLongPressGesture {
+                                        MtrxHaptics.impact(.medium)
+                                        showWorkspaceEditor = true
+                                    }
+                            } else {
+                                Button { showWorkspaceEditor = true } label: {
+                                    MtrxCard(style: .standard) {
+                                        VStack(spacing: Spacing.sm) {
+                                            Image(systemName: "plus")
+                                                .font(.system(size: 20, weight: .semibold))
+                                                .foregroundStyle(Color.accentPrimary)
+                                                .frame(width: 46, height: 46)
+                                            Text("Add")
+                                                .font(.mtrxCalloutBold)
+                                                .foregroundStyle(Color.labelSecondary)
+                                        }
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
                 }
             }
             .frame(maxHeight: .infinity)
@@ -591,6 +644,179 @@ enum AccountNavDestination: Hashable, Identifiable {
     case treasury
     case attestations
     case alerts
+}
+
+// MARK: - Workspace Options (editable)
+
+/// Everything that can live in one of the four workspace quadrants. The
+/// user picks any four; the choice persists.
+enum WorkspaceOption: String, CaseIterable, Identifiable {
+    case governance, messaging, rewards, settings
+    case wallet, staking, reputation, credentials
+    case verify, access, notifications, treasury
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .governance: return "Governance"
+        case .messaging: return "Messaging"
+        case .rewards: return "Rewards"
+        case .settings: return "Settings"
+        case .wallet: return "Wallet"
+        case .staking: return "Staking"
+        case .reputation: return "Reputation"
+        case .credentials: return "Credentials"
+        case .verify: return "Verify"
+        case .access: return "Access"
+        case .notifications: return "Notifications"
+        case .treasury: return "Treasury"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .governance: return Symbols.dao
+        case .messaging: return Symbols.message
+        case .rewards: return "gift.fill"
+        case .settings: return Symbols.settings
+        case .wallet: return "wallet.pass.fill"
+        case .staking: return "lock.shield.fill"
+        case .reputation: return "star.fill"
+        case .credentials: return "seal.fill"
+        case .verify: return "person.text.rectangle.fill"
+        case .access: return "key.fill"
+        case .notifications: return "bell.fill"
+        case .treasury: return "building.columns.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .governance: return .accentTertiary
+        case .messaging: return .statusInfo
+        case .rewards: return .accentSecondary
+        case .settings: return .labelSecondary
+        case .wallet: return .accentPrimary
+        case .staking: return .statusSuccess
+        case .reputation: return .accentSecondary
+        case .credentials: return .statusSuccess
+        case .verify: return .statusInfo
+        case .access: return .accentPrimary
+        case .notifications: return .statusWarning
+        case .treasury: return .accentTertiary
+        }
+    }
+
+    var destination: AccountNavDestination {
+        switch self {
+        case .governance: return .governance
+        case .messaging: return .messaging
+        case .rewards: return .loyalty
+        case .settings: return .settings
+        case .wallet: return .wallet
+        case .staking: return .staking
+        case .reputation: return .reputation
+        case .credentials: return .credentials
+        case .verify: return .kyc
+        case .access: return .accessControl
+        case .notifications: return .notifications
+        case .treasury: return .treasury
+        }
+    }
+}
+
+// MARK: - Workspace Editor
+
+/// Pick exactly which four tiles fill the workspace grid. Selecting is
+/// capped at four; tap a selected tile to free a slot.
+struct WorkspaceEditSheet: View {
+    @Binding var workspaceRaw: String
+    @Environment(\.dismiss) private var dismiss
+
+    private var chosen: [WorkspaceOption] {
+        workspaceRaw.split(separator: ",").compactMap { WorkspaceOption(rawValue: String($0)) }
+    }
+
+    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    Text("Pick up to four tiles for your workspace. Tap a selected one to remove it.")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                        .padding(.horizontal, Spacing.contentPadding)
+
+                    LazyVGrid(columns: columns, spacing: Spacing.sm) {
+                        ForEach(WorkspaceOption.allCases) { option in
+                            let isOn = chosen.contains(option)
+                            let rank = chosen.firstIndex(of: option).map { $0 + 1 }
+                            Button { toggle(option) } label: {
+                                VStack(spacing: Spacing.sm) {
+                                    Image(systemName: option.icon)
+                                        .font(.system(size: 20, weight: .semibold))
+                                        .foregroundStyle(option.color)
+                                        .frame(width: 44, height: 44)
+                                        .background(option.color.opacity(0.12))
+                                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                                    Text(option.title)
+                                        .font(.mtrxCalloutBold)
+                                        .foregroundStyle(Color.labelPrimary)
+                                        .lineLimit(1).minimumScaleFactor(0.8)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, Spacing.md)
+                                .background(Color.surfaceCard.opacity(isOn ? 0.9 : 0.4))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
+                                        .stroke(isOn ? option.color.opacity(0.6) : Color.white.opacity(0.06), lineWidth: isOn ? 1.5 : 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+                                .overlay(alignment: .topTrailing) {
+                                    if let rank {
+                                        Text("\(rank)")
+                                            .font(.system(size: 11, weight: .bold))
+                                            .foregroundStyle(.white)
+                                            .frame(width: 20, height: 20)
+                                            .background(Circle().fill(option.color))
+                                            .padding(6)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+                }
+                .padding(.vertical, Spacing.md)
+            }
+            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .navigationTitle("Edit workspace")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
+        }
+    }
+
+    private func toggle(_ option: WorkspaceOption) {
+        MtrxHaptics.impact(.light)
+        var list = chosen
+        if let i = list.firstIndex(of: option) {
+            list.remove(at: i)
+        } else if list.count < 4 {
+            list.append(option)
+        } else {
+            // Full — replace the last slot.
+            list[3] = option
+        }
+        workspaceRaw = list.map(\.rawValue).joined(separator: ",")
+    }
 }
 
 // MARK: - Quick Action Card

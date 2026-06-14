@@ -676,6 +676,7 @@ struct SocialView: View {
     @State private var showProofPicker = false
     @State private var commentingOnPost: SocialPostDisplay? = nil
     @State private var postActionTarget: SocialPostDisplay? = nil
+    @State private var detailPost: SocialPostDisplay? = nil
     @State private var actionFeedback: String? = nil
 
     var body: some View {
@@ -832,6 +833,9 @@ struct SocialView: View {
             .sheet(item: $commentingOnPost) { post in
                 CommentComposerSheet(post: post)
                     .presentationDetents([.large])
+            }
+            .sheet(item: $detailPost) { post in
+                PostDetailSheet(postID: post.id)
             }
             .confirmationDialog(
                 "Post options",
@@ -1513,44 +1517,49 @@ struct SocialView: View {
             }
 
             // A grounded bottom bar — the writing tools + character counter.
-            HStack(spacing: Spacing.md) {
-                PhotosPicker(selection: $photoPickerItem, matching: .images) {
-                    composerToolIcon("photo", tint: Color.accentPrimary)
-                }
-                PhotosPicker(selection: $videoPickerItem, matching: .videos) {
-                    composerToolIcon("video", tint: Color.accentPrimary)
-                }
-                Button {
-                    viewModel.attachProof.toggle()
-                    MtrxHaptics.impact(.light)
-                } label: {
-                    composerToolIcon(viewModel.attachProof ? "checkmark.seal.fill" : "checkmark.seal",
-                                     tint: viewModel.attachProof ? Color.statusSuccess : Color.accentPrimary)
-                }
-                // Poll
-                Button {
-                    MtrxHaptics.impact(.light)
-                    withAnimation(Motion.springSnappy) {
-                        viewModel.composerPollEnabled.toggle()
-                        if viewModel.composerPollEnabled && viewModel.composerPollOptions.isEmpty {
-                            viewModel.composerPollOptions = ["", ""]
-                        }
+            // The divider is inset and the counter is pinned so it can never
+            // be clipped at the screen edge.
+            VStack(spacing: 0) {
+                MtrxDivider()
+                HStack(spacing: Spacing.sm) {
+                    PhotosPicker(selection: $photoPickerItem, matching: .images) {
+                        composerToolIcon("photo", tint: Color.accentPrimary)
                     }
-                } label: {
-                    composerToolIcon("chart.bar.xaxis",
-                                     tint: viewModel.composerPollEnabled ? Color.statusSuccess : Color.accentPrimary)
+                    PhotosPicker(selection: $videoPickerItem, matching: .videos) {
+                        composerToolIcon("video", tint: Color.accentPrimary)
+                    }
+                    Button {
+                        viewModel.attachProof.toggle()
+                        MtrxHaptics.impact(.light)
+                    } label: {
+                        composerToolIcon(viewModel.attachProof ? "checkmark.seal.fill" : "checkmark.seal",
+                                         tint: viewModel.attachProof ? Color.statusSuccess : Color.accentPrimary)
+                    }
+                    Button {
+                        MtrxHaptics.impact(.light)
+                        withAnimation(Motion.springSnappy) {
+                            viewModel.composerPollEnabled.toggle()
+                            if viewModel.composerPollEnabled && viewModel.composerPollOptions.isEmpty {
+                                viewModel.composerPollOptions = ["", ""]
+                            }
+                        }
+                    } label: {
+                        composerToolIcon("chart.bar.xaxis",
+                                         tint: viewModel.composerPollEnabled ? Color.statusSuccess : Color.accentPrimary)
+                    }
+
+                    Spacer(minLength: Spacing.sm)
+
+                    Text("\(viewModel.composerText.count)/280")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(viewModel.composerText.count > 280 ? Color.statusError : Color.labelTertiary)
+                        .fixedSize()
+                        .layoutPriority(1)
                 }
-
-                Spacer()
-
-                Text("\(viewModel.composerText.count)/280")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(viewModel.composerText.count > 280 ? Color.statusError : Color.labelTertiary)
+                .padding(.horizontal, Spacing.contentPadding)
+                .padding(.vertical, Spacing.sm)
             }
-            .padding(.horizontal, Spacing.contentPadding)
-            .padding(.vertical, Spacing.sm)
             .background(.ultraThinMaterial)
-            .overlay(alignment: .top) { MtrxDivider() }
         }
         .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
         .presentationDetents([.large])
@@ -1604,7 +1613,8 @@ struct SocialView: View {
                             onRepost: { viewModel.toggleRepost(postId: post.id) },
                             onMenu: { postActionTarget = post },
                             onComment: { commentingOnPost = post },
-                            onVotePoll: { optionID in viewModel.voteOnPoll(postId: post.id, optionID: optionID) }
+                            onVotePoll: { optionID in viewModel.voteOnPoll(postId: post.id, optionID: optionID) },
+                            onOpen: { detailPost = post }
                         )
                         .id(post.id)
                         .mtrxStaggeredAppearance(index: index, isVisible: appeared)
@@ -1803,6 +1813,7 @@ struct PostCardView: View {
     var onMenu: () -> Void = {}
     var onComment: () -> Void = {}
     var onVotePoll: (String) -> Void = { _ in }
+    var onOpen: () -> Void = {}
 
     @State private var isExpanded = false
     @ObservedObject private var bookmarks = SocialBookmarkStore.shared
@@ -1899,6 +1910,9 @@ struct PostCardView: View {
         .padding(.horizontal, Spacing.contentPadding)
         .padding(.vertical, Spacing.ms)
         .contentShape(Rectangle())
+        // Tap anywhere on the card (outside the action buttons) to open the
+        // full post with its comments.
+        .onTapGesture { onOpen() }
     }
 
     // MARK: Header line — name · handle · time, menu at right
@@ -2605,6 +2619,132 @@ struct CommentRow: View {
             Spacer()
         }
         .padding(.vertical, Spacing.xs)
+    }
+}
+
+/// Demo comments for a post — shared by the comment composer and the
+/// full post-detail view.
+func socialPlaceholderComments(for post: SocialPostDisplay) -> [PlaceholderComment] {
+    let templates: [(String, String, String, Color)] = [
+        ("Maya Reyes", "@maya.eth", "MR", .accentPrimary),
+        ("Theo Lin", "@theo_dev", "TL", .statusInfo),
+        ("Aisha Khan", "@aisha.base", "AK", .accentTertiary),
+        ("DeFi Daily", "@defidaily", "DD", .statusSuccess),
+        ("Crypto Curious", "@curious42", "CC", .labelTertiary)
+    ]
+    let bodies = [
+        "This is huge for the ecosystem.",
+        "Have you seen the gas costs lately though?",
+        "Following — interested to see how this plays out.",
+        "Big if true. Source on the audit?",
+        "Reposting to my thread."
+    ]
+    let count = max(1, min(post.commentCount, 5))
+    return (0..<count).map { i in
+        let t = templates[i % templates.count]
+        return PlaceholderComment(id: "\(post.id)-c\(i)", displayName: t.0, handle: t.1,
+                                  avatarInitials: t.2, avatarColor: t.3, body: bodies[i % bodies.count])
+    }
+}
+
+// MARK: - Post Detail (the full post + its comments)
+
+/// Tapping a post opens it on its own — the full post (likeable, repostable,
+/// votable) above its comment thread, with a box to add your own.
+struct PostDetailSheet: View {
+    let postID: String
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var viewModel = SocialViewModel.shared
+    @State private var draft = ""
+    @State private var localComments: [PlaceholderComment] = []
+    @FocusState private var inputFocused: Bool
+
+    private var post: SocialPostDisplay? { viewModel.posts.first { $0.id == postID } }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                ScrollView {
+                    if let post {
+                        VStack(alignment: .leading, spacing: 0) {
+                            PostCardView(
+                                post: post,
+                                onLike: { viewModel.toggleLike(postId: post.id) },
+                                onRepost: { viewModel.toggleRepost(postId: post.id) },
+                                onMenu: {},
+                                onComment: { inputFocused = true },
+                                onVotePoll: { viewModel.voteOnPoll(postId: post.id, optionID: $0) }
+                            )
+                            MtrxDivider()
+
+                            Text("\(post.commentCount + localComments.count) comments")
+                                .font(.mtrxCaptionBold)
+                                .foregroundStyle(Color.labelSecondary)
+                                .padding(.horizontal, Spacing.contentPadding)
+                                .padding(.vertical, Spacing.sm)
+
+                            ForEach(localComments) { CommentRow(comment: $0).padding(.horizontal, Spacing.contentPadding) }
+                            ForEach(socialPlaceholderComments(for: post)) { comment in
+                                CommentRow(comment: comment)
+                                    .padding(.horizontal, Spacing.contentPadding)
+                            }
+                        }
+                        .padding(.bottom, Spacing.lg)
+                    } else {
+                        Text("This post is no longer available.")
+                            .font(.mtrxCallout)
+                            .foregroundStyle(Color.labelSecondary)
+                            .padding(.top, 80)
+                    }
+                }
+                .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+
+                MtrxDivider()
+
+                HStack(spacing: Spacing.sm) {
+                    TextField("Add a comment…", text: $draft, axis: .vertical)
+                        .lineLimit(1...4)
+                        .font(.mtrxCallout)
+                        .focused($inputFocused)
+                        .padding(.horizontal, Spacing.md)
+                        .padding(.vertical, Spacing.sm)
+                        .background(Color.surfaceCard.opacity(0.6))
+                        .clipShape(Capsule())
+                    Button {
+                        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !text.isEmpty else { return }
+                        localComments.insert(
+                            PlaceholderComment(id: UUID().uuidString,
+                                               displayName: SocialIdentity.shared.currentDisplayName.isEmpty ? "You" : SocialIdentity.shared.currentDisplayName,
+                                               handle: SocialIdentity.shared.myHandle,
+                                               avatarInitials: "ME", avatarColor: .trinityPrimary, body: text),
+                            at: 0)
+                        draft = ""
+                        inputFocused = false
+                        MtrxHaptics.success()
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 34, height: 34)
+                            .background(draft.trimmingCharacters(in: .whitespaces).isEmpty ? Color.labelQuaternary : Color.accentPrimary)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .padding(.horizontal, Spacing.contentPadding)
+                .padding(.vertical, Spacing.sm)
+                .background(.ultraThinMaterial)
+            }
+            .navigationTitle("Post")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") { dismiss() }.foregroundStyle(Color.accentPrimary)
+                }
+            }
+        }
     }
 }
 
