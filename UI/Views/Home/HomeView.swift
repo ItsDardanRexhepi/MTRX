@@ -332,8 +332,6 @@ struct HomeView: View {
     @State private var homeChatSetup = false
     @State private var homeChatOpen = false
     @State private var homeChatDrag: CGFloat = 0
-    /// Measured height of the live transcript so the card hugs it.
-    @State private var homeConvoHeight: CGFloat = 0
     /// The in-chat input is its own field so typing here never leaks back
     /// into the top search bar.
     @State private var homeChatInput = ""
@@ -512,11 +510,9 @@ struct HomeView: View {
             let sweep = CGFloat(sin(t * 0.45)) * 0.55
             let hue = (t * 9).truncatingRemainder(dividingBy: 360)
             ZStack {
-                // Fills the whole bounding box (including the notch); the
-                // notch shape clips it via mtrxLiquidGlass.
-                Rectangle()
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
                     .fill(Color.black.opacity(0.22))
-                Rectangle()
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: Self.askFlowColors,
@@ -539,8 +535,8 @@ struct HomeView: View {
         GeometryReader { geo in
         VStack(spacing: 0) {
             // The card lifts so its top-right notch reaches up to the search
-            // bar — the bar reads as part of the card's shape.
-            Color.clear.frame(height: 12)
+            // Sits just under the greeting / search bar (which stays put).
+            Color.clear.frame(height: 58)
 
             VStack(spacing: Spacing.sm) {
                 // Header — tapping Trinity's name opens the full Trinity space
@@ -625,17 +621,12 @@ struct HomeView: View {
                         }
                         .padding(.vertical, 2)
                         // Report the transcript's true height so the card can
-                        // hug it — the input sits right under the last message
-                        // instead of floating with a wall of dead space.
-                        .background(GeometryReader { g in
-                            Color.clear.preference(key: HomeChatHeightKey.self, value: g.size.height)
-                        })
                     }
-                    // Hug the transcript, but never grow past the space above
-                    // the keyboard — the conversation scrolls and the input
-                    // bar always stays put, just above the keys.
-                    .frame(height: min(max(homeConvoHeight, 60), max(150, geo.size.height - 290)))
-                    .onPreferenceChange(HomeChatHeightKey.self) { homeConvoHeight = $0 }
+                    // The transcript fills the bubble and scrolls within it —
+                    // newest message pinned to the bottom, just above the input
+                    // — so it never overruns the keyboard.
+                    .frame(maxHeight: .infinity)
+                    .defaultScrollAnchor(.bottom)
                     .onChange(of: homeChatVM.messages.count) {
                         if let last = homeChatVM.messages.last {
                             withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(last.id, anchor: .bottom) }
@@ -675,15 +666,13 @@ struct HomeView: View {
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
             }
-            // Extra top room so the header clears the notch that rides above
-            // the card and reaches up to the search bar.
-            .padding(.top, ChatNotchShape.notchHeight + Spacing.sm)
-            .padding(.horizontal, Spacing.md)
-            .padding(.bottom, Spacing.md)
+            .padding(Spacing.md)
+            // Fill the space from under the greeting down toward Quick actions
+            // (capped above the keyboard by the surrounding GeometryReader).
+            .frame(maxHeight: .infinity)
             .background(chatCardFlow)
-            // Real Liquid Glass over the colors, clipped to the notched shape
-            // so the search bar reads as part of the window.
-            .mtrxLiquidGlass(in: ChatNotchShape())
+            // Clean liquid-glass card — translucent, blurred, app-signature.
+            .mtrxLiquidGlass(cornerRadius: 30)
             .shadow(color: .black.opacity(0.4), radius: 24, y: 10)
             .padding(.horizontal, Spacing.contentPadding)
             .padding(.bottom, Spacing.xs)
@@ -696,10 +685,6 @@ struct HomeView: View {
                         else { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { homeChatDrag = 0 } }
                     }
             )
-
-            // Keep the card anchored to the top (under the bar) rather than
-            // centered — it grows downward as the conversation does.
-            Spacer(minLength: 0)
         }
         .onChange(of: homeChatVM.dismissRequested) {
             // Trinity navigated the app for the user → close the home chat.
@@ -2079,15 +2064,6 @@ struct DailyFlowSheet: View {
     }
 }
 
-/// Reports the home chat transcript's content height so the card can hug
-/// it instead of stretching to fill the screen.
-private struct HomeChatHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
 /// A jiggle that is *guaranteed* to stop: the sway is driven by a
 /// TimelineView that only exists while `active`. The moment edit mode ends
 /// the rotation source is gone entirely, so the tiles settle flat — no
@@ -2106,35 +2082,3 @@ private struct JiggleEffect: ViewModifier {
     }
 }
 
-/// A rounded rectangle with a tab on its top-right edge so the Home search
-/// bar reads as part of the chat card's shape — a notch on the rectangle.
-struct ChatNotchShape: Shape {
-    static let notchHeight: CGFloat = 46
-    var notchStart: CGFloat = 0.42   // fraction of width where the notch begins
-    var radius: CGFloat = 28
-
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let nh = min(Self.notchHeight, h * 0.5)
-        let nx = w * notchStart
-        let r = min(radius, max(1, (h - nh) / 2))
-        // The notch's top corners are rounded to half its height, so it reads
-        // as the search bar's capsule pill extending up out of the card.
-        let cap = min(nh / 2, max(1, (w - nx) / 2))
-        var p = Path()
-        p.move(to: CGPoint(x: 0, y: h - r))
-        p.addLine(to: CGPoint(x: 0, y: nh + r))
-        p.addQuadCurve(to: CGPoint(x: r, y: nh), control: CGPoint(x: 0, y: nh))        // main top-left
-        p.addLine(to: CGPoint(x: nx, y: nh))                                            // main top → notch base
-        p.addLine(to: CGPoint(x: nx, y: cap))                                           // up the notch's left wall
-        p.addQuadCurve(to: CGPoint(x: nx + cap, y: 0), control: CGPoint(x: nx, y: 0))   // pill top-left
-        p.addLine(to: CGPoint(x: w - cap, y: 0))                                        // pill top edge
-        p.addQuadCurve(to: CGPoint(x: w, y: cap), control: CGPoint(x: w, y: 0))         // pill top-right
-        p.addLine(to: CGPoint(x: w, y: h - r))                                          // right edge
-        p.addQuadCurve(to: CGPoint(x: w - r, y: h), control: CGPoint(x: w, y: h))       // bottom-right
-        p.addLine(to: CGPoint(x: r, y: h))
-        p.addQuadCurve(to: CGPoint(x: 0, y: h - r), control: CGPoint(x: 0, y: h))       // bottom-left
-        p.closeSubpath()
-        return p
-    }
-}
