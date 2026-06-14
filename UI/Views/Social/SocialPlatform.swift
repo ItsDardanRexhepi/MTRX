@@ -47,6 +47,12 @@ final class SocialIdentity: ObservableObject {
     @AppStorage("com.mtrx.social.bio") var bio: String = "Building on MTRX."
     @Published var avatarImage: UIImage?
     @Published var bannerImage: UIImage?
+    /// Mirrored from AppState by the Social view so any post card can tell
+    /// whether a post belongs to the signed-in user (to show their photo).
+    @Published var currentDisplayName: String = ""
+
+    /// The signed-in user's effective @handle.
+    var myHandle: String { handle(displayName: currentDisplayName) }
 
     static let mediaDirectory: URL = {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -793,25 +799,29 @@ struct SocialProfileSheet: View {
                     // Banner with the avatar overlapping its bottom edge.
                     // Clean display only — all editing lives in Edit profile.
                     ZStack(alignment: .bottomLeading) {
-                        Group {
-                            if let banner = identity.bannerImage {
-                                Image(uiImage: banner)
-                                    .resizable()
-                                    .scaledToFill()
-                            } else {
-                                LinearGradient(
-                                    colors: [Color.trinityPrimary.opacity(0.55), Color.trinitySecondary.opacity(0.35), Color.backgroundPrimary],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
+                        // A clear frame fixes the banner's footprint to the
+                        // screen width; the image fills it via overlay so a
+                        // tall photo can never overflow and shove the whole
+                        // profile sideways. It just fits to screen, edge to
+                        // edge, reaching up behind the status bar.
+                        Color.clear
+                            .frame(height: 178)
+                            .frame(maxWidth: .infinity)
+                            .overlay {
+                                if let banner = identity.bannerImage {
+                                    Image(uiImage: banner)
+                                        .resizable()
+                                        .scaledToFill()
+                                } else {
+                                    LinearGradient(
+                                        colors: [Color.trinityPrimary.opacity(0.55), Color.trinitySecondary.opacity(0.35), Color.backgroundPrimary],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                }
                             }
-                        }
-                        // Tall enough to fill behind the status bar so the
-                        // banner reaches the very top of the page.
-                        .frame(height: 178)
-                        .frame(maxWidth: .infinity)
-                        .clipped()
-                        .ignoresSafeArea(edges: .top)
+                            .clipped()
+                            .ignoresSafeArea(edges: .top)
 
                         Group {
                             if let avatar = identity.avatarImage {
@@ -1176,11 +1186,19 @@ struct PostAttachmentView: View {
                 .buttonStyle(.plain)
             }
 
-            // Videos play inline; AVKit's own control expands to full-screen.
+            // Videos play inline. Pro & Enterprise members get true
+            // Picture-in-Picture — the video pops out and keeps playing when
+            // they leave the app.
             if let videoFileName {
-                VideoPlayer(player: AVPlayer(url: SocialIdentity.mediaURL(videoFileName)))
-                    .frame(height: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                Group {
+                    if FeatureGate.shared.currentTier >= .pro {
+                        PiPVideoPlayer(url: SocialIdentity.mediaURL(videoFileName))
+                    } else {
+                        VideoPlayer(player: AVPlayer(url: SocialIdentity.mediaURL(videoFileName)))
+                    }
+                }
+                .frame(height: 220)
+                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
             }
 
             if let linkURL {
@@ -1287,6 +1305,31 @@ struct YouTubePlayerView: UIViewRepresentable {
         """
         web.loadHTMLString(html, baseURL: URL(string: "https://www.youtube.com"))
     }
+}
+
+// MARK: - Picture-in-Picture Video (Pro / Enterprise)
+
+/// An AVPlayerViewController-backed player that supports Picture-in-Picture
+/// so the video pops out and keeps playing after the user leaves the app.
+/// Requires the "audio" background mode (Info.plist) to continue in the
+/// background.
+struct PiPVideoPlayer: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        // Playback category keeps audio/PiP alive when the app backgrounds.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+        try? AVAudioSession.sharedInstance().setActive(true)
+
+        let controller = AVPlayerViewController()
+        controller.player = AVPlayer(url: url)
+        controller.allowsPictureInPicturePlayback = true
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        controller.videoGravity = .resizeAspectFill
+        return controller
+    }
+
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {}
 }
 
 // MARK: - Social Theme (Pro feature)

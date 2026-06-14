@@ -139,6 +139,34 @@ struct MainTabView: View {
         )
     }
 
+    /// Page between dock tabs on a horizontal swipe. On the Social tab a
+    /// left→right swipe first reveals the side menu (like tapping the
+    /// avatar); a second one continues on to Home.
+    private func handleTabSwipe(rightward: Bool) {
+        let drawer = SocialDrawerController.shared
+        if selectedTab == .social {
+            if rightward {
+                if !drawer.isOpen {
+                    MtrxHaptics.impact(.light)
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { drawer.isOpen = true }
+                    return
+                } else {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { drawer.isOpen = false }
+                    withAnimation { selectedTab = .home }
+                    return
+                }
+            } else if drawer.isOpen {
+                // Swiping the other way just tucks the drawer back.
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { drawer.isOpen = false }
+                return
+            }
+        }
+        let next = selectedTab.rawValue + (rightward ? -1 : 1)
+        if let tab = AppTab(rawValue: next) {
+            withAnimation { selectedTab = tab }
+        }
+    }
+
     var body: some View {
         TabView(selection: tabBinding) {
             DiscoverView()
@@ -175,6 +203,17 @@ struct MainTabView: View {
         // whole tab container swallows NavigationLink pushes inside
         // tabs. The tint still shifts green→cyan per selected tab.
         .tint(tabTint)
+        // Swipe left/right anywhere to move between dock tabs. A deliberate,
+        // mostly-horizontal fling — small drags still belong to carousels.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 28)
+                .onEnded { value in
+                    let w = value.translation.width
+                    let h = value.translation.height
+                    guard abs(w) > 100, abs(w) > abs(h) * 2.5 else { return }
+                    handleTabSwipe(rightward: w > 0)
+                }
+        )
         .task {
             // Restore the demo subscription tier so FeatureGate honors
             // it from the first frame after a relaunch.

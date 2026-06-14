@@ -96,7 +96,7 @@ struct HomeView: View {
                     .onTapGesture { closeHomeChat() }
                     .zIndex(40)
                 homeChatPanel
-                    .transition(.scale(scale: 0.55, anchor: .topTrailing).combined(with: .opacity))
+                    .transition(.opacity)
                     .zIndex(50)
             }
         }
@@ -249,7 +249,14 @@ struct HomeView: View {
                 // The ask bar and the orb are one element now: a single
                 // glass pill — wearing the orb's own iridescent skin —
                 // with the orb living at its trailing end. Type to Trinity.
-                homeAskOrb
+                // When the chat is open the pill has grown into the card, so
+                // a Spacer holds the row's layout in its place.
+                if homeChatOpen {
+                    Spacer(minLength: 0)
+                } else {
+                    homeAskOrb
+                        .matchedGeometryEffect(id: "trinityChatSurface", in: chatNS)
+                }
             }
             .alert("Your Name", isPresented: $showNameEditor) {
                 TextField("Name", text: $nameDraft)
@@ -313,6 +320,9 @@ struct HomeView: View {
     @State private var homeChatDrag: CGFloat = 0
     /// Measured height of the live transcript so the card hugs it.
     @State private var homeConvoHeight: CGFloat = 0
+    /// Drives the hero morph: the search pill literally grows into the chat
+    /// card (and shrinks back), so it reads as one continuous surface.
+    @Namespace private var chatNS
     /// The in-chat input is its own field so typing here never leaks back
     /// into the top search bar.
     @State private var homeChatInput = ""
@@ -501,11 +511,6 @@ struct HomeView: View {
             Color.clear.frame(height: 58)
 
             VStack(spacing: Spacing.sm) {
-                // Drag handle, so it reads as one continuous surface.
-                Capsule()
-                    .fill(Color.white.opacity(0.25))
-                    .frame(width: 40, height: 5)
-
                 // Header — orb + title, Open-in-Trinity, close.
                 HStack(spacing: Spacing.sm) {
                     GlassOrb(size: 24, tint: agentGlassTint(.trinity))
@@ -613,6 +618,8 @@ struct HomeView: View {
             // Real Liquid Glass over the colors — refracts the dashboard
             // behind it while keeping the flowing palette.
             .mtrxLiquidGlass(cornerRadius: 30)
+            // The hero surface — grows straight out of the search pill.
+            .matchedGeometryEffect(id: "trinityChatSurface", in: chatNS)
             .shadow(color: .black.opacity(0.4), radius: 24, y: 10)
             .padding(.horizontal, Spacing.contentPadding)
             .padding(.bottom, Spacing.xs)
@@ -787,7 +794,7 @@ struct HomeView: View {
                 .offset(x: -6, y: -6)
             }
         }
-        .rotationEffect(.degrees(editingActions ? (jiggle ? 0.7 : -0.7) : 0))
+        .modifier(JiggleEffect(active: editingActions))
         // In edit mode the tiles are draggable to any of the six slots.
         .modifier(QuickActionDragReorder(
             action: action,
@@ -823,7 +830,7 @@ struct HomeView: View {
             )
         }
         .buttonStyle(.plain)
-        .rotationEffect(.degrees(jiggle ? 0.7 : -0.7))
+        .modifier(JiggleEffect(active: editingActions))
     }
 
     private func open(_ action: HomeAction) {
@@ -1054,6 +1061,13 @@ struct HomeView: View {
         .frame(height: 196, alignment: .topLeading)
         .background(Color.trinityPrimary.opacity(0.03))
         .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
+        // Tap the card to open this exact post in the Social feed.
+        .contentShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+        .onTapGesture {
+            MtrxHaptics.impact(.light)
+            NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": 3])
+            NotificationCenter.default.post(name: .mtrxOpenPost, object: nil, userInfo: ["id": post.id])
+        }
         .overlay(
             RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
                 .stroke(
@@ -1852,6 +1866,9 @@ extension Notification.Name {
     /// Posted with ["label": String, "count": Int, "complete": Bool] each time
     /// the user checks off one of the three daily-flow actions.
     static let mtrxDailyFlowProgress = Notification.Name("com.mtrx.dailyFlowProgress")
+    /// Posted with ["id": String] to jump the Social feed to a specific post
+    /// (e.g. tapping a card in the Home feed carousel).
+    static let mtrxOpenPost = Notification.Name("com.mtrx.openPost")
 }
 
 // MARK: - Daily Flow Sheet
@@ -2003,5 +2020,23 @@ private struct HomeChatHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
+    }
+}
+
+/// A jiggle that is *guaranteed* to stop: the sway is driven by a
+/// TimelineView that only exists while `active`. The moment edit mode ends
+/// the rotation source is gone entirely, so the tiles settle flat — no
+/// lingering repeatForever animation.
+private struct JiggleEffect: ViewModifier {
+    let active: Bool
+    func body(content: Content) -> some View {
+        if active {
+            TimelineView(.animation) { context in
+                let t = context.date.timeIntervalSinceReferenceDate
+                content.rotationEffect(.degrees(sin(t * 6.3) * 0.8))
+            }
+        } else {
+            content
+        }
     }
 }

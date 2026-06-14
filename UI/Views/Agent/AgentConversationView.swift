@@ -80,27 +80,14 @@ struct AgentConversationView: View {
 
     var body: some View {
         ZStack {
-            // Background
-            MtrxGradientBackground(style: .trinityGlow)
-
-            // The room takes on its agent's signature color — a faint
-            // aurora that shifts with who's listening. Hosted in an
-            // overlay on a clear layer so its oversized glow can never
-            // widen the layout past the screen.
-            Color.clear
-                .overlay(alignment: .top) {
-                    RadialGradient(
-                        colors: [agentAccent.opacity(0.13), .clear],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 230
-                    )
-                    .frame(width: 460, height: 460)
-                    .offset(y: -180)
-                }
+            // The agent's orb, expanded to fill the entire room — a living
+            // wash of its colors that breathes exactly like the orb and
+            // re-tints whenever you switch agents. There's no center orb
+            // anymore: the whole screen *is* the agent.
+            agentWallpaper
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
-                .animation(.easeInOut(duration: 0.7), value: viewModel.activeAgent)
+                .animation(.easeInOut(duration: 0.85), value: viewModel.activeAgent)
 
             VStack(spacing: 0) {
                 // The agent space wears its own header; the tab-style
@@ -221,16 +208,16 @@ struct AgentConversationView: View {
                     // user starts typing or sends their first message.
                     .overlay {
                         if showCenteredGreeting {
-                            VStack(spacing: Spacing.sm) {
-                                GlassOrb(size: 64, tint: agentGlassTint(viewModel.activeAgent))
-                                Text(greeting)
-                                    .font(.mtrxTitle2)
-                                    .foregroundStyle(Color.labelPrimary)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, Spacing.xl)
-                            }
-                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                            .allowsHitTesting(false)
+                            // No orb — the room itself is the agent. Just the
+                            // greeting, centered in the screen.
+                            Text(greeting)
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.labelPrimary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, Spacing.xl)
+                                .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
+                                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                                .allowsHitTesting(false)
                         }
                     }
                 }
@@ -244,12 +231,25 @@ struct AgentConversationView: View {
                     inputBar
                 }
                 .background {
-                    // A solid base under the glass so message content can
-                    // never ghost through the chips/input band.
+                    // The band fades up from solid to clear so it melts into
+                    // the wallpaper at the top edge — no hard seam — while
+                    // still being opaque enough below that messages never
+                    // ghost through the chips and input.
                     ZStack {
-                        Color.backgroundPrimary
-                        Rectangle().fill(.ultraThinMaterial)
+                        LinearGradient(
+                            colors: [.clear, Color.backgroundPrimary.opacity(0.92), Color.backgroundPrimary],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                        Rectangle()
+                            .fill(.ultraThinMaterial)
+                            .mask(
+                                LinearGradient(
+                                    colors: [.clear, .black, .black],
+                                    startPoint: .top, endPoint: .bottom
+                                )
+                            )
                     }
+                    .padding(.top, -22)
                     .padding(.bottom, -40)
                     .ignoresSafeArea(edges: .bottom)
                 }
@@ -666,6 +666,48 @@ struct AgentConversationView: View {
     /// the send button so the whole bar quietly matches who's listening.
     private var agentAccent: Color {
         agentGradientColors.first ?? .accentPrimary
+    }
+
+    /// The full-screen agent wallpaper: the orb's own colors, expanded to
+    /// fill the room and breathing on the same slow pulse. Re-tints per
+    /// agent. It sinks to deep black at the very bottom so the input band
+    /// blends in with no hard seam.
+    private var agentWallpaper: some View {
+        let palette = agentGlassTint(viewModel.activeAgent)
+        let c0 = palette.first ?? .accentPrimary
+        let c1 = palette.count > 1 ? palette[1] : c0
+        let c2 = palette.count > 2 ? palette[2] : c1
+        return TimelineView(.animation) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let breathe = (sin(t * 0.8) + 1) / 2          // 0…1, slow breath
+            let drift = CGFloat(sin(t * 0.3))
+            ZStack {
+                Color.backgroundPrimary
+                RadialGradient(
+                    colors: [c0.opacity(0.40 + 0.16 * breathe), c1.opacity(0.16), .clear],
+                    center: UnitPoint(x: 0.5 + 0.05 * drift, y: 0.40),
+                    startRadius: 0,
+                    endRadius: 340 + 90 * breathe
+                )
+                RadialGradient(
+                    colors: [c2.opacity(0.18 + 0.12 * breathe), .clear],
+                    center: UnitPoint(x: 0.32 - 0.06 * drift, y: 0.74),
+                    startRadius: 0,
+                    endRadius: 320
+                )
+                .blendMode(.screen)
+                // Smooth, gradual sink to black top and bottom — no abrupt
+                // break where the header or input band meet the wallpaper.
+                LinearGradient(
+                    colors: [
+                        Color.backgroundPrimary.opacity(0.55),
+                        .clear, .clear,
+                        Color.backgroundPrimary.opacity(0.9),
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+            }
+        }
     }
 
     private var agentInitial: String {

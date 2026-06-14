@@ -105,6 +105,16 @@ final class SocialBookmarkStore: ObservableObject {
     }
 }
 
+// MARK: - Side Drawer Controller
+
+/// Shared so the app-wide swipe gesture (in MainTabView) can open the
+/// Social drawer with the same animation as tapping the avatar.
+final class SocialDrawerController: ObservableObject {
+    static let shared = SocialDrawerController()
+    @Published var isOpen = false
+    private init() {}
+}
+
 // MARK: - Governance Proposal Model
 
 struct SocialGovernanceProposal: Identifiable {
@@ -437,10 +447,12 @@ struct SocialView: View {
     @State private var showUpsell = false
     @State private var showAIFeatures = false
     // Twitter-style side drawer opened from the avatar.
-    @State private var showSideMenu = false
+    @ObservedObject private var drawer = SocialDrawerController.shared
     @State private var showTrinityChat = false
     @State private var showHistory = false
     @State private var showHelp = false
+    /// A post the Home carousel asked us to scroll to.
+    @State private var pendingOpenPostID: String?
     @AppStorage("com.mtrx.subscriptionTier") private var tierRaw: String = SubscriptionTier.free.rawValue
     private var currentTier: SubscriptionTier { SubscriptionTier(rawValue: tierRaw) ?? .free }
     @Namespace private var tabUnderlineNS
@@ -515,10 +527,10 @@ struct SocialView: View {
             }
             // Twitter-style side drawer: when open, the whole feed slides to
             // the right (leaving a sliver) and a dim scrim closes it on tap.
-            .offset(x: showSideMenu ? sideMenuWidth : 0)
-            .scaleEffect(showSideMenu ? 0.97 : 1, anchor: .trailing)
+            .offset(x: drawer.isOpen ? sideMenuWidth : 0)
+            .scaleEffect(drawer.isOpen ? 0.97 : 1, anchor: .trailing)
             .overlay {
-                if showSideMenu {
+                if drawer.isOpen {
                     Color.black.opacity(0.34)
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
@@ -526,12 +538,25 @@ struct SocialView: View {
                         .transition(.opacity)
                 }
             }
-            .onAppear { DailyFlow.shared.mark(.social) }
+            .onAppear {
+                DailyFlow.shared.mark(.social)
+                socialIdentity.currentDisplayName = appState.displayName
+            }
+            .onChange(of: appState.displayName) { _, name in
+                socialIdentity.currentDisplayName = name
+            }
             .onReceive(NotificationCenter.default.publisher(for: .mtrxPopToRoot)) { note in
                 // Re-tapping the Social dock tab returns to the Feed.
                 if note.userInfo?["index"] as? Int == 3 {
                     withAnimation(Motion.springSnappy) { viewModel.selectedTab = .feed }
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .mtrxOpenPost)) { note in
+                // Tapping a Home carousel card lands on that post in the feed.
+                guard let id = note.userInfo?["id"] as? String else { return }
+                viewModel.selectedTab = .feed
+                viewModel.selectedFilter = .all
+                pendingOpenPostID = id
             }
             .navigationBarTitleDisplayMode(.inline)
             // The header is a custom view now (no system toolbar) so there's
@@ -642,7 +667,7 @@ struct SocialView: View {
                 }
             }
 
-            if showSideMenu {
+            if drawer.isOpen {
                 sideMenu
                     .frame(width: sideMenuWidth)
                     .frame(maxHeight: .infinity, alignment: .top)
@@ -690,7 +715,7 @@ struct SocialView: View {
 
     private func closeSideMenu() {
         withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-            showSideMenu = false
+            drawer.isOpen = false
         }
     }
 
@@ -862,7 +887,7 @@ struct SocialView: View {
             // Avatar — opens the side menu, Twitter-style.
             Button {
                 MtrxHaptics.impact(.light)
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { showSideMenu = true }
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { drawer.isOpen = true }
             } label: {
                 Group {
                     if let avatar = socialIdentity.avatarImage {
@@ -1200,36 +1225,49 @@ struct SocialView: View {
         // The whole top — header, tabs, stories, filter chips — is the first
         // run of the scroll, so it scrolls away cleanly and the feed engulfs
         // the screen. Only the dock stays.
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                socialHeader
-                tabSelector
-                StoriesRail()
-                filterChips
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    socialHeader
+                    tabSelector
+                    StoriesRail()
+                    filterChips
 
-                ForEach(Array(viewModel.filteredPosts.enumerated()), id: \.element.id) { index, post in
-                    PostCardView(
-                        post: post,
-                        onLike: { viewModel.toggleLike(postId: post.id) },
-                        onRepost: { viewModel.toggleRepost(postId: post.id) },
-                        onMenu: { postActionTarget = post },
-                        onComment: { commentingOnPost = post }
-                    )
-                    .mtrxStaggeredAppearance(index: index, isVisible: appeared)
-                    .onAppear {
-                        if post.id == viewModel.filteredPosts.last?.id {
-                            viewModel.loadMoreTimeline()
+                    ForEach(Array(viewModel.filteredPosts.enumerated()), id: \.element.id) { index, post in
+                        PostCardView(
+                            post: post,
+                            onLike: { viewModel.toggleLike(postId: post.id) },
+                            onRepost: { viewModel.toggleRepost(postId: post.id) },
+                            onMenu: { postActionTarget = post },
+                            onComment: { commentingOnPost = post }
+                        )
+                        .id(post.id)
+                        .mtrxStaggeredAppearance(index: index, isVisible: appeared)
+                        .onAppear {
+                            if post.id == viewModel.filteredPosts.last?.id {
+                                viewModel.loadMoreTimeline()
+                            }
                         }
-                    }
 
-                    MtrxDivider()
+                        MtrxDivider()
+                    }
+                }
+                .padding(.bottom, Spacing.xxl)
+            }
+            .mtrxTrackScrollY { feedScrollY = $0 }
+            .refreshable {
+                await viewModel.refresh()
+            }
+            // Jump to a post requested from the Home feed carousel.
+            .onChange(of: pendingOpenPostID) { _, id in
+                guard let id else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    withAnimation(.easeInOut(duration: 0.45)) {
+                        proxy.scrollTo(id, anchor: .top)
+                    }
+                    pendingOpenPostID = nil
                 }
             }
-            .padding(.bottom, Spacing.xxl)
-        }
-        .mtrxTrackScrollY { feedScrollY = $0 }
-        .refreshable {
-            await viewModel.refresh()
         }
     }
 
@@ -1402,6 +1440,7 @@ struct PostCardView: View {
 
     @State private var isExpanded = false
     @ObservedObject private var bookmarks = SocialBookmarkStore.shared
+    @ObservedObject private var identity = SocialIdentity.shared
 
     private let expandThreshold = 280
 
@@ -1410,9 +1449,29 @@ struct PostCardView: View {
         post.likeCount * 83 + post.repostCount * 41 + post.commentCount * 17 + 412
     }
 
+    /// This is the signed-in user's own post → show their real photo.
+    private var isOwnPost: Bool { post.handle == identity.myHandle }
+
+    /// A YouTube link sitting in the post text — pulled out so it plays
+    /// inline instead of showing as a bare URL.
+    private var bodyYouTubeID: String? {
+        guard post.imageData == nil, post.videoFileName == nil, post.linkURL == nil else { return nil }
+        for token in post.body.split(whereSeparator: { $0 == " " || $0 == "\n" }) {
+            let s = String(token)
+            if s.contains("youtu"), let id = PostAttachmentView.youTubeID(from: s) { return id }
+        }
+        return nil
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.ms) {
-            MtrxAvatar(text: post.avatarInitials, color: post.avatarColor, size: 40)
+            if isOwnPost, let photo = identity.avatarImage {
+                Image(uiImage: photo).resizable().scaledToFill()
+                    .frame(width: 40, height: 40)
+                    .clipShape(Circle())
+            } else {
+                MtrxAvatar(text: post.avatarInitials, color: post.avatarColor, size: 40)
+            }
 
             VStack(alignment: .leading, spacing: 7) {
                 headerLine
@@ -1426,6 +1485,15 @@ struct PostCardView: View {
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .padding(.top, 2)
+                }
+
+                // A YouTube link pasted into the post plays right here.
+                if let ytID = bodyYouTubeID {
+                    YouTubePlayerView(videoID: ytID)
+                        .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .padding(.top, 2)
                 }
 
                 if post.hasOnChainProof {
@@ -1501,10 +1569,19 @@ struct PostCardView: View {
 
     @ViewBuilder
     private var bodyText: some View {
-        let shouldTruncate = post.body.count > expandThreshold && !isExpanded
+        // When a YouTube link plays inline, drop the bare URL from the text.
+        let cleaned: String = {
+            guard bodyYouTubeID != nil else { return post.body }
+            return post.body
+                .split(whereSeparator: { $0 == " " || $0 == "\n" })
+                .filter { !$0.contains("youtu") }
+                .joined(separator: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }()
+        let shouldTruncate = cleaned.count > expandThreshold && !isExpanded
 
-        if !post.body.isEmpty {
-            Text(shouldTruncate ? String(post.body.prefix(expandThreshold)) + "…" : post.body)
+        if !cleaned.isEmpty {
+            Text(shouldTruncate ? String(cleaned.prefix(expandThreshold)) + "…" : cleaned)
                 .font(.system(size: 15))
                 .foregroundStyle(Color.labelPrimary)
                 .lineSpacing(3)
