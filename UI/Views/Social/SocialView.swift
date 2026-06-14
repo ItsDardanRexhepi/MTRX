@@ -1106,17 +1106,21 @@ struct SocialView: View {
                 MtrxGradientBackground(style: .primary)
                 LinearGradient(
                     stops: [
-                        .init(color: theme.accent.opacity(0.32), location: 0.0),
-                        .init(color: theme.accent.opacity(0.22), location: 0.30),
-                        .init(color: theme.accent.opacity(0.12), location: 0.55),
-                        .init(color: theme.accent.opacity(0.04), location: 0.80),
+                        .init(color: theme.accent.opacity(0.34), location: 0.0),
+                        .init(color: theme.accent.opacity(0.27), location: 0.16),
+                        .init(color: theme.accent.opacity(0.20), location: 0.32),
+                        .init(color: theme.accent.opacity(0.13), location: 0.48),
+                        .init(color: theme.accent.opacity(0.075), location: 0.63),
+                        .init(color: theme.accent.opacity(0.035), location: 0.78),
+                        .init(color: theme.accent.opacity(0.012), location: 0.90),
                         .init(color: .clear, location: 1.0),
                     ],
                     startPoint: .top, endPoint: .bottom
                 )
-                // Ends right after the @handle (just above Following/Followers)
-                // and fades all the way out — no hard edge.
-                .frame(height: 200)
+                // Taller, many-stop fade so the colour dissolves into black
+                // imperceptibly — no perceptible edge — while the strength
+                // still concentrates up near the username.
+                .frame(height: 300)
                 .frame(maxWidth: .infinity, alignment: .top)
                 .allowsHitTesting(false)
             }
