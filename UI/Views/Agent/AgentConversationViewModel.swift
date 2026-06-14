@@ -61,6 +61,10 @@ final class AgentConversationViewModel: ObservableObject {
     /// Persistent chat storage — every conversation belongs to one agent.
     private let store = ConversationStore.shared
     private(set) var conversationID: UUID?
+    /// When true the conversation is never written to the store and never
+    /// restored — used by the Home pop-up chat, which starts fresh every
+    /// time and is saved nowhere.
+    var ephemeral = false
     private var cancellables = Set<AnyCancellable>()
     private var isConfigured = false
 
@@ -97,10 +101,11 @@ final class AgentConversationViewModel: ObservableObject {
         guard !isConfigured else { return }
         isConfigured = true
 
-        // Resume the most recent saved chat, or open a fresh one.
-        // Fresh installs always start with Trinity — she is the primary
-        // assistant; Neo and Morpheus are a tap away.
-        if let recent = store.conversations.first, !recent.messages.isEmpty {
+        // Resume the most recent saved chat, or open a fresh one. Ephemeral
+        // chats (the Home pop-up) never resume — always a clean slate.
+        if ephemeral {
+            startNewConversation(agent: .trinity, announce: false)
+        } else if let recent = store.conversations.first, !recent.messages.isEmpty {
             openConversation(recent)
         } else {
             startNewConversation(agent: .trinity, announce: true)
@@ -122,8 +127,13 @@ final class AgentConversationViewModel: ObservableObject {
     /// Open a fresh chat bound to `agent`.
     func startNewConversation(agent: AgentAccessControl.ActiveAgent, announce: Bool = true) {
         inference.resetAllSessions()
-        let convo = store.create(agent: agent)
-        conversationID = convo.id
+        if ephemeral {
+            // No store record — this chat is saved nowhere.
+            conversationID = nil
+        } else {
+            let convo = store.create(agent: agent)
+            conversationID = convo.id
+        }
         manualAgentOverride = (agent == .trinity) ? nil : agent
         activeAgent = agent
         pendingAction = nil

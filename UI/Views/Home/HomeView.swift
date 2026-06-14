@@ -425,8 +425,9 @@ struct HomeView: View {
     /// in Home — it only opens the full Trinity space if the user asks.
     private func ensureHomeChatSetup() {
         guard !homeChatSetup else { return }
+        // The Home pop-up chat is ephemeral — never saved, fresh every open.
+        homeChatVM.ephemeral = true
         homeChatVM.setup(userID: appState.currentUserID, walletManager: walletManager)
-        homeChatVM.openAgentChat(.trinity)
         homeChatSetup = true
     }
 
@@ -451,6 +452,8 @@ struct HomeView: View {
     /// to the chat's own input — no separate window, just the bar opening up.
     private func openHomeChatFromBar() {
         ensureHomeChatSetup()
+        // Always a fresh chat — the pop-up never remembers the last one.
+        homeChatVM.startNewConversation(agent: .trinity, announce: false)
         withAnimation(.smooth(duration: 0.42)) { homeChatOpen = true }
         DispatchQueue.main.async {
             askFocused = false
@@ -463,6 +466,8 @@ struct HomeView: View {
     private func submitHomeChat(_ text: String) {
         ensureHomeChatSetup()
         if !homeChatOpen {
+            // Opening fresh from the search bar — clean slate every time.
+            homeChatVM.startNewConversation(agent: .trinity, announce: false)
             withAnimation(.smooth(duration: 0.42)) { homeChatOpen = true }
         }
         homeChatVM.inputText = text
@@ -507,11 +512,11 @@ struct HomeView: View {
             let sweep = CGFloat(sin(t * 0.45)) * 0.55
             let hue = (t * 9).truncatingRemainder(dividingBy: 360)
             ZStack {
-                // Slightly more translucent backing so the dashboard reads
-                // faintly through the glass — present, never see-through.
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                // Fills the whole bounding box (including the notch); the
+                // notch shape clips it via mtrxLiquidGlass.
+                Rectangle()
                     .fill(Color.black.opacity(0.22))
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                Rectangle()
                     .fill(
                         LinearGradient(
                             colors: Self.askFlowColors,
@@ -533,9 +538,9 @@ struct HomeView: View {
     private var homeChatPanel: some View {
         GeometryReader { geo in
         VStack(spacing: 0) {
-            // Starts right at the search bar and unfurls downward, so the chat
-            // reads as the bar expanding — not a separate window below it.
-            Color.clear.frame(height: 58)
+            // The card lifts so its top-right notch reaches up to the search
+            // bar — the bar reads as part of the card's shape.
+            Color.clear.frame(height: 12)
 
             VStack(spacing: Spacing.sm) {
                 // Header — orb + title, Open-in-Trinity, close.
@@ -630,7 +635,7 @@ struct HomeView: View {
                     // Hug the transcript, but never grow past the space above
                     // the keyboard — the conversation scrolls and the input
                     // bar always stays put, just above the keys.
-                    .frame(height: min(max(homeConvoHeight, 60), max(150, geo.size.height - 230)))
+                    .frame(height: min(max(homeConvoHeight, 60), max(150, geo.size.height - 290)))
                     .onPreferenceChange(HomeChatHeightKey.self) { homeConvoHeight = $0 }
                     .onChange(of: homeChatVM.messages.count) {
                         if let last = homeChatVM.messages.last {
@@ -671,11 +676,15 @@ struct HomeView: View {
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
             }
-            .padding(Spacing.md)
+            // Extra top room so the header clears the notch that rides above
+            // the card and reaches up to the search bar.
+            .padding(.top, ChatNotchShape.notchHeight + Spacing.sm)
+            .padding(.horizontal, Spacing.md)
+            .padding(.bottom, Spacing.md)
             .background(chatCardFlow)
-            // Real Liquid Glass over the colors — refracts the dashboard
-            // behind it while keeping the flowing palette.
-            .mtrxLiquidGlass(cornerRadius: 30)
+            // Real Liquid Glass over the colors, clipped to the notched shape
+            // so the search bar reads as part of the window.
+            .mtrxLiquidGlass(in: ChatNotchShape())
             .shadow(color: .black.opacity(0.4), radius: 24, y: 10)
             .padding(.horizontal, Spacing.contentPadding)
             .padding(.bottom, Spacing.xs)
@@ -2095,5 +2104,37 @@ private struct JiggleEffect: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// A rounded rectangle with a tab on its top-right edge so the Home search
+/// bar reads as part of the chat card's shape — a notch on the rectangle.
+struct ChatNotchShape: Shape {
+    static let notchHeight: CGFloat = 46
+    var notchStart: CGFloat = 0.44   // fraction of width where the notch begins
+    var radius: CGFloat = 28
+    var notchRadius: CGFloat = 16
+
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        let nh = min(Self.notchHeight, h * 0.5)
+        let nx = w * notchStart
+        let r = min(radius, max(1, (h - nh) / 2))
+        let nr = min(notchRadius, max(1, (w - nx) / 2))
+        var p = Path()
+        p.move(to: CGPoint(x: 0, y: h - r))
+        p.addLine(to: CGPoint(x: 0, y: nh + r))
+        p.addQuadCurve(to: CGPoint(x: r, y: nh), control: CGPoint(x: 0, y: nh))      // main top-left
+        p.addLine(to: CGPoint(x: nx, y: nh))                                          // main top → notch base
+        p.addLine(to: CGPoint(x: nx, y: nr))                                          // up the notch wall
+        p.addQuadCurve(to: CGPoint(x: nx + nr, y: 0), control: CGPoint(x: nx, y: 0))  // notch top-left
+        p.addLine(to: CGPoint(x: w - nr, y: 0))                                       // notch top
+        p.addQuadCurve(to: CGPoint(x: w, y: nr), control: CGPoint(x: w, y: 0))        // notch top-right
+        p.addLine(to: CGPoint(x: w, y: h - r))                                        // right edge
+        p.addQuadCurve(to: CGPoint(x: w - r, y: h), control: CGPoint(x: w, y: h))     // bottom-right
+        p.addLine(to: CGPoint(x: r, y: h))
+        p.addQuadCurve(to: CGPoint(x: 0, y: h - r), control: CGPoint(x: 0, y: h))     // bottom-left
+        p.closeSubpath()
+        return p
     }
 }
