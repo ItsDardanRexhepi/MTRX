@@ -418,8 +418,12 @@ struct SocialView: View {
     private var currentTier: SubscriptionTier { SubscriptionTier(rawValue: tierRaw) ?? .free }
     @Namespace private var tabUnderlineNS
     @State private var appeared = false
-    /// Drives the stories/tabs tuck-away as the feed scrolls.
-    @State private var feedScrollY: CGFloat = 0
+    /// Immersive scroll: as you scroll down the feed, the header, tabs,
+    /// stories, and dock all tuck away so it's just the timeline; they
+    /// return when you scroll back up or pause.
+    @State private var chromeHidden = false
+    @State private var lastScrollY: CGFloat = 0
+    @State private var chromeReappearTimer: Timer?
     @State private var showProofPicker = false
     @State private var commentingOnPost: SocialPostDisplay? = nil
     @State private var postActionTarget: SocialPostDisplay? = nil
@@ -430,6 +434,10 @@ struct SocialView: View {
             ZStack(alignment: .bottomTrailing) {
                 VStack(spacing: 0) {
                     tabSelector
+                        .frame(height: chromeHidden ? 0 : 58, alignment: .top)
+                        .opacity(chromeHidden ? 0 : 1)
+                        .clipped()
+                        .animation(.easeInOut(duration: 0.28), value: chromeHidden)
                     tabContent
                 }
                 .background(alignment: .top) {
@@ -494,7 +502,6 @@ struct SocialView: View {
                         }
                         .frame(width: 34, height: 34)
                         .clipShape(Circle())
-                        .shadow(color: socialIdentity.avatarGlow.opacity(0.45), radius: 5)
                     }
                 }
 
@@ -554,6 +561,10 @@ struct SocialView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            // Tuck the nav header and the dock away while immersed in the feed.
+            .toolbar(chromeHidden ? .hidden : .visible, for: .navigationBar)
+            .toolbar(chromeHidden ? .hidden : .visible, for: .tabBar)
+            .animation(.easeInOut(duration: 0.28), value: chromeHidden)
             .sheet(isPresented: $showNotifications) {
                 NotificationCenterView()
             }
@@ -651,6 +662,24 @@ struct SocialView: View {
         .onAppear {
             withAnimation(Motion.springDefault.delay(0.1)) {
                 appeared = true
+            }
+        }
+    }
+
+    /// Hide the chrome on downward scroll, reveal it on upward scroll, near
+    /// the top, or after a short pause.
+    private func handleFeedScroll(_ y: CGFloat) {
+        let delta = y - lastScrollY
+        lastScrollY = y
+        withAnimation(.easeInOut(duration: 0.28)) {
+            if y < 24 { chromeHidden = false }
+            else if delta > 6 { chromeHidden = true }
+            else if delta < -6 { chromeHidden = false }
+        }
+        chromeReappearTimer?.invalidate()
+        chromeReappearTimer = Timer.scheduledTimer(withTimeInterval: 2.8, repeats: false) { _ in
+            Task { @MainActor in
+                withAnimation(.easeInOut(duration: 0.3)) { chromeHidden = false }
             }
         }
     }
@@ -939,7 +968,6 @@ struct SocialView: View {
             // background — here we just lay out the stories and tabs.
             // Stories + tabs tuck away as you scroll into the feed, so the
             // timeline takes over the screen — and slide back when you return.
-            let chromeHidden = feedScrollY > 40
             VStack(spacing: 0) {
                 StoriesRail()
                 filterChips
@@ -973,7 +1001,7 @@ struct SocialView: View {
                 }
                 .padding(.bottom, Spacing.xxl)
             }
-            .mtrxTrackScrollY { feedScrollY = $0 }
+            .mtrxTrackScrollY { handleFeedScroll($0) }
             .refreshable {
                 await viewModel.refresh()
             }

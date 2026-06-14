@@ -269,7 +269,8 @@ struct BuildView: View {
     /// A clean underline tab strip with an icon per section — clearer and
     /// less chunky than the old pill-in-a-capsule.
     private var segmentControl: some View {
-        HStack(spacing: Spacing.lg) {
+        // Three equal-width tabs, evenly distributed across the strip.
+        HStack(spacing: 0) {
             ForEach(BuildSegment.allCases, id: \.self) { segment in
                 let isActive = viewModel.selectedSegment == segment
                 Button {
@@ -283,7 +284,7 @@ struct BuildView: View {
                             Text(segment.rawValue)
                                 .font(.system(size: 14, weight: isActive ? .bold : .medium))
                                 .lineLimit(1)
-                                .fixedSize()
+                                .minimumScaleFactor(0.8)
                         }
                         .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
 
@@ -295,10 +296,11 @@ struct BuildView: View {
                             }
                         }
                     }
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
-            Spacer()
         }
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.separatorStandard.opacity(0.4)).frame(height: 0.5)

@@ -465,7 +465,13 @@ struct HomeView: View {
                 jiggle = true
             }
         } else {
-            withAnimation(.easeInOut(duration: 0.25)) { jiggle = false }
+            // A repeatForever animation does NOT stop when you simply assign a
+            // new value with withAnimation — it keeps oscillating. Killing it
+            // in a transaction that disables animation truly cancels it so the
+            // tiles settle flat the moment you leave edit mode.
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) { jiggle = false }
         }
     }
 

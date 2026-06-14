@@ -84,14 +84,14 @@ struct AccountView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: Spacing.md) {
+                VStack(spacing: Spacing.lg) {
                     profileCard
                     portfolioSummary
                     workspaceSection
                     signOutButton
                 }
                 .padding(.horizontal, Spacing.contentPadding)
-                .padding(.top, Spacing.sm)
+                .padding(.top, Spacing.md)
                 .padding(.bottom, Spacing.lg)
             }
             .background(MtrxGradientBackground(style: .primary))
@@ -588,11 +588,11 @@ struct QuickActionCard: View {
     var body: some View {
         Button { onOpen(destination) } label: {
             MtrxCard(style: .standard) {
-                HStack(spacing: Spacing.sm) {
+                VStack(spacing: Spacing.sm) {
                     Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(color)
-                        .frame(width: 38, height: 38)
+                        .frame(width: 48, height: 48)
                         .background(color.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
 
@@ -601,9 +601,9 @@ struct QuickActionCard: View {
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                    Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity)
+                .frame(minHeight: 96)
             }
         }
         .buttonStyle(.plain)

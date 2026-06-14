@@ -905,7 +905,12 @@ struct ThemeSettingsView: View {
                     MtrxSectionHeader(title: "Appearance")
                     MtrxCard(style: .glass) {
                         HStack(spacing: Spacing.md) {
-                            SettingsIcon(symbol: "moon.stars.fill", color: .labelPrimary)
+                            Image(systemName: "moon.stars.fill")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(Color.accentPrimary)
+                                .frame(width: 40, height: 40)
+                                .background(Color.accentPrimary.opacity(0.14))
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Blackout")
                                     .font(.mtrxBodyBold)
@@ -913,8 +918,12 @@ struct ThemeSettingsView: View {
                                 Text("MTRX runs a true-black field across the whole app.")
                                     .font(.mtrxCaption1)
                                     .foregroundStyle(Color.labelSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            Spacer()
+                            Spacer(minLength: 0)
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(Color.statusSuccess)
                         }
                     }
                 }
