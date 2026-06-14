@@ -269,8 +269,10 @@ struct HomeView: View {
 
                 // The ask bar and the orb are one element: a single glass
                 // pill wearing the orb's iridescent skin. Tap to open the
-                // chat, which unfurls smoothly just beneath it.
+                // chat; the bar hides while the chat is open (its space is
+                // held so the row doesn't reflow).
                 homeAskOrb
+                    .opacity(homeChatOpen ? 0 : 1)
             }
             .alert("Your Name", isPresented: $showNameEditor) {
                 TextField("Name", text: $nameDraft)
@@ -535,8 +537,9 @@ struct HomeView: View {
         GeometryReader { geo in
         VStack(spacing: 0) {
             // The card lifts so its top-right notch reaches up to the search
-            // Sits just under the greeting / search bar (which stays put).
-            Color.clear.frame(height: 58)
+            // Starts ~1/4" higher, up into where the search bar sits (which
+            // is hidden while the chat is open).
+            Color.clear.frame(height: 28)
 
             VStack(spacing: Spacing.sm) {
                 // Header — tapping Trinity's name opens the full Trinity space
@@ -667,9 +670,9 @@ struct HomeView: View {
                 .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
             }
             .padding(Spacing.md)
-            // Fill the space from under the greeting down toward Quick actions
-            // (capped above the keyboard by the surrounding GeometryReader).
-            .frame(maxHeight: .infinity)
+            // A touch smaller than the full available space (~3/4), so the
+            // empty bubble isn't oversized; the transcript scrolls inside it.
+            .frame(maxHeight: max(220, (geo.size.height - 28) * 0.75))
             .background(chatCardFlow)
             // Clean liquid-glass card — translucent, blurred, app-signature.
             .mtrxLiquidGlass(cornerRadius: 30)
