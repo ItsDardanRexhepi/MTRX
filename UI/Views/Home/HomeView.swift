@@ -305,7 +305,10 @@ struct HomeView: View {
     @FocusState private var askFocused: Bool
     /// The inline chat that grows out of the search bar — no full-screen
     /// Trinity unless the user taps to extend into it.
-    @State private var homeChatLog: [HomeChatMsg] = []
+    /// The home chat is driven by the real Trinity view model, so she has
+    /// her full capabilities right here — navigation, actions, live answers.
+    @StateObject private var homeChatVM = AgentConversationViewModel()
+    @State private var homeChatSetup = false
     @State private var homeChatOpen = false
     @State private var homeChatDrag: CGFloat = 0
     /// The in-chat input is its own field so typing here never leaks back
@@ -393,6 +396,13 @@ struct HomeView: View {
 
     /// Submitting the bar (or the in-chat input) runs the command right here
     /// in Home — it only opens the full Trinity space if the user asks.
+    private func ensureHomeChatSetup() {
+        guard !homeChatSetup else { return }
+        homeChatVM.setup(userID: appState.currentUserID, walletManager: walletManager)
+        homeChatVM.openAgentChat(.trinity)
+        homeChatSetup = true
+    }
+
     /// Submitting the top search bar opens the inline chat (its own field).
     private func runHomeAsk() {
         let text = askText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -410,78 +420,39 @@ struct HomeView: View {
         submitHomeChat(text)
     }
 
+    /// Routes the message through the real Trinity model — full capabilities,
+    /// live answers, navigation, and actions, right here in Home.
     private func submitHomeChat(_ text: String) {
-        homeChatLog.append(HomeChatMsg(isUser: true, text: text))
+        ensureHomeChatSetup()
         if !homeChatOpen {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) { homeChatOpen = true }
         }
-        processHomeAsk(text)
-    }
-
-    private func processHomeAsk(_ text: String) {
-        let lower = text.lowercased()
-
-        // Navigation — the action just happens.
-        if let target = homeNavTarget(lower) {
-            appendAgent("Opening \(target.name) for you.")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-                closeHomeChat()
-                NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": target.index])
-            }
-            return
-        }
-
-        // "What can you do?" → a real rundown.
-        if AgentConversationViewModel.isCapabilityQuestion(text) {
-            appendAgent("Happy to help. Right from here I can check your balance, send/swap/stake, deploy contracts, post to Social, open any tab, and look up live prices, weather, or anything on the web. What do you need?")
-            return
-        }
-
-        // Money moves confirm in Trinity for safety.
-        if ["send", "swap", "stake", "pay", "transfer", "deploy"].contains(where: { lower.contains($0) }) {
-            appendAgent("I can do that — let's confirm it safely. Tap “Open in Trinity” and I'll carry this over.")
-            return
-        }
-
-        appendAgent("On it. For the full back-and-forth, tap “Open in Trinity” and I'll pick up with everything you've said here.")
-    }
-
-    private func appendAgent(_ text: String) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            withAnimation(.easeOut(duration: 0.25)) {
-                homeChatLog.append(HomeChatMsg(isUser: false, text: text))
-            }
-        }
-    }
-
-    private func homeNavTarget(_ lower: String) -> (index: Int, name: String)? {
-        guard lower.contains("open") || lower.contains("go to") || lower.contains("take me") || lower.contains("show me") else { return nil }
-        if lower.contains("discover") || lower.contains("marketplace") { return (0, "Discover") }
-        if lower.contains("build") || lower.contains("contract") { return (1, "Build") }
-        if lower.contains("social") || lower.contains("feed") { return (3, "Social") }
-        if lower.contains("account") || lower.contains("wallet") || lower.contains("setting") { return (4, "Account") }
-        if lower.contains("home") || lower.contains("dashboard") { return (2, "Home") }
-        return nil
+        homeChatVM.inputText = text
+        homeChatVM.sendMessage()
     }
 
     private func extendToTrinity() {
-        let context = homeChatLog
-            .map { ($0.isUser ? "Me: " : "Trinity: ") + $0.text }
+        let context = homeChatVM.messages
+            .map { ($0.role == .user ? "Me: " : "Trinity: ") + $0.text }
             .joined(separator: "\n")
-        let log = homeChatLog
+        let hadChat = !homeChatVM.messages.isEmpty
         closeHomeChat()
-        presentedChat = ChatLaunch(agent: .trinity, prompt: log.isEmpty ? nil : context)
+        presentedChat = ChatLaunch(agent: .trinity, prompt: hadChat ? context : nil)
     }
 
     private func closeHomeChat() {
         homeChatFocused = false
         homeChatInput = ""
+        homeChatVM.dismissRequested = false
         withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
             homeChatOpen = false
             homeChatDrag = 0
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-            if !homeChatOpen { homeChatLog = [] }
+            if !homeChatOpen {
+                // Fresh conversation next time it opens.
+                homeChatVM.startNewConversation(agent: .trinity, announce: false)
+            }
         }
     }
 
@@ -513,11 +484,20 @@ struct HomeView: View {
         }
     }
 
-    /// The card grows out of the search bar: anchored at the top, it expands
-    /// left (full width) and down, wearing the bar's own design.
+    /// The card grows out of the search bar: anchored just under it, it
+    /// expands left (full width) and down to just above the keyboard, wearing
+    /// the bar's own design. Trinity answers here with her full capabilities.
     private var homeChatPanel: some View {
         VStack(spacing: 0) {
+            // Sits just under the greeting / search bar.
+            Color.clear.frame(height: 150)
+
             VStack(spacing: Spacing.sm) {
+                // Drag handle, so it reads as one continuous surface.
+                Capsule()
+                    .fill(Color.white.opacity(0.25))
+                    .frame(width: 40, height: 5)
+
                 // Header — orb + title, Open-in-Trinity, close.
                 HStack(spacing: Spacing.sm) {
                     GlassOrb(size: 24, tint: agentGlassTint(.trinity))
@@ -544,32 +524,44 @@ struct HomeView: View {
                     .buttonStyle(.plain)
                 }
 
-                // Conversation.
+                // Conversation — the real Trinity transcript. Fills the card.
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: Spacing.sm) {
-                            ForEach(homeChatLog) { msg in
+                            ForEach(homeChatVM.messages) { msg in
                                 HStack {
-                                    if msg.isUser { Spacer(minLength: 36) }
+                                    if msg.role == .user { Spacer(minLength: 36) }
                                     Text(msg.text)
                                         .font(.mtrxCallout)
-                                        .foregroundStyle(msg.isUser ? .white : Color.labelPrimary)
+                                        .foregroundStyle(msg.role == .user ? .white : Color.labelPrimary)
                                         .padding(.horizontal, Spacing.md)
                                         .padding(.vertical, Spacing.sm)
-                                        .background(msg.isUser ? Color.trinityPrimary : Color.black.opacity(0.35))
+                                        .background(msg.role == .user ? Color.trinityPrimary : Color.black.opacity(0.35))
                                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                                         .textSelection(.enabled)
-                                    if !msg.isUser { Spacer(minLength: 36) }
+                                    if msg.role != .user { Spacer(minLength: 36) }
                                 }
                                 .id(msg.id)
+                            }
+                            if homeChatVM.isTyping {
+                                HStack {
+                                    TypingIndicator(agent: .trinity)
+                                    Spacer(minLength: 36)
+                                }
+                                .id("homeTyping")
                             }
                         }
                         .padding(.vertical, 2)
                     }
-                    .frame(maxHeight: 300)
-                    .onChange(of: homeChatLog.count) {
-                        if let last = homeChatLog.last {
+                    .frame(maxHeight: .infinity)
+                    .onChange(of: homeChatVM.messages.count) {
+                        if let last = homeChatVM.messages.last {
                             withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(last.id, anchor: .bottom) }
+                        }
+                    }
+                    .onChange(of: homeChatVM.isTyping) {
+                        if homeChatVM.isTyping {
+                            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("homeTyping", anchor: .bottom) }
                         }
                     }
                 }
@@ -602,6 +594,7 @@ struct HomeView: View {
                 .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
             }
             .padding(Spacing.md)
+            .frame(maxHeight: .infinity)
             .background(chatCardFlow)
             .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
             .overlay(
@@ -610,6 +603,7 @@ struct HomeView: View {
             )
             .shadow(color: .black.opacity(0.4), radius: 24, y: 10)
             .padding(.horizontal, Spacing.contentPadding)
+            .padding(.bottom, Spacing.sm)
             .offset(y: max(0, homeChatDrag))
             .gesture(
                 DragGesture()
@@ -619,12 +613,11 @@ struct HomeView: View {
                         else { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { homeChatDrag = 0 } }
                     }
             )
-
-            Spacer(minLength: 0)
         }
-        // Sits just under the greeting, where the search bar lives, and grows
-        // downward from there.
-        .padding(.top, 92)
+        .onChange(of: homeChatVM.dismissRequested) {
+            // Trinity navigated the app for the user → close the home chat.
+            if homeChatVM.dismissRequested { closeHomeChat() }
+        }
     }
 
 
@@ -957,8 +950,16 @@ struct HomeView: View {
                 .onChange(of: feedScrollIndex) { _, new in
                     guard let new, feedPosts.count > 1 else { return }
                     let n = feedPosts.count
-                    if new == 0 { jumpFeed(to: n) }          // before first → real last
-                    else if new == n + 1 { jumpFeed(to: 1) } // after last → real first
+                    // Wait for the scroll to fully settle on the clone before
+                    // jumping to the identical real card — jumping mid-animation
+                    // is what caused the stutter. The clone looks identical, so
+                    // the swap is invisible.
+                    if new == 0 || new == n + 1 {
+                        let target = (new == 0) ? n : 1
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.62) {
+                            if feedScrollIndex == new { jumpFeed(to: target) }
+                        }
+                    }
                 }
                 // A new post landing up front restarts the loop cleanly.
                 .onChange(of: feedPosts.count) { _, _ in
@@ -1005,10 +1006,14 @@ struct HomeView: View {
     private func startFeedRotation() {
         stopFeedRotation()
         guard feedPosts.count > 1 else { return }
-        feedTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+        feedTimer = Timer.scheduledTimer(withTimeInterval: 2.6, repeats: true) { _ in
             Task { @MainActor in
-                withAnimation(.easeInOut(duration: 0.55)) {
-                    feedScrollIndex = (feedScrollIndex ?? 1) + 1
+                // Don't advance while the user is mid-wrap on a clone.
+                let n = feedPosts.count
+                let idx = feedScrollIndex ?? 1
+                guard idx >= 1 && idx <= n else { return }
+                withAnimation(.easeInOut(duration: 0.65)) {
+                    feedScrollIndex = idx + 1
                 }
             }
         }

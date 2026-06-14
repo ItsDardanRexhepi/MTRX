@@ -88,10 +88,10 @@ struct AccountView: View {
                     VStack(spacing: Spacing.lg) {
                         profileCard
                         portfolioSummary
+                        // The workspace grid stretches to fill the gap, so the
+                        // tiles meet Sign Out with no dead space between them.
                         workspaceSection
-                        // Pushes Sign Out to the bottom so the screen fills
-                        // with no dead space, while still scrolling if needed.
-                        Spacer(minLength: Spacing.lg)
+                            .frame(maxHeight: .infinity)
                         signOutButton
                     }
                     .padding(.horizontal, Spacing.contentPadding)
@@ -447,15 +447,23 @@ struct AccountView: View {
     }
 
     private var workspaceSection: some View {
-        // Governance, Messaging, Rewards, and Settings — one consistent
-        // design language, with Settings now holding everything that used
-        // to sit in a separate App & Support block.
-        spaceGrid("Your workspace", delay: 0.09) {
-            QuickActionCard(icon: Symbols.dao, label: "Governance", color: .accentTertiary, destination: .governance, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: Symbols.message, label: "Messaging", color: .statusInfo, destination: .messaging, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: "gift.fill", label: "Rewards", color: .accentSecondary, destination: .loyalty, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: Symbols.settings, label: "Settings", color: .labelSecondary, destination: .settings, onOpen: { presentedDestination = $0 })
+        // Governance, Messaging, Rewards, and Settings — a 2×2 grid whose
+        // tiles stretch to fill the space down to Sign Out (no dead space).
+        VStack(spacing: Spacing.sm) {
+            MtrxSectionHeader(title: "Your workspace")
+            VStack(spacing: Spacing.sm) {
+                HStack(spacing: Spacing.sm) {
+                    QuickActionCard(icon: Symbols.dao, label: "Governance", color: .accentTertiary, destination: .governance, onOpen: { presentedDestination = $0 })
+                    QuickActionCard(icon: Symbols.message, label: "Messaging", color: .statusInfo, destination: .messaging, onOpen: { presentedDestination = $0 })
+                }
+                HStack(spacing: Spacing.sm) {
+                    QuickActionCard(icon: "gift.fill", label: "Rewards", color: .accentSecondary, destination: .loyalty, onOpen: { presentedDestination = $0 })
+                    QuickActionCard(icon: Symbols.settings, label: "Settings", color: .labelSecondary, destination: .settings, onOpen: { presentedDestination = $0 })
+                }
+            }
+            .frame(maxHeight: .infinity)
         }
+        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.09)
     }
 
     /// One home for everything app-level: settings (notifications live
@@ -594,11 +602,11 @@ struct QuickActionCard: View {
     var body: some View {
         Button { onOpen(destination) } label: {
             MtrxCard(style: .standard) {
-                HStack(spacing: Spacing.sm) {
+                VStack(spacing: Spacing.sm) {
                     Image(systemName: icon)
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(color)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 46, height: 46)
                         .background(color.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
 
@@ -607,9 +615,9 @@ struct QuickActionCard: View {
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity)
+                // Fill the tile so the 2×2 grid stretches to meet Sign Out.
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .buttonStyle(.plain)
