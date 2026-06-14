@@ -519,19 +519,21 @@ struct DiscoverView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 196)
-
-                // Page dots
-                HStack(spacing: 6) {
-                    ForEach(0..<items.count, id: \.self) { index in
-                        Circle()
-                            .fill(index == viewModel.currentFeaturedIndex ? Color.accentPrimary : Color.labelQuaternary)
-                            .frame(width: index == viewModel.currentFeaturedIndex ? 8 : 6, height: index == viewModel.currentFeaturedIndex ? 8 : 6)
-                            .animation(Motion.springSnappy, value: viewModel.currentFeaturedIndex)
+                .frame(height: 184)
+                // Page dots now ride inside the card at its bottom edge, so
+                // there's no separate dots row eating space beneath it.
+                .overlay(alignment: .bottom) {
+                    HStack(spacing: 6) {
+                        ForEach(0..<items.count, id: \.self) { index in
+                            Circle()
+                                .fill(index == viewModel.currentFeaturedIndex ? Color.white : Color.white.opacity(0.45))
+                                .frame(width: index == viewModel.currentFeaturedIndex ? 7 : 5,
+                                       height: index == viewModel.currentFeaturedIndex ? 7 : 5)
+                                .animation(Motion.springSnappy, value: viewModel.currentFeaturedIndex)
+                        }
                     }
+                    .padding(.bottom, Spacing.sm)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.top, Spacing.xs)
             }
         }
     }

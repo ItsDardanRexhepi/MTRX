@@ -14,7 +14,7 @@ struct HomeView: View {
     @ObservedObject private var chatStore = ConversationStore.shared
     @ObservedObject private var dailyFlow = DailyFlow.shared
     @ObservedObject private var socialFeed = SocialViewModel.shared
-    @State private var feedPage = 0
+    @State private var feedScrollIndex: Int?
     @State private var feedTimer: Timer?
 
     @State private var presentedChat: ChatLaunch?
@@ -41,7 +41,7 @@ struct HomeView: View {
             // Sized so the whole dashboard — greeting through Services —
             // fits one screen above the dock. Even 20pt section rhythm.
             ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.md) {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
                     greetingHeader
                         .mtrxStaggeredAppearance(index: 0, isVisible: appeared)
 
@@ -150,9 +150,8 @@ struct HomeView: View {
                     showDailyFlow = false
                 }
             )
-            .presentationDetents([.height(420)])
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
-            .presentationBackground(.ultraThinMaterial)
         }
         .sheet(item: $presentedService) { service in
             NavigationStack {
@@ -678,26 +677,31 @@ struct HomeView: View {
                     .foregroundStyle(Color.labelTertiary)
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else {
-                // An endlessly looping carousel: a clone of the last post
-                // sits before the first and a clone of the first sits after
-                // the last, so swiping (or the 2s auto-rotation) wraps
-                // seamlessly in both directions, forever.
-                TabView(selection: $feedPage) {
-                    ForEach(loopFeed.indices, id: \.self) { i in
-                        feedCard(loopFeed[i])
-                            .tag(i)
+                // A snapping, endlessly looping carousel: each card is exactly
+                // the content width and snaps cleanly to one card at rest —
+                // no wide channel. Clones front and back wrap it both ways,
+                // and it auto-advances every 2 seconds.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Spacing.sm) {
+                        ForEach(loopFeed.indices, id: \.self) { i in
+                            feedCard(loopFeed[i])
+                                .containerRelativeFrame(.horizontal)
+                                .id(i)
+                        }
                     }
+                    .scrollTargetLayout()
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 188)
+                .frame(height: 168)
+                .scrollTargetBehavior(.viewAligned)
+                .scrollPosition(id: $feedScrollIndex)
                 .onAppear {
-                    if feedPosts.count > 1 && feedPage == 0 { feedPage = 1 }
+                    feedScrollIndex = feedPosts.count > 1 ? 1 : 0
                     startFeedRotation()
                 }
                 .onDisappear { stopFeedRotation() }
-                .onChange(of: feedPage) { _, new in
+                .onChange(of: feedScrollIndex) { _, new in
+                    guard let new, feedPosts.count > 1 else { return }
                     let n = feedPosts.count
-                    guard n > 1 else { return }
                     if new == 0 { jumpFeed(to: n) }          // before first → real last
                     else if new == n + 1 { jumpFeed(to: 1) } // after last → real first
                 }
@@ -732,13 +736,14 @@ struct HomeView: View {
     private var realFeedIndex: Int {
         let n = feedPosts.count
         guard n > 1 else { return 0 }
-        return ((feedPage - 1) % n + n) % n
+        let idx = feedScrollIndex ?? 1
+        return ((idx - 1) % n + n) % n
     }
 
     private func jumpFeed(to index: Int) {
         var t = Transaction()
         t.disablesAnimations = true
-        withTransaction(t) { feedPage = index }
+        withTransaction(t) { feedScrollIndex = index }
     }
 
     /// Advance one post every two seconds; the clone-jump keeps it endless.
@@ -747,7 +752,9 @@ struct HomeView: View {
         guard feedPosts.count > 1 else { return }
         feedTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
             Task { @MainActor in
-                withAnimation(.easeInOut(duration: 0.55)) { feedPage += 1 }
+                withAnimation(.easeInOut(duration: 0.55)) {
+                    feedScrollIndex = (feedScrollIndex ?? 1) + 1
+                }
             }
         }
     }
@@ -1562,91 +1569,132 @@ struct DailyFlowSheet: View {
     let onSocial: () -> Void
     let onExplore: () -> Void
 
+    private var accent: Color { dailyFlow.isComplete ? .statusSuccess : .trinityPrimary }
+
     var body: some View {
-        VStack(spacing: Spacing.ml) {
-            // The ring, large and honest.
-            VStack(spacing: Spacing.sm) {
-                ZStack {
-                    MtrxProgressRing(
-                        progress: max(dailyFlow.progress, 0.04),
-                        size: 72,
-                        lineWidth: 7,
-                        color: dailyFlow.isComplete ? .statusSuccess : .trinityPrimary,
-                        showLabel: false
-                    )
-                    if dailyFlow.isComplete {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(Color.statusSuccess)
-                    } else {
-                        Text("\(dailyFlow.completed.count)/3")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+        ZStack {
+            // The app's black field with a soft accent aura rising behind
+            // the hero ring.
+            Color.black.ignoresSafeArea()
+            RadialGradient(
+                colors: [accent.opacity(0.22), .clear],
+                center: .init(x: 0.5, y: 0.30),
+                startRadius: 4, endRadius: 360
+            )
+            .ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: Spacing.xl) {
+                    // Hero ring — large, with a gradient stroke that glows.
+                    VStack(spacing: Spacing.md) {
+                        ZStack {
+                            Circle()
+                                .stroke(accent.opacity(0.14), lineWidth: 12)
+                                .frame(width: 168, height: 168)
+                            Circle()
+                                .trim(from: 0, to: max(dailyFlow.progress, 0.04))
+                                .stroke(
+                                    AngularGradient(
+                                        colors: [accent, accent.opacity(0.55), accent],
+                                        center: .center
+                                    ),
+                                    style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                                )
+                                .rotationEffect(.degrees(-90))
+                                .frame(width: 168, height: 168)
+                                .shadow(color: accent.opacity(0.5), radius: 14)
+                                .animation(Motion.springDefault, value: dailyFlow.progress)
+
+                            VStack(spacing: 2) {
+                                if dailyFlow.isComplete {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 44, weight: .bold))
+                                        .foregroundStyle(Color.statusSuccess)
+                                } else {
+                                    Text("\(dailyFlow.completed.count)")
+                                        .font(.system(size: 56, weight: .heavy, design: .rounded))
+                                        .foregroundStyle(Color.labelPrimary)
+                                    + Text(" / 3")
+                                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                                        .foregroundStyle(Color.labelTertiary)
+                                }
+                            }
+                        }
+                        .padding(.top, Spacing.xl)
+
+                        Text(dailyFlow.isComplete ? "In flow" : "Daily Flow")
+                            .font(.system(size: 28, weight: .heavy, design: .rounded))
                             .foregroundStyle(Color.labelPrimary)
+
+                        Text(dailyFlow.isComplete
+                             ? "All three done — beautifully done."
+                             : "Three small moves a day keep everything in motion.")
+                            .font(.mtrxBody)
+                            .foregroundStyle(Color.labelSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, Spacing.xl)
                     }
+
+                    // Goal cards — glass, spacious, app-consistent.
+                    VStack(spacing: Spacing.md) {
+                        goalCard(.agent, icon: "bubble.left.and.bubble.right.fill",
+                                 subtitle: "Ask Trinity anything", action: onAgent)
+                        goalCard(.social, icon: "globe",
+                                 subtitle: "See what your world is up to", action: onSocial)
+                        goalCard(.explore, icon: "safari.fill",
+                                 subtitle: "Discover something new", action: onExplore)
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+
+                    Text("Resets at midnight")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelTertiary)
+                        .padding(.bottom, Spacing.xl)
                 }
-                .mtrxGlow(color: dailyFlow.isComplete ? .statusSuccess : .trinityPrimary.opacity(0.5), radius: 8)
-
-                Text(dailyFlow.isComplete ? "In flow" : "Daily flow")
-                    .font(.mtrxTitle3)
-                    .foregroundStyle(Color.labelPrimary)
-
-                Text(dailyFlow.isComplete
-                     ? "All three done for today."
-                     : "Three small moves a day keep everything in motion.")
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelSecondary)
-                    .multilineTextAlignment(.center)
             }
-            .padding(.top, Spacing.lg)
-
-            VStack(spacing: Spacing.sm) {
-                goalRow(.agent, icon: "bubble.left.and.bubble.right.fill", action: onAgent)
-                goalRow(.social, icon: "globe", action: onSocial)
-                goalRow(.explore, icon: "safari.fill", action: onExplore)
-            }
-            .padding(.horizontal, Spacing.contentPadding)
-
-            Text("Resets at midnight")
-                .font(.mtrxCaption2)
-                .foregroundStyle(Color.labelTertiary)
-
-            Spacer(minLength: 0)
         }
     }
 
-    private func goalRow(_ goal: DailyFlow.Goal, icon: String, action: @escaping () -> Void) -> some View {
+    private func goalCard(_ goal: DailyFlow.Goal, icon: String, subtitle: String, action: @escaping () -> Void) -> some View {
         let done = dailyFlow.completed.contains(goal.rawValue)
+        let tint: Color = done ? .statusSuccess : .trinityPrimary
         return Button {
             MtrxHaptics.impact(.light)
             action()
         } label: {
             HStack(spacing: Spacing.md) {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(done ? Color.statusSuccess : Color.trinityPrimary)
-                    .frame(width: 36, height: 36)
-                    .background((done ? Color.statusSuccess : Color.trinityPrimary).opacity(0.12))
-                    .clipShape(Circle())
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 48, height: 48)
+                    .background(tint.opacity(0.14))
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
 
-                Text(goal.label)
-                    .font(.mtrxCalloutBold)
-                    .foregroundStyle(Color.labelPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(goal.label)
+                        .font(.mtrxBodyBold)
+                        .foregroundStyle(Color.labelPrimary)
+                    Text(done ? "Done for today" : subtitle)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(done ? Color.statusSuccess : Color.labelSecondary)
+                }
 
                 Spacer()
 
                 if done {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
+                        .font(.system(size: 24))
                         .foregroundStyle(Color.statusSuccess)
                 } else {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.labelTertiary)
                 }
             }
-            .padding(Spacing.ms)
-            .background(Color.surfaceOverlay.opacity(done ? 0.5 : 1))
-            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+            .padding(Spacing.md)
+            .frame(maxWidth: .infinity)
+            .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
+            .opacity(done ? 0.7 : 1)
         }
         .buttonStyle(.plain)
     }

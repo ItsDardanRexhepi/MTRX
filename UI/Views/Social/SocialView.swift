@@ -10,7 +10,10 @@ import SwiftUI
 enum SocialTab: String, CaseIterable {
     case feed = "Feed"
     case governance = "Governance"
-    case messaging = "Messaging"
+    case search = "Search"
+    case notifications = "Alerts"
+    case messaging = "Messages"
+    // Groups now lives inside Messages; Network/Live remain for deep links.
     case groups = "Groups"
     case network = "Network"
     case live = "Live"
@@ -19,6 +22,8 @@ enum SocialTab: String, CaseIterable {
         switch self {
         case .feed: return "house"
         case .governance: return "building.columns"
+        case .search: return "magnifyingglass"
+        case .notifications: return "bell"
         case .messaging: return "bubble.left.and.bubble.right"
         case .groups: return "person.3"
         case .network: return "point.3.connected.trianglepath.dotted"
@@ -422,32 +427,24 @@ struct SocialView: View {
                         MtrxHaptics.impact(.light)
                         showProfile = true
                     } label: {
-                        ZStack {
-                            // Same liquid-glass circle concept as the Discover
-                            // menu button — a cyan glass disc; the photo (or
-                            // person glyph) sits inside its glass rim.
-                            Circle()
-                                .fill(Color.accentPrimary.opacity(0.18))
-                                .mtrxLiquidGlass(in: Circle())
-
-                            Group {
-                                if let avatar = socialIdentity.avatarImage {
-                                    Image(uiImage: avatar).resizable().scaledToFill()
-                                } else {
-                                    LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
-                                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                                        .overlay(
-                                            Image(systemName: "person.fill")
-                                                .font(.system(size: 12))
-                                                .foregroundStyle(.white)
-                                        )
-                                }
+                        // Just the photo in a clean circle — no glass disc
+                        // behind it.
+                        Group {
+                            if let avatar = socialIdentity.avatarImage {
+                                Image(uiImage: avatar).resizable().scaledToFill()
+                            } else {
+                                LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    .overlay(
+                                        Image(systemName: "person.fill")
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(.white)
+                                    )
                             }
-                            .frame(width: 27, height: 27)
-                            .clipShape(Circle())
                         }
                         .frame(width: 34, height: 34)
-                        .shadow(color: socialIdentity.avatarGlow.opacity(0.45), radius: 6)
+                        .clipShape(Circle())
+                        .shadow(color: socialIdentity.avatarGlow.opacity(0.45), radius: 5)
                     }
                 }
 
@@ -497,17 +494,12 @@ struct SocialView: View {
                             Label("Settings", systemImage: "gearshape")
                         }
                     } label: {
-                        // Matches the profile bubble's footprint so the
-                        // centered M stays perfectly balanced between them.
-                        ZStack {
-                            Circle()
-                                .fill(Color.accentPrimary.opacity(0.12))
-                                .mtrxLiquidGlass(in: Circle())
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(Color.labelSecondary)
-                        }
-                        .frame(width: 34, height: 34)
+                        // Just the gear — no glass disc. The 34pt frame keeps
+                        // it balanced against the avatar so the M stays centered.
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(Color.labelSecondary)
+                            .frame(width: 34, height: 34)
                     }
                 }
             }
@@ -631,30 +623,27 @@ struct SocialView: View {
     /// reads as part of the header, not a row of chunky pills sitting on
     /// top of it. The active tab lights up with an animated accent
     /// underline; the rest stay quiet.
-    /// The four top sections — Network lives on the profile now and Live
-    /// surfaces inside the feed, so these four fit without scrolling.
-    private var topTabs: [SocialTab] { [.feed, .governance, .messaging, .groups] }
+    /// Five top sections — Feed, Governance, Search, Alerts, Messages. Groups
+    /// live inside Messages; Network/Live surface elsewhere.
+    private var topTabs: [SocialTab] { [.feed, .governance, .search, .notifications, .messaging] }
 
     private var tabSelector: some View {
-        // Naturally-sized labels with equal gaps between them — the spacing
-        // reads as even and intentional instead of short words floating in
-        // wide quarters.
+        // Five equal-width tabs so they always fit on one line and read as
+        // evenly spaced. Each shows its icon over a compact label.
         HStack(spacing: 0) {
-            ForEach(Array(topTabs.enumerated()), id: \.element) { idx, tab in
+            ForEach(topTabs, id: \.self) { tab in
                 let isActive = viewModel.selectedTab == tab
                 Button {
                     withAnimation(Motion.springSnappy) { viewModel.selectedTab = tab }
                     MtrxHaptics.selection()
                 } label: {
-                    VStack(spacing: 6) {
-                        HStack(spacing: 5) {
-                            Image(systemName: tab.icon)
-                                .font(.system(size: 10, weight: .semibold))
-                            Text(tab.rawValue)
-                                .font(.system(size: 12.5, weight: isActive ? .bold : .medium))
-                                .lineLimit(1).minimumScaleFactor(0.8)
-                        }
-                        .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
+                    VStack(spacing: 5) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(tab.rawValue)
+                            .font(.system(size: 11, weight: isActive ? .bold : .medium))
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                            .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
 
                         ZStack {
                             Capsule().fill(Color.clear).frame(height: 2.5)
@@ -665,16 +654,16 @@ struct SocialView: View {
                                     .matchedGeometryEffect(id: "socialTabUnderline", in: tabUnderlineNS)
                             }
                         }
+                        .frame(width: 26)
                     }
-                    .layoutPriority(1)
+                    .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
+                    .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-
-                if idx < topTabs.count - 1 { Spacer(minLength: Spacing.xs) }
             }
         }
-        .padding(.horizontal, Spacing.contentPadding)
+        .padding(.horizontal, Spacing.sm)
         .padding(.top, Spacing.sm)
     }
 
@@ -687,14 +676,41 @@ struct SocialView: View {
             feedSection
         case .governance:
             governanceSection
+        case .search:
+            SocialSearchView(viewModel: viewModel)
+        case .notifications:
+            SocialNotificationsView()
         case .messaging:
-            messagingSection
+            messagesHub
         case .groups:
             GroupsView()
         case .network:
             SocialGraphView()
         case .live:
             StreamingView()
+        }
+    }
+
+    // MARK: - Messages Hub (Messages + Groups merged)
+
+    @State private var messagesSubTab: MessagesSubTab = .direct
+
+    enum MessagesSubTab: String, CaseIterable { case direct = "Messages", groups = "Groups" }
+
+    private var messagesHub: some View {
+        VStack(spacing: 0) {
+            // Switch between direct messages and groups without leaving the tab.
+            Picker("", selection: $messagesSubTab) {
+                ForEach(MessagesSubTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.vertical, Spacing.sm)
+
+            switch messagesSubTab {
+            case .direct: messagingSection
+            case .groups: GroupsView()
+            }
         }
     }
 
@@ -726,7 +742,7 @@ struct SocialView: View {
             VStack(spacing: Spacing.md) {
                 ZStack(alignment: .topLeading) {
                     TextEditor(text: $viewModel.composerText)
-                        .frame(minHeight: 140)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .scrollContentBackground(.hidden)
                         .padding(Spacing.ms)
                         .background(Color.surfaceCard)
@@ -834,8 +850,6 @@ struct SocialView: View {
                             viewModel.composerText.count > 280 ? Color.statusError : Color.labelTertiary
                         )
                 }
-
-                Spacer()
             }
             .padding(Spacing.contentPadding)
             .background(MtrxGradientBackground(style: .primary))
@@ -1882,6 +1896,130 @@ struct SocialSettingsView: View {
                 .frame(width: 28, height: 28)
                 .background(color.opacity(0.14))
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+    }
+}
+
+// MARK: - Social Search (social-only)
+
+/// Searches across the social feed (including posts imported from other
+/// platforms). This is scoped to Social, not a system-wide search.
+struct SocialSearchView: View {
+    @ObservedObject var viewModel: SocialViewModel
+    @State private var query = ""
+
+    private let trending = ["#MTRX", "#DeFi", "#Governance", "#Base", "#Staking", "#RWA"]
+
+    private var results: [SocialPostDisplay] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return [] }
+        let needle = q.hasPrefix("#") ? String(q.dropFirst()) : q
+        return viewModel.posts.filter {
+            $0.body.localizedCaseInsensitiveContains(needle) ||
+            $0.displayName.localizedCaseInsensitiveContains(needle) ||
+            $0.handle.localizedCaseInsensitiveContains(needle)
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            MtrxSearchBar(text: $query, placeholder: "Search posts, people, tags")
+                .padding(.horizontal, Spacing.contentPadding)
+                .padding(.vertical, Spacing.sm)
+
+            if query.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        MtrxSectionHeader(title: "Trending")
+                            .padding(.horizontal, Spacing.contentPadding)
+                        ForEach(trending, id: \.self) { tag in
+                            Button { query = tag } label: {
+                                HStack(spacing: Spacing.sm) {
+                                    Image(systemName: "number")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(Color.accentPrimary)
+                                        .frame(width: 32, height: 32)
+                                        .background(Color.accentPrimary.opacity(0.12))
+                                        .clipShape(Circle())
+                                    Text(tag).font(.mtrxBody).foregroundStyle(Color.labelPrimary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(Color.labelTertiary)
+                                }
+                                .padding(.horizontal, Spacing.contentPadding)
+                                .padding(.vertical, Spacing.sm)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.top, Spacing.sm)
+                }
+            } else if results.isEmpty {
+                MtrxEmptyState(icon: "magnifyingglass", title: "No results",
+                               message: "Nothing matched “\(query)”. Try another search.")
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(results) { post in
+                            PostCardView(post: post)
+                            MtrxDivider()
+                        }
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+// MARK: - Social Notifications (social-only)
+
+/// Social notifications only — likes, reposts, follows, mentions. System
+/// notifications live elsewhere (Account ▸ Settings ▸ Notifications).
+struct SocialNotificationsView: View {
+    private struct Notif: Identifiable {
+        let id = UUID()
+        let icon: String
+        let color: Color
+        let title: String
+        let detail: String
+        let time: String
+    }
+
+    private let items: [Notif] = [
+        Notif(icon: "heart.fill", color: .statusError, title: "Elena Vasquez liked your post", detail: "“Just shipped the new escrow flow…”", time: "2m"),
+        Notif(icon: "arrow.2.squarepath", color: .statusSuccess, title: "Ravi Patel reposted you", detail: "Governance Proposal #47", time: "18m"),
+        Notif(icon: "person.fill.badge.plus", color: .accentPrimary, title: "Sofia Nakamura followed you", detail: "@sofia.base", time: "1h"),
+        Notif(icon: "at", color: .accentTertiary, title: "You were mentioned", detail: "@elena.eth: “…ask @dardan about it”", time: "3h"),
+        Notif(icon: "bubble.left.fill", color: .statusInfo, title: "New comment on your post", detail: "“This is huge for trustless deals.”", time: "5h"),
+        Notif(icon: "checkmark.seal.fill", color: .accentSecondary, title: "Your post was verified on-chain", detail: "0xa1b2c3…d4e5", time: "1d"),
+    ]
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(items) { n in
+                    HStack(spacing: Spacing.ms) {
+                        Image(systemName: n.icon)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(n.color)
+                            .frame(width: 38, height: 38)
+                            .background(n.color.opacity(0.14))
+                            .clipShape(Circle())
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(n.title).font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary)
+                            Text(n.detail).font(.mtrxCaption1).foregroundStyle(Color.labelSecondary).lineLimit(1)
+                        }
+                        Spacer()
+                        Text(n.time).font(.mtrxCaption2).foregroundStyle(Color.labelTertiary)
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+                    .padding(.vertical, Spacing.sm)
+                    MtrxDivider()
+                }
+            }
+            .padding(.top, Spacing.xs)
         }
     }
 }

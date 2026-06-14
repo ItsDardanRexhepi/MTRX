@@ -84,7 +84,7 @@ struct AccountView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: Spacing.sectionGap) {
+                VStack(spacing: Spacing.md) {
                     profileCard
                     portfolioSummary
                     workspaceSection
@@ -92,7 +92,7 @@ struct AccountView: View {
                 }
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.top, Spacing.sm)
-                .padding(.bottom, 96)
+                .padding(.bottom, Spacing.lg)
             }
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Account")
@@ -170,55 +170,57 @@ struct AccountView: View {
     // MARK: - Profile Card
 
     private var profileCard: some View {
-        // Split in half: a tappable profile tile (tap the photo for options,
-        // tap the tile to edit) on the left, and a Settings tile on the
-        // right that holds everything app-level.
-        HStack(spacing: Spacing.md) {
-            // LEFT — profile
-            MtrxCard(style: .glass) {
-                VStack(spacing: Spacing.sm) {
-                    avatarButton
+        // One compact, fully-tappable header: tap anywhere to edit, tap the
+        // photo for photo options. No separate edit button. Settings lives in
+        // the workspace grid below, so it isn't duplicated here.
+        MtrxCard(style: .glass) {
+            HStack(spacing: Spacing.md) {
+                avatarButton
+
+                VStack(alignment: .leading, spacing: 3) {
                     Text(appState.displayName.isEmpty ? "MTRX User" : appState.displayName)
-                        .font(.mtrxHeadline)
+                        .font(.mtrxTitle3)
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                    Text("Tap to edit profile")
-                        .font(.mtrxCaption2)
-                        .foregroundStyle(Color.accentPrimary)
-                }
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    MtrxHaptics.impact(.light)
-                    showEditProfile = true
-                }
-            }
 
-            // RIGHT — settings (account & app)
-            Button {
-                MtrxHaptics.impact(.light)
-                presentedDestination = .settings
-            } label: {
-                MtrxCard(style: .glass) {
-                    VStack(spacing: Spacing.sm) {
-                        Image(systemName: Symbols.settings)
-                            .font(.system(size: 24, weight: .semibold))
+                    HStack(spacing: Spacing.xs) {
+                        Text(truncatedDID)
+                            .font(.mtrxMonoSmall)
                             .foregroundStyle(Color.labelSecondary)
-                            .frame(width: 52, height: 52)
-                            .background(Color.labelSecondary.opacity(0.12))
-                            .clipShape(Circle())
-                        Text("Settings")
-                            .font(.mtrxHeadline)
-                            .foregroundStyle(Color.labelPrimary)
-                        Text("Account & app")
-                            .font(.mtrxCaption2)
-                            .foregroundStyle(Color.labelTertiary)
+                            .lineLimit(1)
+                        Button {
+                            UIPasteboard.general.string = fullDID
+                            withAnimation(Motion.springSnappy) { copiedDID = true }
+                            MtrxHaptics.success()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                withAnimation { copiedDID = false }
+                            }
+                        } label: {
+                            Image(systemName: copiedDID ? Symbols.complete : Symbols.copy)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(copiedDID ? Color.statusSuccess : Color.accentPrimary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .frame(maxWidth: .infinity)
+
+                    Text("Member since \(memberSinceString)")
+                        .font(.mtrxCaption2)
+                        .foregroundStyle(Color.labelTertiary)
                 }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.labelTertiary)
             }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                MtrxHaptics.impact(.light)
+                showEditProfile = true
+            }
         }
         .mtrxFadeInFromBottom(isVisible: appeared, delay: 0)
     }
@@ -586,20 +588,20 @@ struct QuickActionCard: View {
     var body: some View {
         Button { onOpen(destination) } label: {
             MtrxCard(style: .standard) {
-                VStack(spacing: Spacing.ms) {
+                HStack(spacing: Spacing.sm) {
                     Image(systemName: icon)
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(color)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 38, height: 38)
                         .background(color.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
 
                     Text(label)
-                        .font(.mtrxCaptionBold)
+                        .font(.mtrxCalloutBold)
                         .foregroundStyle(Color.labelPrimary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity)
             }
