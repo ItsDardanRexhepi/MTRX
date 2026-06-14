@@ -128,13 +128,16 @@ final class AgentConversationViewModel: ObservableObject {
     func startNewConversation(agent: AgentAccessControl.ActiveAgent, announce: Bool = true) {
         inference.resetAllSessions()
         if ephemeral {
-            // No store record — this chat is saved nowhere.
+            // No store record — this chat is saved nowhere. Pin the agent
+            // explicitly (even Trinity) so an owner's default-to-Neo routing
+            // can't take over — the window is whoever you last asked for.
             conversationID = nil
+            manualAgentOverride = agent
         } else {
             let convo = store.create(agent: agent)
             conversationID = convo.id
+            manualAgentOverride = (agent == .trinity) ? nil : agent
         }
-        manualAgentOverride = (agent == .trinity) ? nil : agent
         activeAgent = agent
         pendingAction = nil
         showFirstBoot = false
@@ -168,6 +171,19 @@ final class AgentConversationViewModel: ObservableObject {
     /// "Talk to Morpheus" opens that agent's own chat — the most recent
     /// one, or a fresh one — keeping every agent's history separate.
     private func transferToAgentChat(_ target: AgentAccessControl.ActiveAgent) {
+        // Ephemeral windows (the Home pop-up) just switch the agent in place —
+        // fresh, saved nowhere — never resuming a stored chat.
+        if ephemeral {
+            if activeAgent == target {
+                messages.append(AgentMessage(
+                    text: "You're already speaking with \(Self.displayName(of: target)).",
+                    role: .system
+                ))
+                return
+            }
+            startNewConversation(agent: target, announce: true)
+            return
+        }
         if let id = conversationID, store.conversation(id: id)?.agent == target {
             messages.append(AgentMessage(
                 text: "You're already speaking with \(Self.displayName(of: target)).",

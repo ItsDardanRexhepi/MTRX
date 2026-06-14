@@ -547,8 +547,8 @@ struct HomeView: View {
                 HStack(spacing: Spacing.sm) {
                     Button { extendToTrinity() } label: {
                         HStack(spacing: Spacing.sm) {
-                            GlassOrb(size: 24, tint: agentGlassTint(.trinity))
-                            Text("Trinity")
+                            GlassOrb(size: 24, tint: agentGlassTint(homeChatVM.activeAgent))
+                            Text(AgentConversationViewModel.displayName(of: homeChatVM.activeAgent))
                                 .font(.mtrxCalloutBold)
                                 .foregroundStyle(Color.labelPrimary)
                         }
@@ -681,9 +681,9 @@ struct HomeView: View {
                 .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
             }
             .padding(Spacing.md)
-            // A touch smaller than the full available space (~3/4), so the
-            // empty bubble isn't oversized; the transcript scrolls inside it.
-            .frame(maxHeight: max(220, (geo.size.height - 28) * 0.75))
+            // Smaller than the full available space (~2/3), so the empty
+            // bubble isn't oversized; the transcript scrolls inside it.
+            .frame(maxHeight: max(200, (geo.size.height - 28) * 0.675))
             .background(chatCardFlow)
             // Clean liquid-glass card — translucent, blurred, app-signature.
             .mtrxLiquidGlass(cornerRadius: 30)
