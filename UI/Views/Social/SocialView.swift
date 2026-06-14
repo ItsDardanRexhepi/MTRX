@@ -738,6 +738,19 @@ struct SocialView: View {
             // No scale — the sliver fills full-height so there's no black gap
             // in the top corner.
             .offset(x: drawer.isOpen ? sideMenuWidth : 0)
+            // Swipe in from the left edge (Social only) to open the drawer —
+            // the single swipe gesture, scoped to this screen.
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 18)
+                    .onEnded { value in
+                        guard !drawer.isOpen,
+                              value.startLocation.x < 28,
+                              value.translation.width > 55,
+                              value.translation.width > abs(value.translation.height) * 1.5 else { return }
+                        MtrxHaptics.impact(.light)
+                        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { drawer.isOpen = true }
+                    }
+            )
             .overlay {
                 if drawer.isOpen {
                     Color.black.opacity(0.34)
@@ -1065,7 +1078,8 @@ struct SocialView: View {
                     ],
                     startPoint: .top, endPoint: .bottom
                 )
-                .frame(height: 360)
+                // Half the previous length — same wash, shorter reach.
+                .frame(height: 180)
                 .frame(maxWidth: .infinity, alignment: .top)
                 .allowsHitTesting(false)
             }
@@ -1553,8 +1567,11 @@ struct SocialView: View {
             }
             .background(.ultraThinMaterial)
         }
-        .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+        // Liquid glass: the sheet itself is translucent, so the feed reads
+        // softly through it. A faint tint keeps the text crisp.
+        .background(Color.black.opacity(0.22).ignoresSafeArea())
         .presentationDetents([.large])
+        .presentationBackground(.ultraThinMaterial)
     }
 
     private var composerAvatar: some View {
@@ -1812,6 +1829,7 @@ struct PostCardView: View {
     @State private var isExpanded = false
     @ObservedObject private var bookmarks = SocialBookmarkStore.shared
     @ObservedObject private var identity = SocialIdentity.shared
+    @ObservedObject private var moderation = SocialModerationStore.shared
 
     private let expandThreshold = 280
 
@@ -1943,16 +1961,49 @@ struct PostCardView: View {
 
             Spacer(minLength: 4)
 
-            Button {
-                onMenu()
-                MtrxHaptics.impact(.light)
+            // A native menu so it pops out from this button (anchored) with
+            // the system's liquid-glass look.
+            Menu {
+                Button {
+                    SocialViewModel.shared.quotePost(post)
+                } label: { Label("Quote post", systemImage: "quote.bubble") }
+
+                if !isOwnPost {
+                    Button {
+                        moderation.toggleMute(post.handle)
+                    } label: {
+                        Label(moderation.isMuted(post.handle) ? "Unmute \(post.handle)" : "Mute \(post.handle)",
+                              systemImage: "speaker.slash")
+                    }
+                    Button(role: .destructive) {
+                        moderation.toggleBlock(post.handle)
+                    } label: {
+                        Label(moderation.isBlocked(post.handle) ? "Unblock \(post.handle)" : "Block \(post.handle)",
+                              systemImage: "hand.raised")
+                    }
+                    Button(role: .destructive) {
+                        MtrxHaptics.warning()
+                    } label: { Label("Report post", systemImage: "flag") }
+                }
+
+                Button {
+                    UIPasteboard.general.string = "https://openmatrix-ai.com/p/\(post.id)"
+                    MtrxHaptics.success()
+                } label: { Label("Copy link", systemImage: "link") }
+
+                if isOwnPost {
+                    Button(role: .destructive) {
+                        SocialViewModel.shared.posts.removeAll { $0.id == post.id }
+                        MtrxHaptics.success()
+                    } label: { Label("Delete post", systemImage: "trash") }
+                }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 14))
                     .foregroundStyle(Color.labelTertiary)
                     .frame(width: 26, height: 26)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -2698,7 +2749,7 @@ struct PostDetailSheet: View {
                             .padding(.top, 80)
                     }
                 }
-                .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+                .background(Color.black.opacity(0.18).ignoresSafeArea())
 
                 MtrxDivider()
 
@@ -2745,6 +2796,7 @@ struct PostDetailSheet: View {
                     Button("Done") { dismiss() }.foregroundStyle(Color.accentPrimary)
                 }
             }
+            .presentationBackground(.ultraThinMaterial)
         }
     }
 }
@@ -2854,7 +2906,7 @@ struct UserProfileSheet: View {
                 }
                 .padding(.bottom, Spacing.xl)
             }
-            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .background(Color.black.opacity(0.18).ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -2874,6 +2926,7 @@ struct UserProfileSheet: View {
                     }
                 }
             }
+            .presentationBackground(.ultraThinMaterial)
             .sheet(item: $detailPost) { p in PostDetailSheet(postID: p.id) }
         }
     }

@@ -90,18 +90,20 @@ struct HomeView: View {
 
             // The inline chat that grows from the search bar.
             if homeChatOpen {
-                // Blur the dashboard so all focus lands on the chat.
+                // Softly blur the dashboard so focus lands on the chat —
+                // toned down ~20% so the dashboard reads through a touch more.
                 Rectangle()
                     .fill(.ultraThinMaterial)
-                    .overlay(Color.black.opacity(0.18))
+                    .opacity(0.8)
+                    .overlay(Color.black.opacity(0.14))
                     .ignoresSafeArea()
                     .transition(.opacity)
                     .onTapGesture { closeHomeChat() }
                     .zIndex(40)
                 homeChatPanel
-                    // Unfurls downward from the search bar — a dropdown that
-                    // reads as the bar's own continuation, not a pop-up.
-                    .transition(.scale(scale: 0.55, anchor: .top).combined(with: .opacity))
+                    // The card's frame is driven by matchedGeometry from the
+                    // search pill, so it just needs to fade its content in.
+                    .transition(.opacity)
                     .zIndex(50)
             }
         }
@@ -254,8 +256,14 @@ struct HomeView: View {
                 // The ask bar and the orb are one element now: a single
                 // glass pill — wearing the orb's own iridescent skin —
                 // with the orb living at its trailing end. Type to Trinity.
-                // It stays put while open — the chat drops down beneath it.
-                homeAskOrb
+                // When open, the pill has *become* the chat card (hero morph),
+                // so a Spacer holds its place in the row.
+                if homeChatOpen {
+                    Spacer(minLength: 0)
+                } else {
+                    homeAskOrb
+                        .matchedGeometryEffect(id: "trinityChatSurface", in: chatNS)
+                }
             }
             .alert("Your Name", isPresented: $showNameEditor) {
                 TextField("Name", text: $nameDraft)
@@ -319,6 +327,9 @@ struct HomeView: View {
     @State private var homeChatDrag: CGFloat = 0
     /// Measured height of the live transcript so the card hugs it.
     @State private var homeConvoHeight: CGFloat = 0
+    /// The search pill and the chat card are the same element — this morphs
+    /// one into the other so the bar literally becomes the window.
+    @Namespace private var chatNS
     /// The in-chat input is its own field so typing here never leaks back
     /// into the top search bar.
     @State private var homeChatInput = ""
@@ -657,6 +668,9 @@ struct HomeView: View {
             // Real Liquid Glass over the colors — refracts the dashboard
             // behind it while keeping the flowing palette.
             .mtrxLiquidGlass(cornerRadius: 30)
+            // Same identity as the search pill, so the bar morphs into this
+            // card and back — one unified element, not a separate window.
+            .matchedGeometryEffect(id: "trinityChatSurface", in: chatNS)
             .shadow(color: .black.opacity(0.4), radius: 24, y: 10)
             .padding(.horizontal, Spacing.contentPadding)
             .padding(.bottom, Spacing.xs)
