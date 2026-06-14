@@ -638,6 +638,7 @@ struct BuildView: View {
 struct ContractCardRow: View {
     let contract: ContractListItem
     @State private var showActionConfirm = false
+    @State private var sharedToSocial = false
 
     var body: some View {
         MtrxCard(style: .standard, accentEdge: .leading) {
@@ -700,7 +701,24 @@ struct ContractCardRow: View {
                             .foregroundStyle(Color.labelSecondary)
                     }
 
-                    Spacer().frame(width: Spacing.md)
+                    Spacer().frame(width: Spacing.sm)
+
+                    // Share this build to the social feed for others to find.
+                    Button {
+                        SocialViewModel.shared.postBuild(
+                            title: contract.title,
+                            kind: contract.contractType,
+                            address: contract.counterparty,
+                            displayName: ""
+                        )
+                        sharedToSocial = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.accentPrimary)
+                            .frame(width: 34, height: 34)
+                    }
+                    .buttonStyle(.plain)
 
                     Button {
                         MtrxHaptics.success()
@@ -716,6 +734,14 @@ struct ContractCardRow: View {
             Button("Done", role: .cancel) {}
         } message: {
             Text("Executed on the MTRX network. Gas covered by the platform — the updated contract state is reflected on-chain.")
+        }
+        .alert("Shared to Social", isPresented: $sharedToSocial) {
+            Button("View", role: .none) {
+                NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": 3])
+            }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("“\(contract.title)” was posted to your feed for others to discover.")
         }
     }
 

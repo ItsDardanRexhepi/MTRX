@@ -7,6 +7,21 @@ import SwiftUI
 
 // MARK: - Social Tab Sections
 
+extension View {
+    /// Reports a vertical scroll offset on iOS 18+, and no-ops gracefully
+    /// below it.
+    @ViewBuilder
+    func mtrxTrackScrollY(_ action: @escaping (CGFloat) -> Void) -> some View {
+        if #available(iOS 18.0, *) {
+            self.onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, y in
+                action(y)
+            }
+        } else {
+            self
+        }
+    }
+}
+
 enum SocialTab: String, CaseIterable {
     case feed = "Feed"
     case governance = "Governance"
@@ -307,6 +322,39 @@ final class SocialViewModel: ObservableObject {
         MtrxHaptics.success()
     }
 
+    /// Share something built in the Build tab to the social feed so others
+    /// can discover it.
+    func postBuild(title: String, kind: String, address: String?, displayName rawName: String) {
+        let displayName = rawName.isEmpty ? "You" : rawName
+        let initials = displayName
+            .split(separator: " ").prefix(2)
+            .compactMap { $0.first.map(String.init) }
+            .joined().uppercased()
+        let handle = SocialIdentity.shared.handle(displayName: rawName)
+        posts.insert(SocialPostDisplay(
+            id: UUID().uuidString,
+            displayName: displayName,
+            handle: handle,
+            avatarInitials: initials.isEmpty ? "ME" : initials,
+            avatarColor: .trinityPrimary,
+            timestamp: Date(),
+            body: "Just shipped \(title) — a \(kind) built and deployed on MTRX. 🛠️ On-chain and ready.",
+            isVerified: true,
+            hasOnChainProof: address != nil,
+            proofHash: address,
+            governanceTag: nil,
+            likeCount: 0,
+            repostCount: 0,
+            commentCount: 0,
+            isLiked: false,
+            isReposted: false,
+            imageData: nil,
+            videoFileName: nil,
+            linkURL: nil
+        ), at: 0)
+        MtrxHaptics.success()
+    }
+
     // MARK: Sample Data
 
     private func loadSampleData() {
@@ -370,6 +418,8 @@ struct SocialView: View {
     private var currentTier: SubscriptionTier { SubscriptionTier(rawValue: tierRaw) ?? .free }
     @Namespace private var tabUnderlineNS
     @State private var appeared = false
+    /// Drives the stories/tabs tuck-away as the feed scrolls.
+    @State private var feedScrollY: CGFloat = 0
     @State private var showProofPicker = false
     @State private var commentingOnPost: SocialPostDisplay? = nil
     @State private var postActionTarget: SocialPostDisplay? = nil
@@ -887,10 +937,17 @@ struct SocialView: View {
             // The colorful top wash now lives at the screen level (see body)
             // so it falls from the very top and dissolves into the tab's own
             // background — here we just lay out the stories and tabs.
+            // Stories + tabs tuck away as you scroll into the feed, so the
+            // timeline takes over the screen — and slide back when you return.
+            let chromeHidden = feedScrollY > 40
             VStack(spacing: 0) {
                 StoriesRail()
                 filterChips
             }
+            .frame(height: chromeHidden ? 0 : 168, alignment: .top)
+            .opacity(chromeHidden ? 0 : 1)
+            .clipped()
+            .animation(.easeInOut(duration: 0.28), value: chromeHidden)
 
             ScrollView {
                 // Flat, edge-to-edge timeline rows with hairline
@@ -916,6 +973,7 @@ struct SocialView: View {
                 }
                 .padding(.bottom, Spacing.xxl)
             }
+            .mtrxTrackScrollY { feedScrollY = $0 }
             .refreshable {
                 await viewModel.refresh()
             }
@@ -969,6 +1027,29 @@ struct SocialView: View {
     private var governanceSection: some View {
         ScrollView {
             LazyVStack(spacing: Spacing.md) {
+                // A warm, social framing — governance as a community you're
+                // part of, not a spreadsheet.
+                MtrxCard(style: .glass) {
+                    HStack(spacing: Spacing.md) {
+                        ZStack {
+                            Circle().fill(theme.accent.opacity(0.16)).frame(width: 46, height: 46)
+                            Image(systemName: "person.3.fill")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(theme.accent)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("You're shaping MTRX")
+                                .font(.mtrxBodyBold)
+                                .foregroundStyle(Color.labelPrimary)
+                            Text("12,840 members are deciding what comes next — your voice counts here.")
+                                .font(.mtrxCaption1)
+                                .foregroundStyle(Color.labelSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+
                 // Delegation card
                 MtrxCard(style: .glass) {
                     HStack {
