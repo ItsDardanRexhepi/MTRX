@@ -438,16 +438,20 @@ struct SocialView: View {
             ZStack(alignment: .bottomTrailing) {
                 Group {
                     if viewModel.selectedTab == .feed {
-                        // Immersive feed: the tab strip is a true overlay, so
-                        // the timeline fills to the top with no dead space and
-                        // scrolls right under the strip as it fades.
+                        // Immersive feed: the header + tab strip are a true
+                        // overlay, so the timeline fills to the top with no
+                        // dead space and scrolls under them as they fade.
                         ZStack(alignment: .top) {
                             feedSection
-                            tabSelector
-                                .opacity(chromeOpacity)
+                            VStack(spacing: 0) {
+                                socialHeader
+                                tabSelector
+                            }
+                            .opacity(chromeOpacity)
                         }
                     } else {
                         VStack(spacing: 0) {
+                            socialHeader
                             tabSelector
                             tabContent
                         }
@@ -494,96 +498,10 @@ struct SocialView: View {
                     withAnimation(Motion.springSnappy) { viewModel.selectedTab = .feed }
                 }
             }
-            .navigationTitle("Social")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                // Your avatar on the left opens your profile.
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        MtrxHaptics.impact(.light)
-                        showProfile = true
-                    } label: {
-                        // Just the photo in a clean circle — no glass disc
-                        // behind it.
-                        Group {
-                            if let avatar = socialIdentity.avatarImage {
-                                Image(uiImage: avatar).resizable().scaledToFill()
-                            } else {
-                                LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
-                                               startPoint: .topLeading, endPoint: .bottomTrailing)
-                                    .overlay(
-                                        Image(systemName: "person.fill")
-                                            .font(.system(size: 13))
-                                            .foregroundStyle(.white)
-                                    )
-                            }
-                        }
-                        .frame(width: 34, height: 34)
-                        .clipShape(Circle())
-                        .opacity(chromeOpacity)
-                    }
-                }
-
-                // The MTRX mark sits center, like every timeline app.
-                ToolbarItem(placement: .principal) {
-                    Text("M")
-                        .font(.system(size: 30, weight: .heavy, design: .rounded))
-                        .foregroundStyle(
-                            LinearGradient(colors: [theme.accent, theme.accent.opacity(0.6)],
-                                           startPoint: .top, endPoint: .bottom)
-                        )
-                        .mtrxGlow(color: theme.accent, radius: 4)
-                        .opacity(chromeOpacity)
-                }
-
-                // One settings entry — notifications, theme, and the AI
-                // tools all live inside it now.
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            MtrxHaptics.impact(.light)
-                            showNotifications = true
-                        } label: {
-                            Label("Notifications", systemImage: "bell")
-                        }
-
-                        Button {
-                            MtrxHaptics.impact(.light)
-                            if currentTier >= .pro { showThemePicker = true } else { showUpsell = true }
-                        } label: {
-                            Label(currentTier >= .pro ? "Theme color" : "Theme color (Pro)",
-                                  systemImage: currentTier >= .pro ? "paintpalette" : "lock.fill")
-                        }
-
-                        Button {
-                            MtrxHaptics.impact(.light)
-                            showAIFeatures = true
-                        } label: {
-                            Label("AI features", systemImage: "sparkles")
-                        }
-
-                        Divider()
-
-                        Button {
-                            MtrxHaptics.impact(.light)
-                            showSocialSettings = true
-                        } label: {
-                            Label("Settings", systemImage: "gearshape")
-                        }
-                    } label: {
-                        // Just the gear — no glass disc. The 34pt frame keeps
-                        // it balanced against the avatar so the M stays centered.
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(Color.labelSecondary)
-                            .frame(width: 34, height: 34)
-                            .opacity(chromeOpacity)
-                    }
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            // No nav-bar background, so when the header fades it's just black.
-            .toolbarBackground(.hidden, for: .navigationBar)
+            // The header is a custom view now (no system toolbar) so there's
+            // no iOS glass capsule around the avatar — just the photo.
+            .toolbar(.hidden, for: .navigationBar)
             // Reset the immersive fade whenever the sub-tab changes.
             .onChange(of: viewModel.selectedTab) { _, _ in feedScrollY = 0 }
             .sheet(isPresented: $showNotifications) {
@@ -705,6 +623,82 @@ struct SocialView: View {
     /// reads as part of the header, not a row of chunky pills sitting on
     /// top of it. The active tab lights up with an animated accent
     /// underline; the rest stay quiet.
+    // MARK: - Custom Header (no system toolbar → no glass capsule)
+
+    private var socialHeader: some View {
+        HStack(spacing: 0) {
+            // Avatar — just the photo, opens your profile.
+            Button {
+                MtrxHaptics.impact(.light)
+                showProfile = true
+            } label: {
+                Group {
+                    if let avatar = socialIdentity.avatarImage {
+                        Image(uiImage: avatar).resizable().scaledToFill()
+                    } else {
+                        LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                            .overlay(
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.white)
+                            )
+                    }
+                }
+                .frame(width: 34, height: 34)
+                .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Text("M")
+                .font(.system(size: 30, weight: .heavy, design: .rounded))
+                .foregroundStyle(
+                    LinearGradient(colors: [theme.accent, theme.accent.opacity(0.6)],
+                                   startPoint: .top, endPoint: .bottom)
+                )
+                .mtrxGlow(color: theme.accent, radius: 4)
+
+            Spacer()
+
+            Menu {
+                Button {
+                    MtrxHaptics.impact(.light)
+                    showNotifications = true
+                } label: { Label("Notifications", systemImage: "bell") }
+
+                Button {
+                    MtrxHaptics.impact(.light)
+                    if currentTier >= .pro { showThemePicker = true } else { showUpsell = true }
+                } label: {
+                    Label(currentTier >= .pro ? "Theme color" : "Theme color (Pro)",
+                          systemImage: currentTier >= .pro ? "paintpalette" : "lock.fill")
+                }
+
+                Button {
+                    MtrxHaptics.impact(.light)
+                    showAIFeatures = true
+                } label: { Label("AI features", systemImage: "sparkles") }
+
+                Divider()
+
+                Button {
+                    MtrxHaptics.impact(.light)
+                    showSocialSettings = true
+                } label: { Label("Settings", systemImage: "gearshape") }
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(Color.labelSecondary)
+                    .frame(width: 34, height: 34)
+            }
+        }
+        .padding(.horizontal, Spacing.contentPadding)
+        .padding(.top, Spacing.xs)
+        .frame(height: 44)
+    }
+
     /// Five top sections — Feed, Governance, Search, Alerts, Messages. Groups
     /// live inside Messages; Network/Live surface elsewhere.
     private var topTabs: [SocialTab] { [.feed, .governance, .search, .notifications, .messaging] }
@@ -994,9 +988,9 @@ struct SocialView: View {
             }
             .padding(.bottom, Spacing.xxl)
         }
-        // Content starts just below the overlaid tab strip, then scrolls up
-        // under it as the strip fades — no dead space.
-        .contentMargins(.top, tabStripHeight, for: .scrollContent)
+        // Content starts just below the overlaid header + tab strip, then
+        // scrolls up under them as they fade — no dead space.
+        .contentMargins(.top, 44 + tabStripHeight, for: .scrollContent)
         .mtrxTrackScrollY { feedScrollY = $0 }
         .refreshable {
             await viewModel.refresh()

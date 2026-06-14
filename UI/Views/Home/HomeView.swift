@@ -96,7 +96,7 @@ struct HomeView: View {
                     .onTapGesture { closeHomeChat() }
                     .zIndex(40)
                 homeChatPanel
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(.scale(scale: 0.55, anchor: .topTrailing).combined(with: .opacity))
                     .zIndex(50)
             }
         }
@@ -308,6 +308,9 @@ struct HomeView: View {
     @State private var homeChatLog: [HomeChatMsg] = []
     @State private var homeChatOpen = false
     @State private var homeChatDrag: CGFloat = 0
+    /// The in-chat input is its own field so typing here never leaks back
+    /// into the top search bar.
+    @State private var homeChatInput = ""
     @FocusState private var homeChatFocused: Bool
 
     /// Transparent liquid-glass field that extends from the orb. The
@@ -390,11 +393,24 @@ struct HomeView: View {
 
     /// Submitting the bar (or the in-chat input) runs the command right here
     /// in Home — it only opens the full Trinity space if the user asks.
+    /// Submitting the top search bar opens the inline chat (its own field).
     private func runHomeAsk() {
         let text = askText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         askText = ""
         askFocused = false
+        submitHomeChat(text)
+    }
+
+    /// Sending from inside the chat uses the chat's own input.
+    private func sendHomeChat() {
+        let text = homeChatInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        homeChatInput = ""
+        submitHomeChat(text)
+    }
+
+    private func submitHomeChat(_ text: String) {
         homeChatLog.append(HomeChatMsg(isUser: true, text: text))
         if !homeChatOpen {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) { homeChatOpen = true }
@@ -459,6 +475,7 @@ struct HomeView: View {
 
     private func closeHomeChat() {
         homeChatFocused = false
+        homeChatInput = ""
         withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
             homeChatOpen = false
             homeChatDrag = 0
@@ -468,22 +485,42 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Inline Home Chat Panel
+    // MARK: - Inline Home Chat — an extension of the search bar itself.
 
+    /// The same iridescent flowing fill as the search pill, in a rounded
+    /// card — so the chat reads as the search bar growing open.
+    private var chatCardFlow: some View {
+        TimelineView(.animation) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let sweep = CGFloat(sin(t * 0.45)) * 0.55
+            let hue = (t * 9).truncatingRemainder(dividingBy: 360)
+            ZStack {
+                RoundedRectangle(cornerRadius: 30, style: .continuous).fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(Color.backgroundPrimary.opacity(0.55))
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: Self.askFlowColors,
+                            startPoint: UnitPoint(x: -0.4 + sweep, y: 0.5),
+                            endPoint: UnitPoint(x: 1.4 + sweep, y: 0.5)
+                        )
+                    )
+                    .hueRotation(.degrees(hue))
+                    .opacity(0.20)
+                    .blendMode(.screen)
+            }
+        }
+    }
+
+    /// The card grows out of the search bar: anchored at the top, it expands
+    /// left (full width) and down, wearing the bar's own design.
     private var homeChatPanel: some View {
         VStack(spacing: 0) {
-            Spacer(minLength: 0)
-
-            VStack(spacing: 0) {
-                Capsule()
-                    .fill(Color.labelTertiary.opacity(0.4))
-                    .frame(width: 40, height: 5)
-                    .padding(.top, Spacing.sm)
-                    .padding(.bottom, Spacing.xs)
-
+            VStack(spacing: Spacing.sm) {
                 // Header — orb + title, Open-in-Trinity, close.
                 HStack(spacing: Spacing.sm) {
-                    GlassOrb(size: 26, tint: agentGlassTint(.trinity))
+                    GlassOrb(size: 24, tint: agentGlassTint(.trinity))
                     Text("Trinity")
                         .font(.mtrxCalloutBold)
                         .foregroundStyle(Color.labelPrimary)
@@ -495,42 +532,39 @@ struct HomeView: View {
                         }
                         .foregroundStyle(Color.trinityPrimary)
                         .padding(.horizontal, 10).padding(.vertical, 6)
-                        .background(Color.trinityPrimary.opacity(0.12))
+                        .background(Color.trinityPrimary.opacity(0.15))
                         .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     Button { closeHomeChat() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 22))
-                            .foregroundStyle(Color.labelTertiary)
+                            .foregroundStyle(Color.labelSecondary)
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, Spacing.md)
-                .padding(.bottom, Spacing.sm)
 
-                // Conversation — grows as it fills, capped so it stays inline.
+                // Conversation.
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: Spacing.sm) {
                             ForEach(homeChatLog) { msg in
                                 HStack {
-                                    if msg.isUser { Spacer(minLength: 40) }
+                                    if msg.isUser { Spacer(minLength: 36) }
                                     Text(msg.text)
                                         .font(.mtrxCallout)
                                         .foregroundStyle(msg.isUser ? .white : Color.labelPrimary)
                                         .padding(.horizontal, Spacing.md)
                                         .padding(.vertical, Spacing.sm)
-                                        .background(msg.isUser ? Color.trinityPrimary : Color.surfaceOverlay)
+                                        .background(msg.isUser ? Color.trinityPrimary : Color.black.opacity(0.35))
                                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                                         .textSelection(.enabled)
-                                    if !msg.isUser { Spacer(minLength: 40) }
+                                    if !msg.isUser { Spacer(minLength: 36) }
                                 }
                                 .id(msg.id)
                             }
                         }
-                        .padding(.horizontal, Spacing.md)
-                        .padding(.bottom, Spacing.sm)
+                        .padding(.vertical, 2)
                     }
                     .frame(maxHeight: 300)
                     .onChange(of: homeChatLog.count) {
@@ -540,42 +574,42 @@ struct HomeView: View {
                     }
                 }
 
-                // Input — grows with the message, sends inline.
-                HStack(alignment: .bottom, spacing: Spacing.sm) {
-                    TextField("Message Trinity…", text: $askText, axis: .vertical)
+                // Input — the search pill, restated inside the chat.
+                HStack(spacing: 8) {
+                    TextField("Message Trinity…", text: $homeChatInput, axis: .vertical)
                         .lineLimit(1...5)
-                        .font(.mtrxCallout)
+                        .font(.mtrxCaption1)
                         .foregroundStyle(Color.labelPrimary)
                         .focused($homeChatFocused)
-                        .padding(.horizontal, Spacing.md)
-                        .padding(.vertical, Spacing.sm)
-                        .background(Color.surfaceOverlay)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-                    Button { runHomeAsk() } label: {
+                        .tint(Color.trinityPrimary)
+                        .padding(.leading, 6)
+                    Button { sendHomeChat() } label: {
                         Image(systemName: "arrow.up")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
-                            .frame(width: 36, height: 36)
-                            .background(askText.trimmingCharacters(in: .whitespaces).isEmpty ? Color.labelQuaternary : Color.trinityPrimary)
+                            .frame(width: 30, height: 30)
+                            .background(homeChatInput.trimmingCharacters(in: .whitespaces).isEmpty ? Color.labelQuaternary : Color.trinityPrimary)
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .disabled(askText.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(homeChatInput.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
-                .padding(.horizontal, Spacing.md)
-                .padding(.bottom, Spacing.md)
+                .padding(.leading, 11)
+                .padding(.trailing, 5)
+                .padding(.vertical, 5)
+                .background(askBarFlow)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
             }
-            .background(.ultraThinMaterial)
-            .background(Color.backgroundPrimary.opacity(0.6))
+            .padding(Spacing.md)
+            .background(chatCardFlow)
             .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .stroke(LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.04)], startPoint: .top, endPoint: .bottom), lineWidth: 1)
+                    .stroke(LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.05)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
-            .padding(.horizontal, Spacing.sm)
-            .padding(.bottom, Spacing.md)
+            .shadow(color: .black.opacity(0.4), radius: 24, y: 10)
+            .padding(.horizontal, Spacing.contentPadding)
             .offset(y: max(0, homeChatDrag))
             .gesture(
                 DragGesture()
@@ -585,8 +619,12 @@ struct HomeView: View {
                         else { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { homeChatDrag = 0 } }
                     }
             )
+
+            Spacer(minLength: 0)
         }
-        .ignoresSafeArea(.keyboard, edges: .bottom)
+        // Sits just under the greeting, where the search bar lives, and grows
+        // downward from there.
+        .padding(.top, 92)
     }
 
 
