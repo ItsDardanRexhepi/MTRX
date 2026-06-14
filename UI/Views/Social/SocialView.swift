@@ -836,7 +836,7 @@ struct SocialView: View {
     // MARK: - Custom Header (no system toolbar → no glass capsule)
 
     private var socialHeader: some View {
-        HStack(spacing: 0) {
+        HStack(alignment: .center, spacing: 0) {
             // Avatar — opens the side menu, Twitter-style.
             Button {
                 MtrxHaptics.impact(.light)
@@ -855,7 +855,7 @@ struct SocialView: View {
                             )
                     }
                 }
-                .frame(width: 34, height: 34)
+                .frame(width: 36, height: 36)
                 .clipShape(Circle())
             }
             .buttonStyle(.plain)
@@ -869,6 +869,9 @@ struct SocialView: View {
                                    startPoint: .top, endPoint: .bottom)
                 )
                 .mtrxGlow(color: theme.accent, radius: 4)
+                // Keep the wordmark from inflating the row so the avatar and
+                // gear stay centered on the same line.
+                .frame(height: 36)
 
             Spacer()
 
@@ -898,15 +901,18 @@ struct SocialView: View {
                     showSocialSettings = true
                 } label: { Label("Settings", systemImage: "gearshape") }
             } label: {
+                // Same 36×36 footprint as the avatar so it mirrors it exactly
+                // across the wordmark.
                 Image(systemName: "gearshape")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(Color.labelSecondary)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 36, height: 36)
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
-        .padding(.top, Spacing.xs)
-        .frame(height: 44)
+        .padding(.top, Spacing.sm)
+        .padding(.bottom, Spacing.sm)
+        .frame(height: 56)
     }
 
     /// Five top sections — Feed, Governance, Search, Alerts, Messages. Groups
