@@ -344,10 +344,10 @@ struct AccountView: View {
 
     private var portfolioSummary: some View {
         MtrxCard(style: .standard) {
-            VStack(spacing: Spacing.sm) {
+            VStack(spacing: Spacing.xs) {
                 HStack {
                     Text("Portfolio Value")
-                        .font(.mtrxCaption1)
+                        .font(.mtrxCaption2)
                         .foregroundStyle(Color.labelSecondary)
                     Spacer()
                 }
@@ -355,7 +355,7 @@ struct AccountView: View {
                 HStack(alignment: .firstTextBaseline) {
                     MtrxAnimatedValue(
                         value: walletManager.totalPortfolioValue,
-                        font: .system(size: 30, weight: .heavy, design: .rounded)
+                        font: .system(size: 24, weight: .heavy, design: .rounded)
                     )
 
                     Spacer()
@@ -384,7 +384,7 @@ struct AccountView: View {
                     }
                     .foregroundStyle(Color.accentPrimary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, Spacing.sm)
+                    .padding(.vertical, 6)
                     .background(Color.accentPrimary.opacity(0.12))
                     .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.sm)
                 }
@@ -408,15 +408,15 @@ struct AccountView: View {
             MtrxHaptics.impact(.light)
             presentedDestination = destination
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(color)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 26, height: 26)
                     .background(color.opacity(0.13))
                     .clipShape(Circle())
                 Text(label)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(Color.labelSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)

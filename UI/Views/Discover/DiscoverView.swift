@@ -519,7 +519,7 @@ struct DiscoverView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 150)
+                .frame(height: 184)
                 // Page dots now ride inside the card at its bottom edge, so
                 // there's no separate dots row eating space beneath it.
                 .overlay(alignment: .bottom) {

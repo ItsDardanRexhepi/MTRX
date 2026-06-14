@@ -311,6 +311,8 @@ struct HomeView: View {
     @State private var homeChatSetup = false
     @State private var homeChatOpen = false
     @State private var homeChatDrag: CGFloat = 0
+    /// Measured height of the live transcript so the card hugs it.
+    @State private var homeConvoHeight: CGFloat = 0
     /// The in-chat input is its own field so typing here never leaks back
     /// into the top search bar.
     @State private var homeChatInput = ""
@@ -469,8 +471,10 @@ struct HomeView: View {
             let sweep = CGFloat(sin(t * 0.45)) * 0.55
             let hue = (t * 9).truncatingRemainder(dividingBy: 360)
             ZStack {
+                // Slightly more translucent backing so the dashboard reads
+                // faintly through the glass — present, never see-through.
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(Color.black.opacity(0.28))
+                    .fill(Color.black.opacity(0.22))
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
                     .fill(
                         LinearGradient(
@@ -480,7 +484,8 @@ struct HomeView: View {
                         )
                     )
                     .hueRotation(.degrees(hue))
-                    .opacity(0.22)
+                    // Color toned down ~10% so it's calmer than the search pill.
+                    .opacity(0.20)
                     .blendMode(.screen)
             }
         }
@@ -491,8 +496,9 @@ struct HomeView: View {
     /// the bar's own design. Trinity answers here with her full capabilities.
     private var homeChatPanel: some View {
         VStack(spacing: 0) {
-            // Sits just under the greeting / search bar.
-            Color.clear.frame(height: 150)
+            // Tucks right under the search bar so it reads as the bar itself
+            // unfurling into the chat — one continuous surface, no gap.
+            Color.clear.frame(height: 118)
 
             VStack(spacing: Spacing.sm) {
                 // Drag handle, so it reads as one continuous surface.
@@ -554,8 +560,15 @@ struct HomeView: View {
                             }
                         }
                         .padding(.vertical, 2)
+                        // Report the transcript's true height so the card can
+                        // hug it — the input sits right under the last message
+                        // instead of floating with a wall of dead space.
+                        .background(GeometryReader { g in
+                            Color.clear.preference(key: HomeChatHeightKey.self, value: g.size.height)
+                        })
                     }
-                    .frame(maxHeight: .infinity)
+                    .frame(height: min(max(homeConvoHeight, 44), 360))
+                    .onPreferenceChange(HomeChatHeightKey.self) { homeConvoHeight = $0 }
                     .onChange(of: homeChatVM.messages.count) {
                         if let last = homeChatVM.messages.last {
                             withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(last.id, anchor: .bottom) }
@@ -596,7 +609,6 @@ struct HomeView: View {
                 .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
             }
             .padding(Spacing.md)
-            .frame(maxHeight: .infinity)
             .background(chatCardFlow)
             // Real Liquid Glass over the colors — refracts the dashboard
             // behind it while keeping the flowing palette.
@@ -613,6 +625,10 @@ struct HomeView: View {
                         else { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { homeChatDrag = 0 } }
                     }
             )
+
+            // Keep the card anchored to the top (under the bar) rather than
+            // centered — it grows downward as the conversation does.
+            Spacer(minLength: 0)
         }
         .onChange(of: homeChatVM.dismissRequested) {
             // Trinity navigated the app for the user → close the home chat.
@@ -1978,5 +1994,14 @@ struct DailyFlowSheet: View {
             .opacity(done ? 0.7 : 1)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Reports the home chat transcript's content height so the card can hug
+/// it instead of stretching to fill the screen.
+private struct HomeChatHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

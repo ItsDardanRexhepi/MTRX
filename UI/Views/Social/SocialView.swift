@@ -749,7 +749,7 @@ struct SocialView: View {
                 sideMenuRow(icon: "person", title: "Profile") {
                     closeSideMenu(); showProfile = true
                 }
-                sideMenuRow(icon: "sparkles", title: "Trinity") {
+                sideMenuRow(icon: "sparkles", title: "Trinity", orb: true) {
                     closeSideMenu(); showTrinityChat = true
                 }
                 sideMenuRow(icon: "clock.arrow.circlepath", title: "History") {
@@ -772,7 +772,7 @@ struct SocialView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.top, 72)
+        .padding(.top, 14)
         .background {
             ZStack(alignment: .top) {
                 MtrxGradientBackground(style: .primary)
@@ -798,22 +798,35 @@ struct SocialView: View {
         }
     }
 
-    private func sideMenuRow(icon: String, title: String, action: @escaping () -> Void) -> some View {
+    private func sideMenuRow(icon: String, title: String, orb: Bool = false, action: @escaping () -> Void) -> some View {
         Button {
             MtrxHaptics.impact(.light)
             action()
         } label: {
             HStack(spacing: Spacing.md) {
-                Image(systemName: icon)
-                    .font(.system(size: 21, weight: .regular))
-                    .frame(width: 28, alignment: .center)
-                    .foregroundStyle(Color.labelPrimary)
+                // Each row gets a soft glass chip behind its glyph, so the
+                // list reads as a set of tactile items — not a stack of bare
+                // lines. Trinity wears her living orb instead of a glyph.
+                ZStack {
+                    if orb {
+                        GlassOrb(size: 34)
+                    } else {
+                        Circle()
+                            .fill(Color.white.opacity(0.05))
+                            .overlay(Circle().stroke(Color.white.opacity(0.09), lineWidth: 1))
+                        Image(systemName: icon)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Color.labelPrimary)
+                    }
+                }
+                .frame(width: 38, height: 38)
+
                 Text(title)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Color.labelPrimary)
                 Spacer(minLength: 0)
             }
-            .padding(.vertical, 13)
+            .padding(.vertical, 10)
             .padding(.horizontal, Spacing.sm)
             .contentShape(Rectangle())
         }
