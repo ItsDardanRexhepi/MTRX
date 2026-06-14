@@ -418,12 +418,14 @@ struct SocialView: View {
     private var currentTier: SubscriptionTier { SubscriptionTier(rawValue: tierRaw) ?? .free }
     @Namespace private var tabUnderlineNS
     @State private var appeared = false
-    /// Immersive scroll: as you scroll down the feed, the header, tabs,
-    /// stories, and dock all tuck away so it's just the timeline; they
-    /// return when you scroll back up or pause.
-    @State private var chromeHidden = false
-    @State private var lastScrollY: CGFloat = 0
-    @State private var chromeReappearTimer: Timer?
+    /// Immersive scroll: the header + tabs fade out smoothly as you move
+    /// into the feed (continuous opacity tied directly to the scroll offset —
+    /// no animations, timers, or layout changes, so it's buttery at any
+    /// scroll speed). The dock always stays.
+    @State private var feedScrollY: CGFloat = 0
+    private var chromeOpacity: Double {
+        Double(max(0, min(1, 1 - feedScrollY / 90)))
+    }
     @State private var showProofPicker = false
     @State private var commentingOnPost: SocialPostDisplay? = nil
     @State private var postActionTarget: SocialPostDisplay? = nil
@@ -434,10 +436,7 @@ struct SocialView: View {
             ZStack(alignment: .bottomTrailing) {
                 VStack(spacing: 0) {
                     tabSelector
-                        .frame(height: chromeHidden ? 0 : 58, alignment: .top)
-                        .opacity(chromeHidden ? 0 : 1)
-                        .clipped()
-                        .animation(.easeInOut(duration: 0.28), value: chromeHidden)
+                        .opacity(chromeOpacity)
                     tabContent
                 }
                 .background(alignment: .top) {
@@ -502,6 +501,7 @@ struct SocialView: View {
                         }
                         .frame(width: 34, height: 34)
                         .clipShape(Circle())
+                        .opacity(chromeOpacity)
                     }
                 }
 
@@ -514,6 +514,7 @@ struct SocialView: View {
                                            startPoint: .top, endPoint: .bottom)
                         )
                         .mtrxGlow(color: theme.accent, radius: 4)
+                        .opacity(chromeOpacity)
                 }
 
                 // One settings entry — notifications, theme, and the AI
@@ -557,14 +558,15 @@ struct SocialView: View {
                             .font(.system(size: 18, weight: .medium))
                             .foregroundStyle(Color.labelSecondary)
                             .frame(width: 34, height: 34)
+                            .opacity(chromeOpacity)
                     }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            // Tuck the nav header and the dock away while immersed in the feed.
-            .toolbar(chromeHidden ? .hidden : .visible, for: .navigationBar)
-            .toolbar(chromeHidden ? .hidden : .visible, for: .tabBar)
-            .animation(.easeInOut(duration: 0.28), value: chromeHidden)
+            // No nav-bar background, so when the header fades it's just black.
+            .toolbarBackground(.hidden, for: .navigationBar)
+            // Reset the immersive fade whenever the sub-tab changes.
+            .onChange(of: viewModel.selectedTab) { _, _ in feedScrollY = 0 }
             .sheet(isPresented: $showNotifications) {
                 NotificationCenterView()
             }
@@ -662,24 +664,6 @@ struct SocialView: View {
         .onAppear {
             withAnimation(Motion.springDefault.delay(0.1)) {
                 appeared = true
-            }
-        }
-    }
-
-    /// Hide the chrome on downward scroll, reveal it on upward scroll, near
-    /// the top, or after a short pause.
-    private func handleFeedScroll(_ y: CGFloat) {
-        let delta = y - lastScrollY
-        lastScrollY = y
-        withAnimation(.easeInOut(duration: 0.28)) {
-            if y < 24 { chromeHidden = false }
-            else if delta > 6 { chromeHidden = true }
-            else if delta < -6 { chromeHidden = false }
-        }
-        chromeReappearTimer?.invalidate()
-        chromeReappearTimer = Timer.scheduledTimer(withTimeInterval: 2.8, repeats: false) { _ in
-            Task { @MainActor in
-                withAnimation(.easeInOut(duration: 0.3)) { chromeHidden = false }
             }
         }
     }
@@ -962,49 +946,38 @@ struct SocialView: View {
     // MARK: - Feed Section
 
     private var feedSection: some View {
-        VStack(spacing: 0) {
-            // The colorful top wash now lives at the screen level (see body)
-            // so it falls from the very top and dissolves into the tab's own
-            // background — here we just lay out the stories and tabs.
-            // Stories + tabs tuck away as you scroll into the feed, so the
-            // timeline takes over the screen — and slide back when you return.
-            VStack(spacing: 0) {
+        // Stories + filter tabs live INSIDE the scroll now, so they scroll
+        // away with the timeline — no collapsing layout, no jitter, just a
+        // normal scroll at any speed. The header/tabs above fade out via a
+        // continuous opacity tied to the offset.
+        ScrollView {
+            LazyVStack(spacing: 0) {
                 StoriesRail()
                 filterChips
-            }
-            .frame(height: chromeHidden ? 0 : 168, alignment: .top)
-            .opacity(chromeHidden ? 0 : 1)
-            .clipped()
-            .animation(.easeInOut(duration: 0.28), value: chromeHidden)
 
-            ScrollView {
-                // Flat, edge-to-edge timeline rows with hairline
-                // separators — the modern feed look.
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(viewModel.filteredPosts.enumerated()), id: \.element.id) { index, post in
-                        PostCardView(
-                            post: post,
-                            onLike: { viewModel.toggleLike(postId: post.id) },
-                            onRepost: { viewModel.toggleRepost(postId: post.id) },
-                            onMenu: { postActionTarget = post },
-                            onComment: { commentingOnPost = post }
-                        )
-                        .mtrxStaggeredAppearance(index: index, isVisible: appeared)
-                        .onAppear {
-                            if post.id == viewModel.filteredPosts.last?.id {
-                                viewModel.loadMoreTimeline()
-                            }
+                ForEach(Array(viewModel.filteredPosts.enumerated()), id: \.element.id) { index, post in
+                    PostCardView(
+                        post: post,
+                        onLike: { viewModel.toggleLike(postId: post.id) },
+                        onRepost: { viewModel.toggleRepost(postId: post.id) },
+                        onMenu: { postActionTarget = post },
+                        onComment: { commentingOnPost = post }
+                    )
+                    .mtrxStaggeredAppearance(index: index, isVisible: appeared)
+                    .onAppear {
+                        if post.id == viewModel.filteredPosts.last?.id {
+                            viewModel.loadMoreTimeline()
                         }
-
-                        MtrxDivider()
                     }
+
+                    MtrxDivider()
                 }
-                .padding(.bottom, Spacing.xxl)
             }
-            .mtrxTrackScrollY { handleFeedScroll($0) }
-            .refreshable {
-                await viewModel.refresh()
-            }
+            .padding(.bottom, Spacing.xxl)
+        }
+        .mtrxTrackScrollY { feedScrollY = $0 }
+        .refreshable {
+            await viewModel.refresh()
         }
     }
 
@@ -1112,26 +1085,33 @@ struct SocialView: View {
                     .mtrxStaggeredAppearance(index: index, isVisible: appeared)
                 }
 
-                // Past proposals
-                MtrxDivider()
-                    .padding(.vertical, Spacing.sm)
-
+                // Past proposals — a clear, full-width tappable card so the
+                // whole row toggles (the chevron used to hide under the FAB).
                 Button {
                     withAnimation(Motion.springDefault) {
                         viewModel.showPastProposals.toggle()
                     }
+                    MtrxHaptics.selection()
                 } label: {
                     HStack {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.accentPrimary)
                         Text("Past Proposals")
-                            .font(.mtrxCalloutBold)
+                            .font(.mtrxBodyBold)
                             .foregroundStyle(Color.labelPrimary)
                         Spacer()
                         Image(systemName: viewModel.showPastProposals ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Color.labelTertiary)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color.accentPrimary)
                     }
+                    .padding(Spacing.md)
+                    .frame(maxWidth: .infinity)
+                    .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .padding(.top, Spacing.sm)
 
                 if viewModel.showPastProposals {
                     ForEach(viewModel.pastProposals) { proposal in
@@ -1142,7 +1122,8 @@ struct SocialView: View {
             }
             .padding(.horizontal, Spacing.contentPadding)
             .padding(.top, Spacing.sm)
-            .padding(.bottom, Spacing.xxl)
+            // Extra room so the compose FAB never overlaps the last row.
+            .padding(.bottom, 120)
         }
         .refreshable {
             await viewModel.refresh()

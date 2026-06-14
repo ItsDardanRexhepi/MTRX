@@ -83,16 +83,22 @@ struct AccountView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: Spacing.lg) {
-                    profileCard
-                    portfolioSummary
-                    workspaceSection
-                    signOutButton
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: Spacing.lg) {
+                        profileCard
+                        portfolioSummary
+                        workspaceSection
+                        // Pushes Sign Out to the bottom so the screen fills
+                        // with no dead space, while still scrolling if needed.
+                        Spacer(minLength: Spacing.lg)
+                        signOutButton
+                    }
+                    .padding(.horizontal, Spacing.contentPadding)
+                    .padding(.top, Spacing.md)
+                    .padding(.bottom, Spacing.lg)
+                    .frame(minHeight: proxy.size.height)
                 }
-                .padding(.horizontal, Spacing.contentPadding)
-                .padding(.top, Spacing.md)
-                .padding(.bottom, Spacing.lg)
             }
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Account")
