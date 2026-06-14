@@ -119,6 +119,8 @@ struct MainTabView: View {
     @ObservedObject private var presence = AgentPresence.shared
     @State private var miniAgent: AgentReopen?
     @State private var expandedAgent: AgentReopen?
+    @State private var dailyFlowToast: String?
+    @State private var dailyFlowToastComplete = false
 
     /// Tapping the tab you're already on resets that tab to its initial
     /// page (NavigationStacks pop automatically; sub-tab state resets via
@@ -191,6 +193,47 @@ struct MainTabView: View {
             if let index = note.userInfo?["index"] as? Int,
                let tab = AppTab(rawValue: index) {
                 selectedTab = tab
+            }
+        }
+        // A small banner each time a daily-flow action is checked off.
+        .onReceive(NotificationCenter.default.publisher(for: .mtrxDailyFlowProgress)) { note in
+            guard let label = note.userInfo?["label"] as? String,
+                  let count = note.userInfo?["count"] as? Int else { return }
+            let complete = (note.userInfo?["complete"] as? Bool) ?? false
+            dailyFlowToastComplete = complete
+            withAnimation(Motion.springDefault) {
+                dailyFlowToast = complete ? "Daily Flow complete — all 3 done! 🎉"
+                                          : "\(label) ✓ · \(count)/3 today"
+            }
+            MtrxHaptics.success()
+            let shown = dailyFlowToast
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {
+                if dailyFlowToast == shown {
+                    withAnimation(Motion.springDefault) { dailyFlowToast = nil }
+                }
+            }
+        }
+        .overlay(alignment: .top) {
+            if let toast = dailyFlowToast {
+                HStack(spacing: Spacing.sm) {
+                    Image(systemName: dailyFlowToastComplete ? "checkmark.seal.fill" : "checkmark.circle.fill")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(dailyFlowToastComplete ? Color.statusSuccess : Color.trinityPrimary)
+                    Text(toast)
+                        .font(.mtrxCalloutBold)
+                        .foregroundStyle(Color.labelPrimary)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
+                .background(.ultraThinMaterial)
+                .background(Color.backgroundPrimary.opacity(0.7))
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(.white.opacity(0.14), lineWidth: 1))
+                .shadow(color: .black.opacity(0.3), radius: 14, y: 6)
+                .padding(.top, Spacing.sm)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .zIndex(100)
             }
         }
         // The docked agent: after she navigates the app for the user she

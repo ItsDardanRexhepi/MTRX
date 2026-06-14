@@ -96,7 +96,9 @@ struct AccountView: View {
                     }
                     .padding(.horizontal, Spacing.contentPadding)
                     .padding(.top, Spacing.md)
-                    .padding(.bottom, Spacing.lg)
+                    // Reserve the floating dock's area so Sign Out lands just
+                    // above it (the fill height includes under the dock).
+                    .padding(.bottom, 96)
                     .frame(minHeight: proxy.size.height)
                 }
             }

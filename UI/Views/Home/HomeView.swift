@@ -162,7 +162,7 @@ struct HomeView: View {
                     showDailyFlow = false
                 }
             )
-            .presentationDetents([.height(560)])
+            .presentationDetents([.height(500)])
             .presentationDragIndicator(.visible)
         }
         .sheet(item: $presentedService) { service in
@@ -461,14 +461,16 @@ struct HomeView: View {
     /// The same iridescent flowing fill as the search pill, in a rounded
     /// card — so the chat reads as the search bar growing open.
     private var chatCardFlow: some View {
+        // Just the flowing colors over a soft tint — the real glass comes
+        // from .mtrxLiquidGlass applied on top, so the card refracts the
+        // dashboard behind it while keeping these colors alive.
         TimelineView(.animation) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             let sweep = CGFloat(sin(t * 0.45)) * 0.55
             let hue = (t * 9).truncatingRemainder(dividingBy: 360)
             ZStack {
-                RoundedRectangle(cornerRadius: 30, style: .continuous).fill(.ultraThinMaterial)
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(Color.backgroundPrimary.opacity(0.55))
+                    .fill(Color.black.opacity(0.28))
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
                     .fill(
                         LinearGradient(
@@ -478,7 +480,7 @@ struct HomeView: View {
                         )
                     )
                     .hueRotation(.degrees(hue))
-                    .opacity(0.20)
+                    .opacity(0.22)
                     .blendMode(.screen)
             }
         }
@@ -596,14 +598,12 @@ struct HomeView: View {
             .padding(Spacing.md)
             .frame(maxHeight: .infinity)
             .background(chatCardFlow)
-            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .stroke(LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.05)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
-            )
+            // Real Liquid Glass over the colors — refracts the dashboard
+            // behind it while keeping the flowing palette.
+            .mtrxLiquidGlass(cornerRadius: 30)
             .shadow(color: .black.opacity(0.4), radius: 24, y: 10)
             .padding(.horizontal, Spacing.contentPadding)
-            .padding(.bottom, Spacing.sm)
+            .padding(.bottom, Spacing.xs)
             .offset(y: max(0, homeChatDrag))
             .gesture(
                 DragGesture()
@@ -1298,6 +1298,13 @@ final class DailyFlow: ObservableObject {
         guard !completed.contains(goal.rawValue) else { return }
         completed.insert(goal.rawValue)
         persist()
+        // Let the user know they just checked one off, with the running tally.
+        let count = completed.count
+        NotificationCenter.default.post(name: .mtrxDailyFlowProgress, object: nil, userInfo: [
+            "label": goal.label,
+            "count": count,
+            "complete": count >= Goal.allCases.count
+        ])
     }
 
     var progress: Double {
@@ -1826,6 +1833,9 @@ extension Notification.Name {
     /// Posted with userInfo ["index": Int] when the user taps the dock tab
     /// they're already on — each tab resets to its initial page.
     static let mtrxPopToRoot = Notification.Name("com.mtrx.popToRoot")
+    /// Posted with ["label": String, "count": Int, "complete": Bool] each time
+    /// the user checks off one of the three daily-flow actions.
+    static let mtrxDailyFlowProgress = Notification.Name("com.mtrx.dailyFlowProgress")
 }
 
 // MARK: - Daily Flow Sheet
