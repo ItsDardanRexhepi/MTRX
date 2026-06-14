@@ -88,7 +88,6 @@ struct AccountView: View {
                     profileCard
                     portfolioSummary
                     workspaceSection
-                    appSection
                     signOutButton
                 }
                 .padding(.horizontal, Spacing.contentPadding)
@@ -349,7 +348,7 @@ struct AccountView: View {
                 HStack(alignment: .firstTextBaseline) {
                     MtrxAnimatedValue(
                         value: walletManager.totalPortfolioValue,
-                        font: .system(size: 34, weight: .heavy, design: .rounded)
+                        font: .system(size: 30, weight: .heavy, design: .rounded)
                     )
 
                     Spacer()
@@ -443,13 +442,14 @@ struct AccountView: View {
     }
 
     private var workspaceSection: some View {
-        // Treasury and Licenses now live inside Governance — four clean
-        // workspace tiles.
+        // Governance, Messaging, Rewards, and Settings — one consistent
+        // design language, with Settings now holding everything that used
+        // to sit in a separate App & Support block.
         spaceGrid("Your workspace", delay: 0.09) {
             QuickActionCard(icon: Symbols.dao, label: "Governance", color: .accentTertiary, destination: .governance, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: Symbols.message, label: "Messaging", color: .statusSuccess, destination: .messaging, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: Symbols.message, label: "Messaging", color: .statusInfo, destination: .messaging, onOpen: { presentedDestination = $0 })
             QuickActionCard(icon: "gift.fill", label: "Rewards", color: .accentSecondary, destination: .loyalty, onOpen: { presentedDestination = $0 })
-            QuickActionCard(icon: "checkmark.seal.fill", label: "Attestations", color: .statusSuccess, destination: .attestations, onOpen: { presentedDestination = $0 })
+            QuickActionCard(icon: Symbols.settings, label: "Settings", color: .labelSecondary, destination: .settings, onOpen: { presentedDestination = $0 })
         }
     }
 

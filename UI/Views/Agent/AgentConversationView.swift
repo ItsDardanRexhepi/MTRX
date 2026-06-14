@@ -34,17 +34,43 @@ struct AgentConversationView: View {
     @State private var greeting = ""
 
     /// Rotating openers — a different one almost every time, like the
-    /// modern assistants. Shown centered until the user starts typing.
-    private static let greetings = [
-        "What are we building today?",
-        "Good to see you. Where to?",
-        "I'm here. What do you need?",
-        "Ready when you are.",
-        "What's on your mind?",
-        "Let's make something happen.",
-        "How can I help right now?",
-        "Pick up where we left off?",
-    ]
+    /// modern assistants. Each agent has its own voice. Shown centered
+    /// until the user starts typing.
+    private static func greetingPool(for agent: AgentAccessControl.ActiveAgent) -> [String] {
+        switch agent {
+        case .morpheus:
+            return [
+                "I'm watching. What's on your mind?",
+                "Tell me what you're weighing.",
+                "I'm here to keep you safe. What's up?",
+                "Steady. What do you need to think through?",
+                "What are we protecting today?",
+            ]
+        case .neo:
+            return [
+                "Systems are green. What do you need?",
+                "Owner. Where do we start?",
+                "Full view's up. What's the move?",
+                "I'm online. What are we coordinating?",
+                "Ready. What's the priority?",
+            ]
+        default:
+            return [
+                "What are we building today?",
+                "Good to see you. Where to?",
+                "I'm here. What do you need?",
+                "Ready when you are.",
+                "What's on your mind?",
+                "Let's make something happen.",
+                "How can I help right now?",
+                "Pick up where we left off?",
+            ]
+        }
+    }
+
+    private static func greeting(for agent: AgentAccessControl.ActiveAgent) -> String {
+        greetingPool(for: agent).randomElement() ?? "How can I help?"
+    }
 
     /// The centered greeting shows until the first user message exists.
     private var showCenteredGreeting: Bool {
@@ -166,11 +192,15 @@ struct AgentConversationView: View {
 
                             if viewModel.isTyping {
                                 TypingIndicator(agent: viewModel.activeAgent)
+                                    // Clearance so the bubble always lands
+                                    // above the chips bar, never under it.
+                                    .padding(.bottom, Spacing.xs)
                                     .id("typingIndicator")
                             }
                         }
                         .padding(.horizontal, Spacing.md)
-                        .padding(.vertical, Spacing.sm)
+                        .padding(.top, Spacing.sm)
+                        .padding(.bottom, Spacing.md)
                         .opacity(showCenteredGreeting ? 0 : 1)
                         .animation(.easeInOut(duration: 0.25), value: showCenteredGreeting)
                     }
@@ -211,10 +241,14 @@ struct AgentConversationView: View {
                     inputBar
                 }
                 .background {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .padding(.bottom, -40)
-                        .ignoresSafeArea(edges: .bottom)
+                    // A solid base under the glass so message content can
+                    // never ghost through the chips/input band.
+                    ZStack {
+                        Color.backgroundPrimary
+                        Rectangle().fill(.ultraThinMaterial)
+                    }
+                    .padding(.bottom, -40)
+                    .ignoresSafeArea(edges: .bottom)
                 }
             }
 
@@ -265,6 +299,13 @@ struct AgentConversationView: View {
                     }
                 }
         )
+        .onChange(of: viewModel.activeAgent) { _, newAgent in
+            // Swapping agents in the header re-voices the splash greeting
+            // while it's still the one on screen.
+            if showCenteredGreeting {
+                greeting = Self.greeting(for: newAgent)
+            }
+        }
         .onChange(of: viewModel.dismissRequested) {
             // The agent has navigated the app — slide the chat away and
             // let the floating orb take over.
@@ -274,11 +315,12 @@ struct AgentConversationView: View {
             }
         }
         .onAppear {
-            greeting = Self.greetings.randomElement() ?? "How can I help?"
             viewModel.setup(userID: userID, walletManager: walletManager)
             if let initialAgent {
                 viewModel.openAgentChat(initialAgent)
             }
+            // Greeting takes the voice of whoever's actually in the room.
+            greeting = Self.greeting(for: initialAgent ?? viewModel.activeAgent)
             if let initialPrompt, viewModel.inputText.isEmpty {
                 viewModel.inputText = initialPrompt
                 isInputFocused = true

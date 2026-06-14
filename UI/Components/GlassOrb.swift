@@ -18,6 +18,12 @@ struct GlassOrb: View {
     var animates: Bool = true
 
     @State private var drift = false
+    @State private var pulse = false
+
+    /// The orb's own key color, used for the living halo.
+    private var keyColor: Color {
+        tint?.first ?? Color(red: 0.60, green: 0.92, blue: 0.96)
+    }
 
     private var film: [Color] {
         tint ?? [
@@ -32,6 +38,20 @@ struct GlassOrb: View {
 
     var body: some View {
         ZStack {
+            // Living halo — a soft breath of the orb's key color so it
+            // reads as alive even on a pure-black field.
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [keyColor.opacity(0.55), keyColor.opacity(0.12), .clear],
+                        center: .center, startRadius: 0, endRadius: size * 0.72
+                    )
+                )
+                .scaleEffect(pulse ? 1.18 : 0.92)
+                .opacity(pulse ? 0.95 : 0.5)
+                .blur(radius: size * 0.10)
+                .blendMode(.screen)
+
             // Clear glass body — barely there, so the page shows through.
             Circle()
                 .fill(.ultraThinMaterial)
@@ -59,10 +79,15 @@ struct GlassOrb: View {
                 .blendMode(.screen)
         }
         .frame(width: size, height: size)
+        // The whole sphere breathes — a slow, living pulse.
+        .scaleEffect(pulse ? 1.05 : 0.98)
         .onAppear {
             guard animates else { return }
             withAnimation(.linear(duration: 16).repeatForever(autoreverses: false)) {
                 drift = true
+            }
+            withAnimation(.easeInOut(duration: 1.9).repeatForever(autoreverses: true)) {
+                pulse = true
             }
         }
     }

@@ -36,6 +36,8 @@ struct SettingsView: View {
     @State private var showClearCacheConfirm = false
     @State private var showResetPrefsConfirm = false
     @State private var showCacheCleared = false
+    @State private var showHelp = false
+    @State private var showAbout = false
 
     // MARK: - Static Data
     private let currencies = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "BTC", "ETH"]
@@ -87,6 +89,7 @@ struct SettingsView: View {
         NavigationStack {
             ZStack(alignment: .bottom) {
                 List {
+                    accountSection
                     generalSection
                     notificationsSection
                     networkSection
@@ -98,6 +101,8 @@ struct SettingsView: View {
                 .listStyle(.insetGrouped)
                 .scrollContentBackground(.hidden)
                 .background(Color.backgroundGrouped.ignoresSafeArea())
+                .sheet(isPresented: $showHelp) { HelpSupportSheet() }
+                .sheet(isPresented: $showAbout) { AboutSheet() }
 
                 // Toast overlay
                 if showCacheCleared {
@@ -141,6 +146,38 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Account Section
+    //
+    // Privacy, Subscription, Help and About now live inside Settings, so
+    // the Account tab no longer needs a separate App & Support block.
+
+    private var accountSection: some View {
+        Section {
+            NavigationLink {
+                PrivacyView()
+            } label: {
+                settingsRow(icon: "lock.fill", iconColor: .statusWarning, title: "Privacy & Security", value: "")
+            }
+            NavigationLink {
+                SubscriptionView()
+            } label: {
+                settingsRow(icon: "crown.fill", iconColor: .accentSecondary, title: "Subscription", value: "")
+            }
+            Button {
+                showHelp = true
+            } label: {
+                settingsRow(icon: "questionmark.circle.fill", iconColor: .labelTertiary, title: "Help & Support", value: "")
+            }
+            Button {
+                showAbout = true
+            } label: {
+                settingsRow(icon: "info.circle.fill", iconColor: .labelTertiary, title: "About MTRX", value: "2.4.0")
+            }
+        } header: {
+            Text("Account")
+        }
+    }
+
     // MARK: - General Section
 
     private var generalSection: some View {
@@ -157,34 +194,19 @@ struct SettingsView: View {
                 )
             }
 
-            // Theme — inline picker
-            Picker(selection: $selectedTheme) {
-                ForEach(themes, id: \.self) { theme in
-                    Text(theme).tag(theme)
-                }
+            // Theme — taps through to its own window. The app runs a
+            // permanent blackout field; this is where Enterprise members
+            // customize their app icon and Social background.
+            NavigationLink {
+                ThemeSettingsView()
             } label: {
-                Label {
-                    Text("Theme")
-                        .font(.mtrxBody)
-                        .foregroundStyle(Color.labelPrimary)
-                } icon: {
-                    SettingsIcon(symbol: "paintbrush.fill", color: .accentTertiary)
-                }
+                settingsRow(
+                    icon: "paintbrush.fill",
+                    iconColor: .accentTertiary,
+                    title: "Theme",
+                    value: "Blackout"
+                )
             }
-            .onChange(of: selectedTheme) { _, _ in triggerHaptic() }
-
-            // Blackout mode — pure-black background across the whole app.
-            Toggle(isOn: $blackoutMode) {
-                Label {
-                    Text("Blackout Mode")
-                        .font(.mtrxBody)
-                        .foregroundStyle(Color.labelPrimary)
-                } icon: {
-                    SettingsIcon(symbol: "moon.stars.fill", color: .labelPrimary)
-                }
-            }
-            .tint(Color.accentPrimary)
-            .onChange(of: blackoutMode) { _, _ in triggerHaptic() }
 
             // Haptic Feedback — toggle
             Toggle(isOn: $hapticFeedback) {
@@ -839,6 +861,166 @@ private struct PlaceholderLegalView: View {
         .background(Color.backgroundGrouped.ignoresSafeArea())
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Theme Settings (its own window)
+
+/// The app runs a permanent blackout field — there's no system/light/dark
+/// choice. This window is where Enterprise members customize their app
+/// icon and the background of their Social tab. Pro and Free see the door
+/// but need to upgrade to walk through it.
+struct ThemeSettingsView: View {
+    @AppStorage("com.mtrx.subscriptionTier") private var tierRaw: String = SubscriptionTier.free.rawValue
+    @AppStorage("com.mtrx.enterprise.appIcon") private var selectedIcon: String = "Default"
+    @AppStorage("com.mtrx.enterprise.socialBg") private var socialBgName: String = "Blackout"
+    @State private var showUpsell = false
+
+    private var tier: SubscriptionTier { SubscriptionTier(rawValue: tierRaw) ?? .free }
+    private var isEnterprise: Bool { tier >= .enterprise }
+
+    private let icons: [(name: String, color: Color)] = [
+        ("Default", .accentPrimary),
+        ("Mono", .labelPrimary),
+        ("Aurora", .trinityPrimary),
+        ("Violet", Color(red: 0.62, green: 0.40, blue: 0.96)),
+        ("Amber", Color(red: 0.98, green: 0.65, blue: 0.15)),
+        ("Rose", Color(red: 0.95, green: 0.36, blue: 0.42)),
+    ]
+
+    private let socialBgs: [(name: String, color: Color)] = [
+        ("Blackout", .black),
+        ("Deep Sea", Color(hex: 0x071A1F)),
+        ("Midnight", Color(hex: 0x0A0E2A)),
+        ("Plum", Color(hex: 0x1C0A24)),
+        ("Forest", Color(hex: 0x07210F)),
+        ("Ember", Color(hex: 0x240A0A)),
+    ]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                // Appearance — locked to Blackout, by design.
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    MtrxSectionHeader(title: "Appearance")
+                    MtrxCard(style: .glass) {
+                        HStack(spacing: Spacing.md) {
+                            SettingsIcon(symbol: "moon.stars.fill", color: .labelPrimary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Blackout")
+                                    .font(.mtrxBodyBold)
+                                    .foregroundStyle(Color.labelPrimary)
+                                Text("MTRX runs a true-black field across the whole app.")
+                                    .font(.mtrxCaption1)
+                                    .foregroundStyle(Color.labelSecondary)
+                            }
+                            Spacer()
+                        }
+                    }
+                }
+
+                // Enterprise customization.
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    HStack {
+                        MtrxSectionHeader(title: "Enterprise theme")
+                        if !isEnterprise {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.accentSecondary)
+                        }
+                    }
+
+                    if isEnterprise {
+                        Text("App icon")
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(Color.labelSecondary)
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.md) {
+                            ForEach(icons, id: \.name) { icon in
+                                iconTile(icon)
+                            }
+                        }
+
+                        Text("Social background")
+                            .font(.mtrxCaptionBold)
+                            .foregroundStyle(Color.labelSecondary)
+                            .padding(.top, Spacing.sm)
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.md) {
+                            ForEach(socialBgs, id: \.name) { bg in
+                                socialBgTile(bg)
+                            }
+                        }
+                    } else {
+                        MtrxCard(style: .glass) {
+                            VStack(alignment: .leading, spacing: Spacing.sm) {
+                                Text("Full theming — custom app icons and a Social background that's yours — is an Enterprise feature.")
+                                    .font(.mtrxCallout)
+                                    .foregroundStyle(Color.labelSecondary)
+                                Button {
+                                    showUpsell = true
+                                } label: {
+                                    Text("Upgrade to Enterprise")
+                                }
+                                .buttonStyle(MtrxButtonStyle(variant: .primary, size: .regular, fullWidth: true))
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(Spacing.contentPadding)
+        }
+        .background(MtrxGradientBackground(style: .primary))
+        .navigationTitle("Theme")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showUpsell) {
+            SubscriptionView()
+        }
+    }
+
+    private func iconTile(_ icon: (name: String, color: Color)) -> some View {
+        Button {
+            selectedIcon = icon.name
+            MtrxHaptics.selection()
+            // Alternate icons require bundled assets; attempt and ignore
+            // if they aren't present so this never crashes.
+            let target = icon.name == "Default" ? nil : "AppIcon-\(icon.name)"
+            if UIApplication.shared.supportsAlternateIcons {
+                UIApplication.shared.setAlternateIconName(target) { _ in }
+            }
+        } label: {
+            VStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(LinearGradient(colors: [icon.color, icon.color.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(height: 56)
+                    .overlay(
+                        Text("M").font(.system(size: 26, weight: .black, design: .rounded)).foregroundStyle(.white)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(selectedIcon == icon.name ? Color.accentPrimary : Color.white.opacity(0.08), lineWidth: selectedIcon == icon.name ? 2 : 1)
+                    )
+                Text(icon.name).font(.mtrxCaption2).foregroundStyle(Color.labelSecondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func socialBgTile(_ bg: (name: String, color: Color)) -> some View {
+        Button {
+            socialBgName = bg.name
+            MtrxHaptics.selection()
+        } label: {
+            VStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(bg.color)
+                    .frame(height: 48)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(socialBgName == bg.name ? Color.accentPrimary : Color.white.opacity(0.10), lineWidth: socialBgName == bg.name ? 2 : 1)
+                    )
+                Text(bg.name).font(.mtrxCaption2).foregroundStyle(Color.labelSecondary)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 

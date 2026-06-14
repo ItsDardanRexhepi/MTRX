@@ -94,9 +94,10 @@ final class BuildViewModel: ObservableObject {
 // MARK: - Build Segment
 
 enum BuildSegment: String, CaseIterable {
-    case contracts = "My Contracts"
+    // Order along the strip: Templates, Create, My Contracts.
     case templates = "Templates"
     case create = "Create"
+    case contracts = "My Contracts"
 
     var tabIcon: String {
         switch self {
@@ -275,6 +276,8 @@ struct BuildView: View {
                                 .font(.system(size: 12, weight: .semibold))
                             Text(segment.rawValue)
                                 .font(.system(size: 14, weight: isActive ? .bold : .medium))
+                                .lineLimit(1)
+                                .fixedSize()
                         }
                         .foregroundStyle(isActive ? Color.labelPrimary : Color.labelTertiary)
 

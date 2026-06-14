@@ -10,51 +10,16 @@ import SwiftUI
 
 struct MtrxGradientBackground: View {
     var style: GradientStyle = .primary
-    @AppStorage("com.mtrx.blackout") private var blackout = false
 
     enum GradientStyle {
         case primary, subtle, dark, trinityGlow
     }
 
     var body: some View {
-        if blackout {
-            Color.black.ignoresSafeArea()
-        } else {
-            field
-        }
-    }
-
-    @ViewBuilder
-    private var field: some View {
-        switch style {
-        case .primary, .trinityGlow:
-            // One signature field everywhere: deep night base, a cyan
-            // aurora breathing at the top, a whisper of green depth
-            // low-left — water and light, nothing harsh.
-            ZStack {
-                Color.backgroundPrimary.ignoresSafeArea()
-                RadialGradient(
-                    colors: [Color.trinityPrimary.opacity(0.10), .clear],
-                    center: .init(x: 0.5, y: -0.05),
-                    startRadius: 10,
-                    endRadius: 420
-                ).ignoresSafeArea()
-                RadialGradient(
-                    colors: [Color.statusSuccess.opacity(0.035), .clear],
-                    center: .init(x: 0.05, y: 0.95),
-                    startRadius: 10,
-                    endRadius: 380
-                ).ignoresSafeArea()
-            }
-        case .subtle:
-            Color.backgroundPrimary.ignoresSafeArea()
-        case .dark:
-            LinearGradient(
-                colors: [Color.black, Color(white: 0.06)],
-                startPoint: .top,
-                endPoint: .bottom
-            ).ignoresSafeArea()
-        }
+        // The app rides a single pure-black field everywhere, no exception.
+        // Per-screen accents (the Home ambient glow, the Social top wash)
+        // ride on their own layers on top of this.
+        Color.black.ignoresSafeArea()
     }
 }
 

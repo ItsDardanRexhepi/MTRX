@@ -13,7 +13,8 @@ struct HomeView: View {
     @ObservedObject private var chatStore = ConversationStore.shared
     @ObservedObject private var dailyFlow = DailyFlow.shared
     @ObservedObject private var socialFeed = SocialViewModel.shared
-    @State private var feedScrollIndex: Int?
+    @State private var feedPage = 0
+    @State private var feedTimer: Timer?
 
     @State private var presentedChat: ChatLaunch?
     @State private var appeared = false
@@ -62,7 +63,9 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.top, Spacing.sm)
-                .padding(.bottom, 96)
+                // The floating dock already reserves its own safe-area inset,
+                // so only a small breath is needed here — no dead space.
+                .padding(.bottom, Spacing.md)
                 // In edit mode, tapping empty space exits jiggle — no need
                 // to reach for Done.
                 .background {
@@ -93,6 +96,12 @@ struct HomeView: View {
         .onAppear {
             withAnimation(Motion.springDefault.delay(0.1)) {
                 appeared = true
+            }
+            // One-time: adopt the new quick-action order (Pay, Shop, Invest,
+            // Play, Earn, Events) even for existing installs.
+            if !quickActionsMigratedV2 {
+                quickActionsRaw = "pay,shop,invest,play,earn,events"
+                quickActionsMigratedV2 = true
             }
             // Apple only shares the name on the first-ever sign-in, so
             // when it's missing, ask once — then it persists for good.
@@ -169,7 +178,7 @@ struct HomeView: View {
             // Greeting and date share one eyebrow line — the dashboard
             // below needs the vertical room more than the calendar does.
             // The live transport indicator rides at the trailing edge.
-            Text("\(timeGreeting) · \(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()))")
+            Text("\(timeGreeting) · \(Date().formatted(.dateTime.weekday(.wide).month(.wide).day().year()))")
                 .font(.mtrxCaption1)
                 .foregroundStyle(Color.trinityPrimary.opacity(0.85))
                 .textCase(.uppercase)
@@ -256,7 +265,8 @@ struct HomeView: View {
                 endRadius: 170
             )
             .frame(width: 340, height: 340)
-            .offset(x: -60, y: -70),
+            // Centered on the user's name, bleeding to the top-left edge.
+            .offset(x: -70, y: -112),
             alignment: .topLeading
         )
     }
@@ -297,7 +307,7 @@ struct HomeView: View {
 
     private var homeAskOrb: some View {
         HStack(spacing: 8) {
-            TextField("What are we doing today", text: $askText)
+            TextField("What're we building?", text: $askText)
                 .font(.mtrxCaption1)
                 .foregroundStyle(Color.labelPrimary)
                 .focused($askFocused)
@@ -375,7 +385,9 @@ struct HomeView: View {
     /// press any tile (or tap Edit) to enter jiggle mode: remove with the
     /// red badge, add from the picker. Their home screen, their choices.
     @AppStorage("com.mtrx.home.quickActions") private var quickActionsRaw =
-        "deploy,shop,insure,play,events,identity"
+        "pay,shop,invest,play,earn,events"
+    /// One-time reset so existing installs pick up the new default order.
+    @AppStorage("com.mtrx.home.quickActions.v2") private var quickActionsMigratedV2 = false
     @State private var editingActions = false
     @State private var jiggle = false
     @State private var showActionPicker = false
@@ -656,36 +668,83 @@ struct HomeView: View {
                     .foregroundStyle(Color.labelTertiary)
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else {
-                // A tidy paged carousel: each card is exactly the content
-                // width and snaps cleanly, with only a small, controlled
-                // gutter between cards — no wide channel mid-swipe.
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: Spacing.sm) {
-                        ForEach(Array(feedPosts.enumerated()), id: \.element.id) { index, post in
-                            feedCard(post)
-                                .containerRelativeFrame(.horizontal)
-                                .id(index)
-                        }
+                // An endlessly looping carousel: a clone of the last post
+                // sits before the first and a clone of the first sits after
+                // the last, so swiping (or the 2s auto-rotation) wraps
+                // seamlessly in both directions, forever.
+                TabView(selection: $feedPage) {
+                    ForEach(loopFeed.indices, id: \.self) { i in
+                        feedCard(loopFeed[i])
+                            .tag(i)
                     }
-                    .scrollTargetLayout()
                 }
+                .tabViewStyle(.page(indexDisplayMode: .never))
                 .frame(height: 188)
-                .scrollTargetBehavior(.viewAligned)
-                .scrollPosition(id: $feedScrollIndex)
+                .onAppear {
+                    if feedPosts.count > 1 && feedPage == 0 { feedPage = 1 }
+                    startFeedRotation()
+                }
+                .onDisappear { stopFeedRotation() }
+                .onChange(of: feedPage) { _, new in
+                    let n = feedPosts.count
+                    guard n > 1 else { return }
+                    if new == 0 { jumpFeed(to: n) }          // before first → real last
+                    else if new == n + 1 { jumpFeed(to: 1) } // after last → real first
+                }
+                // A new post landing up front restarts the loop cleanly.
+                .onChange(of: feedPosts.count) { _, _ in
+                    if feedPosts.count > 1 { jumpFeed(to: 1) }
+                }
 
-                // Quiet position dots — track the visible card.
+                // Quiet position dots — track the real index.
                 HStack(spacing: 5) {
-                    ForEach(feedPosts.indices, id: \.self) { index in
+                    ForEach(0..<feedPosts.count, id: \.self) { index in
                         Capsule()
-                            .fill(index == (feedScrollIndex ?? 0) ? Color.trinityPrimary : Color.labelQuaternary.opacity(0.5))
-                            .frame(width: index == (feedScrollIndex ?? 0) ? 14 : 5, height: 5)
-                            .animation(Motion.springSnappy, value: feedScrollIndex)
+                            .fill(index == realFeedIndex ? Color.trinityPrimary : Color.labelQuaternary.opacity(0.5))
+                            .frame(width: index == realFeedIndex ? 14 : 5, height: 5)
+                            .animation(Motion.springSnappy, value: realFeedIndex)
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.top, 2)
             }
         }
+    }
+
+    /// The feed padded with wrap-around clones for seamless looping.
+    private var loopFeed: [SocialPostDisplay] {
+        let posts = feedPosts
+        guard posts.count > 1 else { return posts }
+        return [posts[posts.count - 1]] + posts + [posts[0]]
+    }
+
+    /// The real post index the carousel is currently showing.
+    private var realFeedIndex: Int {
+        let n = feedPosts.count
+        guard n > 1 else { return 0 }
+        return ((feedPage - 1) % n + n) % n
+    }
+
+    private func jumpFeed(to index: Int) {
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t) { feedPage = index }
+    }
+
+    /// Advance one post every two seconds; the clone-jump keeps it endless.
+    private func startFeedRotation() {
+        stopFeedRotation()
+        guard feedPosts.count > 1 else { return }
+        feedTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+            Task { @MainActor in
+                withAnimation(.easeInOut(duration: 0.55)) { feedPage += 1 }
+            }
+        }
+    }
+
+    private func stopFeedRotation() {
+        feedTimer?.invalidate()
+        feedTimer = nil
     }
 
     private func feedCard(_ post: SocialPostDisplay) -> some View {

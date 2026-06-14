@@ -262,6 +262,13 @@ final class AgentConversationViewModel: ObservableObject {
             return
         }
 
+        // A direct "what can you do / help me get around the app" question
+        // always gets a real, useful rundown — never a deflection.
+        if Self.isCapabilityQuestion(text) {
+            respondWithCapabilities()
+            return
+        }
+
         // In-app tasks — "make a social post about...", "change my bio
         // to...", "set my theme to violet". The agent does it, right here.
         if handleAppTask(text: text) {
@@ -960,6 +967,69 @@ final class AgentConversationViewModel: ObservableObject {
             agentName: "Trinity",
             suggestedActions: actions
         ))
+    }
+
+    /// True when the user is plainly asking what the agent can do or for
+    /// help getting around the app — the question that must never get a
+    /// brush-off.
+    static func isCapabilityQuestion(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let needles = [
+            "what can you do", "what do you do", "what can you help",
+            "what are you capable", "everything you can do",
+            "list of everything", "things you can do", "what can i do",
+            "what can you help me with", "show me what you can do",
+            "how do i use this", "how does this app work",
+            "how does this work", "what are your features",
+            "what can this app do", "help me get around",
+            "how do i get around", "walk me through"
+        ]
+        return needles.contains { lower.contains($0) }
+    }
+
+    /// A genuinely useful rundown, in the voice of whoever is in the room.
+    private func respondWithCapabilities() {
+        let text: String
+        let name: String
+        switch activeAgent {
+        case .morpheus:
+            name = "Morpheus"
+            text = """
+            I watch your back in here. I can:
+
+            • Flag risky or irreversible moves before you make them.
+            • Verify your identity on high-value transactions.
+            • Talk through the safety side of anything you're about to do.
+
+            Sending or swapping is Trinity's job — just say "talk to Trinity." What are you weighing up?
+            """
+        case .neo:
+            name = "Neo"
+            text = """
+            Full system view, owner. I can:
+
+            • Brief you on Trinity, Morpheus, Oracle, the runtime, and security posture.
+            • Coordinate across the agents and surface what needs your attention.
+            • Walk you through any part of the platform.
+
+            Execution and money movement route through Trinity with Morpheus gating. What do you want to look at?
+            """
+        default:
+            name = "Trinity"
+            text = """
+            Happy to — here's the short version of what I can do for you:
+
+            • **Money** — check your balance and portfolio, send, swap or stake crypto, and send plain cash like "send $50 to mom."
+            • **Contracts** — deploy and manage smart contracts over in the Build tab.
+            • **Social** — post to your feed and update your bio, handle, or theme.
+            • **Get around** — open any tab or service for you; just say "open my wallet" or "take me to Discover."
+            • **Look things up** — live crypto prices, weather, and anything on the web.
+            • **Everyday stuff** — math, conversions, travel, recipes, explanations — ask me anything.
+
+            Want me to start with one of those, or is there something specific you're trying to do?
+            """
+        }
+        messages.append(AgentMessage(text: text, role: .agent, agentName: name))
     }
 
     private func livePortfolioSummary(_ wm: WalletManager) -> String {

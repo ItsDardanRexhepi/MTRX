@@ -378,23 +378,19 @@ struct SocialView: View {
                     tabContent
                 }
                 .background(alignment: .top) {
-                    // On the feed, a colorful wash falls from the very top of
-                    // the screen and dissolves into the tab's own background —
-                    // honoring light / dark / blackout, with no hard purple
-                    // band. It sits in front of the base field but behind all
-                    // content.
-                    if viewModel.selectedTab == .feed {
-                        LinearGradient(
-                            colors: [theme.accent.opacity(0.30),
-                                     theme.accent.opacity(0.10),
-                                     .clear],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                        .frame(height: 300)
-                        .frame(maxWidth: .infinity, alignment: .top)
-                        .ignoresSafeArea(edges: .top)
-                        .allowsHitTesting(false)
-                    }
+                    // The themed wash falls from the very top of the screen
+                    // and dissolves into the black field — present on every
+                    // Social sub-tab, tinted by the user's chosen accent.
+                    LinearGradient(
+                        colors: [theme.accent.opacity(0.30),
+                                 theme.accent.opacity(0.10),
+                                 .clear],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    .frame(height: 300)
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
                 }
                 .background(MtrxGradientBackground(style: .primary))
 
@@ -495,9 +491,17 @@ struct SocialView: View {
                             Label("Settings", systemImage: "gearshape")
                         }
                     } label: {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(Color.labelSecondary)
+                        // Matches the profile bubble's footprint so the
+                        // centered M stays perfectly balanced between them.
+                        ZStack {
+                            Circle()
+                                .fill(Color.accentPrimary.opacity(0.12))
+                                .mtrxLiquidGlass(in: Circle())
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(Color.labelSecondary)
+                        }
+                        .frame(width: 34, height: 34)
                     }
                 }
             }
