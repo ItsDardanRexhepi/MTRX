@@ -105,9 +105,10 @@ struct HomeView: View {
                     .onTapGesture { closeHomeChat() }
                     .zIndex(40)
                 homeChatPanel
-                    // The card's frame is driven by matchedGeometry from the
-                    // search pill, so it just needs to fade its content in.
-                    .transition(.opacity)
+                    // A contained scale-from-top + fade — GPU-cheap and
+                    // perfectly smooth at 120Hz (no cross-view geometry to
+                    // recompute every frame).
+                    .transition(.scale(scale: 0.9, anchor: .top).combined(with: .opacity))
                     .zIndex(50)
             }
         }
@@ -266,17 +267,10 @@ struct HomeView: View {
                 }
                 .buttonStyle(.plain)
 
-                // The ask bar and the orb are one element now: a single
-                // glass pill — wearing the orb's own iridescent skin —
-                // with the orb living at its trailing end. Type to Trinity.
-                // When open, the pill has *become* the chat card (hero morph),
-                // so a Spacer holds its place in the row.
-                if homeChatOpen {
-                    Spacer(minLength: 0)
-                } else {
-                    homeAskOrb
-                        .matchedGeometryEffect(id: "trinityChatSurface", in: chatNS)
-                }
+                // The ask bar and the orb are one element: a single glass
+                // pill wearing the orb's iridescent skin. Tap to open the
+                // chat, which unfurls smoothly just beneath it.
+                homeAskOrb
             }
             .alert("Your Name", isPresented: $showNameEditor) {
                 TextField("Name", text: $nameDraft)
@@ -340,9 +334,6 @@ struct HomeView: View {
     @State private var homeChatDrag: CGFloat = 0
     /// Measured height of the live transcript so the card hugs it.
     @State private var homeConvoHeight: CGFloat = 0
-    /// The search pill and the chat card are the same element — this morphs
-    /// one into the other so the bar literally becomes the window.
-    @Namespace private var chatNS
     /// The in-chat input is its own field so typing here never leaks back
     /// into the top search bar.
     @State private var homeChatInput = ""
@@ -685,9 +676,6 @@ struct HomeView: View {
             // Real Liquid Glass over the colors — refracts the dashboard
             // behind it while keeping the flowing palette.
             .mtrxLiquidGlass(cornerRadius: 30)
-            // Same identity as the search pill, so the bar morphs into this
-            // card and back — one unified element, not a separate window.
-            .matchedGeometryEffect(id: "trinityChatSurface", in: chatNS)
             .shadow(color: .black.opacity(0.4), radius: 24, y: 10)
             .padding(.horizontal, Spacing.contentPadding)
             .padding(.bottom, Spacing.xs)

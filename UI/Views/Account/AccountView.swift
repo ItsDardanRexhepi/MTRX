@@ -93,27 +93,21 @@ struct AccountView: View {
 
     var body: some View {
         NavigationStack {
-            GeometryReader { proxy in
-                ScrollView {
-                    VStack(spacing: Spacing.lg) {
-                        profileCard
-                        portfolioSummary
-                        workspaceSection
-                        // A Spacer pushes Sign Out down to float just above the
-                        // dock — no dead space beneath it, and it bounces like
-                        // the Home tab when you reach the bottom.
-                        Spacer(minLength: Spacing.xl)
-                        signOutButton
-                    }
-                    .padding(.horizontal, Spacing.contentPadding)
-                    .padding(.top, Spacing.md)
-                    // Clears the floating dock and lifts Sign Out into the gap
-                    // just above it.
-                    .padding(.bottom, 108)
-                    .frame(minHeight: proxy.size.height)
+            ScrollView {
+                // Content flows naturally from the top — Sign Out sits right
+                // beneath the workspace tiles, with no forced-fill gaps above
+                // or below it. The page bounces like Home at the bottom.
+                VStack(spacing: Spacing.lg) {
+                    profileCard
+                    portfolioSummary
+                    workspaceSection
+                    signOutButton
                 }
-                .scrollBounceBehavior(.always)
+                .padding(.horizontal, Spacing.contentPadding)
+                .padding(.top, Spacing.md)
+                .padding(.bottom, 96)
             }
+            .scrollBounceBehavior(.always)
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Account")
             .navigationBarTitleDisplayMode(.inline)
