@@ -423,8 +423,10 @@ struct SocialView: View {
     /// no animations, timers, or layout changes, so it's buttery at any
     /// scroll speed). The dock always stays.
     @State private var feedScrollY: CGFloat = 0
+    private let tabStripHeight: CGFloat = 58
     private var chromeOpacity: Double {
-        Double(max(0, min(1, 1 - feedScrollY / 90)))
+        // Fades quickly so the header/tabs are gone within a short scroll.
+        Double(max(0, min(1, 1 - feedScrollY / 55)))
     }
     @State private var showProofPicker = false
     @State private var commentingOnPost: SocialPostDisplay? = nil
@@ -434,24 +436,41 @@ struct SocialView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
-                VStack(spacing: 0) {
-                    tabSelector
-                        .opacity(chromeOpacity)
-                    tabContent
+                Group {
+                    if viewModel.selectedTab == .feed {
+                        // Immersive feed: the tab strip is a true overlay, so
+                        // the timeline fills to the top with no dead space and
+                        // scrolls right under the strip as it fades.
+                        ZStack(alignment: .top) {
+                            feedSection
+                            tabSelector
+                                .opacity(chromeOpacity)
+                        }
+                    } else {
+                        VStack(spacing: 0) {
+                            tabSelector
+                            tabContent
+                        }
+                    }
                 }
                 .background(alignment: .top) {
-                    // The themed wash falls from the very top of the screen
-                    // and dissolves into the black field — present on every
-                    // Social sub-tab, tinted by the user's chosen accent.
+                    // A smooth, natural themed wash that fades down into the
+                    // black field — and fades out interactively as you scroll
+                    // into the feed (only on the feed tab).
                     LinearGradient(
-                        colors: [theme.accent.opacity(0.30),
-                                 theme.accent.opacity(0.10),
-                                 .clear],
+                        stops: [
+                            .init(color: theme.accent.opacity(0.34), location: 0.0),
+                            .init(color: theme.accent.opacity(0.20), location: 0.22),
+                            .init(color: theme.accent.opacity(0.08), location: 0.5),
+                            .init(color: theme.accent.opacity(0.02), location: 0.78),
+                            .init(color: .clear, location: 1.0),
+                        ],
                         startPoint: .top, endPoint: .bottom
                     )
-                    .frame(height: 300)
+                    .frame(height: 340)
                     .frame(maxWidth: .infinity, alignment: .top)
                     .ignoresSafeArea(edges: .top)
+                    .opacity(viewModel.selectedTab == .feed ? chromeOpacity : 1)
                     .allowsHitTesting(false)
                 }
                 .background(MtrxGradientBackground(style: .primary))
@@ -975,6 +994,9 @@ struct SocialView: View {
             }
             .padding(.bottom, Spacing.xxl)
         }
+        // Content starts just below the overlaid tab strip, then scrolls up
+        // under it as the strip fades — no dead space.
+        .contentMargins(.top, tabStripHeight, for: .scrollContent)
         .mtrxTrackScrollY { feedScrollY = $0 }
         .refreshable {
             await viewModel.refresh()
