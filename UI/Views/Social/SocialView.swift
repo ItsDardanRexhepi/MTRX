@@ -2990,9 +2990,10 @@ struct AIFeaturesSheet: View {
                 }
                 .padding(Spacing.contentPadding)
             }
-            .background(MtrxGradientBackground(style: .primary))
+            .background(Color.black.opacity(0.18).ignoresSafeArea())
             .navigationTitle("AI features")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationBackground(.ultraThinMaterial)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
@@ -3118,9 +3119,10 @@ struct SocialSettingsView: View {
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            .background(Color.black.ignoresSafeArea())
+            .background(Color.black.opacity(0.2).ignoresSafeArea())
             .navigationTitle("Social Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationBackground(.ultraThinMaterial)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -3186,7 +3188,7 @@ struct ModerationListView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+        .background(Color.black.opacity(0.18).ignoresSafeArea())
         .navigationTitle(kind == .muted ? "Muted accounts" : "Blocked accounts")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -3358,9 +3360,10 @@ struct SocialHistorySheet: View {
                 }
                 .padding(.bottom, Spacing.xl)
             }
-            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .background(Color.black.opacity(0.18).ignoresSafeArea())
             .navigationTitle("History")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationBackground(.ultraThinMaterial)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
@@ -3485,9 +3488,10 @@ struct SocialListsSheet: View {
                     .scrollContentBackground(.hidden)
                 }
             }
-            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .background(Color.black.opacity(0.18).ignoresSafeArea())
             .navigationTitle("Lists")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationBackground(.ultraThinMaterial)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }
@@ -3578,9 +3582,10 @@ struct SocialListDetailView: View {
                     .padding(.top, 70)
                 }
             }
-            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .background(Color.black.opacity(0.18).ignoresSafeArea())
             .navigationTitle(list?.name ?? "List")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationBackground(.ultraThinMaterial)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }.foregroundStyle(Color.accentPrimary)
@@ -3611,9 +3616,10 @@ struct SocialListDetailView: View {
                     }
                     .listStyle(.insetGrouped)
                     .scrollContentBackground(.hidden)
-                    .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+                    .background(Color.black.opacity(0.18).ignoresSafeArea())
                     .navigationTitle("Add accounts")
                     .navigationBarTitleDisplayMode(.inline)
+                    .presentationBackground(.ultraThinMaterial)
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button("Done") { showAddMembers = false }.foregroundStyle(Color.accentPrimary)

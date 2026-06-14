@@ -1825,9 +1825,10 @@ struct ExploreMoreSheet: View {
                 }
                 .padding(.vertical, Spacing.md)
             }
-            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .background(Color.black.opacity(0.18).ignoresSafeArea())
             .navigationTitle("Explore everything")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationBackground(.ultraThinMaterial)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.foregroundStyle(Color.accentPrimary)

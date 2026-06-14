@@ -792,9 +792,10 @@ struct WorkspaceEditSheet: View {
                 }
                 .padding(.vertical, Spacing.md)
             }
-            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .background(Color.black.opacity(0.18).ignoresSafeArea())
             .navigationTitle("Edit workspace")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationBackground(.ultraThinMaterial)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -1100,9 +1101,10 @@ struct HelpSupportSheet: View {
                 .padding(Spacing.contentPadding)
                 .padding(.bottom, Spacing.xxl)
             }
-            .background(MtrxGradientBackground(style: .primary))
+            .background(Color.black.opacity(0.18).ignoresSafeArea())
             .navigationTitle("Help & Support")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationBackground(.ultraThinMaterial)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
