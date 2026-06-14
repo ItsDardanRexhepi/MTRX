@@ -32,6 +32,7 @@ struct AgentConversationView: View {
     @State private var showChats = false
     @State private var dismissDrag: CGFloat = 0
     @State private var greeting = ""
+    @State private var idleTimer: Timer?
 
     /// Rotating openers — a different one almost every time, like the
     /// modern assistants. Each agent has its own voice. Shown centered
@@ -207,7 +208,9 @@ struct AgentConversationView: View {
                     .scrollDismissesKeyboard(.interactively)
                     .onChange(of: viewModel.messages.count) {
                         scrollToBottom(proxy: proxy)
+                        resetIdleTimer()
                     }
+                    .onChange(of: viewModel.inputText) { resetIdleTimer() }
                     .onChange(of: viewModel.isTyping) {
                         if viewModel.isTyping {
                             scrollToBottom(proxy: proxy, anchor: .bottom)
@@ -328,7 +331,9 @@ struct AgentConversationView: View {
             withAnimation(Motion.springDefault.delay(0.2)) {
                 appeared = true
             }
+            resetIdleTimer()
         }
+        .onDisappear { idleTimer?.invalidate() }
         .sheet(isPresented: $showAgentIdentity) {
             AgentIdentityView()
         }
@@ -525,6 +530,22 @@ struct AgentConversationView: View {
     // she navigates the app for the user (see navigate(to:)) — and from
     // that moment persists, through popups and full chats alike, until
     // deliberately flung off-screen.
+
+    // MARK: - Idle Timeout
+
+    /// After two minutes of no activity, the current chat is filed into the
+    /// histories and a fresh one opens — so each return starts clean.
+    private func resetIdleTimer() {
+        idleTimer?.invalidate()
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: false) { _ in
+            Task { @MainActor in
+                guard viewModel.messages.contains(where: { $0.role == .user }) else { return }
+                let agent = viewModel.activeAgent
+                viewModel.startNewConversation(agent: agent)
+                greeting = Self.greeting(for: agent)
+            }
+        }
+    }
 
     // MARK: - Scroll Helper
 

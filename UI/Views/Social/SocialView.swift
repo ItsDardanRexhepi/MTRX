@@ -407,6 +407,12 @@ struct SocialView: View {
                 }
             }
             .onAppear { DailyFlow.shared.mark(.social) }
+            .onReceive(NotificationCenter.default.publisher(for: .mtrxPopToRoot)) { note in
+                // Re-tapping the Social dock tab returns to the Feed.
+                if note.userInfo?["index"] as? Int == 3 {
+                    withAnimation(Motion.springSnappy) { viewModel.selectedTab = .feed }
+                }
+            }
             .navigationTitle("Social")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -510,7 +516,7 @@ struct SocialView: View {
                 NotificationCenterView()
             }
             .sheet(isPresented: $showSocialSettings) {
-                SettingsView()
+                SocialSettingsView()
             }
             .sheet(isPresented: $showUpsell) {
                 SubscriptionView()
@@ -1801,6 +1807,81 @@ struct AIFeaturesSheet: View {
                 .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
                 .opacity(unlocked ? 1 : 0.6)
             }
+        }
+    }
+}
+
+// MARK: - Social Settings (social-only)
+
+/// Settings that belong to the Social experience only — never the whole
+/// app. App-wide settings live in Account ▸ Settings.
+struct SocialSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @AppStorage("com.mtrx.social.privateAccount") private var privateAccount = false
+    @AppStorage("com.mtrx.social.autoplay") private var autoplayVideos = true
+    @AppStorage("com.mtrx.social.sensitive") private var showSensitive = false
+    @AppStorage("com.mtrx.social.readReceipts") private var readReceipts = true
+    @AppStorage("com.mtrx.social.whoCanMessage") private var whoCanMessage = "Everyone"
+    @AppStorage("com.mtrx.social.whoCanReply") private var whoCanReply = "Everyone"
+
+    private let audiences = ["Everyone", "People you follow", "No one"]
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Toggle(isOn: $privateAccount) {
+                        socialLabel("Private account", "lock.fill", .statusWarning)
+                    }.tint(Color.accentPrimary)
+                    Picker(selection: $whoCanMessage) {
+                        ForEach(audiences, id: \.self) { Text($0).tag($0) }
+                    } label: { socialLabel("Who can message you", "envelope.fill", .statusInfo) }
+                    Picker(selection: $whoCanReply) {
+                        ForEach(audiences, id: \.self) { Text($0).tag($0) }
+                    } label: { socialLabel("Who can reply", "arrowshape.turn.up.left.fill", .accentTertiary) }
+                } header: { Text("Privacy") }
+
+                Section {
+                    Toggle(isOn: $autoplayVideos) {
+                        socialLabel("Autoplay videos", "play.rectangle.fill", .accentPrimary)
+                    }.tint(Color.accentPrimary)
+                    Toggle(isOn: $showSensitive) {
+                        socialLabel("Show sensitive content", "eye.fill", .statusError)
+                    }.tint(Color.accentPrimary)
+                } header: { Text("Content") }
+
+                Section {
+                    Toggle(isOn: $readReceipts) {
+                        socialLabel("Read receipts", "checkmark.message.fill", .statusSuccess)
+                    }.tint(Color.accentPrimary)
+                } header: { Text("Messaging") } footer: {
+                    Text("These settings only affect your Social experience. App-wide settings live in Account ▸ Settings.")
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Color.black.ignoresSafeArea())
+            .navigationTitle("Social Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func socialLabel(_ title: String, _ icon: String, _ color: Color) -> some View {
+        Label {
+            Text(title).font(.mtrxBody).foregroundStyle(Color.labelPrimary)
+        } icon: {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
     }
 }

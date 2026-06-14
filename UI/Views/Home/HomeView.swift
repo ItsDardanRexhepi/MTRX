@@ -6,6 +6,7 @@
 // over the dashboard and slide back down to it.
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct HomeView: View {
     @EnvironmentObject var appState: AppState
@@ -391,6 +392,7 @@ struct HomeView: View {
     @State private var editingActions = false
     @State private var jiggle = false
     @State private var showActionPicker = false
+    @State private var draggingAction: HomeAction?
 
     /// Hard cap — the home screen always holds at most six quick actions.
     static let maxQuickActions = 6
@@ -523,6 +525,14 @@ struct HomeView: View {
             }
         }
         .rotationEffect(.degrees(editingActions ? (jiggle ? 0.7 : -0.7) : 0))
+        // In edit mode the tiles are draggable to any of the six slots.
+        .modifier(QuickActionDragReorder(
+            action: action,
+            enabled: editingActions,
+            current: chosenActions,
+            dragging: $draggingAction,
+            commit: { setActions($0) }
+        ))
     }
 
     private var addActionTile: some View {
@@ -1479,11 +1489,65 @@ struct MoneyMoveForm: View {
 
 // MARK: - Tab Switching
 
+// MARK: - Quick Action Drag-to-Reorder
+
+/// Applied to each quick-action tile: in edit mode it becomes draggable and
+/// a drop target so the six tiles can be rearranged into any order.
+struct QuickActionDragReorder: ViewModifier {
+    let action: HomeAction
+    let enabled: Bool
+    let current: [HomeAction]
+    @Binding var dragging: HomeAction?
+    let commit: ([HomeAction]) -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content
+                .onDrag {
+                    dragging = action
+                    return NSItemProvider(object: action.rawValue as NSString)
+                }
+                .onDrop(of: [.plainText], delegate: QuickActionDropDelegate(
+                    item: action, current: current, dragging: $dragging, commit: commit
+                ))
+        } else {
+            content
+        }
+    }
+}
+
+struct QuickActionDropDelegate: DropDelegate {
+    let item: HomeAction
+    let current: [HomeAction]
+    @Binding var dragging: HomeAction?
+    let commit: ([HomeAction]) -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging, dragging != item,
+              let from = current.firstIndex(of: dragging),
+              let to = current.firstIndex(of: item) else { return }
+        var updated = current
+        updated.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { commit(updated) }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal { DropProposal(operation: .move) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        MtrxHaptics.impact(.light)
+        return true
+    }
+}
+
 extension Notification.Name {
     /// Posted with userInfo ["index": Int] to switch the root tab bar.
     static let mtrxSwitchTab = Notification.Name("com.mtrx.switchTab")
     /// Posted with userInfo ["service": String] to open a Home service.
     static let mtrxOpenService = Notification.Name("com.mtrx.openService")
+    /// Posted with userInfo ["index": Int] when the user taps the dock tab
+    /// they're already on — each tab resets to its initial page.
+    static let mtrxPopToRoot = Notification.Name("com.mtrx.popToRoot")
 }
 
 // MARK: - Daily Flow Sheet

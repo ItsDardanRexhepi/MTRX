@@ -192,6 +192,12 @@ struct BuildView: View {
             }
             .navigationTitle("Build")
             .navigationBarTitleDisplayMode(.inline)
+            .onReceive(NotificationCenter.default.publisher(for: .mtrxPopToRoot)) { note in
+                // Re-tapping the Build dock tab returns to Templates.
+                if note.userInfo?["index"] as? Int == 1 {
+                    withAnimation(Motion.springSnappy) { viewModel.selectedSegment = .templates }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     MtrxGlassCircleButton(icon: Symbols.filter) {

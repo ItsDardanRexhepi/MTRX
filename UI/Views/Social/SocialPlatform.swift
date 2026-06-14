@@ -805,13 +805,18 @@ struct SocialProfileSheet: View {
                                 )
                             }
                         }
-                        .frame(height: 130)
+                        // Tall enough to fill behind the status bar so the
+                        // banner reaches the very top of the page.
+                        .frame(height: 178)
                         .frame(maxWidth: .infinity)
                         .clipped()
+                        .ignoresSafeArea(edges: .top)
 
                         Group {
                             if let avatar = identity.avatarImage {
-                                Image(uiImage: avatar).resizable().scaledToFill()
+                                Image(uiImage: avatar)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
                             } else {
                                 LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
                                                startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -822,9 +827,10 @@ struct SocialProfileSheet: View {
                                     )
                             }
                         }
+                        // Square frame → a perfect circle, never an oval.
                         .frame(width: 84, height: 84)
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.backgroundPrimary, lineWidth: 4))
+                        .overlay(Circle().stroke(Color.black, lineWidth: 4))
                         .offset(x: Spacing.contentPadding, y: 42)
                     }
                     .padding(.bottom, 46)
@@ -955,6 +961,8 @@ struct SocialProfileSheet: View {
                 }
             }
             .background(MtrxGradientBackground(style: .primary))
+            .ignoresSafeArea(edges: .top)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }

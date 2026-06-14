@@ -31,18 +31,33 @@ extension View {
     /// material fallback elsewhere. One call, any shape.
     @ViewBuilder
     func mtrxLiquidGlass<S: Shape>(in shape: S) -> some View {
-        if #available(iOS 26.0, *) {
-            // Clip first: glassEffect draws glass within the shape but
-            // leaves the view's own backgrounds rectangular — unclipped
-            // tint layers would ghost past the rounded corners.
-            self
-                .clipShape(shape)
-                .glassEffect(.regular, in: shape)
-        } else {
-            self
-                .background(.ultraThinMaterial)
-                .clipShape(shape)
+        Group {
+            if #available(iOS 26.0, *) {
+                // Clip first: glassEffect draws glass within the shape but
+                // leaves the view's own backgrounds rectangular — unclipped
+                // tint layers would ghost past the rounded corners.
+                self
+                    .clipShape(shape)
+                    .glassEffect(.regular, in: shape)
+            } else {
+                self
+                    .background(.ultraThinMaterial)
+                    .clipShape(shape)
+            }
         }
+        // A light-reactive rim on every glass surface, app-wide: the top-left
+        // edge catches light brightest, a quieter glint along the bottom-
+        // right — subtle, but there.
+        .overlay(
+            shape.stroke(
+                LinearGradient(
+                    colors: [.white.opacity(0.30), .white.opacity(0.04), .white.opacity(0.16)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 0.8
+            )
+        )
     }
 
     func mtrxLiquidGlass(cornerRadius: CGFloat = Spacing.CornerRadius.lg) -> some View {

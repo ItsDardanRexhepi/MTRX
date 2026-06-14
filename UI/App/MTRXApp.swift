@@ -120,8 +120,25 @@ struct MainTabView: View {
     @State private var miniAgent: AgentReopen?
     @State private var expandedAgent: AgentReopen?
 
+    /// Tapping the tab you're already on resets that tab to its initial
+    /// page (NavigationStacks pop automatically; sub-tab state resets via
+    /// the broadcast).
+    private var tabBinding: Binding<AppTab> {
+        Binding(
+            get: { selectedTab },
+            set: { newValue in
+                if newValue == selectedTab {
+                    NotificationCenter.default.post(name: .mtrxPopToRoot, object: nil,
+                                                    userInfo: ["index": newValue.rawValue])
+                } else {
+                    selectedTab = newValue
+                }
+            }
+        )
+    }
+
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: tabBinding) {
             DiscoverView()
                 .tabItem {
                     Label("Discover", systemImage: Symbols.discover)

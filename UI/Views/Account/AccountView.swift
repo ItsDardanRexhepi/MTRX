@@ -170,167 +170,164 @@ struct AccountView: View {
     // MARK: - Profile Card
 
     private var profileCard: some View {
-        // Compact horizontal header — sized to sit level with the Portfolio
-        // Value card beneath it instead of towering over it.
-        MtrxCard(style: .glass) {
-            HStack(spacing: Spacing.md) {
-                // Avatar with gradient ring
-                Button {
-                    MtrxHaptics.impact(.light)
-                    showAvatarOptions = true
-                } label: {
-                    ZStack(alignment: .bottomTrailing) {
-                        ZStack {
-                            Circle()
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [accountAvatar.monogramColor, .accentSecondary],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 2.5
-                                )
-                                .frame(width: Spacing.Size.avatarLarge + 5, height: Spacing.Size.avatarLarge + 5)
-
-                            if let photo = accountAvatar.image {
-                                Image(uiImage: photo)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: Spacing.Size.avatarLarge, height: Spacing.Size.avatarLarge)
-                                    .clipShape(Circle())
-                            } else {
-                                MtrxAvatar(
-                                    text: appState.displayName.isEmpty ? "M" : String(appState.displayName.prefix(2)),
-                                    color: accountAvatar.monogramColor,
-                                    size: Spacing.Size.avatarLarge
-                                )
-                            }
-                        }
-
-                        Image(systemName: "camera.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(Color.accentPrimary)
-                            .background(Circle().fill(Color.backgroundPrimary))
-                    }
-                }
-                .buttonStyle(.plain)
-                .confirmationDialog("Profile Photo", isPresented: $showAvatarOptions, titleVisibility: .visible) {
-                    if SocialIdentity.shared.avatarImage != nil {
-                        Button("Use my Social photo") {
-                            accountAvatar.useSocialPhoto()
-                            MtrxHaptics.success()
-                        }
-                    }
-                    Button("Choose a different photo") { showAvatarPicker = true }
-                    Button("Change monogram color") { showMonogramColors = true }
-                    if accountAvatar.image != nil {
-                        Button("Remove photo", role: .destructive) {
-                            accountAvatar.clearPhoto()
-                            MtrxHaptics.impact(.light)
-                        }
-                    }
-                    Button("Cancel", role: .cancel) {}
-                }
-                .photosPicker(isPresented: $showAvatarPicker, selection: $avatarPickerItem, matching: .images)
-                .onChange(of: avatarPickerItem) { _, item in
-                    guard let item else { return }
-                    Task {
-                        if let data = try? await item.loadTransferable(type: Data.self),
-                           let image = UIImage(data: data) {
-                            accountAvatar.set(image)
-                            MtrxHaptics.success()
-                        }
-                        avatarPickerItem = nil
-                    }
-                }
-                .sheet(isPresented: $showMonogramColors) {
-                    VStack(spacing: Spacing.lg) {
-                        Text("Monogram color")
-                            .font(.mtrxTitle3)
-                            .foregroundStyle(Color.labelPrimary)
-
-                        HStack(spacing: Spacing.md) {
-                            ForEach(AccountAvatar.monogramPresets, id: \.hex) { preset in
-                                Button {
-                                    accountAvatar.monogramHex = preset.hex
-                                    accountAvatar.clearPhoto()
-                                    MtrxHaptics.selection()
-                                    showMonogramColors = false
-                                } label: {
-                                    Circle()
-                                        .fill(preset.color)
-                                        .frame(width: 40, height: 40)
-                                        .overlay(
-                                            Circle().stroke(.white.opacity(0.9), lineWidth: 2.5)
-                                                .opacity(accountAvatar.monogramHex == preset.hex ? 1 : 0)
-                                        )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-
-                        Text("Your initials wear this color when no photo is set.")
-                            .font(.mtrxCaption1)
-                            .foregroundStyle(Color.labelSecondary)
-                    }
-                    .padding(Spacing.xl)
-                    .presentationDetents([.height(220)])
-                    .presentationBackground(.thinMaterial)
-                }
-
-                // Identity column
-                VStack(alignment: .leading, spacing: 3) {
+        // Split in half: a tappable profile tile (tap the photo for options,
+        // tap the tile to edit) on the left, and a Settings tile on the
+        // right that holds everything app-level.
+        HStack(spacing: Spacing.md) {
+            // LEFT — profile
+            MtrxCard(style: .glass) {
+                VStack(spacing: Spacing.sm) {
+                    avatarButton
                     Text(appState.displayName.isEmpty ? "MTRX User" : appState.displayName)
-                        .font(.mtrxTitle3)
+                        .font(.mtrxHeadline)
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
+                    Text("Tap to edit profile")
+                        .font(.mtrxCaption2)
+                        .foregroundStyle(Color.accentPrimary)
+                }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    MtrxHaptics.impact(.light)
+                    showEditProfile = true
+                }
+            }
 
-                    HStack(spacing: Spacing.xs) {
-                        Text(truncatedDID)
-                            .font(.mtrxMonoSmall)
+            // RIGHT — settings (account & app)
+            Button {
+                MtrxHaptics.impact(.light)
+                presentedDestination = .settings
+            } label: {
+                MtrxCard(style: .glass) {
+                    VStack(spacing: Spacing.sm) {
+                        Image(systemName: Symbols.settings)
+                            .font(.system(size: 24, weight: .semibold))
                             .foregroundStyle(Color.labelSecondary)
-                            .lineLimit(1)
+                            .frame(width: 52, height: 52)
+                            .background(Color.labelSecondary.opacity(0.12))
+                            .clipShape(Circle())
+                        Text("Settings")
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.labelPrimary)
+                        Text("Account & app")
+                            .font(.mtrxCaption2)
+                            .foregroundStyle(Color.labelTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0)
+    }
 
+    /// The avatar — tap it for photo options (Social photo, library, camera,
+    /// monogram color). Lives inside the left profile tile.
+    private var avatarButton: some View {
+        Button {
+            MtrxHaptics.impact(.light)
+            showAvatarOptions = true
+        } label: {
+            ZStack(alignment: .bottomTrailing) {
+                ZStack {
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [accountAvatar.monogramColor, .accentSecondary],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 2.5
+                        )
+                        .frame(width: Spacing.Size.avatarLarge + 5, height: Spacing.Size.avatarLarge + 5)
+
+                    if let photo = accountAvatar.image {
+                        Image(uiImage: photo)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: Spacing.Size.avatarLarge, height: Spacing.Size.avatarLarge)
+                            .clipShape(Circle())
+                    } else {
+                        MtrxAvatar(
+                            text: appState.displayName.isEmpty ? "M" : String(appState.displayName.prefix(2)),
+                            color: accountAvatar.monogramColor,
+                            size: Spacing.Size.avatarLarge
+                        )
+                    }
+                }
+
+                Image(systemName: "camera.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Color.accentPrimary)
+                    .background(Circle().fill(Color.black))
+            }
+        }
+        .buttonStyle(.plain)
+        .confirmationDialog("Profile Photo", isPresented: $showAvatarOptions, titleVisibility: .visible) {
+            if SocialIdentity.shared.avatarImage != nil {
+                Button("Use my Social photo") {
+                    accountAvatar.useSocialPhoto()
+                    MtrxHaptics.success()
+                }
+            }
+            Button("Choose a different photo") { showAvatarPicker = true }
+            Button("Change monogram color") { showMonogramColors = true }
+            if accountAvatar.image != nil {
+                Button("Remove photo", role: .destructive) {
+                    accountAvatar.clearPhoto()
+                    MtrxHaptics.impact(.light)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .photosPicker(isPresented: $showAvatarPicker, selection: $avatarPickerItem, matching: .images)
+        .onChange(of: avatarPickerItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    accountAvatar.set(image)
+                    MtrxHaptics.success()
+                }
+                avatarPickerItem = nil
+            }
+        }
+        .sheet(isPresented: $showMonogramColors) {
+            VStack(spacing: Spacing.lg) {
+                Text("Monogram color")
+                    .font(.mtrxTitle3)
+                    .foregroundStyle(Color.labelPrimary)
+
+                HStack(spacing: Spacing.md) {
+                    ForEach(AccountAvatar.monogramPresets, id: \.hex) { preset in
                         Button {
-                            UIPasteboard.general.string = fullDID
-                            withAnimation(Motion.springSnappy) { copiedDID = true }
-                            MtrxHaptics.success()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                withAnimation { copiedDID = false }
-                            }
+                            accountAvatar.monogramHex = preset.hex
+                            accountAvatar.clearPhoto()
+                            MtrxHaptics.selection()
+                            showMonogramColors = false
                         } label: {
-                            Image(systemName: copiedDID ? Symbols.complete : Symbols.copy)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(copiedDID ? Color.statusSuccess : Color.accentPrimary)
+                            Circle()
+                                .fill(preset.color)
+                                .frame(width: 40, height: 40)
+                                .overlay(
+                                    Circle().stroke(.white.opacity(0.9), lineWidth: 2.5)
+                                        .opacity(accountAvatar.monogramHex == preset.hex ? 1 : 0)
+                                )
                         }
                         .buttonStyle(.plain)
                     }
-
-                    Text("Member since \(memberSinceString)")
-                        .font(.mtrxCaption2)
-                        .foregroundStyle(Color.labelTertiary)
                 }
 
-                Spacer(minLength: 0)
-
-                // Edit profile — compact icon button
-                Button {
-                    showEditProfile = true
-                    MtrxHaptics.impact(.light)
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color.accentPrimary)
-                        .frame(width: 36, height: 36)
-                        .background(Color.accentPrimary.opacity(0.12))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
+                Text("Your initials wear this color when no photo is set.")
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelSecondary)
             }
-            .frame(maxWidth: .infinity)
+            .padding(Spacing.xl)
+            .presentationDetents([.height(220)])
+            .presentationBackground(.thinMaterial)
         }
-        .mtrxFadeInFromBottom(isVisible: appeared, delay: 0)
     }
 
     // MARK: - Portfolio Summary
