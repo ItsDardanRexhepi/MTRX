@@ -16,6 +16,10 @@ struct HomeView: View {
     @ObservedObject private var socialFeed = SocialViewModel.shared
     @State private var feedScrollIndex: Int?
     @State private var feedTimer: Timer?
+    /// The Home feed is fully interactive — these drive the detail and
+    /// profile windows opened from a feed card.
+    @State private var homeDetailPost: SocialPostDisplay?
+    @State private var homeProfileAuthor: SocialPostDisplay?
 
     @State private var presentedChat: ChatLaunch?
     @State private var appeared = false
@@ -140,6 +144,15 @@ struct HomeView: View {
             )
             .environmentObject(appState)
             .environmentObject(walletManager)
+        }
+        // The Home feed is fully interactive — open a post or a profile in place.
+        .sheet(item: $homeDetailPost) { post in
+            PostDetailSheet(postID: post.id)
+                .environmentObject(appState)
+        }
+        .sheet(item: $homeProfileAuthor) { post in
+            UserProfileSheet(author: post)
+                .environmentObject(appState)
         }
         .sheet(isPresented: $showDailyFlow, onDismiss: {
             // Navigate only after the sheet has fully closed — switching
@@ -1103,8 +1116,11 @@ struct HomeView: View {
             post: post,
             onLike: { socialFeed.toggleLike(postId: post.id) },
             onRepost: { socialFeed.toggleRepost(postId: post.id) },
-            // Tapping the card opens this exact post over in Social.
-            onOpen: { openPostInSocial(post.id) }
+            onComment: { homeDetailPost = post },
+            onVotePoll: { socialFeed.voteOnPoll(postId: post.id, optionID: $0) },
+            // Tapping the card opens the full, interactive post in place.
+            onOpen: { homeDetailPost = post },
+            onAvatarTap: { homeProfileAuthor = post }
         )
         .lineLimit(3)
         .padding(Spacing.ms)
@@ -1114,11 +1130,6 @@ struct HomeView: View {
         .frame(height: 196, alignment: .topLeading)
         .background(Color.trinityPrimary.opacity(0.03))
         .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
-        // Tapping anywhere on the card also opens it in Social.
-        .contentShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
-        .onTapGesture {
-            openPostInSocial(post.id)
-        }
         .overlay(
             RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
                 .stroke(
@@ -1133,13 +1144,6 @@ struct HomeView: View {
     }
 
     // MARK: - Helpers
-
-    /// Jump to Social and surface this exact post in the feed.
-    private func openPostInSocial(_ id: String) {
-        MtrxHaptics.impact(.light)
-        NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": 3])
-        NotificationCenter.default.post(name: .mtrxOpenPost, object: nil, userInfo: ["id": id])
-    }
 
     /// Picks by time of day so the app feels alive, not canned.
     private var reassuranceLine: String {

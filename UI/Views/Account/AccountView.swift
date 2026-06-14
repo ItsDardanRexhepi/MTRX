@@ -99,17 +99,17 @@ struct AccountView: View {
                         profileCard
                         portfolioSummary
                         workspaceSection
-                        // Sign Out sits right beneath the workspace tiles,
-                        // spaced like every other section; the empty room
-                        // falls below it.
+                        // Sign Out floats centered in the open space between
+                        // the workspace tiles and the dock — equal Spacers
+                        // above and below keep it balanced.
+                        Spacer(minLength: Spacing.lg)
                         signOutButton
-                        Spacer(minLength: 0)
+                        Spacer(minLength: Spacing.lg)
                     }
                     .padding(.horizontal, Spacing.contentPadding)
                     .padding(.top, Spacing.md)
-                    // Reserve the floating dock's area plus a little breathing
-                    // room so Sign Out floats a touch higher off the dock.
-                    .padding(.bottom, 132)
+                    // Reserve the floating dock's area.
+                    .padding(.bottom, 92)
                     .frame(minHeight: proxy.size.height)
                 }
             }
@@ -517,7 +517,6 @@ struct AccountView: View {
                     }
                 }
             }
-            .frame(maxHeight: .infinity)
         }
         .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.09)
     }
