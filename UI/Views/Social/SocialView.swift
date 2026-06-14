@@ -84,6 +84,27 @@ struct SocialPostDisplay: Identifiable {
     var importedFrom: String? = nil
 }
 
+// MARK: - Bookmark Store
+
+/// Persists the IDs of posts the user has bookmarked, so they survive
+/// relaunches and surface in the side-menu History.
+final class SocialBookmarkStore: ObservableObject {
+    static let shared = SocialBookmarkStore()
+    private let key = "com.mtrx.social.bookmarks"
+    @Published private(set) var ids: Set<String>
+
+    private init() {
+        ids = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+    }
+
+    func isBookmarked(_ id: String) -> Bool { ids.contains(id) }
+
+    func toggle(_ id: String) {
+        if ids.contains(id) { ids.remove(id) } else { ids.insert(id) }
+        UserDefaults.standard.set(Array(ids), forKey: key)
+    }
+}
+
 // MARK: - Governance Proposal Model
 
 struct SocialGovernanceProposal: Identifiable {
@@ -404,6 +425,7 @@ final class SocialViewModel: ObservableObject {
 struct SocialView: View {
     @ObservedObject private var viewModel = SocialViewModel.shared
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var walletManager: WalletManager
     @ObservedObject private var socialIdentity = SocialIdentity.shared
     @ObservedObject private var theme = SocialTheme.shared
     @State private var photoPickerItem: PhotosPickerItem?
@@ -414,6 +436,11 @@ struct SocialView: View {
     @State private var showSocialSettings = false
     @State private var showUpsell = false
     @State private var showAIFeatures = false
+    // Twitter-style side drawer opened from the avatar.
+    @State private var showSideMenu = false
+    @State private var showTrinityChat = false
+    @State private var showHistory = false
+    @State private var showHelp = false
     @AppStorage("com.mtrx.subscriptionTier") private var tierRaw: String = SubscriptionTier.free.rawValue
     private var currentTier: SubscriptionTier { SubscriptionTier(rawValue: tierRaw) ?? .free }
     @Namespace private var tabUnderlineNS
@@ -435,6 +462,7 @@ struct SocialView: View {
 
     var body: some View {
         NavigationStack {
+            ZStack(alignment: .leading) {
             ZStack(alignment: .bottomTrailing) {
                 Group {
                     if viewModel.selectedTab == .feed {
@@ -483,6 +511,19 @@ struct SocialView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            // Twitter-style side drawer: when open, the whole feed slides to
+            // the right (leaving a sliver) and a dim scrim closes it on tap.
+            .offset(x: showSideMenu ? sideMenuWidth : 0)
+            .scaleEffect(showSideMenu ? 0.97 : 1, anchor: .trailing)
+            .overlay {
+                if showSideMenu {
+                    Color.black.opacity(0.34)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture { closeSideMenu() }
+                        .transition(.opacity)
                 }
             }
             .onAppear { DailyFlow.shared.mark(.social) }
@@ -591,11 +632,45 @@ struct SocialView: View {
                     postActionTarget = nil
                 }
             }
+
+            if showSideMenu {
+                sideMenu
+                    .frame(width: sideMenuWidth)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .transition(.move(edge: .leading))
+                    .zIndex(5)
+            }
+            }
         }
         .onAppear {
             withAnimation(Motion.springDefault.delay(0.1)) {
                 appeared = true
             }
+        }
+        .fullScreenCover(isPresented: $showTrinityChat) {
+            AgentConversationView(
+                userID: appState.currentUserID,
+                initialAgent: .trinity,
+                isModal: true
+            )
+            .environmentObject(appState)
+            .environmentObject(walletManager)
+        }
+        .sheet(isPresented: $showHistory) {
+            SocialHistorySheet()
+        }
+        .sheet(isPresented: $showHelp) {
+            HelpSupportSheet()
+        }
+    }
+
+    private var sideMenuWidth: CGFloat {
+        UIScreen.main.bounds.width * 0.80
+    }
+
+    private func closeSideMenu() {
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            showSideMenu = false
         }
     }
 
@@ -617,14 +692,142 @@ struct SocialView: View {
     /// reads as part of the header, not a row of chunky pills sitting on
     /// top of it. The active tab lights up with an animated accent
     /// underline; the rest stay quiet.
+    // MARK: - Side Menu (Twitter-style left drawer)
+
+    private var sideMenu: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Profile header
+            VStack(alignment: .leading, spacing: 11) {
+                Group {
+                    if let avatar = socialIdentity.avatarImage {
+                        Image(uiImage: avatar).resizable().scaledToFill()
+                    } else {
+                        LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                            .overlay(
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(.white)
+                            )
+                    }
+                }
+                .frame(width: 56, height: 56)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.14), lineWidth: 1))
+
+                HStack(spacing: 5) {
+                    Text(appState.displayName.isEmpty ? "You" : appState.displayName)
+                        .font(.system(size: 19, weight: .heavy))
+                        .foregroundStyle(Color.labelPrimary)
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(theme.accent)
+                }
+
+                Text(socialIdentity.handle(displayName: appState.displayName))
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.labelTertiary)
+
+                HStack(spacing: Spacing.md) {
+                    HStack(spacing: 4) {
+                        Text("348").font(.system(size: 14, weight: .bold)).foregroundStyle(Color.labelPrimary)
+                        Text("Following").font(.system(size: 14)).foregroundStyle(Color.labelTertiary)
+                    }
+                    HStack(spacing: 4) {
+                        Text("1,284").font(.system(size: 14, weight: .bold)).foregroundStyle(Color.labelPrimary)
+                        Text("Followers").font(.system(size: 14)).foregroundStyle(Color.labelTertiary)
+                    }
+                }
+                .padding(.top, 3)
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.bottom, Spacing.lg)
+
+            // Options — Profile, Trinity, History, then a divider, then
+            // Settings and privacy and Help Center.
+            VStack(alignment: .leading, spacing: 0) {
+                sideMenuRow(icon: "person", title: "Profile") {
+                    closeSideMenu(); showProfile = true
+                }
+                sideMenuRow(icon: "sparkles", title: "Trinity") {
+                    closeSideMenu(); showTrinityChat = true
+                }
+                sideMenuRow(icon: "clock.arrow.circlepath", title: "History") {
+                    closeSideMenu(); showHistory = true
+                }
+
+                MtrxDivider()
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, 10)
+
+                sideMenuRow(icon: "gearshape", title: "Settings and privacy") {
+                    closeSideMenu(); showSocialSettings = true
+                }
+                sideMenuRow(icon: "questionmark.circle", title: "Help Center") {
+                    closeSideMenu(); showHelp = true
+                }
+            }
+            .padding(.horizontal, Spacing.sm)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.top, 72)
+        .background {
+            ZStack(alignment: .top) {
+                MtrxGradientBackground(style: .primary)
+                LinearGradient(
+                    stops: [
+                        .init(color: theme.accent.opacity(0.30), location: 0.0),
+                        .init(color: theme.accent.opacity(0.08), location: 0.4),
+                        .init(color: .clear, location: 0.75),
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .frame(height: 360)
+                .frame(maxWidth: .infinity, alignment: .top)
+                .allowsHitTesting(false)
+            }
+            .ignoresSafeArea()
+        }
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(width: 1)
+                .ignoresSafeArea()
+        }
+    }
+
+    private func sideMenuRow(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        Button {
+            MtrxHaptics.impact(.light)
+            action()
+        } label: {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 21, weight: .regular))
+                    .frame(width: 28, alignment: .center)
+                    .foregroundStyle(Color.labelPrimary)
+                Text(title)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.labelPrimary)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 13)
+            .padding(.horizontal, Spacing.sm)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Custom Header (no system toolbar → no glass capsule)
 
     private var socialHeader: some View {
         HStack(spacing: 0) {
-            // Avatar — just the photo, opens your profile.
+            // Avatar — opens the side menu, Twitter-style.
             Button {
                 MtrxHaptics.impact(.light)
-                showProfile = true
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { showSideMenu = true }
             } label: {
                 Group {
                     if let avatar = socialIdentity.avatarImage {
@@ -1157,7 +1360,7 @@ struct PostCardView: View {
     var onComment: () -> Void = {}
 
     @State private var isExpanded = false
-    @State private var bookmarked = false
+    @ObservedObject private var bookmarks = SocialBookmarkStore.shared
 
     private let expandThreshold = 280
 
@@ -1353,12 +1556,12 @@ struct PostCardView: View {
 
             HStack(spacing: Spacing.ms) {
                 Button {
-                    bookmarked.toggle()
+                    bookmarks.toggle(post.id)
                     MtrxHaptics.impact(.light)
                 } label: {
-                    Image(systemName: bookmarked ? "bookmark.fill" : "bookmark")
+                    Image(systemName: bookmarks.isBookmarked(post.id) ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 15))
-                        .foregroundStyle(bookmarked ? Color.accentPrimary : Color.labelTertiary)
+                        .foregroundStyle(bookmarks.isBookmarked(post.id) ? Color.accentPrimary : Color.labelTertiary)
                 }
                 .buttonStyle(.plain)
 
@@ -2119,5 +2322,114 @@ struct SocialNotificationsView: View {
             }
             .padding(.top, Spacing.xs)
         }
+    }
+}
+
+// MARK: - History (bookmarks + recently viewed)
+
+/// The drawer's History entry. Holds the user's bookmarks and their
+/// recently viewed posts — a home for everything they've saved.
+struct SocialHistorySheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var viewModel = SocialViewModel.shared
+    @ObservedObject private var bookmarks = SocialBookmarkStore.shared
+    @State private var section: HistoryTab = .bookmarks
+
+    enum HistoryTab: String, CaseIterable, Identifiable {
+        case bookmarks = "Bookmarks"
+        case recent = "Recent"
+        var id: String { rawValue }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: Spacing.lg) {
+                    Picker("History", selection: $section) {
+                        ForEach(HistoryTab.allCases) { s in
+                            Text(s.rawValue).tag(s)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, Spacing.contentPadding)
+                    .padding(.top, Spacing.sm)
+
+                    if posts.isEmpty {
+                        emptyState
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(posts) { post in
+                                historyRow(post)
+                                MtrxDivider()
+                            }
+                        }
+                    }
+                }
+                .padding(.bottom, Spacing.xl)
+            }
+            .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+            .navigationTitle("History")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
+        }
+    }
+
+    /// Bookmarks surfaces posts the user has saved; Recent shows the
+    /// freshest of the feed they've been scrolling.
+    private var posts: [SocialPostDisplay] {
+        switch section {
+        case .bookmarks: return viewModel.posts.filter { bookmarks.isBookmarked($0.id) }
+        case .recent:    return Array(viewModel.posts.prefix(12))
+        }
+    }
+
+    private func historyRow(_ post: SocialPostDisplay) -> some View {
+        HStack(alignment: .top, spacing: Spacing.ms) {
+            Image(systemName: section == .bookmarks ? "bookmark.fill" : "clock")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(section == .bookmarks ? Color.accentPrimary : Color.labelTertiary)
+                .frame(width: 34, height: 34)
+                .background((section == .bookmarks ? Color.accentPrimary : Color.labelTertiary).opacity(0.12))
+                .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Text(post.displayName).font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary)
+                    Text(post.handle).font(.mtrxCaption1).foregroundStyle(Color.labelTertiary)
+                }
+                Text(post.body)
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelSecondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Spacing.contentPadding)
+        .padding(.vertical, Spacing.sm)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: Spacing.sm) {
+            Image(systemName: section == .bookmarks ? "bookmark" : "clock.arrow.circlepath")
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(Color.labelTertiary)
+            Text(section == .bookmarks ? "No bookmarks yet" : "Nothing here yet")
+                .font(.mtrxHeadline)
+                .foregroundStyle(Color.labelPrimary)
+            Text(section == .bookmarks
+                 ? "Tap the bookmark icon on any post to save it here."
+                 : "Posts you open will show up here.")
+                .font(.mtrxCaption1)
+                .foregroundStyle(Color.labelSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Spacing.xl)
+        }
+        .padding(.top, 80)
     }
 }
