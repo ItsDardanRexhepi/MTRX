@@ -438,17 +438,11 @@ struct SocialView: View {
             ZStack(alignment: .bottomTrailing) {
                 Group {
                     if viewModel.selectedTab == .feed {
-                        // Immersive feed: the header + tab strip are a true
-                        // overlay, so the timeline fills to the top with no
-                        // dead space and scrolls under them as they fade.
-                        ZStack(alignment: .top) {
-                            feedSection
-                            VStack(spacing: 0) {
-                                socialHeader
-                                tabSelector
-                            }
-                            .opacity(chromeOpacity)
-                        }
+                        // Immersive feed: the header, tabs, and stories all
+                        // live inside the scroll, so they simply scroll away
+                        // as you move down — no overlay, no fade artifacts, no
+                        // break. Just a normal, perfectly smooth scroll.
+                        feedSection
                     } else {
                         VStack(spacing: 0) {
                             socialHeader
@@ -959,12 +953,13 @@ struct SocialView: View {
     // MARK: - Feed Section
 
     private var feedSection: some View {
-        // Stories + filter tabs live INSIDE the scroll now, so they scroll
-        // away with the timeline — no collapsing layout, no jitter, just a
-        // normal scroll at any speed. The header/tabs above fade out via a
-        // continuous opacity tied to the offset.
+        // The whole top — header, tabs, stories, filter chips — is the first
+        // run of the scroll, so it scrolls away cleanly and the feed engulfs
+        // the screen. Only the dock stays.
         ScrollView {
             LazyVStack(spacing: 0) {
+                socialHeader
+                tabSelector
                 StoriesRail()
                 filterChips
 
@@ -988,9 +983,6 @@ struct SocialView: View {
             }
             .padding(.bottom, Spacing.xxl)
         }
-        // Content starts just below the overlaid header + tab strip, then
-        // scrolls up under them as they fade — no dead space.
-        .contentMargins(.top, 44 + tabStripHeight, for: .scrollContent)
         .mtrxTrackScrollY { feedScrollY = $0 }
         .refreshable {
             await viewModel.refresh()

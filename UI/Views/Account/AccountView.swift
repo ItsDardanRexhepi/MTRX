@@ -594,11 +594,11 @@ struct QuickActionCard: View {
     var body: some View {
         Button { onOpen(destination) } label: {
             MtrxCard(style: .standard) {
-                VStack(spacing: Spacing.sm) {
+                HStack(spacing: Spacing.sm) {
                     Image(systemName: icon)
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(color)
-                        .frame(width: 48, height: 48)
+                        .frame(width: 34, height: 34)
                         .background(color.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
 
@@ -607,9 +607,9 @@ struct QuickActionCard: View {
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
+                    Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: 96)
             }
         }
         .buttonStyle(.plain)
