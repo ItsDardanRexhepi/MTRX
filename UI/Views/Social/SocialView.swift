@@ -651,6 +651,7 @@ struct SocialView: View {
     @State private var showHistory = false
     @State private var showHelp = false
     @State private var showLists = false
+    @State private var followList: FollowListKind?
     @ObservedObject private var moderation = SocialModerationStore.shared
     /// A post the Home carousel asked us to scroll to.
     @State private var pendingOpenPostID: String?
@@ -954,6 +955,9 @@ struct SocialView: View {
         .sheet(isPresented: $showLists) {
             SocialListsSheet()
         }
+        .sheet(item: $followList) { kind in
+            FollowListSheet(kind: kind)
+        }
     }
 
     private var sideMenuWidth: CGFloat {
@@ -972,6 +976,8 @@ struct SocialView: View {
     }
 
     private func closeSideMenu() {
+        // Haptic on the way out, same as opening.
+        MtrxHaptics.impact(.light)
         withAnimation(.smooth(duration: 0.4)) {
             drawer.isOpen = false
         }
@@ -1032,14 +1038,28 @@ struct SocialView: View {
                     .foregroundStyle(Color.labelTertiary)
 
                 HStack(spacing: Spacing.md) {
-                    HStack(spacing: 4) {
-                        Text("348").font(.system(size: 14, weight: .bold)).foregroundStyle(Color.labelPrimary)
-                        Text("Following").font(.system(size: 14)).foregroundStyle(Color.labelTertiary)
+                    Button {
+                        MtrxHaptics.impact(.light)
+                        closeSideMenu(); followList = .following
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("348").font(.system(size: 14, weight: .bold)).foregroundStyle(Color.labelPrimary)
+                            Text("Following").font(.system(size: 14)).foregroundStyle(Color.labelTertiary)
+                        }
+                        .contentShape(Rectangle())
                     }
-                    HStack(spacing: 4) {
-                        Text("1,284").font(.system(size: 14, weight: .bold)).foregroundStyle(Color.labelPrimary)
-                        Text("Followers").font(.system(size: 14)).foregroundStyle(Color.labelTertiary)
+                    .buttonStyle(.plain)
+                    Button {
+                        MtrxHaptics.impact(.light)
+                        closeSideMenu(); followList = .followers
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("1,284").font(.system(size: 14, weight: .bold)).foregroundStyle(Color.labelPrimary)
+                            Text("Followers").font(.system(size: 14)).foregroundStyle(Color.labelTertiary)
+                        }
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
                 .padding(.top, 3)
             }
@@ -1086,14 +1106,17 @@ struct SocialView: View {
                 MtrxGradientBackground(style: .primary)
                 LinearGradient(
                     stops: [
-                        .init(color: theme.accent.opacity(0.30), location: 0.0),
-                        .init(color: theme.accent.opacity(0.08), location: 0.4),
-                        .init(color: .clear, location: 0.75),
+                        .init(color: theme.accent.opacity(0.32), location: 0.0),
+                        .init(color: theme.accent.opacity(0.22), location: 0.30),
+                        .init(color: theme.accent.opacity(0.12), location: 0.55),
+                        .init(color: theme.accent.opacity(0.04), location: 0.80),
+                        .init(color: .clear, location: 1.0),
                     ],
                     startPoint: .top, endPoint: .bottom
                 )
-                // A touch longer than half — extended back ~20%.
-                .frame(height: 216)
+                // Ends right after the @handle (just above Following/Followers)
+                // and fades all the way out — no hard edge.
+                .frame(height: 200)
                 .frame(maxWidth: .infinity, alignment: .top)
                 .allowsHitTesting(false)
             }
@@ -2949,6 +2972,98 @@ struct UserProfileSheet: View {
         HStack(spacing: 4) {
             Text(n).font(.system(size: 14, weight: .bold)).foregroundStyle(Color.labelPrimary)
             Text(label).font(.system(size: 14)).foregroundStyle(Color.labelTertiary)
+        }
+    }
+}
+
+// MARK: - Following / Followers
+
+enum FollowListKind: String, Identifiable {
+    case following, followers
+    var id: String { rawValue }
+    var title: String { self == .following ? "Following" : "Followers" }
+}
+
+/// The Following / Followers list, opened from the drawer header counts.
+struct FollowListSheet: View {
+    let kind: FollowListKind
+    @Environment(\.dismiss) private var dismiss
+    @State private var followed: Set<String> = []
+
+    private struct Account: Identifiable {
+        let id = UUID()
+        let name: String
+        let handle: String
+        let initials: String
+        let color: Color
+        let verified: Bool
+    }
+
+    private let accounts: [Account] = [
+        Account(name: "Elena Vasquez", handle: "@elena.eth", initials: "EV", color: .accentPrimary, verified: true),
+        Account(name: "Ravi Patel", handle: "@ravi_dao", initials: "RP", color: .statusInfo, verified: true),
+        Account(name: "Sofia Nakamura", handle: "@sofia.base", initials: "SN", color: .accentTertiary, verified: true),
+        Account(name: "MTRX Foundation", handle: "@mtrx_official", initials: "MF", color: .accentPrimary, verified: true),
+        Account(name: "DeFi Builder", handle: "@defi_build3r", initials: "DB", color: .statusSuccess, verified: false),
+        Account(name: "Maya Reyes", handle: "@maya.eth", initials: "MR", color: .accentSecondary, verified: false),
+        Account(name: "Theo Lin", handle: "@theo_dev", initials: "TL", color: .statusInfo, verified: false),
+        Account(name: "Aisha Khan", handle: "@aisha.base", initials: "AK", color: .accentTertiary, verified: true),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(accounts) { acct in
+                        HStack(spacing: Spacing.sm) {
+                            MtrxAvatar(text: acct.initials, color: acct.color, size: 44)
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack(spacing: 4) {
+                                    Text(acct.name).font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary)
+                                    if acct.verified {
+                                        Image(systemName: "checkmark.seal.fill")
+                                            .font(.system(size: 12)).foregroundStyle(Color.accentPrimary)
+                                    }
+                                }
+                                Text(acct.handle).font(.mtrxCaption1).foregroundStyle(Color.labelTertiary)
+                            }
+                            Spacer()
+                            let isFollowed = followed.contains(acct.handle)
+                            Button {
+                                if isFollowed { followed.remove(acct.handle) } else { followed.insert(acct.handle) }
+                                MtrxHaptics.impact(.light)
+                            } label: {
+                                Text(isFollowed ? "Following" : "Follow")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(isFollowed ? Color.labelPrimary : .white)
+                                    .padding(.horizontal, 16).padding(.vertical, 7)
+                                    .background(isFollowed ? Color.clear : Color.accentPrimary)
+                                    .overlay(Capsule().stroke(isFollowed ? Color.labelTertiary.opacity(0.5) : .clear, lineWidth: 1))
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, Spacing.contentPadding)
+                        .padding(.vertical, Spacing.sm)
+                        MtrxDivider()
+                    }
+                }
+                .padding(.top, Spacing.xs)
+            }
+            .background(Color.black.opacity(0.18).ignoresSafeArea())
+            .navigationTitle(kind.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .presentationBackground(.ultraThinMaterial)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }.foregroundStyle(Color.accentPrimary)
+                }
+            }
+            .onAppear {
+                // The accounts you follow start as "Following"; your followers
+                // start as "Follow" (follow them back).
+                if kind == .following { followed = Set(accounts.map(\.handle)) }
+            }
         }
     }
 }
