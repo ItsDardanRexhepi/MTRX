@@ -527,8 +527,9 @@ struct SocialView: View {
             }
             // Twitter-style side drawer: when open, the whole feed slides to
             // the right (leaving a sliver) and a dim scrim closes it on tap.
+            // No scale — the sliver fills full-height so there's no black gap
+            // in the top corner.
             .offset(x: drawer.isOpen ? sideMenuWidth : 0)
-            .scaleEffect(drawer.isOpen ? 0.97 : 1, anchor: .trailing)
             .overlay {
                 if drawer.isOpen {
                     Color.black.opacity(0.34)
@@ -1076,147 +1077,200 @@ struct SocialView: View {
 
     // MARK: - Compose Sheet
 
+    /// Whether the post is ready to publish.
+    private var composerCanPost: Bool {
+        !(viewModel.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+          && viewModel.composerImageData == nil
+          && viewModel.composerVideoFileName == nil)
+        && viewModel.composerText.count <= 280
+    }
+
     private var composeSheet: some View {
-        NavigationStack {
-            VStack(spacing: Spacing.md) {
-                ZStack(alignment: .topLeading) {
-                    TextEditor(text: $viewModel.composerText)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .scrollContentBackground(.hidden)
+        VStack(spacing: 0) {
+            // A clean custom header: balanced Cancel / title / Post, well
+            // clear of the Dynamic Island, with a proper gradient Post pill.
+            HStack {
+                Button {
+                    viewModel.composerText = ""
+                    viewModel.isComposerPresented = false
+                } label: {
+                    Text("Cancel")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Color.labelSecondary)
+                }
+
+                Spacer()
+
+                Text("New post")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Color.labelPrimary)
+
+                Spacer()
+
+                Button {
+                    viewModel.publishPost(displayName: appState.displayName)
+                } label: {
+                    Text("Post")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(composerCanPost ? .white : Color.labelTertiary)
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 9)
+                        .background(
+                            Group {
+                                if composerCanPost {
+                                    LinearGradient(colors: [theme.accent, theme.accent.opacity(0.78)],
+                                                   startPoint: .top, endPoint: .bottom)
+                                } else {
+                                    Color.surfaceCard
+                                }
+                            }
+                        )
+                        .clipShape(Capsule())
+                        .shadow(color: composerCanPost ? theme.accent.opacity(0.35) : .clear, radius: 8, y: 3)
+                }
+                .buttonStyle(.plain)
+                .disabled(!composerCanPost)
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.top, Spacing.sm)
+            .padding(.bottom, Spacing.sm)
+
+            MtrxDivider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    // Avatar beside the editor — reads as you, writing.
+                    HStack(alignment: .top, spacing: Spacing.sm) {
+                        composerAvatar
+                        ZStack(alignment: .topLeading) {
+                            TextEditor(text: $viewModel.composerText)
+                                .frame(minHeight: 130)
+                                .scrollContentBackground(.hidden)
+                                .font(.system(size: 18))
+                                .foregroundStyle(Color.labelPrimary)
+
+                            if viewModel.composerText.isEmpty {
+                                Text("What's happening?")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(Color.labelTertiary)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 5)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                    }
+
+                    // Attachment previews
+                    if let imageData = viewModel.composerImageData, let image = UIImage(data: imageData) {
+                        ZStack(alignment: .topTrailing) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 200)
+                                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+                            Button {
+                                viewModel.composerImageData = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 24))
+                                    .foregroundStyle(.white, .black.opacity(0.6))
+                            }
+                            .padding(8)
+                        }
+                    }
+                    if viewModel.composerVideoFileName != nil {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "video.fill")
+                                .foregroundStyle(Color.accentPrimary)
+                            Text("Video attached")
+                                .font(.mtrxCaption1)
+                                .foregroundStyle(Color.labelPrimary)
+                            Spacer()
+                            Button { viewModel.composerVideoFileName = nil } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(Color.labelTertiary)
+                            }
+                        }
                         .padding(Spacing.ms)
                         .background(Color.surfaceCard)
                         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
-                        .font(.mtrxBody)
-
-                    if viewModel.composerText.isEmpty {
-                        Text("What's happening?")
-                            .font(.mtrxBody)
-                            .foregroundStyle(Color.labelTertiary)
-                            .padding(.top, Spacing.ms + 8)
-                            .padding(.leading, Spacing.ms + 5)
-                            .allowsHitTesting(false)
                     }
-                }
 
-                // Attachment previews
-                if let imageData = viewModel.composerImageData, let image = UIImage(data: imageData) {
-                    ZStack(alignment: .topTrailing) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(height: 140)
-                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
-                        Button {
-                            viewModel.composerImageData = nil
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 22))
-                                .foregroundStyle(.white, .black.opacity(0.6))
-                        }
-                        .padding(6)
-                    }
-                }
-                if viewModel.composerVideoFileName != nil {
+                    // Link field
                     HStack(spacing: Spacing.sm) {
-                        Image(systemName: "video.fill")
-                            .foregroundStyle(Color.accentPrimary)
-                        Text("Video attached")
+                        Image(systemName: "link")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.labelTertiary)
+                        TextField("Add a link (optional)", text: $viewModel.composerLink)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
                             .font(.mtrxCaption1)
-                            .foregroundStyle(Color.labelPrimary)
-                        Spacer()
-                        Button { viewModel.composerVideoFileName = nil } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(Color.labelTertiary)
-                        }
                     }
                     .padding(Spacing.ms)
-                    .background(Color.surfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+                    .background(Color.surfaceCard.opacity(0.6))
+                    .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
                 }
-
-                // Link field
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: "link")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.labelTertiary)
-                    TextField("Add a link (optional)", text: $viewModel.composerLink)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                        .font(.mtrxCaption1)
-                }
-                .padding(Spacing.ms)
-                .background(Color.surfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-
-                HStack(spacing: Spacing.sm) {
-                    // Photo
-                    PhotosPicker(selection: $photoPickerItem, matching: .images) {
-                        Image(systemName: "photo")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(Color.accentPrimary)
-                            .frame(width: 38, height: 38)
-                            .background(Color.accentPrimary.opacity(0.12))
-                            .clipShape(Circle())
-                    }
-                    // Video
-                    PhotosPicker(selection: $videoPickerItem, matching: .videos) {
-                        Image(systemName: "video")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(Color.accentPrimary)
-                            .frame(width: 38, height: 38)
-                            .background(Color.accentPrimary.opacity(0.12))
-                            .clipShape(Circle())
-                    }
-                    // On-chain proof
-                    Button {
-                        viewModel.attachProof.toggle()
-                        MtrxHaptics.impact(.light)
-                    } label: {
-                        Image(systemName: viewModel.attachProof ? "checkmark.seal.fill" : "checkmark.seal")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(viewModel.attachProof ? Color.statusSuccess : Color.accentPrimary)
-                            .frame(width: 38, height: 38)
-                            .background((viewModel.attachProof ? Color.statusSuccess : Color.accentPrimary).opacity(0.12))
-                            .clipShape(Circle())
-                    }
-
-                    Spacer()
-
-                    Text("\(viewModel.composerText.count)/280")
-                        .font(.mtrxCaption1)
-                        .foregroundStyle(
-                            viewModel.composerText.count > 280 ? Color.statusError : Color.labelTertiary
-                        )
-                }
+                .padding(Spacing.contentPadding)
             }
-            .padding(Spacing.contentPadding)
-            .background(MtrxGradientBackground(style: .primary))
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        viewModel.composerText = ""
-                        viewModel.isComposerPresented = false
-                    }
-                    .foregroundStyle(Color.labelSecondary)
+
+            // A grounded bottom bar — the writing tools + character counter.
+            HStack(spacing: Spacing.md) {
+                PhotosPicker(selection: $photoPickerItem, matching: .images) {
+                    composerToolIcon("photo", tint: Color.accentPrimary)
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Post") {
-                        viewModel.publishPost(displayName: appState.displayName)
-                    }
-                    .buttonStyle(MtrxButtonStyle(variant: .primary, size: .compact))
-                    .disabled(
-                        (viewModel.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            && viewModel.composerImageData == nil
-                            && viewModel.composerVideoFileName == nil)
-                            || viewModel.composerText.count > 280
+                PhotosPicker(selection: $videoPickerItem, matching: .videos) {
+                    composerToolIcon("video", tint: Color.accentPrimary)
+                }
+                Button {
+                    viewModel.attachProof.toggle()
+                    MtrxHaptics.impact(.light)
+                } label: {
+                    composerToolIcon(viewModel.attachProof ? "checkmark.seal.fill" : "checkmark.seal",
+                                     tint: viewModel.attachProof ? Color.statusSuccess : Color.accentPrimary)
+                }
+
+                Spacer()
+
+                Text("\(viewModel.composerText.count)/280")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(viewModel.composerText.count > 280 ? Color.statusError : Color.labelTertiary)
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.vertical, Spacing.sm)
+            .background(.ultraThinMaterial)
+            .overlay(alignment: .top) { MtrxDivider() }
+        }
+        .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+        .presentationDetents([.large])
+    }
+
+    private var composerAvatar: some View {
+        Group {
+            if let photo = socialIdentity.avatarImage {
+                Image(uiImage: photo).resizable().scaledToFill()
+            } else {
+                LinearGradient(colors: [.trinityPrimary, .trinitySecondary],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .overlay(
+                        Text(String((appState.displayName.isEmpty ? "Y" : appState.displayName).prefix(1)).uppercased())
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
                     )
-                }
             }
         }
-        .presentationDetents([.large])
+        .frame(width: 44, height: 44)
+        .clipShape(Circle())
+    }
+
+    private func composerToolIcon(_ name: String, tint: Color) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 18, weight: .medium))
+            .foregroundStyle(tint)
+            .frame(width: 42, height: 42)
+            .background(tint.opacity(0.12))
+            .clipShape(Circle())
     }
 
     // MARK: - Feed Section

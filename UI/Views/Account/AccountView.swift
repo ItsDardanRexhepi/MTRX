@@ -89,11 +89,11 @@ struct AccountView: View {
                         profileCard
                         portfolioSummary
                         workspaceSection
-                        // Float Sign Out in the open space, centered evenly
-                        // between the workspace tiles and the floating dock.
-                        Spacer(minLength: Spacing.lg)
+                        // Sign Out sits right beneath the workspace tiles,
+                        // spaced like every other section; the empty room
+                        // falls below it.
                         signOutButton
-                        Spacer(minLength: Spacing.lg)
+                        Spacer(minLength: 0)
                     }
                     .padding(.horizontal, Spacing.contentPadding)
                     .padding(.top, Spacing.md)

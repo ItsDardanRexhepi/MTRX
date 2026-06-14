@@ -96,7 +96,9 @@ struct HomeView: View {
                     .onTapGesture { closeHomeChat() }
                     .zIndex(40)
                 homeChatPanel
-                    .transition(.opacity)
+                    // Unfurls downward from the search bar — a dropdown that
+                    // reads as the bar's own continuation, not a pop-up.
+                    .transition(.scale(scale: 0.55, anchor: .top).combined(with: .opacity))
                     .zIndex(50)
             }
         }
@@ -249,14 +251,8 @@ struct HomeView: View {
                 // The ask bar and the orb are one element now: a single
                 // glass pill — wearing the orb's own iridescent skin —
                 // with the orb living at its trailing end. Type to Trinity.
-                // When the chat is open the pill has grown into the card, so
-                // a Spacer holds the row's layout in its place.
-                if homeChatOpen {
-                    Spacer(minLength: 0)
-                } else {
-                    homeAskOrb
-                        .matchedGeometryEffect(id: "trinityChatSurface", in: chatNS)
-                }
+                // It stays put while open — the chat drops down beneath it.
+                homeAskOrb
             }
             .alert("Your Name", isPresented: $showNameEditor) {
                 TextField("Name", text: $nameDraft)
@@ -320,9 +316,6 @@ struct HomeView: View {
     @State private var homeChatDrag: CGFloat = 0
     /// Measured height of the live transcript so the card hugs it.
     @State private var homeConvoHeight: CGFloat = 0
-    /// Drives the hero morph: the search pill literally grows into the chat
-    /// card (and shrinks back), so it reads as one continuous surface.
-    @Namespace private var chatNS
     /// The in-chat input is its own field so typing here never leaks back
     /// into the top search bar.
     @State private var homeChatInput = ""
@@ -542,17 +535,45 @@ struct HomeView: View {
                     ScrollView {
                         VStack(spacing: Spacing.sm) {
                             ForEach(homeChatVM.messages) { msg in
-                                HStack {
-                                    if msg.role == .user { Spacer(minLength: 36) }
-                                    Text(msg.text)
-                                        .font(.mtrxCallout)
-                                        .foregroundStyle(msg.role == .user ? .white : Color.labelPrimary)
-                                        .padding(.horizontal, Spacing.md)
-                                        .padding(.vertical, Spacing.sm)
-                                        .background(msg.role == .user ? Color.trinityPrimary : Color.black.opacity(0.35))
-                                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                        .textSelection(.enabled)
-                                    if msg.role != .user { Spacer(minLength: 36) }
+                                VStack(alignment: .leading, spacing: Spacing.xs) {
+                                    HStack {
+                                        if msg.role == .user { Spacer(minLength: 36) }
+                                        Text(msg.text)
+                                            .font(.mtrxCallout)
+                                            .foregroundStyle(msg.role == .user ? .white : Color.labelPrimary)
+                                            .padding(.horizontal, Spacing.md)
+                                            .padding(.vertical, Spacing.sm)
+                                            .background(msg.role == .user ? Color.trinityPrimary : Color.black.opacity(0.35))
+                                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                            .textSelection(.enabled)
+                                        if msg.role != .user { Spacer(minLength: 36) }
+                                    }
+
+                                    // Trinity's actionable chips on her latest
+                                    // reply — full capability right here in Home.
+                                    if msg.id == homeChatVM.messages.last?.id,
+                                       msg.role == .agent,
+                                       !msg.suggestedActions.isEmpty {
+                                        ScrollView(.horizontal, showsIndicators: false) {
+                                            HStack(spacing: Spacing.sm) {
+                                                ForEach(msg.suggestedActions) { action in
+                                                    Button {
+                                                        MtrxHaptics.impact(.medium)
+                                                        homeChatVM.handleSuggestedAction(action.action)
+                                                    } label: {
+                                                        Text(action.title)
+                                                            .font(.mtrxCaptionBold)
+                                                            .foregroundStyle(Color.accentPrimary)
+                                                            .padding(.horizontal, Spacing.md)
+                                                            .padding(.vertical, Spacing.sm)
+                                                            .background(Capsule().fill(Color.accentPrimary.opacity(0.15)))
+                                                    }
+                                                    .buttonStyle(.plain)
+                                                }
+                                            }
+                                            .padding(.vertical, 2)
+                                        }
+                                    }
                                 }
                                 .id(msg.id)
                             }
@@ -618,8 +639,6 @@ struct HomeView: View {
             // Real Liquid Glass over the colors — refracts the dashboard
             // behind it while keeping the flowing palette.
             .mtrxLiquidGlass(cornerRadius: 30)
-            // The hero surface — grows straight out of the search pill.
-            .matchedGeometryEffect(id: "trinityChatSurface", in: chatNS)
             .shadow(color: .black.opacity(0.4), radius: 24, y: 10)
             .padding(.horizontal, Spacing.contentPadding)
             .padding(.bottom, Spacing.xs)
