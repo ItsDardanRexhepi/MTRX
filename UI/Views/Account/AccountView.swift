@@ -101,9 +101,9 @@ struct AccountView: View {
                     profileCard
                     portfolioSummary
                     workspaceSection
-                    // Lifted up ~2% of the screen height; nothing else moves.
+                    // Lifted ~1.75% of the screen height; nothing else moves.
                     signOutButton
-                        .offset(y: -17)
+                        .offset(y: -15)
                 }
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.top, Spacing.md)

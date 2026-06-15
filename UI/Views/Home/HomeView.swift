@@ -676,7 +676,10 @@ struct HomeView: View {
                 }
 
                 // Input — the search pill, restated inside the chat.
-                HStack(spacing: 8) {
+                // Bottom-align so the send arrow hugs the bottom-right corner
+                // and follows the bottom of the field as the text grows,
+                // instead of drifting to the vertical center.
+                HStack(alignment: .bottom, spacing: 8) {
                     TextField("Message Trinity…", text: $homeChatInput, axis: .vertical)
                         // Empty transcript → the input may grow tall enough to
                         // push the card all the way to the keyboard before it
