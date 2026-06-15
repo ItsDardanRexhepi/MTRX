@@ -1741,6 +1741,60 @@ struct SocialView: View {
 
     // MARK: - Governance Section
 
+    @State private var showCivicHub = false
+    @State private var showElectionsRoadmap = false
+
+    private func civicEntryLabel(icon: String, title: String, subtitle: String, badge: String?) -> some View {
+        MtrxCard(style: .glass) {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 24))
+                    .foregroundStyle(Color.accentPrimary)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: Spacing.xs) {
+                        Text(title).font(.mtrxBodyBold).foregroundStyle(Color.labelPrimary)
+                        if let badge { MtrxBadge(text: badge, style: .neutral) }
+                    }
+                    Text(subtitle)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.labelTertiary)
+            }
+        }
+    }
+
+    private var civicEntryCards: some View {
+        VStack(spacing: Spacing.md) {
+            Button { MtrxHaptics.selection(); showCivicHub = true } label: {
+                civicEntryLabel(icon: "building.columns.fill",
+                                title: "Civic Engagement",
+                                subtitle: "Community polls, your representatives, and election info.",
+                                badge: nil)
+            }
+            .buttonStyle(.plain)
+
+            Button { MtrxHaptics.selection(); showElectionsRoadmap = true } label: {
+                civicEntryLabel(icon: "lock.shield.fill",
+                                title: "Verifiable Elections Roadmap",
+                                subtitle: "The path toward secure, binding in-app voting — done right.",
+                                badge: "Roadmap")
+            }
+            .buttonStyle(.plain)
+        }
+        .sheet(isPresented: $showCivicHub) {
+            NavigationStack { CivicGovernanceView() }
+        }
+        .sheet(isPresented: $showElectionsRoadmap) {
+            NavigationStack { VerifiableElectionsRoadmapView() }
+        }
+    }
+
     private var governanceSection: some View {
         ScrollView {
             LazyVStack(spacing: Spacing.md) {
@@ -1766,6 +1820,9 @@ struct SocialView: View {
                         Spacer(minLength: 0)
                     }
                 }
+
+                // Civic — public participation, distinct from token governance.
+                civicEntryCards
 
                 // Delegation card
                 MtrxCard(style: .glass) {
