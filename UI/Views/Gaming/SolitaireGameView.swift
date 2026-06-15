@@ -449,13 +449,17 @@ struct SolitaireGameView: View {
                 HStack(spacing: 5) {
                     Image(systemName: "wand.and.stars").font(.system(size: 12, weight: .bold))
                     Text("Auto").font(.system(size: 13, weight: .bold, design: .rounded))
+                        .lineLimit(1)
                 }
                 .foregroundStyle(Color.backgroundPrimary)
-                .padding(.horizontal, 12).padding(.vertical, 7)
+                .padding(.horizontal, 14).padding(.vertical, 7)
                 .background(accent)
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+            // Always size to its one-line content — never let the stat bar
+            // squeeze it into wrapping "Aut / o".
+            .fixedSize()
         }
         .padding(.horizontal, Spacing.xs)
     }
