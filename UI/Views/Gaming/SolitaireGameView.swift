@@ -333,20 +333,19 @@ struct PlayingCardView: View {
                     .overlay(RoundedRectangle(cornerRadius: w * 0.16, style: .continuous)
                         .stroke(Color.black.opacity(0.10), lineWidth: 0.7))
 
+                // The rank alone sits in the corner; the suit shows once, in
+                // the centre — no redundant second suit symbol.
                 VStack {
                     HStack(alignment: .top) {
-                        VStack(spacing: -h * 0.02) {
-                            Text(card.rankLabel)
-                                .font(.system(size: h * 0.26, weight: .bold, design: .rounded))
-                            Image(systemName: card.suit.symbol)
-                                .font(.system(size: h * 0.15))
-                        }
-                        .foregroundStyle(ink)
+                        Text(card.rankLabel)
+                            .font(.system(size: h * 0.28, weight: .bold, design: .rounded))
+                            .foregroundStyle(ink)
                         Spacer()
                     }
                     Spacer()
                 }
-                .padding(w * 0.13)
+                .padding(.leading, w * 0.15)
+                .padding(.top, h * 0.08)
 
                 Image(systemName: card.suit.symbol)
                     .font(.system(size: h * 0.32))
@@ -560,8 +559,10 @@ struct SolitaireGameView: View {
 
     private func column(_ col: Int, cardW: CGFloat, cardH: CGFloat) -> some View {
         let cards = engine.tableau[col]
-        let faceUpFan = cardH * 0.30
-        let faceDownFan = cardH * 0.16
+        // Face-up cards fan enough that a stacked card's rank stays fully
+        // readable above the card on top of it — no cramped clusters.
+        let faceUpFan = cardH * 0.40
+        let faceDownFan = cardH * 0.17
         return ZStack(alignment: .top) {
             // Empty-column drop target.
             slotBackground(cardW, cardH)

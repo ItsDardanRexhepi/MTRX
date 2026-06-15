@@ -60,7 +60,7 @@ class GamingViewModel: ObservableObject {
     }
 
     static let sampleGames: [GameItem] = [
-        GameItem(name: "Neon Arena", assetCount: 2_450, playerCount: 18_300, kind: .solitaire, accent: Color(red: 0.13, green: 0.83, blue: 0.93)),
+        GameItem(name: "Solitaire", assetCount: 2_450, playerCount: 18_300, kind: .solitaire, accent: Color(red: 0.13, green: 0.83, blue: 0.93)),
         GameItem(name: "CryptoQuest", assetCount: 8_120, playerCount: 42_600, kind: .blocks, accent: Color(red: 0.62, green: 0.40, blue: 0.96)),
         GameItem(name: "Pixel Kingdoms", assetCount: 5_680, playerCount: 31_200, kind: .targets, accent: Color(red: 0.20, green: 0.84, blue: 0.40)),
         GameItem(name: "Chain Racers", assetCount: 1_890, playerCount: 12_400, kind: .reflex, accent: Color(red: 0.98, green: 0.65, blue: 0.15)),
@@ -69,7 +69,7 @@ class GamingViewModel: ObservableObject {
     ]
 
     static let sampleTournaments: [TournamentItem] = [
-        TournamentItem(name: "Neon Arena Championship", prizePool: "5,000 USDC", entryFee: "25 USDC", players: 128, status: "Open"),
+        TournamentItem(name: "Solitaire Championship", prizePool: "5,000 USDC", entryFee: "25 USDC", players: 128, status: "Open"),
         TournamentItem(name: "CryptoQuest Season Finals", prizePool: "10,000 USDC", entryFee: "50 USDC", players: 256, status: "Open"),
         TournamentItem(name: "Pixel Kingdoms Siege", prizePool: "2,500 USDC", entryFee: "10 USDC", players: 64, status: "In Progress"),
         TournamentItem(name: "Chain Racers Grand Prix", prizePool: "3,000 USDC", entryFee: "15 USDC", players: 32, status: "Upcoming")
