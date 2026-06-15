@@ -375,7 +375,7 @@ struct HomeView: View {
         .padding(.leading, 11)
         .padding(.trailing, 5)
         .padding(.vertical, 5)
-        .background(askBarFlow)
+        .background(askBarFlow(Capsule()))
         .clipShape(Capsule())
         .overlay(
             Capsule().stroke(.white.opacity(askFocused ? 0.22 : 0.12), lineWidth: 1)
@@ -396,8 +396,10 @@ struct HomeView: View {
     }
 
     /// The continuously flowing iridescent fill — frame-driven by a
-    /// TimelineView so it eases endlessly with zero spring jitter.
-    private var askBarFlow: some View {
+    /// TimelineView so it eases endlessly with zero spring jitter. Draws into
+    /// the exact shape it sits behind (a capsule for the search bar, a
+    /// rounded-rectangle for the chat input) so no stray oval shows through.
+    private func askBarFlow<S: Shape>(_ shape: S) -> some View {
         TimelineView(.animation) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             // A slow sine sweep gives the gradient its ebb and flow; a
@@ -405,8 +407,8 @@ struct HomeView: View {
             let sweep = CGFloat(sin(t * 0.45)) * 0.55
             let hue = (t * 9).truncatingRemainder(dividingBy: 360)
             ZStack {
-                Capsule().fill(.ultraThinMaterial)
-                Capsule()
+                shape.fill(.ultraThinMaterial)
+                shape
                     .fill(
                         LinearGradient(
                             colors: Self.askFlowColors,
@@ -700,7 +702,7 @@ struct HomeView: View {
                 .padding(.leading, 11)
                 .padding(.trailing, 5)
                 .padding(.vertical, 5)
-                .background(askBarFlow)
+                .background(askBarFlow(RoundedRectangle(cornerRadius: 23, style: .continuous)))
                 // A rounded-rectangle "squircle" — like an iMessage bubble —
                 // rather than a full stadium/oval, so a tall multi-line message
                 // reads as a message field, not a pill.
