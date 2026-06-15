@@ -26,6 +26,7 @@ enum GameKind {
     case blocks     // falling-block stacking puzzle
     case match3     // swap-to-match gem puzzle
     case merge2048  // 2048 sliding-tile merge puzzle
+    case breakout   // paddle-and-ball brick breaker
 }
 
 struct TournamentItem: Identifiable {
@@ -66,7 +67,7 @@ class GamingViewModel: ObservableObject {
         GameItem(name: "Tetris", assetCount: 8_120, playerCount: 42_600, kind: .blocks, accent: Color(red: 0.62, green: 0.40, blue: 0.96)),
         GameItem(name: "Color Burst", assetCount: 5_680, playerCount: 31_200, kind: .match3, accent: Color(red: 0.98, green: 0.37, blue: 0.45)),
         GameItem(name: "2048", assetCount: 1_890, playerCount: 12_400, kind: .merge2048, accent: Color(red: 0.98, green: 0.65, blue: 0.15)),
-        GameItem(name: "DeFi Dungeons", assetCount: 3_340, playerCount: 9_800, kind: .sequence, accent: Color(red: 0.97, green: 0.30, blue: 0.55)),
+        GameItem(name: "Brick Breaker", assetCount: 3_340, playerCount: 9_800, kind: .breakout, accent: Color(red: 0.97, green: 0.30, blue: 0.55)),
         GameItem(name: "Meta Tactics", assetCount: 4_100, playerCount: 22_700, kind: .reflex, accent: Color(red: 0.25, green: 0.55, blue: 0.98))
     ]
 
@@ -373,6 +374,21 @@ struct GamingView: View {
                     numberTile("8", Color(red: 0.48, green: 0.81, blue: 0.45))
                     numberTile("16", Color(red: 0.96, green: 0.74, blue: 0.35))
                 }
+            }
+        case .breakout:
+            // A row of bricks, a ball, and a paddle.
+            VStack(spacing: 4) {
+                HStack(spacing: 3) {
+                    ForEach(0..<3, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .fill([Color(red: 0.98, green: 0.37, blue: 0.45),
+                                   Color(red: 0.99, green: 0.74, blue: 0.36),
+                                   Color(red: 0.41, green: 0.87, blue: 0.55)][i])
+                            .frame(width: 12, height: 7)
+                    }
+                }
+                Circle().fill(.white).frame(width: 5, height: 5)
+                Capsule().fill(game.accent).frame(width: 20, height: 5)
             }
         default:
             Image(systemName: "gamecontroller.fill")
