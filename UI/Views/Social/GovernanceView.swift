@@ -166,6 +166,7 @@ struct GovernanceView: View {
             ScrollView {
                 VStack(spacing: Spacing.lg) {
                     statsBar
+                    civicSection
                     activeProposalsSection
                     historySection
                 }
@@ -208,6 +209,67 @@ struct GovernanceView: View {
         .padding(.vertical, Spacing.sm)
         .background(Color.surfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
+    }
+
+    // MARK: - Civic (public participation, separate from token governance)
+
+    private var civicSection: some View {
+        VStack(spacing: Spacing.ms) {
+            MtrxSectionHeader(title: "Civic")
+
+            NavigationLink {
+                CivicGovernanceView()
+            } label: {
+                civicEntryCard(
+                    icon: "building.columns.fill",
+                    title: "Civic Engagement",
+                    subtitle: "Community polls, your representatives, and election info.",
+                    badge: nil
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                VerifiableElectionsRoadmapView()
+            } label: {
+                civicEntryCard(
+                    icon: "lock.shield.fill",
+                    title: "Verifiable Elections Roadmap",
+                    subtitle: "The path toward secure, binding in-app voting — done right.",
+                    badge: "Roadmap"
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func civicEntryCard(icon: String, title: String, subtitle: String, badge: String?) -> some View {
+        MtrxCard(style: .glass) {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 24))
+                    .foregroundStyle(Color.accentPrimary)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: Spacing.xs) {
+                        Text(title)
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.labelPrimary)
+                        if let badge {
+                            MtrxBadge(text: badge, style: .neutral)
+                        }
+                    }
+                    Text(subtitle)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.labelTertiary)
+            }
+        }
     }
 
     // MARK: - Active Proposals
