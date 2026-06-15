@@ -35,13 +35,43 @@ struct LaunchView: View {
             .ignoresSafeArea()
             .opacity(auraOpacity)
 
-            // The signature glass orb — transparent, so as it expands it
-            // becomes a window onto Home beneath.
-            GlassOrb(size: 132)
-                .scaleEffect(orbScale * (breathe ? 1.03 : 0.99) * portalScale)
+            // An edgeless bloom of light — no rim, no circle, no object on
+            // top of the field. Pure luminescence that is part of the screen
+            // and feathers away to nothing, then pulses and dissolves into
+            // the portal that opens onto Home.
+            splashOrb
+                .scaleEffect(orbScale * (breathe ? 1.05 : 0.97) * portalScale)
                 .opacity(orbOpacity * orbExitOpacity)
         }
         .onAppear(perform: run)
+    }
+
+    /// The launch light: concentric radial gradients that fade fully to clear
+    /// at every edge, softened further with a blur — so there is no visible
+    /// shape outline of any kind. It simply belongs to the screen.
+    private var splashOrb: some View {
+        ZStack {
+            RadialGradient(
+                colors: [
+                    Color(red: 0.82, green: 0.96, blue: 0.99).opacity(0.55),
+                    Color(red: 0.66, green: 0.91, blue: 0.97).opacity(0.30),
+                    Color(red: 0.58, green: 0.86, blue: 0.95).opacity(0.10),
+                    Color(red: 0.55, green: 0.84, blue: 0.94).opacity(0.0),
+                ],
+                center: .center, startRadius: 2, endRadius: 150
+            )
+            // A soft off-center sheen — light caught inside the bloom, never
+            // a defined highlight. Also feathers to clear.
+            RadialGradient(
+                colors: [Color(red: 0.87, green: 0.85, blue: 0.99).opacity(0.30), .clear],
+                center: .init(x: 0.42, y: 0.40),
+                startRadius: 0, endRadius: 120
+            )
+            .blendMode(.screen)
+        }
+        .frame(width: 300, height: 300)
+        // The final feather: dissolves any remaining hint of an edge.
+        .blur(radius: 7)
     }
 
     private func run() {
@@ -52,24 +82,26 @@ struct LaunchView: View {
         withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
             breathe = true
         }
-        // The portal opens — gently, so it never flashes bright.
+        // The portal opens — the bloom breathes outward and dissolves into
+        // Home, never flashing bright because it is already soft, edgeless
+        // light that fades as it grows.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.7) {
-            // Ocean + aura fade first → Home is revealed beneath the orb.
-            withAnimation(.easeInOut(duration: 0.55)) {
+            // Ocean + aura fade first → Home is revealed beneath the light.
+            withAnimation(.easeInOut(duration: 0.6)) {
                 bgOpacity = 0
                 auraOpacity = 0
             }
-            // The glass orb expands, but a softer scale so it doesn't
-            // engulf the screen in light.
+            // The bloom expands gently — a soft opening, not an engulfing
+            // light. The edgeless gradient means no shape ever appears.
             withAnimation(.easeInOut(duration: 0.85)) {
-                portalScale = 13
+                portalScale = 2.8
             }
-            // The glass dissolves as it grows — overlapping the zoom so
-            // the brightness peels away instead of filling the screen.
-            withAnimation(.easeInOut(duration: 0.7).delay(0.18)) {
+            // It dissolves as it grows, fading in lockstep with the expansion
+            // so the light peels away into Home with no bright frame.
+            withAnimation(.easeInOut(duration: 0.75)) {
                 orbExitOpacity = 0
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.92) {
                 onComplete()
             }
         }

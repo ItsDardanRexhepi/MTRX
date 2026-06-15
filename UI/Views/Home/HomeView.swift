@@ -535,6 +535,26 @@ struct HomeView: View {
     /// the bar's own design. Trinity answers here with her full capabilities.
     private var homeChatPanel: some View {
         GeometryReader { geo in
+        // Space available above the keyboard (geo is keyboard-aware here).
+        let usable = geo.size.height - 28
+        // The card may grow until just shy of the keyboard, never past it.
+        let cap = max(240, usable - 6)
+        // The start window the user already tuned (~2/3 of the space). The
+        // card grows downward from here as the message lengthens, never past
+        // the cap — at which point the input scrolls within itself.
+        let base = min(cap, max(240, usable * 0.675))
+        // While composing a fresh message (no transcript yet), the card grows
+        // by one line's height for each wrapped line of the message beyond the
+        // first — estimated from the text so there is no layout feedback — and
+        // extends toward the keyboard, capping there so the input then scrolls.
+        let composing = homeChatVM.messages.isEmpty
+        let lineHeight: CGFloat = 19
+        let charsPerLine = 34.0
+        let lineCount = homeChatInput
+            .components(separatedBy: "\n")
+            .reduce(0) { $0 + max(1, Int(ceil(Double($1.count) / charsPerLine))) }
+        let grown = base + CGFloat(max(0, lineCount - 1)) * lineHeight
+        let cardHeight = composing ? min(cap, grown) : base
         VStack(spacing: 0) {
             // The card lifts so its top-right notch reaches up to the search
             // Starts ~1/4" higher, up into where the search bar sits (which
@@ -656,7 +676,11 @@ struct HomeView: View {
                 // Input — the search pill, restated inside the chat.
                 HStack(spacing: 8) {
                     TextField("Message Trinity…", text: $homeChatInput, axis: .vertical)
-                        .lineLimit(1...5)
+                        // Empty transcript → the input may grow tall enough to
+                        // push the card all the way to the keyboard before it
+                        // scrolls; once messages exist, keep it modest so the
+                        // transcript stays visible.
+                        .lineLimit(1...(homeChatVM.messages.isEmpty ? 16 : 6))
                         .font(.mtrxCaption1)
                         .foregroundStyle(Color.labelPrimary)
                         .focused($homeChatFocused)
@@ -681,9 +705,10 @@ struct HomeView: View {
                 .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
             }
             .padding(Spacing.md)
-            // Smaller than the full available space (~2/3), so the empty
-            // bubble isn't oversized; the transcript scrolls inside it.
-            .frame(maxHeight: max(200, (geo.size.height - 28) * 0.675))
+            // The card extends toward the keyboard as the message grows, then
+            // caps there — at which point the input scrolls within itself.
+            .frame(height: cardHeight, alignment: .top)
+            .animation(.smooth(duration: 0.24), value: cardHeight)
             .background(chatCardFlow)
             // Clean liquid-glass card — translucent, blurred, app-signature.
             .mtrxLiquidGlass(cornerRadius: 30)
@@ -2095,4 +2120,5 @@ private struct JiggleEffect: ViewModifier {
         }
     }
 }
+
 
