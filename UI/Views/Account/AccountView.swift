@@ -97,7 +97,7 @@ struct AccountView: View {
                 // Content flows naturally from the top — Sign Out sits right
                 // beneath the workspace tiles, with no forced-fill gaps above
                 // or below it.
-                VStack(spacing: Spacing.lg) {
+                VStack(spacing: Spacing.md) {
                     profileCard
                     portfolioSummary
                     workspaceSection
@@ -106,7 +106,7 @@ struct AccountView: View {
                         .offset(y: -15)
                 }
                 .padding(.horizontal, Spacing.contentPadding)
-                .padding(.top, Spacing.md)
+                .padding(.top, Spacing.sm)
                 // The floating dock reserves its own safe-area inset, so only a
                 // small breath is needed here — like Home, no dead space below.
                 .padding(.bottom, Spacing.md)
@@ -846,8 +846,10 @@ struct QuickActionCard: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
-                // Fill the tile so the 2×2 grid stretches to meet Sign Out.
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // A compact, fixed tile — not greedy — so the workspace grid
+                // doesn't stretch the page past the screen and force a scroll.
+                .frame(maxWidth: .infinity)
+                .frame(height: 78)
             }
         }
         .buttonStyle(.plain)
