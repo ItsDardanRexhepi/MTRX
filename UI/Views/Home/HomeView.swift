@@ -550,12 +550,15 @@ struct HomeView: View {
         // first — estimated from the text so there is no layout feedback — and
         // extends toward the keyboard, capping there so the input then scrolls.
         let composing = homeChatVM.messages.isEmpty
-        let lineHeight: CGFloat = 19
-        let charsPerLine = 34.0
+        let lineHeight: CGFloat = 22
+        let charsPerLine = 28.0
         let lineCount = homeChatInput
             .components(separatedBy: "\n")
             .reduce(0) { $0 + max(1, Int(ceil(Double($1.count) / charsPerLine))) }
-        let grown = base + CGFloat(max(0, lineCount - 1)) * lineHeight
+        // Composing starts compact — just the greeting and a one-line field —
+        // and only expands as the user actually types more lines.
+        let composeStart = min(base, max(220, usable * 0.46))
+        let grown = composeStart + CGFloat(max(0, lineCount - 1)) * lineHeight
         let cardHeight = composing ? min(cap, grown) : base
         VStack(spacing: 0) {
             // The card lifts so its top-right notch reaches up to the search
@@ -587,6 +590,8 @@ struct HomeView: View {
                 }
 
                 // Conversation — the real Trinity transcript. Fills the card.
+                // The centered greeting lives here, in the chat window, on every
+                // fresh open.
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: Spacing.sm) {
@@ -652,17 +657,21 @@ struct HomeView: View {
                     // A centered greeting fills the empty chat until the user
                     // starts typing — the same prompt every time it opens.
                     .overlay {
-                        if homeChatVM.messages.isEmpty && homeChatInput.isEmpty {
+                        // The intro lives in the chat window, centered, and
+                        // shows on every fresh chat — it stays put while the
+                        // user types in the field below, until the first reply.
+                        if homeChatVM.messages.isEmpty {
                             Text("What're we building?")
                                 .font(.system(size: 22, weight: .semibold, design: .rounded))
                                 .foregroundStyle(Color.labelSecondary)
                                 .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 .padding(.horizontal, Spacing.lg)
                                 .transition(.opacity)
                                 .allowsHitTesting(false)
                         }
                     }
-                    .animation(.easeInOut(duration: 0.2), value: homeChatInput.isEmpty)
+                    .animation(.easeInOut(duration: 0.2), value: homeChatVM.messages.isEmpty)
                     .onChange(of: homeChatVM.messages.count) {
                         if let last = homeChatVM.messages.last {
                             withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(last.id, anchor: .bottom) }
@@ -686,7 +695,7 @@ struct HomeView: View {
                         // scrolls; once messages exist, keep it modest so the
                         // transcript stays visible.
                         .lineLimit(1...(homeChatVM.messages.isEmpty ? 16 : 6))
-                        .font(.mtrxCaption1)
+                        .font(.mtrxBody)
                         .foregroundStyle(Color.labelPrimary)
                         .focused($homeChatFocused)
                         .tint(Color.trinityPrimary)
