@@ -96,7 +96,7 @@ struct AccountView: View {
             ScrollView {
                 // Content flows naturally from the top — Sign Out sits right
                 // beneath the workspace tiles, with no forced-fill gaps above
-                // or below it. The page bounces like Home at the bottom.
+                // or below it.
                 VStack(spacing: Spacing.lg) {
                     profileCard
                     portfolioSummary
@@ -107,9 +107,13 @@ struct AccountView: View {
                 }
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.top, Spacing.md)
-                .padding(.bottom, 96)
+                // The floating dock reserves its own safe-area inset, so only a
+                // small breath is needed here — like Home, no dead space below.
+                .padding(.bottom, Spacing.md)
             }
-            .scrollBounceBehavior(.always)
+            // Only scrolls if the content genuinely overflows — so when it all
+            // fits, there is nothing to scroll to, exactly like the Home tab.
+            .scrollBounceBehavior(.basedOnSize)
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Account")
             .navigationBarTitleDisplayMode(.inline)
