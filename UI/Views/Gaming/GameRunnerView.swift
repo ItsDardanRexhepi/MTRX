@@ -27,6 +27,7 @@ struct GameRunnerView: View {
         case .match3:    ColorBurstGameView(accent: game.accent)
         case .merge2048: Game2048View(accent: game.accent)
         case .breakout:  BrickBreakerView(accent: game.accent)
+        case .asteroids: AsteroidStormView(accent: game.accent)
         default:         arcadeBody
         }
     }

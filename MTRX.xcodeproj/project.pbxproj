@@ -271,6 +271,7 @@
 		BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 865035F886D6A8D182DB316D /* TrinityTools.swift */; };
 		72DA692B2BC4452FA776E3D2 /* GlassOrb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C38656A8CD24196A5849E67 /* GlassOrb.swift */; };
 		C05327F172E04FF8804BF566 /* GameRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E007D59DDAF3432FA3BB226F /* GameRunnerView.swift */; };
+		BD5750C44F7A44FEBB61EEB1 /* AsteroidStormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E4ABCD7AF54E5E98DF6B97 /* AsteroidStormView.swift */; };
 		7D384C1E789842E2AFFF87E7 /* BrickBreakerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E81B78C115F4C3E8C5EEF23 /* BrickBreakerView.swift */; };
 		238808F926184A6F899441C8 /* Game2048View.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2930FC10A844183A64A356C /* Game2048View.swift */; };
 		28D7E86DF04546AC819E87D0 /* ColorBurstGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9695F9B8D2A6466493E07A7D /* ColorBurstGameView.swift */; };
@@ -560,6 +561,7 @@
 		865035F886D6A8D182DB316D /* TrinityTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TrinityTools.swift"; path = "Core/Trinity/TrinityTools.swift"; sourceTree = SOURCE_ROOT; };
 		8C38656A8CD24196A5849E67 /* GlassOrb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GlassOrb.swift"; path = "UI/Components/GlassOrb.swift"; sourceTree = SOURCE_ROOT; };
 		E007D59DDAF3432FA3BB226F /* GameRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameRunnerView.swift"; path = "UI/Views/Gaming/GameRunnerView.swift"; sourceTree = SOURCE_ROOT; };
+		94E4ABCD7AF54E5E98DF6B97 /* AsteroidStormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "AsteroidStormView.swift"; path = "UI/Views/Gaming/AsteroidStormView.swift"; sourceTree = SOURCE_ROOT; };
 		8E81B78C115F4C3E8C5EEF23 /* BrickBreakerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "BrickBreakerView.swift"; path = "UI/Views/Gaming/BrickBreakerView.swift"; sourceTree = SOURCE_ROOT; };
 		C2930FC10A844183A64A356C /* Game2048View.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Game2048View.swift"; path = "UI/Views/Gaming/Game2048View.swift"; sourceTree = SOURCE_ROOT; };
 		9695F9B8D2A6466493E07A7D /* ColorBurstGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ColorBurstGameView.swift"; path = "UI/Views/Gaming/ColorBurstGameView.swift"; sourceTree = SOURCE_ROOT; };
@@ -1618,6 +1620,7 @@
 				BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */,
 				72DA692B2BC4452FA776E3D2 /* GlassOrb.swift in Sources */,
 				C05327F172E04FF8804BF566 /* GameRunnerView.swift in Sources */,
+				BD5750C44F7A44FEBB61EEB1 /* AsteroidStormView.swift in Sources */,
 				7D384C1E789842E2AFFF87E7 /* BrickBreakerView.swift in Sources */,
 				238808F926184A6F899441C8 /* Game2048View.swift in Sources */,
 				28D7E86DF04546AC819E87D0 /* ColorBurstGameView.swift in Sources */,

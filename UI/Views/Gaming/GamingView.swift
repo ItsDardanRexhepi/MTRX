@@ -27,6 +27,7 @@ enum GameKind {
     case match3     // swap-to-match gem puzzle
     case merge2048  // 2048 sliding-tile merge puzzle
     case breakout   // paddle-and-ball brick breaker
+    case asteroids  // ship-and-rocks space shooter
 }
 
 struct TournamentItem: Identifiable {
@@ -68,7 +69,7 @@ class GamingViewModel: ObservableObject {
         GameItem(name: "Color Burst", assetCount: 5_680, playerCount: 31_200, kind: .match3, accent: Color(red: 0.98, green: 0.37, blue: 0.45)),
         GameItem(name: "2048", assetCount: 1_890, playerCount: 12_400, kind: .merge2048, accent: Color(red: 0.98, green: 0.65, blue: 0.15)),
         GameItem(name: "Brick Breaker", assetCount: 3_340, playerCount: 9_800, kind: .breakout, accent: Color(red: 0.97, green: 0.30, blue: 0.55)),
-        GameItem(name: "Meta Tactics", assetCount: 4_100, playerCount: 22_700, kind: .reflex, accent: Color(red: 0.25, green: 0.55, blue: 0.98))
+        GameItem(name: "Asteroid Storm", assetCount: 4_100, playerCount: 22_700, kind: .asteroids, accent: Color(red: 0.25, green: 0.55, blue: 0.98))
     ]
 
     static let sampleTournaments: [TournamentItem] = [
@@ -390,6 +391,14 @@ struct GamingView: View {
                 Circle().fill(.white).frame(width: 5, height: 5)
                 Capsule().fill(game.accent).frame(width: 20, height: 5)
             }
+        case .asteroids:
+            ZStack {
+                Circle().fill(Color(white: 0.4)).frame(width: 11, height: 11).offset(x: -13, y: -8)
+                Circle().fill(Color(white: 0.4)).frame(width: 8, height: 8).offset(x: 14, y: 9)
+                Triangle()
+                    .fill(LinearGradient(colors: [game.accent, game.accent.opacity(0.6)], startPoint: .top, endPoint: .bottom))
+                    .frame(width: 18, height: 22)
+            }
         default:
             Image(systemName: "gamecontroller.fill")
                 .font(.system(size: 24))
@@ -437,6 +446,18 @@ struct GamingView: View {
         case "Upcoming": return "Coming Soon"
         default: return status
         }
+    }
+}
+
+// A simple upward-pointing triangle — used for the space-shooter tile icon.
+struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.closeSubpath()
+        return p
     }
 }
 
