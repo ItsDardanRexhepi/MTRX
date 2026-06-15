@@ -304,6 +304,44 @@ final class FoundationModelsEngine {
         #endif
         throw EngineError.unavailable
     }
+
+    /// Stream a reply as it is produced, so the UI can show the agent
+    /// "typing" the instant generation starts instead of waiting for the
+    /// whole answer. `onPartial` is called on the main actor with each
+    /// cumulative snapshot; the final text is returned.
+    func streamRespond(
+        to prompt: String,
+        context: String? = nil,
+        onPartial: @escaping @MainActor (String) -> Void
+    ) async throws -> String {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *) {
+            guard Self.isAvailable else { throw EngineError.unavailable }
+            let live = session()
+
+            var spins = 0
+            while live.isResponding && spins < 100 {
+                try await Task.sleep(nanoseconds: 50_000_000)
+                spins += 1
+            }
+
+            let full: String
+            if let context, !context.isEmpty {
+                full = "[Context: \(context)]\n\n\(prompt)"
+            } else {
+                full = prompt
+            }
+
+            var latest = ""
+            for try await partial in live.streamResponse(to: full) {
+                latest = partial.content
+                await onPartial(partial.content)
+            }
+            return latest
+        }
+        #endif
+        throw EngineError.unavailable
+    }
 }
 
 // MARK: - Inference Source
@@ -462,6 +500,52 @@ final class InferenceRouter {
         } catch {
             // Guardrail violations or transient model errors — let the
             // caller fall back gracefully.
+            return nil
+        }
+    }
+
+    /// Like `generateOnDeviceOnly`, but streams partial text to `onPartial`
+    /// (main actor) as the model produces it, so the agent appears to answer
+    /// instantly. Returns the final reply, or nil if Apple Intelligence is
+    /// unavailable or generation failed — callers own the fallback.
+    func generateOnDeviceStreaming(
+        prompt: String,
+        context: String? = nil,
+        persona: Persona = .trinity,
+        onPartial: @escaping @MainActor (String) -> Void
+    ) async -> String? {
+        guard #available(iOS 26, macOS 26, *), isOnDeviceAvailable else { return nil }
+        do {
+            let activeEngine = engine(for: persona)
+            let sanitizingPartial: @MainActor (String) -> Void = { partial in
+                onPartial(Self.sanitize(partial))
+            }
+            let first = try await activeEngine.streamRespond(
+                to: prompt, context: context, onPartial: sanitizingPartial
+            )
+            var reply = Self.sanitize(first)
+            guard !reply.isEmpty else { return nil }
+
+            // Same no-refusal guarantee as the non-streaming path: if the
+            // reply reads like a refusal, push once more and replace it.
+            if Self.soundsLikeRefusal(reply) {
+                let retry = try await activeEngine.respond(
+                    to: """
+                    Answer my question directly this time. Use your tools — \
+                    search the web with different, simpler terms, check live \
+                    prices or weather — or reason it out from what you know. \
+                    Give me your best answer, not a statement that you can't.
+                    """,
+                    context: context
+                )
+                let retried = Self.sanitize(retry)
+                if !retried.isEmpty, !Self.soundsLikeRefusal(retried) {
+                    reply = retried
+                    await onPartial(retried)
+                }
+            }
+            return reply
+        } catch {
             return nil
         }
     }

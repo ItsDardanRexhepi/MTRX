@@ -701,8 +701,11 @@ struct HomeView: View {
                 .padding(.trailing, 5)
                 .padding(.vertical, 5)
                 .background(askBarFlow)
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
+                // A rounded-rectangle "squircle" — like an iMessage bubble —
+                // rather than a full stadium/oval, so a tall multi-line message
+                // reads as a message field, not a pill.
+                .clipShape(RoundedRectangle(cornerRadius: 23, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous).stroke(.white.opacity(0.16), lineWidth: 1))
             }
             .padding(Spacing.md)
             // The card extends toward the keyboard as the message grows, then

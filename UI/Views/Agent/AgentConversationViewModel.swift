@@ -4,7 +4,8 @@ import Combine
 /// Message model for agent conversations. Codable so chats persist.
 struct AgentMessage: Identifiable, Codable {
     let id: UUID
-    let text: String
+    /// Mutable so an on-device reply can stream into the same bubble.
+    var text: String
     let role: MessageRole
     let agentName: String?
     let timestamp: Date
@@ -645,19 +646,41 @@ final class AgentConversationViewModel: ObservableObject {
                 case .neo: return .neo
                 }
             }()
-            if !intercepted,
-               let onDevice = await inference.generateOnDeviceOnly(
-                   prompt: text,
-                   context: contextLine,
-                   persona: persona
-               ) {
-                messages.append(AgentMessage(
-                    text: onDevice,
-                    role: .agent,
-                    agentName: agentName
-                ))
-                isTyping = false
-                return
+            if !intercepted {
+                // Stream the on-device reply into a single live bubble so the
+                // agent starts answering the instant the first token lands,
+                // instead of after the whole reply is generated.
+                let streamMsg = AgentMessage(text: "", role: .agent, agentName: agentName)
+                let streamID = streamMsg.id
+                var didStream = false
+                let onDevice = await inference.generateOnDeviceStreaming(
+                    prompt: text,
+                    context: contextLine,
+                    persona: persona,
+                    onPartial: { [weak self] partial in
+                        guard let self, !partial.isEmpty else { return }
+                        if !didStream {
+                            didStream = true
+                            self.isTyping = false
+                            self.messages.append(streamMsg)
+                        }
+                        if let idx = self.messages.firstIndex(where: { $0.id == streamID }) {
+                            self.messages[idx].text = partial
+                        }
+                    }
+                )
+                if let onDevice {
+                    if didStream, let idx = messages.firstIndex(where: { $0.id == streamID }) {
+                        messages[idx].text = onDevice
+                    } else {
+                        messages.append(AgentMessage(text: onDevice, role: .agent, agentName: agentName))
+                    }
+                    isTyping = false
+                    return
+                }
+                // On-device unavailable/failed → drop any partial bubble and
+                // fall through to the gateway.
+                if didStream { messages.removeAll { $0.id == streamID } }
             }
 
             // 2 — Gateway (when Apple Intelligence isn't available)
