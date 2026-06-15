@@ -541,25 +541,15 @@ struct HomeView: View {
         let usable = geo.size.height - 28
         // The card may grow until just shy of the keyboard, never past it.
         let cap = max(240, usable - 6)
-        // The start window the user already tuned (~2/3 of the space). The
-        // card grows downward from here as the message lengthens, never past
-        // the cap — at which point the input scrolls within itself.
-        let base = min(cap, max(240, usable * 0.675))
-        // While composing a fresh message (no transcript yet), the card grows
-        // by one line's height for each wrapped line of the message beyond the
-        // first — estimated from the text so there is no layout feedback — and
-        // extends toward the keyboard, capping there so the input then scrolls.
-        let composing = homeChatVM.messages.isEmpty
-        let lineHeight: CGFloat = 22
-        let charsPerLine = 28.0
-        let lineCount = homeChatInput
-            .components(separatedBy: "\n")
-            .reduce(0) { $0 + max(1, Int(ceil(Double($1.count) / charsPerLine))) }
-        // Composing starts compact — just the greeting and a one-line field —
-        // and only expands as the user actually types more lines.
-        let composeStart = min(base, max(220, usable * 0.46))
-        let grown = composeStart + CGFloat(max(0, lineCount - 1)) * lineHeight
-        let cardHeight = composing ? min(cap, grown) : base
+        // The card always fills the space from just under the search bar down
+        // to the top of the keyboard — never past it. The transcript (or the
+        // centered greeting on a fresh open) occupies the room, and the input
+        // field grows within the card rather than the card itself resizing.
+        let cardHeight = cap
+        // The greeting shows on a fresh open and stays until the user starts
+        // typing — then it gives way to the message they're composing.
+        let showGreeting = homeChatVM.messages.isEmpty
+            && homeChatInput.trimmingCharacters(in: .whitespaces).isEmpty
         VStack(spacing: 0) {
             // The card lifts so its top-right notch reaches up to the search
             // Starts ~1/4" higher, up into where the search bar sits (which
@@ -591,7 +581,9 @@ struct HomeView: View {
 
                 // Conversation — the real Trinity transcript. Fills the card.
                 // The centered greeting lives here, in the chat window, on every
-                // fresh open.
+                // fresh open — overlaid on the transcript via a ZStack so it
+                // sits dead-center in the available space.
+                ZStack {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: Spacing.sm) {
@@ -652,26 +644,7 @@ struct HomeView: View {
                     // The transcript fills the bubble and scrolls within it —
                     // newest message pinned to the bottom, just above the input
                     // — so it never overruns the keyboard.
-                    .frame(maxHeight: .infinity)
                     .defaultScrollAnchor(.bottom)
-                    // A centered greeting fills the empty chat until the user
-                    // starts typing — the same prompt every time it opens.
-                    .overlay {
-                        // The intro lives in the chat window, centered, and
-                        // shows on every fresh chat — it stays put while the
-                        // user types in the field below, until the first reply.
-                        if homeChatVM.messages.isEmpty {
-                            Text("What're we building?")
-                                .font(.system(size: 22, weight: .semibold, design: .rounded))
-                                .foregroundStyle(Color.labelSecondary)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .padding(.horizontal, Spacing.lg)
-                                .transition(.opacity)
-                                .allowsHitTesting(false)
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.2), value: homeChatVM.messages.isEmpty)
                     .onChange(of: homeChatVM.messages.count) {
                         if let last = homeChatVM.messages.last {
                             withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(last.id, anchor: .bottom) }
@@ -683,6 +656,24 @@ struct HomeView: View {
                         }
                     }
                 }
+
+                // The intro lives in the chat window, centered. It shows on
+                // every fresh chat, then gives way as soon as the user begins
+                // composing a message in the field below.
+                if showGreeting {
+                    Text("What're we building?")
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, Spacing.lg)
+                        .transition(.opacity)
+                        .allowsHitTesting(false)
+                }
+                }
+                // The conversation area takes all the room between the header
+                // and the input — the greeting centers within it.
+                .frame(maxHeight: .infinity)
+                .animation(.easeInOut(duration: 0.2), value: showGreeting)
 
                 // Input — the search pill, restated inside the chat. Centered
                 // so the typed text sits vertically centered in the field
