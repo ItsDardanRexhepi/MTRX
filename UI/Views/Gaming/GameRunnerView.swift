@@ -21,6 +21,14 @@ struct GameRunnerView: View {
     }
 
     var body: some View {
+        switch game.kind {
+        case .solitaire: SolitaireGameView(accent: game.accent)
+        case .blocks:    BlockGameView(accent: game.accent)
+        default:         arcadeBody
+        }
+    }
+
+    private var arcadeBody: some View {
         ZStack {
             // Deep arena, tinted to the game's accent.
             LinearGradient(
@@ -109,6 +117,7 @@ struct GameRunnerView: View {
         case .targets: targetsField
         case .reflex:  reflexField
         case .sequence: sequenceField
+        default: EmptyView()
         }
     }
 
@@ -266,6 +275,7 @@ struct GameRunnerView: View {
         case .targets: return "Tap the glowing nodes before they fade. Clear the quota each level — miss too many and you lose a life."
         case .reflex:  return "Wait for the circle to turn teal, then tap as fast as you can. Tap early and you lose a life."
         case .sequence: return "Watch the pattern light up, then repeat it. Each level adds one more step."
+        default: return ""
         }
     }
 }
@@ -318,6 +328,7 @@ final class GameEngine: ObservableObject {
         case .targets: startTargets()
         case .reflex:  startReflex()
         case .sequence: startSequence()
+        default: break
         }
     }
 

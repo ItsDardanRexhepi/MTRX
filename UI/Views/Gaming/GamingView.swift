@@ -19,9 +19,11 @@ struct GameItem: Identifiable {
 /// The three demo mechanics — each game card maps to one so they play
 /// differently. All run fully on-device, no network.
 enum GameKind {
-    case targets   // tap the glowing nodes before they fade
-    case reflex    // tap only when the ring turns teal
-    case sequence  // repeat the growing pattern
+    case targets    // tap the glowing nodes before they fade
+    case reflex     // tap only when the ring turns teal
+    case sequence   // repeat the growing pattern
+    case solitaire  // full Klondike solitaire
+    case blocks     // falling-block stacking puzzle
 }
 
 struct TournamentItem: Identifiable {
@@ -58,8 +60,8 @@ class GamingViewModel: ObservableObject {
     }
 
     static let sampleGames: [GameItem] = [
-        GameItem(name: "Neon Arena", assetCount: 2_450, playerCount: 18_300, kind: .targets, accent: Color(red: 0.13, green: 0.83, blue: 0.93)),
-        GameItem(name: "CryptoQuest", assetCount: 8_120, playerCount: 42_600, kind: .sequence, accent: Color(red: 0.62, green: 0.40, blue: 0.96)),
+        GameItem(name: "Neon Arena", assetCount: 2_450, playerCount: 18_300, kind: .solitaire, accent: Color(red: 0.13, green: 0.83, blue: 0.93)),
+        GameItem(name: "CryptoQuest", assetCount: 8_120, playerCount: 42_600, kind: .blocks, accent: Color(red: 0.62, green: 0.40, blue: 0.96)),
         GameItem(name: "Pixel Kingdoms", assetCount: 5_680, playerCount: 31_200, kind: .targets, accent: Color(red: 0.20, green: 0.84, blue: 0.40)),
         GameItem(name: "Chain Racers", assetCount: 1_890, playerCount: 12_400, kind: .reflex, accent: Color(red: 0.98, green: 0.65, blue: 0.15)),
         GameItem(name: "DeFi Dungeons", assetCount: 3_340, playerCount: 9_800, kind: .sequence, accent: Color(red: 0.97, green: 0.30, blue: 0.55)),
@@ -162,9 +164,7 @@ struct GamingView: View {
                             )
                             .frame(height: 60)
 
-                        Image(systemName: "gamecontroller.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(game.accent)
+                        gameGlyph(game)
 
                         // A clear "playable" cue in the corner.
                         VStack {
@@ -324,6 +324,32 @@ struct GamingView: View {
     }
 
     // MARK: - Helpers
+
+    /// The icon shown on each game tile — a playing card for the solitaire
+    /// game, a block for the stacking puzzle, a controller for the rest.
+    @ViewBuilder
+    private func gameGlyph(_ game: GameItem) -> some View {
+        switch game.kind {
+        case .solitaire:
+            ZStack {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.white)
+                    .frame(width: 23, height: 31)
+                    .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
+                Image(systemName: "suit.spade.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.black)
+            }
+        case .blocks:
+            Image(systemName: "square.grid.2x2.fill")
+                .font(.system(size: 24))
+                .foregroundStyle(game.accent)
+        default:
+            Image(systemName: "gamecontroller.fill")
+                .font(.system(size: 24))
+                .foregroundStyle(game.accent)
+        }
+    }
 
     private func formatCount(_ count: Int) -> String {
         if count >= 1_000_000 {
