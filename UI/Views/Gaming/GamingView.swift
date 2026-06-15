@@ -25,6 +25,7 @@ enum GameKind {
     case solitaire  // full Klondike solitaire
     case blocks     // falling-block stacking puzzle
     case match3     // swap-to-match gem puzzle
+    case merge2048  // 2048 sliding-tile merge puzzle
 }
 
 struct TournamentItem: Identifiable {
@@ -64,7 +65,7 @@ class GamingViewModel: ObservableObject {
         GameItem(name: "Solitaire", assetCount: 2_450, playerCount: 18_300, kind: .solitaire, accent: Color(red: 0.13, green: 0.83, blue: 0.93)),
         GameItem(name: "Tetris", assetCount: 8_120, playerCount: 42_600, kind: .blocks, accent: Color(red: 0.62, green: 0.40, blue: 0.96)),
         GameItem(name: "Color Burst", assetCount: 5_680, playerCount: 31_200, kind: .match3, accent: Color(red: 0.98, green: 0.37, blue: 0.45)),
-        GameItem(name: "Chain Racers", assetCount: 1_890, playerCount: 12_400, kind: .reflex, accent: Color(red: 0.98, green: 0.65, blue: 0.15)),
+        GameItem(name: "2048", assetCount: 1_890, playerCount: 12_400, kind: .merge2048, accent: Color(red: 0.98, green: 0.65, blue: 0.15)),
         GameItem(name: "DeFi Dungeons", assetCount: 3_340, playerCount: 9_800, kind: .sequence, accent: Color(red: 0.97, green: 0.30, blue: 0.55)),
         GameItem(name: "Meta Tactics", assetCount: 4_100, playerCount: 22_700, kind: .reflex, accent: Color(red: 0.25, green: 0.55, blue: 0.98))
     ]
@@ -73,7 +74,7 @@ class GamingViewModel: ObservableObject {
         TournamentItem(name: "Solitaire Championship", prizePool: "5,000 USDC", entryFee: "25 USDC", players: 128, status: "Open"),
         TournamentItem(name: "Tetris Season Finals", prizePool: "10,000 USDC", entryFee: "50 USDC", players: 256, status: "Open"),
         TournamentItem(name: "Color Burst Siege", prizePool: "2,500 USDC", entryFee: "10 USDC", players: 64, status: "In Progress"),
-        TournamentItem(name: "Chain Racers Grand Prix", prizePool: "3,000 USDC", entryFee: "15 USDC", players: 32, status: "Upcoming")
+        TournamentItem(name: "2048 Grand Prix", prizePool: "3,000 USDC", entryFee: "15 USDC", players: 32, status: "Upcoming")
     ]
 }
 
@@ -361,6 +362,18 @@ struct GamingView: View {
                     gemDot(gemColors[2]); gemDot(gemColors[3])
                 }
             }
+        case .merge2048:
+            // A little grid of numbered tiles.
+            VStack(spacing: 3) {
+                HStack(spacing: 3) {
+                    numberTile("2", Color(red: 0.42, green: 0.62, blue: 0.82))
+                    numberTile("4", Color(red: 0.30, green: 0.71, blue: 0.79))
+                }
+                HStack(spacing: 3) {
+                    numberTile("8", Color(red: 0.48, green: 0.81, blue: 0.45))
+                    numberTile("16", Color(red: 0.96, green: 0.74, blue: 0.35))
+                }
+            }
         default:
             Image(systemName: "gamecontroller.fill")
                 .font(.system(size: 24))
@@ -373,6 +386,14 @@ struct GamingView: View {
             .fill(LinearGradient(colors: [color, color.opacity(0.65)], startPoint: .top, endPoint: .bottom))
             .overlay(Circle().stroke(.white.opacity(0.4), lineWidth: 0.8))
             .frame(width: 13, height: 13)
+    }
+
+    private func numberTile(_ text: String, _ color: Color) -> some View {
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .fill(LinearGradient(colors: [color, color.opacity(0.65)], startPoint: .top, endPoint: .bottom))
+            .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).stroke(.white.opacity(0.4), lineWidth: 0.8))
+            .overlay(Text(text).font(.system(size: 8, weight: .heavy, design: .rounded)).foregroundStyle(.white))
+            .frame(width: 16, height: 16)
     }
 
     private func formatCount(_ count: Int) -> String {
