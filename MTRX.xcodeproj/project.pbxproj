@@ -271,6 +271,7 @@
 		BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 865035F886D6A8D182DB316D /* TrinityTools.swift */; };
 		72DA692B2BC4452FA776E3D2 /* GlassOrb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C38656A8CD24196A5849E67 /* GlassOrb.swift */; };
 		C05327F172E04FF8804BF566 /* GameRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E007D59DDAF3432FA3BB226F /* GameRunnerView.swift */; };
+		28D7E86DF04546AC819E87D0 /* ColorBurstGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9695F9B8D2A6466493E07A7D /* ColorBurstGameView.swift */; };
 		C309C070A4DE400280FE7E2C /* SolitaireGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE83F452C12B4BF482244847 /* SolitaireGameView.swift */; };
 		73D25EBE19B74EEF85DAD707 /* BlockGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08B7F793EEC94914A5BF6787 /* BlockGameView.swift */; };
 		231E8C4C1EF94081B392A02C /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 613B772D292A4642BA89733C /* NetworkPathMonitor.swift */; };
@@ -557,6 +558,7 @@
 		865035F886D6A8D182DB316D /* TrinityTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TrinityTools.swift"; path = "Core/Trinity/TrinityTools.swift"; sourceTree = SOURCE_ROOT; };
 		8C38656A8CD24196A5849E67 /* GlassOrb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GlassOrb.swift"; path = "UI/Components/GlassOrb.swift"; sourceTree = SOURCE_ROOT; };
 		E007D59DDAF3432FA3BB226F /* GameRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameRunnerView.swift"; path = "UI/Views/Gaming/GameRunnerView.swift"; sourceTree = SOURCE_ROOT; };
+		9695F9B8D2A6466493E07A7D /* ColorBurstGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ColorBurstGameView.swift"; path = "UI/Views/Gaming/ColorBurstGameView.swift"; sourceTree = SOURCE_ROOT; };
 		BE83F452C12B4BF482244847 /* SolitaireGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SolitaireGameView.swift"; path = "UI/Views/Gaming/SolitaireGameView.swift"; sourceTree = SOURCE_ROOT; };
 		08B7F793EEC94914A5BF6787 /* BlockGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "BlockGameView.swift"; path = "UI/Views/Gaming/BlockGameView.swift"; sourceTree = SOURCE_ROOT; };
 		613B772D292A4642BA89733C /* NetworkPathMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "NetworkPathMonitor.swift"; path = "Core/Network/NetworkPathMonitor.swift"; sourceTree = SOURCE_ROOT; };
@@ -1612,6 +1614,7 @@
 				BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */,
 				72DA692B2BC4452FA776E3D2 /* GlassOrb.swift in Sources */,
 				C05327F172E04FF8804BF566 /* GameRunnerView.swift in Sources */,
+				28D7E86DF04546AC819E87D0 /* ColorBurstGameView.swift in Sources */,
 				C309C070A4DE400280FE7E2C /* SolitaireGameView.swift in Sources */,
 				73D25EBE19B74EEF85DAD707 /* BlockGameView.swift in Sources */,
 				231E8C4C1EF94081B392A02C /* NetworkPathMonitor.swift in Sources */,

@@ -264,7 +264,7 @@ struct BlockGameView: View {
         HStack {
             roundButton("xmark") { dismiss() }
             Spacer()
-            Text("Block Stack")
+            Text("Tetris")
                 .font(.system(size: 19, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
             Spacer()
