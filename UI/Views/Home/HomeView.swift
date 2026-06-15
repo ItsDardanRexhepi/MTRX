@@ -183,7 +183,7 @@ struct HomeView: View {
                     showDailyFlow = false
                 }
             )
-            .presentationDetents([.height(500)])
+            .presentationDetents([.height(580)])
             .presentationDragIndicator(.visible)
         }
         .sheet(item: $presentedService) { service in
@@ -1159,6 +1159,18 @@ struct HomeView: View {
         // height; the clip keeps any longer content (polls, media) from
         // bleeding out past the card's rounded edge.
         .frame(height: 196, alignment: .topLeading)
+        // Content taller than the card (polls, media) dissolves softly into
+        // the card's bottom instead of being hard-cut mid-line at the edge.
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .black, location: 0),
+                    .init(color: .black, location: 0.85),
+                    .init(color: .clear, location: 1.0)
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+        )
         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
         .background(Color.trinityPrimary.opacity(0.03))
         .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
@@ -1991,14 +2003,13 @@ struct DailyFlowSheet: View {
             )
             .ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: Spacing.lg) {
+            VStack(spacing: Spacing.md) {
                     // Hero ring — large, with a gradient stroke that glows.
                     VStack(spacing: Spacing.sm) {
                         ZStack {
                             Circle()
                                 .stroke(accent.opacity(0.14), lineWidth: 11)
-                                .frame(width: 132, height: 132)
+                                .frame(width: 118, height: 118)
                             Circle()
                                 .trim(from: 0, to: max(dailyFlow.progress, 0.04))
                                 .stroke(
@@ -2009,7 +2020,7 @@ struct DailyFlowSheet: View {
                                     style: StrokeStyle(lineWidth: 11, lineCap: .round)
                                 )
                                 .rotationEffect(.degrees(-90))
-                                .frame(width: 132, height: 132)
+                                .frame(width: 118, height: 118)
                                 .shadow(color: accent.opacity(0.5), radius: 12)
                                 .animation(Motion.springDefault, value: dailyFlow.progress)
 
@@ -2028,7 +2039,7 @@ struct DailyFlowSheet: View {
                                 }
                             }
                         }
-                        .padding(.top, Spacing.lg)
+                        .padding(.top, Spacing.sm)
 
                         Text(dailyFlow.isComplete ? "In flow" : "Daily Flow")
                             .font(.system(size: 28, weight: .heavy, design: .rounded))
@@ -2044,7 +2055,7 @@ struct DailyFlowSheet: View {
                     }
 
                     // Goal cards — glass, spacious, app-consistent.
-                    VStack(spacing: Spacing.md) {
+                    VStack(spacing: Spacing.sm) {
                         goalCard(.agent, icon: "bubble.left.and.bubble.right.fill",
                                  subtitle: "Ask Trinity anything", action: onAgent)
                         goalCard(.social, icon: "globe",
@@ -2057,9 +2068,12 @@ struct DailyFlowSheet: View {
                     Text("Resets at midnight")
                         .font(.mtrxCaption1)
                         .foregroundStyle(Color.labelTertiary)
-                        .padding(.bottom, Spacing.xl)
+
+                    // Everything fits the window — no scrolling. This holds the
+                    // content up top and absorbs any slack at the bottom.
+                    Spacer(minLength: 0)
                 }
-            }
+                .padding(.top, Spacing.sm)
         }
     }
 
