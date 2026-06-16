@@ -887,8 +887,6 @@ final class AgentConversationViewModel: ObservableObject {
             agentName: "Morpheus"
         ))
 
-        // Morpheus speaks — the guardian is heard, not just read.
-        Task.detached { await MorpheusVoice().speak("Identity verification required.") }
 
         isTyping = true
         Task { @MainActor in
