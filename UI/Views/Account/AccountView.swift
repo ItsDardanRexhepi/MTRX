@@ -492,7 +492,8 @@ struct AccountView: View {
                                 let opt = tiles[index]
                                 QuickActionCard(icon: opt.icon, label: opt.title, color: opt.color,
                                                 destination: opt.destination,
-                                                onOpen: { presentedDestination = $0 })
+                                                onOpen: { presentedDestination = $0 },
+                                                useLoopGlyph: opt == .messaging)
                                     .onLongPressGesture {
                                         MtrxHaptics.impact(.medium)
                                         showWorkspaceEditor = true
@@ -595,6 +596,8 @@ struct AccountView: View {
             )
         }
         .buttonStyle(.plain)
+        // Enlarged 1% per spec; the label stays centered within the button.
+        .scaleEffect(1.01)
         .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.2)
     }
 
@@ -828,14 +831,21 @@ struct QuickActionCard: View {
     let color: Color
     let destination: AccountNavDestination
     let onOpen: (AccountNavDestination) -> Void
+    var useLoopGlyph: Bool = false
 
     var body: some View {
         Button { onOpen(destination) } label: {
             MtrxCard(style: .standard) {
                 VStack(spacing: Spacing.sm) {
-                    Image(systemName: icon)
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(color)
+                    ZStack {
+                        if useLoopGlyph {
+                            LoopArrowGlyph(color: color).padding(10)
+                        } else {
+                            Image(systemName: icon)
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundStyle(color)
+                        }
+                    }
                         .frame(width: 46, height: 46)
                         .background(color.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))

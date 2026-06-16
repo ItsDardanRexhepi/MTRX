@@ -358,7 +358,11 @@ struct AsteroidStormView: View {
             .foregroundStyle(tint)
             .frame(width: 64, height: 56)
             .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
-            .gesture(
+            .contentShape(Rectangle())
+            // High-priority so the hold isn't stolen by an ancestor scroll or
+            // the left-edge back-swipe — otherwise onEnded fires instantly and
+            // resets the flag, making only the tap-to-fire button seem to work.
+            .highPriorityGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in press() }
                     .onEnded { _ in release() }

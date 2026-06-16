@@ -269,6 +269,7 @@
 		B9521CFFF743D951E60FE2C5 /* WalletSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D87F42BA86A106D90185132 /* WalletSync.swift */; };
 		E89DA464BAA3574A5A5D44F3 /* LedgerBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E76603E0373DA6297E6253 /* LedgerBridge.swift */; };
 		D72833AE066FB976BF316C47 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF571B31F424F56C472006AA /* HomeView.swift */; };
+		CC3B624628414AE19FD22533 /* GreetingPopupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6703C9BD1C943B0B2196D00 /* GreetingPopupsView.swift */; };
 		BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 865035F886D6A8D182DB316D /* TrinityTools.swift */; };
 		72DA692B2BC4452FA776E3D2 /* GlassOrb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C38656A8CD24196A5849E67 /* GlassOrb.swift */; };
 		C05327F172E04FF8804BF566 /* GameRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E007D59DDAF3432FA3BB226F /* GameRunnerView.swift */; };
@@ -560,6 +561,7 @@
 		2D87F42BA86A106D90185132 /* WalletSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WalletSync.swift"; path = "Core/Wallet/WalletSync.swift"; sourceTree = SOURCE_ROOT; };
 		C9E76603E0373DA6297E6253 /* LedgerBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LedgerBridge.swift"; path = "Core/Wallet/LedgerBridge.swift"; sourceTree = SOURCE_ROOT; };
 		DF571B31F424F56C472006AA /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HomeView.swift"; path = "UI/Views/Home/HomeView.swift"; sourceTree = SOURCE_ROOT; };
+		F6703C9BD1C943B0B2196D00 /* GreetingPopupsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GreetingPopupsView.swift"; path = "UI/Views/Home/GreetingPopupsView.swift"; sourceTree = SOURCE_ROOT; };
 		865035F886D6A8D182DB316D /* TrinityTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TrinityTools.swift"; path = "Core/Trinity/TrinityTools.swift"; sourceTree = SOURCE_ROOT; };
 		8C38656A8CD24196A5849E67 /* GlassOrb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GlassOrb.swift"; path = "UI/Components/GlassOrb.swift"; sourceTree = SOURCE_ROOT; };
 		E007D59DDAF3432FA3BB226F /* GameRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameRunnerView.swift"; path = "UI/Views/Gaming/GameRunnerView.swift"; sourceTree = SOURCE_ROOT; };
@@ -1643,6 +1645,7 @@
 				B9521CFFF743D951E60FE2C5 /* WalletSync.swift in Sources */,
 				E89DA464BAA3574A5A5D44F3 /* LedgerBridge.swift in Sources */,
 				D72833AE066FB976BF316C47 /* HomeView.swift in Sources */,
+				CC3B624628414AE19FD22533 /* GreetingPopupsView.swift in Sources */,
 				1862D2F9A98B4227244F2B5D /* PendingIntent.swift in Sources */,
 				354C1A418EDECABAAE91E966 /* IntentQueueService.swift in Sources */,
 				9BF0AD02F7618D478E76D23A /* CreatorView.swift in Sources */,

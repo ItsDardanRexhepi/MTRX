@@ -1485,7 +1485,7 @@ struct SocialThemeSheet: View {
                             Button {
                                 showSubscription = true
                             } label: {
-                                Text("Upgrade to Pro — $4.99/mo")
+                                Text("Upgrade to Pro — $9.99/mo")
                                     .font(.mtrxBodyBold)
                                     .foregroundStyle(.white)
                                     .frame(maxWidth: .infinity)

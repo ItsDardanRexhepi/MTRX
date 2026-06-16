@@ -206,16 +206,40 @@ struct HomeView: View {
 
     // MARK: - Greeting
 
+    @State private var showWeatherPopup = false
+    @State private var showCalendarPopup = false
+    @State private var calendarDate = Date()
+
     private var greetingHeader: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             // Greeting and date share one eyebrow line — the dashboard
             // below needs the vertical room more than the calendar does.
             // The live transport indicator rides at the trailing edge.
-            Text("\(timeGreeting) · \(Date().formatted(.dateTime.weekday(.wide).month(.wide).day().year()))")
-                .font(.mtrxCaption1)
-                .foregroundStyle(Color.trinityPrimary.opacity(0.85))
-                .textCase(.uppercase)
-                .kerning(1.2)
+            HStack(spacing: 6) {
+                // Tap the greeting → live local weather.
+                Text(timeGreeting)
+                    .contentShape(Rectangle())
+                    .onTapGesture { MtrxHaptics.impact(.light); showWeatherPopup = true }
+                Text("·")
+                // Tap the date → an interactive liquid-glass calendar.
+                Text(Date().formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
+                    .contentShape(Rectangle())
+                    .onTapGesture { MtrxHaptics.impact(.light); showCalendarPopup = true }
+            }
+            .font(.mtrxCaption1)
+            .foregroundStyle(Color.trinityPrimary.opacity(0.85))
+            .textCase(.uppercase)
+            .kerning(1.2)
+            .sheet(isPresented: $showWeatherPopup) {
+                WeatherPopup()
+                    .presentationDetents([.height(380)])
+                    .presentationBackground(.clear)
+            }
+            .sheet(isPresented: $showCalendarPopup) {
+                CalendarPopup(date: $calendarDate)
+                    .presentationDetents([.height(480)])
+                    .presentationBackground(.clear)
+            }
 
             HStack(spacing: Spacing.sm) {
                 // The name edits itself — tap it, no pencil needed. Its

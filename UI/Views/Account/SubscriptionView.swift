@@ -11,8 +11,8 @@ private extension SubscriptionTier {
     var price: String {
         switch self {
         case .free:       return "$0"
-        case .pro:        return "$4.99"
-        case .enterprise: return "$19.99"
+        case .pro:        return "$9.99"
+        case .enterprise: return "$39.99"
         }
     }
 
@@ -373,8 +373,8 @@ struct SubscriptionView: View {
     private func upgradeLabel(for tier: SubscriptionTier) -> String {
         switch tier {
         case .free: return "Switch to Free"
-        case .pro: return "Upgrade — $4.99/mo"
-        case .enterprise: return "Upgrade — $19.99/mo"
+        case .pro: return "Upgrade — $9.99/mo"
+        case .enterprise: return "Upgrade — $39.99/mo"
         }
     }
 
