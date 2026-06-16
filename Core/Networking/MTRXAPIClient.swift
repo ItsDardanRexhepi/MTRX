@@ -463,6 +463,22 @@ struct DisputesResponse: Decodable {
     }
 }
 
+/// Typed contract for a DAO's governance proposals (wrapped in `proposals`).
+struct DAOProposalsResponse: Decodable {
+    let proposals: [Proposal]
+    struct Proposal: Decodable {
+        let number: Int
+        let title: String
+        let description: String?
+        let proposer: String
+        let status: String          // Active / Passed / Rejected / No Quorum
+        let votesFor: Int
+        let votesAgainst: Int
+        let quorumRequired: Int
+        let timeRemaining: String?
+    }
+}
+
 // C29 - Privacy
 struct PrivacyProofRequest: Encodable {
     let proofType: String
@@ -1522,6 +1538,11 @@ final class MTRXAPIClient: @unchecked Sendable {
     /// Typed disputes.
     func disputes() async throws -> DisputesResponse {
         try await get(path: "/api/v1/disputes")
+    }
+
+    /// Typed DAO governance proposals.
+    func daoProposals() async throws -> DAOProposalsResponse {
+        try await get(path: "/api/v1/dao/proposals")
     }
 
     func followUser(userId: String) async throws -> [String: AnyCodableValue] {

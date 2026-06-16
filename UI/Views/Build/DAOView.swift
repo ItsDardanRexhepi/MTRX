@@ -51,9 +51,24 @@ final class DAOViewModel: ObservableObject {
         guard !isLoading else { return }
         isLoading = true
 
-        try? await Task.sleep(nanoseconds: 800_000_000)
+        // Live proposals from the gateway; fall back to samples if it isn't up.
+        if let live = try? await MTRXAPIClient.shared.daoProposals(), !live.proposals.isEmpty {
+            proposals = live.proposals.map { p in
+                DAOGovernanceProposal(
+                    number: p.number, title: p.title, description_: p.description ?? "",
+                    proposer: p.proposer,
+                    status: GovernanceOutcome(rawValue: p.status) ?? .active,
+                    votesFor: p.votesFor, votesAgainst: p.votesAgainst,
+                    quorumRequired: p.quorumRequired,
+                    timeRemaining: p.timeRemaining ?? ""
+                )
+            }
+        } else {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            proposals = DAOGovernanceProposal.sampleData
+        }
 
-        proposals = DAOGovernanceProposal.sampleData
+        // Treasury + delegates stay on sample data until those endpoints exist.
         treasuryAssets = TreasuryToken.sampleData
         treasuryTransactions = TreasuryTx.sampleData
         delegates = DelegateInfo.sampleData
