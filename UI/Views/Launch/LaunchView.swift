@@ -49,7 +49,11 @@ struct LaunchView: View {
                 .opacity(orbOpacity * orbExitOpacity)
         }
         .onAppear(perform: run)
+        // Open when EITHER the unlock or the entrance completes — whichever is
+        // last — reading the current values, so a fast Face ID never leaves
+        // the portal stuck.
         .onChange(of: ready) { _, _ in tryOpen() }
+        .onChange(of: entranceDone) { _, _ in tryOpen() }
     }
 
     /// The launch light: concentric radial gradients that fade fully to clear
@@ -92,7 +96,6 @@ struct LaunchView: View {
         // until `ready` (Face ID unlocked), at which point the portal opens.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             entranceDone = true
-            tryOpen()
         }
     }
 
