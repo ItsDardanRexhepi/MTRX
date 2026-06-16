@@ -584,7 +584,11 @@ struct OnboardingView: View {
                 let signInName = result.fullName.map {
                     PersonNameComponentsFormatter.localizedString(from: $0, style: .default)
                 }
-                _ = try? await MTRXAPIClient.shared.authenticateWithApple(
+                // Exchange the Apple identity for a backend session. For a
+                // RETURNING user the backend already has their account + wallet
+                // (tied to their Apple ID), so it comes right back on any
+                // device; a new user's wallet is created below.
+                let auth = try? await MTRXAPIClient.shared.authenticateWithApple(
                     identityToken: result.identityTokenString ?? "",
                     authorizationCode: result.authorizationCodeString ?? "",
                     fullName: signInName,
@@ -611,8 +615,18 @@ struct OnboardingView: View {
                     }
 
                     isAuthenticating = false
-                    isCreatingWallet = true
-                    createRealWallet()
+
+                    if let addr = auth?.walletAddress,
+                       addr.hasPrefix("0x"), addr.count == 42 {
+                        // Returning user — the backend restored their account and
+                        // wallet from their Apple ID. Bring it right back.
+                        walletAddress = addr
+                        completeOnboarding()
+                    } else {
+                        // New user (or backend not up yet) — create the wallet.
+                        isCreatingWallet = true
+                        createRealWallet()
+                    }
                 }
             } catch {
                 await MainActor.run {

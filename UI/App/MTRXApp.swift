@@ -757,18 +757,29 @@ class AppState: ObservableObject {
         displayName = ""
         walletAddress = ""
 
-        // Clear the stored demo account so the next launch starts at
-        // onboarding and a fresh Sign in with Apple can be demoed.
-        let defaults = UserDefaults.standard
-        defaults.removeObject(forKey: Keys.onboardingComplete)
-        defaults.removeObject(forKey: Keys.appleUserId)
-        defaults.removeObject(forKey: Keys.displayName)
-        defaults.removeObject(forKey: Keys.email)
-        defaults.removeObject(forKey: Keys.walletAddress)
-        defaults.removeObject(forKey: Keys.joinDate)
+        // Sign-out is a LOCAL wipe — it does NOT delete the account. The
+        // account stays tied to the user's Apple ID; signing in with Apple
+        // again (on this or any other device) brings it right back from the
+        // backend. We just make sure nothing is left on this phone.
+        AppState.wipeLocalData()
+    }
 
-        // Clear the backend session token so API calls are no longer authorized.
+    /// Remove every trace of the session from this device: all app
+    /// preferences, the backend session token, and locally stored files
+    /// (agent conversations, social media, avatars). The account itself lives
+    /// on the backend, tied to Sign in with Apple, and is never touched here.
+    static func wipeLocalData() {
+        // 1. Every app preference — profile, settings, wallet cache, flags.
+        if let bundleID = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleID)
+        }
+        // 2. The backend session token (JWT in the Keychain).
         MTRXAPIClient.shared.clearToken()
+        // 3. Locally stored files — agent conversations, social media, avatars.
+        let mtrxDir = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MTRX", isDirectory: true)
+        try? FileManager.default.removeItem(at: mtrxDir)
     }
 
     func refreshOnForeground() { }
