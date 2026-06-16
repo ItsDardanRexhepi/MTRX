@@ -628,7 +628,7 @@ final class MTRXAPIClient: @unchecked Sendable {
     init(baseURL: String? = nil, session: URLSession? = nil) {
         self.baseURL = baseURL
             ?? ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"]
-            ?? "https://openmatrix-ai.com"
+            ?? "https://api.openmatrix-ai.com"
 
         if let session {
             // Tests (and any caller that wants to stub transport) can inject

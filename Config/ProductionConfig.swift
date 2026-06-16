@@ -17,7 +17,7 @@ enum ProductionConfig {
     /// other) host, confirm SSL is live, then set this to the full
     /// HTTPS origin. Trinity will switch from DemoDataProvider to the
     /// real backend automatically on next app launch.
-    static let productionGatewayURL: String? = "https://openmatrix-ai.com"
+    static let productionGatewayURL: String? = "https://api.openmatrix-ai.com"
 
     /// Default port for self-hosted installs. The hosted gateway at
     /// `openmatrix-ai.com` uses standard HTTPS (443) via reverse proxy.
