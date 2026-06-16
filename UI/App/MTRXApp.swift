@@ -3,7 +3,6 @@
 //
 // App entry point — launch screen, authentication gate, five-tab navigation.
 
-import LocalAuthentication
 import SwiftUI
 
 // MARK: - App Entry Point
@@ -113,7 +112,7 @@ struct RootView: View {
                 .zIndex(10)
             }
         }
-        .onAppear { authenticate() }
+        .onAppear { if scenePhase == .active { authenticate() } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { authenticate() }
         }
@@ -128,22 +127,11 @@ struct RootView: View {
     private func authenticate() {
         guard appState.isAuthenticated, !unlocked, !authPending else { return }
         authPending = true
-        let context = LAContext()
-        context.localizedCancelTitle = "Cancel"
         Task {
-            do {
-                let ok = try await context.evaluatePolicy(.deviceOwnerAuthentication,
-                                                          localizedReason: "Unlock MTRX")
-                await MainActor.run {
-                    authPending = false
-                    if ok { unlocked = true }
-                }
-            } catch let error as LAError where error.code == .systemCancel || error.code == .appCancel {
-                await MainActor.run { authPending = false }
-                try? await Task.sleep(nanoseconds: 250_000_000)
-                await MainActor.run { authenticate() }
-            } catch {
-                await MainActor.run { authPending = false }
+            let ok = (try? await BiometricAuth().authenticate(reason: "Unlock MTRX")) ?? false
+            await MainActor.run {
+                authPending = false
+                if ok { unlocked = true }
             }
         }
     }
