@@ -86,7 +86,7 @@ struct RootView: View {
     // App-lock: Face ID once per launch. A single prompt fires while the
     // launch portal is on screen; on success we go straight to Home.
     @State private var unlocked = false
-    @State private var hasPrompted = false
+    @State private var authPending = false
 
     var body: some View {
         ZStack {
@@ -116,21 +116,33 @@ struct RootView: View {
                 .zIndex(10)
             }
         }
-        .onAppear { authenticate() }
+        .onAppear {
+            // Small delay so the app is fully active before the first prompt —
+            // a prompt fired too early at launch gets cancelled by the system.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { authenticate() }
+        }
         .onChange(of: appState.isAuthenticated) { _, auth in
-            if auth { authenticate() } else { unlocked = false; hasPrompted = false }
+            if auth { authenticate() } else { unlocked = false; authPending = false }
         }
     }
 
     /// Exactly one Face ID prompt per launch — `hasPrompted` guards against
     /// the duplicate prompts that caused a second read on a black screen.
     private func authenticate() {
-        guard appState.isAuthenticated, !unlocked, !hasPrompted else { return }
-        hasPrompted = true
+        guard appState.isAuthenticated, !unlocked, !authPending else { return }
+        authPending = true
         Task {
             let ok = (try? await BiometricAuth().authenticate(reason: "Unlock MTRX")) ?? false
             await MainActor.run {
-                if ok { unlocked = true } else { hasPrompted = false }
+                authPending = false
+                if ok {
+                    unlocked = true
+                } else {
+                    // Self-heal: a launch-time prompt can be cancelled by the
+                    // system before the app is active. Retry shortly so the
+                    // portal never deadlocks and the user can always get in.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { authenticate() }
+                }
             }
         }
     }
