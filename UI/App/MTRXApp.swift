@@ -116,13 +116,9 @@ struct RootView: View {
         // hang on the portal. Re-runs if auth flips (after onboarding).
         .task(id: appState.isAuthenticated) {
             guard appState.isAuthenticated, !unlocked else { return }
-            // Let the splash play its entrance — up to the point where the
-            // dissolve transition would begin — then lay Face ID on top of it.
-            try? await Task.sleep(nanoseconds: 900_000_000)
-            guard !unlocked else { return }
-            // biometrics-only (no passcode-grace skip) so the prompt actually
-            // appears and is read first. The instant it resolves, the portal
-            // dissolves into Home with no delay.
+            // Face ID at the very beginning, on the splash. biometrics-only (no
+            // passcode-grace skip) so the prompt actually appears and is read
+            // first; the instant it resolves the portal dissolves into Home.
             _ = try? await BiometricAuth().authenticate(reason: "Unlock MTRX",
                                                         allowPasscodeFallback: false)
             unlocked = true
