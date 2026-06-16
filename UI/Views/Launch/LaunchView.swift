@@ -91,21 +91,20 @@ struct LaunchView: View {
     private func openPortal() {
         guard !opened else { return }
         opened = true
-        // A brief bloom so the orb is always seen, then the portal opens.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            withAnimation(.easeInOut(duration: 0.6)) {
-                bgOpacity = 0
-                auraOpacity = 0
-            }
-            withAnimation(.easeInOut(duration: 0.85)) {
-                portalScale = 2.8
-            }
-            withAnimation(.easeInOut(duration: 0.75)) {
-                orbExitOpacity = 0
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.92) {
-                onComplete()
-            }
+        // Open immediately — the instant Face ID completes — with the portal
+        // dissolve transition. No delay.
+        withAnimation(.easeInOut(duration: 0.6)) {
+            bgOpacity = 0
+            auraOpacity = 0
+        }
+        withAnimation(.easeInOut(duration: 0.85)) {
+            portalScale = 2.8
+        }
+        withAnimation(.easeInOut(duration: 0.75)) {
+            orbExitOpacity = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.92) {
+            onComplete()
         }
     }
 }
