@@ -16,7 +16,7 @@ struct ChatMessage: Identifiable, Equatable {
     var isEphemeral: Bool = false
 }
 
-struct ChatConversation: Identifiable {
+struct ChatConversation: Identifiable, Hashable {
     let id: String
     let contactName: String
     let contactInitials: String
@@ -24,6 +24,8 @@ struct ChatConversation: Identifiable {
     let lastMessageText: String
     let timestamp: Date
     let unreadCount: Int
+    /// A conversation just started from contacts — opens with an empty thread.
+    var isNew: Bool = false
 }
 
 // MARK: - View Model
@@ -110,6 +112,13 @@ final class MessagingViewModel: ObservableObject {
 
     func loadMessages(for conversation: ChatConversation) {
         selectedConversation = conversation
+
+        // A conversation just started from contacts opens with a clean thread.
+        if conversation.isNew {
+            messages = []
+            return
+        }
+
         let now = Date()
         messages = [
             ChatMessage(id: "m1", text: "Hey, did you see the new governance proposal?", isFromUser: false, timestamp: now.addingTimeInterval(-3600), senderName: conversation.contactName),
@@ -145,6 +154,28 @@ final class MessagingViewModel: ObservableObject {
         MtrxHaptics.impact(.light)
     }
 
+    // MARK: - Start Conversation (from contacts)
+
+    /// Begin (or reopen) an encrypted conversation with an imported contact.
+    func startConversation(with contact: PhoneContact) -> ChatConversation {
+        if let existing = conversations.first(where: { $0.contactName == contact.fullName }) {
+            return existing
+        }
+        let conversation = ChatConversation(
+            id: UUID().uuidString,
+            contactName: contact.fullName,
+            contactInitials: contact.initials,
+            contactColor: contact.color,
+            lastMessageText: "Say hi to start the conversation",
+            timestamp: Date(),
+            unreadCount: 0,
+            isNew: true
+        )
+        conversations.insert(conversation, at: 0)
+        MtrxHaptics.impact(.medium)
+        return conversation
+    }
+
     // MARK: - Delete Conversation
 
     func deleteConversation(_ conversation: ChatConversation) {
@@ -159,6 +190,7 @@ struct MessagingView: View {
 
     @StateObject private var viewModel = MessagingViewModel()
     @State private var showNewMessage = false
+    @State private var pendingConversation: ChatConversation?
 
     var body: some View {
         NavigationStack {
@@ -190,6 +222,9 @@ struct MessagingView: View {
                             .foregroundStyle(Color.accentPrimary)
                     }
                 }
+            }
+            .navigationDestination(item: $pendingConversation) { conversation in
+                ConversationDetailView(viewModel: viewModel, conversation: conversation)
             }
             .sheet(isPresented: $showNewMessage) {
                 newMessageSheet
@@ -273,14 +308,17 @@ struct MessagingView: View {
     private var newMessageSheet: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                MtrxSheetHeader(title: "New Message", subtitle: "End-to-end encrypted") {
+                MtrxSheetHeader(title: "New Message", subtitle: "Connect with people you know") {
                     showNewMessage = false
                 }
-                MtrxEmptyState(
-                    icon: "person.badge.plus",
-                    title: "Choose a Contact",
-                    message: "Select someone from your connections to start a new encrypted conversation."
-                )
+                ContactsImportView { contact in
+                    let conversation = viewModel.startConversation(with: contact)
+                    showNewMessage = false
+                    // Let the sheet finish dismissing before pushing the chat.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        pendingConversation = conversation
+                    }
+                }
             }
             .background(Color.backgroundPrimary)
         }
@@ -321,7 +359,7 @@ struct ConversationDetailView: View {
             MtrxDivider()
             inputBar
         }
-        .background(Color.backgroundPrimary)
+        .background(Color.black)
         .navigationTitle(conversation.contactName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

@@ -36,7 +36,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>167</string>
+	<string>169</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
@@ -54,7 +54,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>MTRX uses your camera to scan QR codes, documents, and contracts for blockchain verification.</string>
 	<key>NSContactsUsageDescription</key>
-	<string>MTRX accesses your contacts to suggest wallet addresses for easy transfers.</string>
+	<string>MTRX accesses your contacts so you can find and connect with people you already know, and to suggest wallet addresses for easy transfers.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>MTRX uses Face ID to securely authorize transactions and access your wallet.</string>
 	<key>NSHealthShareUsageDescription</key>

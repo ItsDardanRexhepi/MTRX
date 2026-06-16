@@ -177,6 +177,7 @@
 		FAF81A2C7196BA1EA6D64DC2 /* GovernanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3103D5F57B7CE21A41F6C496 /* GovernanceView.swift */; };
 		77A05D7F21E34619AEAC2382 /* CivicView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67EC18341FB04AFD9A7DB386 /* CivicView.swift */; };
 		078171D526DEAEA0D49301AE /* MessagingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F63F0EF28B79B2E95F3ACF /* MessagingView.swift */; };
+		C0A7AC75D0E1F2A3B4C5D602 /* ContactsImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A7AC75D0E1F2A3B4C5D601 /* ContactsImportView.swift */; };
 		1A25195FD824FF5D0CD341BE /* SocialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C3C6968C206064899DA9C7 /* SocialView.swift */; };
 		04A7814E4EEC70DE7D6C41B1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8D562B3E40B6C9EC53F38F07 /* Assets.xcassets */; };
 		F6A7B8C9D0E1F2A3B4C5D6E7 /* ComponentRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* ComponentRegistry.swift */; };
@@ -480,6 +481,7 @@
 		3103D5F57B7CE21A41F6C496 /* GovernanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GovernanceView.swift"; sourceTree = "<group>"; };
 		67EC18341FB04AFD9A7DB386 /* CivicView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CivicView.swift"; path = "UI/Views/Social/CivicView.swift"; sourceTree = SOURCE_ROOT; };
 		A1F63F0EF28B79B2E95F3ACF /* MessagingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MessagingView.swift"; sourceTree = "<group>"; };
+		C0A7AC75D0E1F2A3B4C5D601 /* ContactsImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContactsImportView.swift"; sourceTree = "<group>"; };
 		D4C3C6968C206064899DA9C7 /* SocialView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SocialView.swift"; sourceTree = "<group>"; };
 		22B0CA0EA68EE53B7203EAF4 /* ContractsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContractsWidget.swift"; sourceTree = "<group>"; };
 		82104B947B91EE438CAD3D70 /* PaymentsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PaymentsWidget.swift"; sourceTree = "<group>"; };
@@ -1526,6 +1528,7 @@
 			children = (
 				3103D5F57B7CE21A41F6C496,
 				A1F63F0EF28B79B2E95F3ACF,
+				C0A7AC75D0E1F2A3B4C5D601,
 				D4C3C6968C206064899DA9C7,
 			);
 			path = "Social";
@@ -1880,6 +1883,7 @@
 				FAF81A2C7196BA1EA6D64DC2 /* GovernanceView.swift */,
 				77A05D7F21E34619AEAC2382 /* CivicView.swift in Sources */,
 				078171D526DEAEA0D49301AE /* MessagingView.swift */,
+				C0A7AC75D0E1F2A3B4C5D602 /* ContactsImportView.swift in Sources */,
 				1A25195FD824FF5D0CD341BE /* SocialView.swift */,
 				F6A7B8C9D0E1F2A3B4C5D6E7 /* ComponentRegistry.swift */,
 				A7B8C9D0E1F2A3B4C5D6E7F8 /* PlatformFeeDisclosure.swift */,
