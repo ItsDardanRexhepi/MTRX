@@ -82,12 +82,10 @@ struct MTRXApp: App {
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
-    @Environment(\.scenePhase) private var scenePhase
     @State private var showLaunch = true
-    // App-lock: Face ID once per launch. A single prompt fires while the
-    // launch portal is on screen; on success we go straight to Home.
+    // App-lock: Face ID once per launch. The portal holds until `unlocked`,
+    // then dissolves straight into Home.
     @State private var unlocked = false
-    @State private var authPending = false
 
     var body: some View {
         ZStack {
@@ -112,27 +110,14 @@ struct RootView: View {
                 .zIndex(10)
             }
         }
-        .onAppear { if scenePhase == .active { authenticate() } }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { authenticate() }
-        }
-        .onChange(of: appState.isAuthenticated) { _, auth in
-            if auth { authenticate() } else { unlocked = false; authPending = false }
-        }
-    }
-
-    /// One Face ID scan per launch. If the system cancels the prompt (it was
-    /// presented during launch before the app was active) we re-fire once —
-    /// that cancel was what left the portal stuck. We never retry a user cancel.
-    private func authenticate() {
-        guard appState.isAuthenticated, !unlocked, !authPending else { return }
-        authPending = true
-        Task {
-            let ok = (try? await BiometricAuth().authenticate(reason: "Unlock MTRX")) ?? false
-            await MainActor.run {
-                authPending = false
-                if ok { unlocked = true }
-            }
+        // Face ID on launch. `.task` runs reliably once the view is live — the
+        // app is active by then, so the prompt isn't system-cancelled. After
+        // the scan resolves we proceed into Home regardless, so it can NEVER
+        // hang on the portal. Re-runs if auth flips (after onboarding).
+        .task(id: appState.isAuthenticated) {
+            guard appState.isAuthenticated, !unlocked else { return }
+            _ = try? await BiometricAuth().authenticate(reason: "Unlock MTRX")
+            unlocked = true
         }
     }
 }
