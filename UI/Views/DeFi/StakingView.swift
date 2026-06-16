@@ -100,6 +100,23 @@ class StakingViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live pools + positions from the gateway; fall back to samples.
+        if let live = try? await MTRXAPIClient.shared.staking(),
+           !(live.pools.isEmpty && live.positions.isEmpty) {
+            pools = live.pools.map {
+                StakingPool(token: $0.token, symbol: $0.symbol, apy: $0.apy,
+                            totalStaked: $0.totalStaked, minStake: $0.minStake)
+            }
+            positions = live.positions.map {
+                StakingPosition(token: $0.token, symbol: $0.symbol,
+                                stakedAmount: $0.stakedAmount, rewardsEarned: $0.rewardsEarned,
+                                apy: $0.apy, unbondingAmount: $0.unbondingAmount,
+                                unbondingDaysLeft: $0.unbondingDaysLeft)
+            }
+            isLoading = false
+            return
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             pools = StakingViewModel.samplePools

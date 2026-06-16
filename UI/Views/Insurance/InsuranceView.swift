@@ -51,6 +51,17 @@ class InsuranceViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live policies from the gateway; fall back to samples if it isn't up.
+        if let live = try? await MTRXAPIClient.shared.insurancePolicies(), !live.policies.isEmpty {
+            policies = live.policies.map {
+                PolicyItem(coverageName: $0.coverageName, amount: $0.amount,
+                           premium: $0.premium, endDate: $0.endDate, status: $0.status)
+            }
+            coverages = InsuranceViewModel.sampleCoverages
+            isLoading = false
+            return
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(600))
             coverages = InsuranceViewModel.sampleCoverages

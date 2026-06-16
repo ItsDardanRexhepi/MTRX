@@ -52,6 +52,18 @@ class LoyaltyViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live programs + cashback from the gateway; fall back to samples.
+        if let live = try? await MTRXAPIClient.shared.loyalty(),
+           !(live.programs.isEmpty && live.cashback.isEmpty) {
+            programs = live.programs.map { ProgramItem(name: $0.name, points: $0.points, tierName: $0.tierName) }
+            cashback = live.cashback.map {
+                CashbackItem(source: $0.source, amount: $0.amount, token: $0.token,
+                             earnedAt: $0.earnedAt, claimed: $0.claimed)
+            }
+            isLoading = false
+            return
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             programs = LoyaltyViewModel.samplePrograms

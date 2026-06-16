@@ -324,6 +324,60 @@ struct RWAAssetsResponse: Decodable {
     }
 }
 
+/// Typed contract for insurance policies (wrapped in `policies`).
+struct InsurancePoliciesResponse: Decodable {
+    let policies: [Policy]
+    struct Policy: Decodable {
+        let coverageName: String
+        let amount: String
+        let premium: String
+        let endDate: String
+        let status: String
+    }
+}
+
+/// Typed contract for loyalty programs + cashback.
+struct LoyaltyResponse: Decodable {
+    let programs: [Program]
+    let cashback: [Cashback]
+    struct Program: Decodable {
+        let name: String
+        let points: Int
+        let tierName: String
+    }
+    struct Cashback: Decodable {
+        let source: String
+        let amount: String
+        let token: String
+        let earnedAt: String
+        let claimed: Bool
+    }
+}
+
+/// Typed contract for staking pools + positions.
+struct StakingResponse: Decodable {
+    let pools: [Pool]
+    let positions: [Position]
+    struct Pool: Decodable {
+        let id: String?
+        let token: String
+        let symbol: String
+        let apy: Double
+        let totalStaked: Double
+        let minStake: Double
+    }
+    struct Position: Decodable {
+        let id: String?
+        let token: String
+        let symbol: String
+        let stakedAmount: Double
+        let rewardsEarned: Double
+        let apy: Double
+        let unbondingAmount: Double
+        let unbondingDaysLeft: Int?
+    }
+}
+
 // C29 - Privacy
 struct PrivacyProofRequest: Encodable {
     let proofType: String
@@ -1338,6 +1392,21 @@ final class MTRXAPIClient: @unchecked Sendable {
     /// Typed real-world assets.
     func rwaAssets() async throws -> RWAAssetsResponse {
         try await get(path: "/api/v1/rwa")
+    }
+
+    /// Typed insurance policies.
+    func insurancePolicies() async throws -> InsurancePoliciesResponse {
+        try await get(path: "/api/v1/insurance/policies")
+    }
+
+    /// Typed loyalty programs + cashback.
+    func loyalty() async throws -> LoyaltyResponse {
+        try await get(path: "/api/v1/loyalty")
+    }
+
+    /// Typed staking pools + positions.
+    func staking() async throws -> StakingResponse {
+        try await get(path: "/api/v1/staking")
     }
 
     func followUser(userId: String) async throws -> [String: AnyCodableValue] {
