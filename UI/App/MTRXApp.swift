@@ -83,10 +83,10 @@ struct MTRXApp: App {
 struct RootView: View {
     @EnvironmentObject var appState: AppState
     @State private var showLaunch = true
-    // App-lock: like a banking app, Face ID is required on launch and every
-    // time the app returns to the foreground before the content is shown.
+    // App-lock: Face ID once per launch. A single prompt fires while the
+    // launch portal is on screen; on success we go straight to Home.
     @State private var unlocked = false
-    @State private var authenticating = false
+    @State private var hasPrompted = false
 
     var body: some View {
         ZStack {
@@ -116,35 +116,33 @@ struct RootView: View {
                 .zIndex(10)
             }
         }
-        .task { if appState.isAuthenticated { unlock() } }
-        // Face ID once per launch — unlocked persists for the app's lifetime,
-        // so returning from background does not re-prompt.
+        .onAppear { authenticate() }
         .onChange(of: appState.isAuthenticated) { _, auth in
-            if auth { unlock() } else { unlocked = false }
+            if auth { authenticate() } else { unlocked = false; hasPrompted = false }
         }
     }
 
-    private func unlock() {
-        guard !authenticating, !unlocked else { return }
-        authenticating = true
+    /// Exactly one Face ID prompt per launch — `hasPrompted` guards against
+    /// the duplicate prompts that caused a second read on a black screen.
+    private func authenticate() {
+        guard appState.isAuthenticated, !unlocked, !hasPrompted else { return }
+        hasPrompted = true
         Task {
             let ok = (try? await BiometricAuth().authenticate(reason: "Unlock MTRX")) ?? false
             await MainActor.run {
-                authenticating = false
-                if ok { unlocked = true }
+                if ok { unlocked = true } else { hasPrompted = false }
             }
         }
     }
 
     private var lockScreen: some View {
-        // No lock UI — a plain backdrop while the Face ID prompt is presented.
-        // It fires automatically on appear; a tap silently retries a dismissed
-        // prompt.
+        // Plain backdrop behind the launch portal while Face ID is presented.
+        // No auto-trigger here (that caused the duplicate read); a tap retries
+        // only if the single prompt was dismissed.
         Color.black
             .ignoresSafeArea()
             .contentShape(Rectangle())
-            .onTapGesture { unlock() }
-            .onAppear { unlock() }
+            .onTapGesture { authenticate() }
     }
 }
 
