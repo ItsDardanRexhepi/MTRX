@@ -378,6 +378,33 @@ struct StakingResponse: Decodable {
     }
 }
 
+/// Typed contract for liquidity pools (wrapped in `pools`).
+struct LiquidityPoolsResponse: Decodable {
+    let pools: [Pool]
+    struct Pool: Decodable {
+        let id: String?
+        let tokenA: String
+        let tokenB: String
+        let apr: Double
+        let tvl: Double
+        let volume24h: Double
+        let userShare: Double?
+        let earnedFees: Double?
+    }
+}
+
+/// Typed contract for creator-launched tokens (wrapped in `tokens`).
+struct CreatorTokensResponse: Decodable {
+    let tokens: [Token]
+    struct Token: Decodable {
+        let name: String
+        let symbol: String
+        let currentPrice: String
+        let holders: Int
+        let volume24h: String
+    }
+}
+
 // C29 - Privacy
 struct PrivacyProofRequest: Encodable {
     let proofType: String
@@ -1407,6 +1434,16 @@ final class MTRXAPIClient: @unchecked Sendable {
     /// Typed staking pools + positions.
     func staking() async throws -> StakingResponse {
         try await get(path: "/api/v1/staking")
+    }
+
+    /// Typed liquidity pools.
+    func liquidityPools() async throws -> LiquidityPoolsResponse {
+        try await get(path: "/api/v1/dex/pools")
+    }
+
+    /// Typed creator-launched tokens.
+    func creatorTokens() async throws -> CreatorTokensResponse {
+        try await get(path: "/api/v1/creator/tokens")
     }
 
     func followUser(userId: String) async throws -> [String: AnyCodableValue] {

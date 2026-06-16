@@ -48,6 +48,16 @@ class CreatorViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live tokens from the gateway; fall back to samples if it isn't up.
+        if let live = try? await MTRXAPIClient.shared.creatorTokens(), !live.tokens.isEmpty {
+            tokens = live.tokens.map {
+                CreatorTokenItem(name: $0.name, symbol: $0.symbol, currentPrice: $0.currentPrice,
+                                 holders: $0.holders, volume24h: $0.volume24h)
+            }
+            isLoading = false
+            return
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(600))
             tokens = CreatorViewModel.sampleTokens

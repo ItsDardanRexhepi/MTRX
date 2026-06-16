@@ -74,6 +74,17 @@ class LiquidityViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live pools from the gateway; fall back to samples if it isn't up.
+        if let live = try? await MTRXAPIClient.shared.liquidityPools(), !live.pools.isEmpty {
+            pools = live.pools.map {
+                LiquidityPool(tokenA: $0.tokenA, tokenB: $0.tokenB, apr: $0.apr,
+                              tvl: $0.tvl, volume24h: $0.volume24h,
+                              userShare: $0.userShare, earnedFees: $0.earnedFees)
+            }
+            isLoading = false
+            return
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             pools = LiquidityViewModel.samplePools
