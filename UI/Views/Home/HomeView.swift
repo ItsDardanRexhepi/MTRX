@@ -128,13 +128,8 @@ struct HomeView: View {
                 quickActionsRaw = "pay,shop,invest,play,earn,events"
                 quickActionsMigratedV2 = true
             }
-            // Apple only shares the name on the first-ever sign-in, so
-            // when it's missing, ask once — then it persists for good.
-            if appState.displayName.isEmpty && !askedForName {
-                askedForName = true
-                nameDraft = ""
-                showNameEditor = true
-            }
+            // No auto-prompt on launch — Face ID goes straight to Home. The
+            // user can set their name any time by tapping it in the greeting.
         }
         .fullScreenCover(item: $presentedChat) { launch in
             AgentConversationView(
