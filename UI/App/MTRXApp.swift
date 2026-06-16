@@ -159,19 +159,14 @@ struct RootView: View {
                         .font(.mtrxSubheadline)
                         .foregroundStyle(Color.labelSecondary)
                 }
-                Button { unlock() } label: {
-                    Text("Unlock with Face ID")
-                        .font(.mtrxCalloutBold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, Spacing.xl)
-                        .padding(.vertical, Spacing.ms)
-                        .background(Color.accentPrimary)
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
             }
             .padding(Spacing.xl)
         }
+        // Face ID fires automatically the instant the lock appears — no button
+        // to tap. Tapping anywhere silently retries a dismissed prompt.
+        .contentShape(Rectangle())
+        .onTapGesture { unlock() }
+        .onAppear { unlock() }
     }
 }
 
