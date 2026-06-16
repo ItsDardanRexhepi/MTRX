@@ -82,7 +82,12 @@ struct MTRXApp: App {
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showLaunch = true
+    // App-lock: like a banking app, Face ID is required on launch and every
+    // time the app returns to the foreground before the content is shown.
+    @State private var unlocked = false
+    @State private var authenticating = false
 
     var body: some View {
         ZStack {
@@ -91,12 +96,17 @@ struct RootView: View {
             // straight through the portal into Home with no black buffer.
             Group {
                 if appState.isAuthenticated {
-                    MainTabView()
+                    if unlocked {
+                        MainTabView()
+                    } else {
+                        lockScreen
+                    }
                 } else {
                     OnboardingView()
                 }
             }
             .animation(Motion.springDefault, value: appState.isAuthenticated)
+            .animation(Motion.springDefault, value: unlocked)
 
             if showLaunch {
                 LaunchView {
@@ -106,6 +116,61 @@ struct RootView: View {
                 }
                 .zIndex(10)
             }
+        }
+        .task { if appState.isAuthenticated { unlock() } }
+        .onChange(of: appState.isAuthenticated) { _, auth in
+            if auth { unlock() } else { unlocked = false }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            // Lock the moment we leave — the app snapshot shows the lock, not
+            // the user's accounts — then re-prompt Face ID on return.
+            case .background: if appState.isAuthenticated { unlocked = false }
+            case .active:     if appState.isAuthenticated && !unlocked { unlock() }
+            default: break
+            }
+        }
+    }
+
+    private func unlock() {
+        guard !authenticating, !unlocked else { return }
+        authenticating = true
+        Task {
+            let ok = (try? await BiometricAuth().authenticate(reason: "Unlock MTRX")) ?? false
+            await MainActor.run {
+                authenticating = false
+                if ok { unlocked = true }
+            }
+        }
+    }
+
+    private var lockScreen: some View {
+        ZStack {
+            MtrxGradientBackground(style: .trinityGlow).ignoresSafeArea()
+            VStack(spacing: Spacing.lg) {
+                Image(systemName: "faceid")
+                    .font(.system(size: 60))
+                    .foregroundStyle(Color.accentPrimary)
+                VStack(spacing: Spacing.xs) {
+                    Text("MTRX is locked")
+                        .font(.mtrxTitle3)
+                        .foregroundStyle(Color.labelPrimary)
+                    Text("Authenticate to continue")
+                        .font(.mtrxSubheadline)
+                        .foregroundStyle(Color.labelSecondary)
+                }
+                Button { unlock() } label: {
+                    Text("Unlock with Face ID")
+                        .font(.mtrxCalloutBold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, Spacing.xl)
+                        .padding(.vertical, Spacing.ms)
+                        .background(Color.accentPrimary)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(Spacing.xl)
         }
     }
 }
