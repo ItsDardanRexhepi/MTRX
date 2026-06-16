@@ -86,7 +86,7 @@ struct CalendarPopup: View {
             .buttonStyle(.plain)
         }
         .padding(Spacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity)
         .mtrxLiquidGlass(cornerRadius: 30)
         .padding(Spacing.md)
     }
@@ -200,26 +200,26 @@ struct WeatherPopup: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: Spacing.md) {
-            HStack {
-                Text("Local Weather")
-                    .font(.mtrxHeadline)
-                    .foregroundStyle(Color.labelPrimary)
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.labelSecondary)
-                }
-                .buttonStyle(.plain)
-            }
-
-            Spacer(minLength: 0)
+        VStack(spacing: Spacing.sm) {
             content
-            Spacer(minLength: 0)
         }
-        .padding(Spacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(Spacing.xl)
+        .overlay(alignment: .topLeading) {
+            Text("Local Weather")
+                .font(.mtrxHeadline)
+                .foregroundStyle(Color.labelPrimary)
+                .padding(Spacing.lg)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button { dismiss() } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(Color.labelSecondary)
+            }
+            .buttonStyle(.plain)
+            .padding(Spacing.lg)
+        }
         .mtrxLiquidGlass(cornerRadius: 30)
         .padding(Spacing.md)
         .onAppear { loader.start() }
