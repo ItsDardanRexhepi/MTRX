@@ -54,6 +54,26 @@ final class MarketplaceViewModel: ObservableObject {
         guard !isLoading else { return }
         isLoading = true
 
+        // Live listings from the gateway; fall back to samples if it isn't up.
+        if let live = try? await MTRXAPIClient.shared.marketplaceListings(), !live.listings.isEmpty {
+            listings = live.listings.map { l in
+                MarketplaceItem(
+                    name: l.name,
+                    description_: l.description ?? "",
+                    priceValue: l.priceValue,
+                    category: MarketCategory(rawValue: l.category ?? "") ?? .all,
+                    sellerName: l.sellerName ?? "Seller",
+                    sellerRating: l.sellerRating ?? 0,
+                    gradientColors: [.accentPrimary, .blue],
+                    viewCount: l.viewCount ?? 0,
+                    listedDate: Date(),
+                    specifications: []
+                )
+            }
+            isLoading = false
+            return
+        }
+
         try? await Task.sleep(nanoseconds: 800_000_000)
         listings = MarketplaceItem.sampleData
         isLoading = false

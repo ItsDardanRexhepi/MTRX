@@ -86,6 +86,24 @@ class NFTGalleryViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live NFTs from the gateway; fall back to samples if it isn't up.
+        if let live = try? await MTRXAPIClient.shared.nftGallery(), !live.nfts.isEmpty {
+            nfts = live.nfts.map { n in
+                NFTDisplayItem(
+                    tokenId: n.tokenId,
+                    contract: n.contract ?? "",
+                    name: n.name,
+                    collectionName: n.collectionName ?? "",
+                    imageURL: n.imageUrl,
+                    floorPrice: n.floorPrice,
+                    description: n.description ?? "",
+                    traits: []
+                )
+            }
+            isLoading = false
+            return
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(800))
             nfts = NFTGalleryViewModel.sampleNFTs

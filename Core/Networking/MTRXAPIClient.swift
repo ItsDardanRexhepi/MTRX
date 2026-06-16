@@ -405,6 +405,34 @@ struct CreatorTokensResponse: Decodable {
     }
 }
 
+/// Typed contract for marketplace listings (wrapped in `listings`).
+struct MarketplaceListingsResponse: Decodable {
+    let listings: [Listing]
+    struct Listing: Decodable {
+        let name: String
+        let description: String?
+        let priceValue: Double
+        let category: String?       // "All"/"Property"/"Digital"/"Services"/...
+        let sellerName: String?
+        let sellerRating: Double?
+        let viewCount: Int?
+    }
+}
+
+/// Typed contract for the NFT gallery (wrapped in `nfts`).
+struct NFTGalleryResponse: Decodable {
+    let nfts: [NFT]
+    struct NFT: Decodable {
+        let tokenId: String
+        let contract: String?
+        let name: String
+        let collectionName: String?
+        let imageUrl: String?
+        let floorPrice: Double?
+        let description: String?
+    }
+}
+
 // C29 - Privacy
 struct PrivacyProofRequest: Encodable {
     let proofType: String
@@ -1444,6 +1472,16 @@ final class MTRXAPIClient: @unchecked Sendable {
     /// Typed creator-launched tokens.
     func creatorTokens() async throws -> CreatorTokensResponse {
         try await get(path: "/api/v1/creator/tokens")
+    }
+
+    /// Typed marketplace listings.
+    func marketplaceListings() async throws -> MarketplaceListingsResponse {
+        try await get(path: "/api/v1/marketplace/listings")
+    }
+
+    /// Typed NFT gallery.
+    func nftGallery() async throws -> NFTGalleryResponse {
+        try await get(path: "/api/v1/nft")
     }
 
     func followUser(userId: String) async throws -> [String: AnyCodableValue] {
