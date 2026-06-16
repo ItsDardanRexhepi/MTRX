@@ -109,12 +109,8 @@ struct RootView: View {
             .animation(Motion.springDefault, value: unlocked)
 
             if showLaunch {
-                // The portal holds until Face ID unlocks, then opens straight
-                // onto Home — no black page in between.
-                LaunchView(ready: unlocked || !appState.isAuthenticated) {
-                    showLaunch = false
-                }
-                .zIndex(10)
+                LaunchView { showLaunch = false }
+                    .zIndex(10)
             }
         }
         .onAppear { if scenePhase == .active { authenticate() } }
@@ -144,13 +140,16 @@ struct RootView: View {
     }
 
     private var lockScreen: some View {
-        // Plain backdrop behind the launch portal while Face ID is presented.
-        // No auto-trigger here (that caused the duplicate read); a tap retries
-        // only if the single prompt was dismissed.
-        Color.black
-            .ignoresSafeArea()
-            .contentShape(Rectangle())
-            .onTapGesture { authenticate() }
+        // A calm Trinity orb on the app's dark field — visually continuous with
+        // the launch portal, never a black screen. The Group swaps this for
+        // Home the instant Face ID unlocks (a direct @State change, so it can't
+        // get stuck); a tap retries if the prompt was dismissed.
+        ZStack {
+            MtrxGradientBackground(style: .trinityGlow).ignoresSafeArea()
+            GlassOrb(size: 120)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { authenticate() }
     }
 }
 
