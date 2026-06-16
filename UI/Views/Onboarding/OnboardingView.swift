@@ -576,6 +576,21 @@ struct OnboardingView: View {
         Task {
             do {
                 let result = try await AuthServicesManager.shared.signInWithApple()
+
+                // Exchange the Apple identity for a backend session token (a JWT
+                // stored in the Keychain) so every API call is authenticated.
+                // Graceful: if the gateway isn't reachable yet, onboarding still
+                // completes and the session is obtained on a later launch.
+                let signInName = result.fullName.map {
+                    PersonNameComponentsFormatter.localizedString(from: $0, style: .default)
+                }
+                _ = try? await MTRXAPIClient.shared.authenticateWithApple(
+                    identityToken: result.identityTokenString ?? "",
+                    authorizationCode: result.authorizationCodeString ?? "",
+                    fullName: signInName,
+                    email: result.email
+                )
+
                 await MainActor.run {
                     signInResult = result
                     appState.currentUserID = result.userId

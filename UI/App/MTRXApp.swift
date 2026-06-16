@@ -117,6 +117,9 @@ struct RootView: View {
         .task(id: appState.isAuthenticated) {
             if appState.isAuthenticated { authenticate() }
         }
+        // Probe the gateway on launch so the app knows whether the backend is
+        // live (updates the API client's networkStatus; demo data until then).
+        .task { _ = await MTRXAPIClient.shared.checkHealth() }
     }
 
     /// Secure app-lock. A successful Face ID scan is required to enter; a failed
@@ -712,6 +715,10 @@ class AppState: ObservableObject {
             joinDate = joined
         }
         isAuthenticated = true
+
+        // Restore the backend session token (JWT in the Keychain) so API calls
+        // are authenticated across launches.
+        MTRXAPIClient.shared.loadStoredToken()
     }
 
     func navigate(to destination: NavigationDestination) {
@@ -757,6 +764,9 @@ class AppState: ObservableObject {
         defaults.removeObject(forKey: Keys.email)
         defaults.removeObject(forKey: Keys.walletAddress)
         defaults.removeObject(forKey: Keys.joinDate)
+
+        // Clear the backend session token so API calls are no longer authorized.
+        MTRXAPIClient.shared.clearToken()
     }
 
     func refreshOnForeground() { }
