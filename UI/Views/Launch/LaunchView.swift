@@ -9,10 +9,12 @@
 import SwiftUI
 
 struct LaunchView: View {
-    let onComplete: () -> Void
     /// The portal holds (orb breathing) until this is true, then dissolves
     /// straight onto whatever is beneath (Home). True by default.
     var ready: Bool = true
+    /// Re-present Face ID — invoked when the locked portal is tapped.
+    var onRetry: () -> Void = {}
+    let onComplete: () -> Void
 
     @State private var opened = false
     @State private var orbScale: CGFloat = 0.35
@@ -45,6 +47,10 @@ struct LaunchView: View {
                 .scaleEffect(orbScale * (breathe ? 1.05 : 0.97) * portalScale)
                 .opacity(orbOpacity * orbExitOpacity)
         }
+        // While the portal is holding (locked, not yet opening), a tap
+        // re-presents Face ID — there is no way in without authenticating.
+        .contentShape(Rectangle())
+        .onTapGesture { if !opened { onRetry() } }
         .onAppear { runEntrance() }
         .onChange(of: ready) { _, isReady in if isReady { openPortal() } }
     }

@@ -83,9 +83,10 @@ struct MTRXApp: App {
 struct RootView: View {
     @EnvironmentObject var appState: AppState
     @State private var showLaunch = true
-    // App-lock: Face ID once per launch. The portal holds until `unlocked`,
-    // then dissolves straight into Home.
+    // Secure app-lock: a successful Face ID scan is required on every launch.
+    // The portal holds until `unlocked`, then dissolves straight into Home.
     @State private var unlocked = false
+    @State private var authenticating = false
 
     var body: some View {
         ZStack {
@@ -102,26 +103,36 @@ struct RootView: View {
             .animation(Motion.springDefault, value: appState.isAuthenticated)
 
             if showLaunch {
-                // ready == unlocked for a signed-in user (portal waits for the
-                // scan); true immediately if not signed in (normal open).
-                LaunchView(ready: unlocked || !appState.isAuthenticated) {
+                // The portal IS the lock: it holds until a successful Face ID,
+                // then dissolves into Home. Tapping it re-presents Face ID if a
+                // scan was cancelled — there is no way in without authenticating.
+                LaunchView(ready: unlocked || !appState.isAuthenticated,
+                           onRetry: { authenticate() }) {
                     showLaunch = false
                 }
                 .zIndex(10)
             }
         }
-        // Face ID on launch. `.task` runs reliably once the view is live — the
-        // app is active by then, so the prompt isn't system-cancelled. After
-        // the scan resolves we proceed into Home regardless, so it can NEVER
-        // hang on the portal. Re-runs if auth flips (after onboarding).
+        // Face ID at the very beginning of every launch, on the splash.
         .task(id: appState.isAuthenticated) {
-            guard appState.isAuthenticated, !unlocked else { return }
-            // Face ID at the very beginning, on the splash. biometrics-only (no
-            // passcode-grace skip) so the prompt actually appears and is read
-            // first; the instant it resolves the portal dissolves into Home.
-            _ = try? await BiometricAuth().authenticate(reason: "Unlock MTRX",
-                                                        allowPasscodeFallback: false)
-            unlocked = true
+            if appState.isAuthenticated { authenticate() }
+        }
+    }
+
+    /// Secure app-lock. A successful Face ID scan is required to enter; a failed
+    /// or cancelled scan does NOT grant access — the portal stays put, and a tap
+    /// re-presents Face ID. biometrics-only so the prompt always actually
+    /// appears (no passcode-grace skip) and is read before Home.
+    private func authenticate() {
+        guard appState.isAuthenticated, !unlocked, !authenticating else { return }
+        authenticating = true
+        Task {
+            let ok = (try? await BiometricAuth().authenticate(reason: "Unlock MTRX",
+                                                              allowPasscodeFallback: false)) ?? false
+            await MainActor.run {
+                authenticating = false
+                if ok { unlocked = true }
+            }
         }
     }
 }
