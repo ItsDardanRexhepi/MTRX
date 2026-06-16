@@ -116,7 +116,11 @@ struct RootView: View {
         // hang on the portal. Re-runs if auth flips (after onboarding).
         .task(id: appState.isAuthenticated) {
             guard appState.isAuthenticated, !unlocked else { return }
-            _ = try? await BiometricAuth().authenticate(reason: "Unlock MTRX")
+            // biometrics-only (no passcode-grace skip) so the Face ID prompt
+            // actually appears and is read BEFORE Home — the portal holds until
+            // the scan resolves, then dissolves into Home.
+            _ = try? await BiometricAuth().authenticate(reason: "Unlock MTRX",
+                                                        allowPasscodeFallback: false)
             unlocked = true
         }
     }
