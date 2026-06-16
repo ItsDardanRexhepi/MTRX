@@ -349,7 +349,30 @@ final class SocialViewModel: ObservableObject {
 
     init() {
         loadSampleData()
-        Task { await loadLiveFeed() }
+        Task {
+            await loadLiveFeed()
+            await loadLiveProposals()
+        }
+    }
+
+    /// Overlay live governance proposals from the gateway, split into active
+    /// and past. Falls back silently to the sample proposals if it isn't up.
+    @MainActor
+    func loadLiveProposals() async {
+        guard let live = try? await MTRXAPIClient.shared.governanceProposals(),
+              !live.proposals.isEmpty else { return }
+        let mapped = live.proposals.map { p in
+            SocialGovernanceProposal(
+                id: p.id, title: p.title, description: p.description,
+                votesFor: p.votesFor, votesAgainst: p.votesAgainst,
+                quorumProgress: p.quorumProgress ?? 0,
+                endDate: p.endDate ?? Date(),
+                status: SocialGovernanceProposal.ProposalStatus(rawValue: p.status) ?? .active,
+                hasVoted: p.hasVoted ?? false
+            )
+        }
+        proposals = mapped.filter { $0.status == .active }
+        pastProposals = mapped.filter { $0.status != .active }
     }
 
     /// Overlay the live feed from the gateway. Falls back silently to the

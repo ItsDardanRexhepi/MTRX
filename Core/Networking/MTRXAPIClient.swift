@@ -296,6 +296,34 @@ struct FeedResponse: Decodable {
     }
 }
 
+/// Typed contract for governance proposals (wrapped in `proposals`).
+struct ProposalsResponse: Decodable {
+    let proposals: [Proposal]
+    struct Proposal: Decodable {
+        let id: String
+        let title: String
+        let description: String
+        let votesFor: Int
+        let votesAgainst: Int
+        let quorumProgress: Double?
+        let endDate: Date?
+        let status: String
+        let hasVoted: Bool?
+    }
+}
+
+/// Typed contract for real-world assets (wrapped in `assets`).
+struct RWAAssetsResponse: Decodable {
+    let assets: [Asset]
+    struct Asset: Decodable {
+        let name: String
+        let category: String
+        let apy: String?
+        let minInvestment: String?
+        let riskRating: String?
+    }
+}
+
 // C29 - Privacy
 struct PrivacyProofRequest: Encodable {
     let proofType: String
@@ -1300,6 +1328,16 @@ final class MTRXAPIClient: @unchecked Sendable {
     /// and the Home feed window.
     func feed() async throws -> FeedResponse {
         try await get(path: "/api/v1/social/feed")
+    }
+
+    /// Typed governance proposals.
+    func governanceProposals() async throws -> ProposalsResponse {
+        try await get(path: "/api/v1/governance/proposals")
+    }
+
+    /// Typed real-world assets.
+    func rwaAssets() async throws -> RWAAssetsResponse {
+        try await get(path: "/api/v1/rwa")
     }
 
     func followUser(userId: String) async throws -> [String: AnyCodableValue] {

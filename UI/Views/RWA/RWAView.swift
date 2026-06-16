@@ -55,6 +55,18 @@ class RWAViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live assets from the gateway; fall back to sample data if it isn't up.
+        if let live = try? await MTRXAPIClient.shared.rwaAssets(), !live.assets.isEmpty {
+            assets = live.assets.map { a in
+                RWAItem(name: a.name, category: a.category,
+                        apy: a.apy ?? "—", minInvestment: a.minInvestment ?? "—",
+                        riskRating: a.riskRating ?? "—")
+            }
+            holdings = RWAViewModel.sampleHoldings
+            isLoading = false
+            return
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(600))
             assets = RWAViewModel.sampleAssets
