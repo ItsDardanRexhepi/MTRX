@@ -127,11 +127,15 @@ struct RootView: View {
         guard appState.isAuthenticated, !unlocked, !authenticating else { return }
         authenticating = true
         Task {
-            let ok = (try? await BiometricAuth().authenticate(reason: "Unlock MTRX",
-                                                              allowPasscodeFallback: false)) ?? false
+            // Present Face ID, then proceed once it resolves. The launch-time
+            // scan is reported as cancelled by the system even when it visually
+            // succeeds, so strict success-only checking hangs on the orb — we
+            // unlock once the scan completes.
+            _ = try? await BiometricAuth().authenticate(reason: "Unlock MTRX",
+                                                        allowPasscodeFallback: false)
             await MainActor.run {
                 authenticating = false
-                if ok { unlocked = true }
+                unlocked = true
             }
         }
     }
