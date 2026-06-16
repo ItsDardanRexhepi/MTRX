@@ -3,6 +3,7 @@
 //
 // App entry point — launch screen, authentication gate, five-tab navigation.
 
+import LocalAuthentication
 import SwiftUI
 
 // MARK: - App Entry Point
@@ -91,33 +92,29 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            // Home is mounted underneath the launch overlay from the very
-            // first frame — so when the splash orb opens, the user comes
-            // straight through the portal into Home with no black buffer.
+            // The app is mounted beneath the portal; the portal fully covers it
+            // and holds until Face ID unlocks, then dissolves onto it — so there
+            // is no separate lock screen, just portal → Home.
             Group {
                 if appState.isAuthenticated {
-                    if unlocked {
-                        MainTabView()
-                    } else {
-                        lockScreen
-                    }
+                    MainTabView()
                 } else {
                     OnboardingView()
                 }
             }
             .animation(Motion.springDefault, value: appState.isAuthenticated)
-            .animation(Motion.springDefault, value: unlocked)
 
             if showLaunch {
-                LaunchView { showLaunch = false }
-                    .zIndex(10)
+                // ready == unlocked for a signed-in user (portal waits for the
+                // scan); true immediately if not signed in (normal open).
+                LaunchView(ready: unlocked || !appState.isAuthenticated) {
+                    showLaunch = false
+                }
+                .zIndex(10)
             }
         }
-        .onAppear { if scenePhase == .active { authenticate() } }
+        .onAppear { authenticate() }
         .onChange(of: scenePhase) { _, phase in
-            // Fire Face ID the moment the scene is active — the earliest point
-            // the system presents it without cancelling. One scan, then the
-            // portal opens straight into Home, no second prompt.
             if phase == .active { authenticate() }
         }
         .onChange(of: appState.isAuthenticated) { _, auth in
@@ -125,31 +122,30 @@ struct RootView: View {
         }
     }
 
-    /// Exactly one Face ID prompt per launch — `hasPrompted` guards against
-    /// the duplicate prompts that caused a second read on a black screen.
+    /// One Face ID scan per launch. If the system cancels the prompt (it was
+    /// presented during launch before the app was active) we re-fire once —
+    /// that cancel was what left the portal stuck. We never retry a user cancel.
     private func authenticate() {
         guard appState.isAuthenticated, !unlocked, !authPending else { return }
         authPending = true
+        let context = LAContext()
+        context.localizedCancelTitle = "Cancel"
         Task {
-            let ok = (try? await BiometricAuth().authenticate(reason: "Unlock MTRX")) ?? false
-            await MainActor.run {
-                authPending = false
-                if ok { unlocked = true }
+            do {
+                let ok = try await context.evaluatePolicy(.deviceOwnerAuthentication,
+                                                          localizedReason: "Unlock MTRX")
+                await MainActor.run {
+                    authPending = false
+                    if ok { unlocked = true }
+                }
+            } catch let error as LAError where error.code == .systemCancel || error.code == .appCancel {
+                await MainActor.run { authPending = false }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                await MainActor.run { authenticate() }
+            } catch {
+                await MainActor.run { authPending = false }
             }
         }
-    }
-
-    private var lockScreen: some View {
-        // A calm Trinity orb on the app's dark field — visually continuous with
-        // the launch portal, never a black screen. The Group swaps this for
-        // Home the instant Face ID unlocks (a direct @State change, so it can't
-        // get stuck); a tap retries if the prompt was dismissed.
-        ZStack {
-            MtrxGradientBackground(style: .trinityGlow).ignoresSafeArea()
-            GlassOrb(size: 120)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { authenticate() }
     }
 }
 

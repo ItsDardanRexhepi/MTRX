@@ -10,7 +10,11 @@ import SwiftUI
 
 struct LaunchView: View {
     let onComplete: () -> Void
+    /// The portal holds (orb breathing) until this is true, then dissolves
+    /// straight onto whatever is beneath (Home). True by default.
+    var ready: Bool = true
 
+    @State private var opened = false
     @State private var orbScale: CGFloat = 0.35
     @State private var orbOpacity: Double = 0
     @State private var auraOpacity: Double = 0
@@ -41,7 +45,8 @@ struct LaunchView: View {
                 .scaleEffect(orbScale * (breathe ? 1.05 : 0.97) * portalScale)
                 .opacity(orbOpacity * orbExitOpacity)
         }
-        .onAppear(perform: run)
+        .onAppear { runEntrance() }
+        .onChange(of: ready) { _, isReady in if isReady { openPortal() } }
     }
 
     /// The launch light: concentric radial gradients that fade fully to clear
@@ -69,18 +74,25 @@ struct LaunchView: View {
         .blur(radius: 7)
     }
 
-    private func run() {
-        // Orb blooms in.
+    private func runEntrance() {
+        // Orb blooms in and breathes.
         withAnimation(.spring(response: 0.7, dampingFraction: 0.72)) {
             orbScale = 1; orbOpacity = 1; auraOpacity = 1
         }
         withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
             breathe = true
         }
-        // The portal opens on its own — it never waits on anything, so it can
-        // never get stuck. The app (Home, or the Face-ID orb that swaps to
-        // Home) is revealed beneath.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        // If we're already ready (e.g. not signed in), open after a brief bloom.
+        if ready { openPortal() }
+    }
+
+    /// Dissolves the portal onto whatever is beneath. Called once — from the
+    /// entrance (if already ready) or when `ready` flips after the Face ID scan.
+    private func openPortal() {
+        guard !opened else { return }
+        opened = true
+        // A brief bloom so the orb is always seen, then the portal opens.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             withAnimation(.easeInOut(duration: 0.6)) {
                 bgOpacity = 0
                 auraOpacity = 0
