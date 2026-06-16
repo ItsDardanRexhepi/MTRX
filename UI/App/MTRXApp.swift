@@ -82,7 +82,6 @@ struct MTRXApp: App {
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
-    @Environment(\.scenePhase) private var scenePhase
     @State private var showLaunch = true
     // App-lock: like a banking app, Face ID is required on launch and every
     // time the app returns to the foreground before the content is shown.
@@ -118,17 +117,10 @@ struct RootView: View {
             }
         }
         .task { if appState.isAuthenticated { unlock() } }
+        // Face ID once per launch — unlocked persists for the app's lifetime,
+        // so returning from background does not re-prompt.
         .onChange(of: appState.isAuthenticated) { _, auth in
             if auth { unlock() } else { unlocked = false }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            switch phase {
-            // Lock the moment we leave — the app snapshot shows the lock, not
-            // the user's accounts — then re-prompt Face ID on return.
-            case .background: if appState.isAuthenticated { unlocked = false }
-            case .active:     if appState.isAuthenticated && !unlocked { unlock() }
-            default: break
-            }
         }
     }
 
@@ -145,28 +137,14 @@ struct RootView: View {
     }
 
     private var lockScreen: some View {
-        ZStack {
-            MtrxGradientBackground(style: .trinityGlow).ignoresSafeArea()
-            VStack(spacing: Spacing.lg) {
-                Image(systemName: "faceid")
-                    .font(.system(size: 60))
-                    .foregroundStyle(Color.accentPrimary)
-                VStack(spacing: Spacing.xs) {
-                    Text("MTRX is locked")
-                        .font(.mtrxTitle3)
-                        .foregroundStyle(Color.labelPrimary)
-                    Text("Authenticate to continue")
-                        .font(.mtrxSubheadline)
-                        .foregroundStyle(Color.labelSecondary)
-                }
-            }
-            .padding(Spacing.xl)
-        }
-        // Face ID fires automatically the instant the lock appears — no button
-        // to tap. Tapping anywhere silently retries a dismissed prompt.
-        .contentShape(Rectangle())
-        .onTapGesture { unlock() }
-        .onAppear { unlock() }
+        // No lock UI — a plain backdrop while the Face ID prompt is presented.
+        // It fires automatically on appear; a tap silently retries a dismissed
+        // prompt.
+        Color.black
+            .ignoresSafeArea()
+            .contentShape(Rectangle())
+            .onTapGesture { unlock() }
+            .onAppear { unlock() }
     }
 }
 
