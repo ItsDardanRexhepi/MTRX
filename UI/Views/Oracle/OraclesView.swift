@@ -29,6 +29,17 @@ class OraclesViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live feeds from the gateway; fall back to samples if it isn't up.
+        if let live = try? await MTRXAPIClient.shared.oracleFeeds(), !live.feeds.isEmpty {
+            feeds = live.feeds.map {
+                FeedItem(name: $0.name, pair: $0.pair, currentValue: $0.currentValue,
+                         lastUpdated: $0.lastUpdated, isSubscribed: $0.isSubscribed ?? false)
+            }
+            subscribedFeeds = feeds.filter(\.isSubscribed)
+            isLoading = false
+            return
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             feeds = OraclesViewModel.sampleFeeds

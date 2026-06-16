@@ -433,6 +433,36 @@ struct NFTGalleryResponse: Decodable {
     }
 }
 
+/// Typed contract for oracle price feeds (wrapped in `feeds`).
+struct OracleFeedsResponse: Decodable {
+    let feeds: [Feed]
+    struct Feed: Decodable {
+        let name: String
+        let pair: String
+        let currentValue: String
+        let lastUpdated: String
+        let isSubscribed: Bool?
+    }
+}
+
+/// Typed contract for disputes (wrapped in `disputes`).
+struct DisputesResponse: Decodable {
+    let disputes: [Dispute]
+    struct Dispute: Decodable {
+        let counterparty: String
+        let description: String?
+        let stakeAmount: Double
+        let status: String          // pending / active / resolved / rejected
+        let votesFor: Int?
+        let votesAgainst: Int?
+        let deadline: Date?
+        let wonByUser: Bool?
+        let isJuryCase: Bool?
+        let hasVoted: Bool?
+        let claimed: Bool?
+    }
+}
+
 // C29 - Privacy
 struct PrivacyProofRequest: Encodable {
     let proofType: String
@@ -1482,6 +1512,16 @@ final class MTRXAPIClient: @unchecked Sendable {
     /// Typed NFT gallery.
     func nftGallery() async throws -> NFTGalleryResponse {
         try await get(path: "/api/v1/nft")
+    }
+
+    /// Typed oracle price feeds.
+    func oracleFeeds() async throws -> OracleFeedsResponse {
+        try await get(path: "/api/v1/oracles/feeds")
+    }
+
+    /// Typed disputes.
+    func disputes() async throws -> DisputesResponse {
+        try await get(path: "/api/v1/disputes")
     }
 
     func followUser(userId: String) async throws -> [String: AnyCodableValue] {

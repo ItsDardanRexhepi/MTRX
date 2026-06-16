@@ -49,6 +49,33 @@ final class DisputeViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live disputes from the gateway; fall back to samples if it isn't up.
+        if let live = try? await MTRXAPIClient.shared.disputes(), !live.disputes.isEmpty {
+            let mapped = live.disputes.map { d -> DisputeCase in
+                let st: DisputeUIStatus = d.status.lowercased() == "pending" ? .pending
+                    : d.status.lowercased() == "resolved" ? .resolved
+                    : d.status.lowercased() == "rejected" ? .rejected : .active
+                return DisputeCase(
+                    counterparty: d.counterparty,
+                    description_: d.description ?? "",
+                    stakeAmount: d.stakeAmount,
+                    status: st,
+                    votesFor: d.votesFor ?? 0,
+                    votesAgainst: d.votesAgainst ?? 0,
+                    deadline: d.deadline ?? Date(),
+                    wonByUser: d.wonByUser ?? false,
+                    isJuryCase: d.isJuryCase ?? false,
+                    hasVoted: d.hasVoted ?? false,
+                    claimed: d.claimed ?? false
+                )
+            }
+            activeDisputes = mapped.filter { !$0.isJuryCase }
+            juryCases = mapped.filter { $0.isJuryCase }
+            isLoading = false
+            withAnimation(Motion.springDefault) { contentAppeared = true }
+            return
+        }
+
         try? await Task.sleep(nanoseconds: 800_000_000)
 
         activeDisputes = DisputeCase.sampleMyDisputes
