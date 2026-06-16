@@ -108,9 +108,9 @@ struct RootView: View {
             .animation(Motion.springDefault, value: unlocked)
 
             if showLaunch {
-                LaunchView {
-                    // The launch view has already faded itself to reveal
-                    // Home beneath — just remove the (now invisible) overlay.
+                // The portal holds until Face ID unlocks, then opens straight
+                // onto Home — no black page in between.
+                LaunchView(ready: unlocked || !appState.isAuthenticated) {
                     showLaunch = false
                 }
                 .zIndex(10)

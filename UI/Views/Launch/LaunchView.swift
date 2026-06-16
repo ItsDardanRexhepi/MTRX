@@ -10,7 +10,12 @@ import SwiftUI
 
 struct LaunchView: View {
     let onComplete: () -> Void
+    /// The portal holds (orb breathing) until this is true — i.e. Face ID has
+    /// unlocked — then it opens straight onto Home with no page in between.
+    var ready: Bool = true
 
+    @State private var entranceDone = false
+    @State private var opened = false
     @State private var orbScale: CGFloat = 0.35
     @State private var orbOpacity: Double = 0
     @State private var auraOpacity: Double = 0
@@ -44,6 +49,7 @@ struct LaunchView: View {
                 .opacity(orbOpacity * orbExitOpacity)
         }
         .onAppear(perform: run)
+        .onChange(of: ready) { _, _ in tryOpen() }
     }
 
     /// The launch light: concentric radial gradients that fade fully to clear
@@ -82,28 +88,36 @@ struct LaunchView: View {
         withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
             breathe = true
         }
-        // The portal opens — the bloom breathes outward and dissolves into
-        // Home, never flashing bright because it is already soft, edgeless
-        // light that fades as it grows.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.7) {
-            // Ocean + aura fade first → Home is revealed beneath the light.
-            withAnimation(.easeInOut(duration: 0.6)) {
-                bgOpacity = 0
-                auraOpacity = 0
-            }
-            // The bloom expands gently — a soft opening, not an engulfing
-            // light. The edgeless gradient means no shape ever appears.
-            withAnimation(.easeInOut(duration: 0.85)) {
-                portalScale = 2.8
-            }
-            // It dissolves as it grows, fading in lockstep with the expansion
-            // so the light peels away into Home with no bright frame.
-            withAnimation(.easeInOut(duration: 0.75)) {
-                orbExitOpacity = 0
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.92) {
-                onComplete()
-            }
+        // A brief minimum so the orb is seen; the orb then keeps breathing
+        // until `ready` (Face ID unlocked), at which point the portal opens.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            entranceDone = true
+            tryOpen()
+        }
+    }
+
+    /// Opens the portal onto Home — but only once the entrance has played and
+    /// the app is ready (unlocked). Called from both the entrance timer and a
+    /// change in `ready`, so whichever happens last triggers the open exactly
+    /// once.
+    private func tryOpen() {
+        guard ready, entranceDone, !opened else { return }
+        opened = true
+        // Ocean + aura fade first → Home is revealed beneath the light.
+        withAnimation(.easeInOut(duration: 0.6)) {
+            bgOpacity = 0
+            auraOpacity = 0
+        }
+        // The bloom expands gently — a soft opening onto Home.
+        withAnimation(.easeInOut(duration: 0.85)) {
+            portalScale = 2.8
+        }
+        // It dissolves as it grows, peeling away into Home with no bright frame.
+        withAnimation(.easeInOut(duration: 0.75)) {
+            orbExitOpacity = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.92) {
+            onComplete()
         }
     }
 }
