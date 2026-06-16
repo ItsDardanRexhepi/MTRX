@@ -101,6 +101,21 @@ class LendingViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live markets from the gateway; fall back to sample data if it isn't up.
+        if let pools = try? await MTRXAPIClient.shared.defiListPools(), !pools.isEmpty {
+            markets = pools.map { p in
+                LendingMarketDisplay(
+                    id: p.poolId, token: p.asset, symbol: p.asset,
+                    supplyAPY: p.apy, borrowAPR: p.apy,
+                    totalSupply: p.totalLiquidity,
+                    totalBorrow: p.totalLiquidity * p.utilizationRate
+                )
+            }
+            position = LendingViewModel.samplePosition
+            isLoading = false
+            return
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             markets = LendingViewModel.sampleMarkets

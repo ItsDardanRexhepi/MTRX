@@ -219,6 +219,8 @@ struct MainTabView: View {
             // Sync wallet prices to the live feed so every screen and
             // every agent quote agree.
             await walletManager.refreshLivePrices()
+            // Overlay the live portfolio from the gateway (falls back to demo).
+            await walletManager.loadPortfolio()
         }
         .onChange(of: selectedTab) { _, _ in
             MtrxHaptics.selection()
@@ -994,6 +996,50 @@ class WalletManager: ObservableObject {
             if let eth = token("ETH") {
                 balance = Decimal(eth.balance * eth.priceUSD)
             }
+        }
+    }
+
+    /// Pull the live portfolio from the gateway and replace the demo holdings.
+    /// Silently keeps the current (sample) data if the backend isn't reachable,
+    /// so the screen never goes blank.
+    @MainActor
+    func loadPortfolio() async {
+        guard let p = try? await MTRXAPIClient.shared.getPortfolio() else { return }
+        if !p.tokens.isEmpty {
+            tokens = p.tokens.map { t in
+                AppTokenBalance(
+                    symbol: t.symbol, name: t.name, balance: t.balance,
+                    priceUSD: t.balance > 0 ? t.valueUSD / t.balance : 0,
+                    change24h: 0,
+                    iconColor: WalletManager.tokenColor(for: t.symbol)
+                )
+            }
+        }
+        if !p.defiPositions.isEmpty {
+            defiPositions = p.defiPositions.map { d in
+                DeFiPositionItem(
+                    protocol_: d.protocol_ ?? "—", type: d.type, value: d.valueUSD,
+                    apy: d.apy ?? 0, healthFactor: nil, icon: "building.columns"
+                )
+            }
+        }
+        if !p.nfts.isEmpty {
+            nfts = p.nfts.map { n in
+                NFTItem(name: n.name, collection: n.collection, floorPrice: 0,
+                        rarity: "", gradientColors: [.accentPrimary, .blue])
+            }
+        }
+    }
+
+    static func tokenColor(for symbol: String) -> Color {
+        switch symbol.uppercased() {
+        case "ETH":          return .blue
+        case "USDC", "USDT": return .green
+        case "MTRX":         return .accentPrimary
+        case "WBTC", "BTC":  return .orange
+        case "LINK":         return .blue
+        case "UNI":          return .pink
+        default:             return .accentPrimary
         }
     }
 
