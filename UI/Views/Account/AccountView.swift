@@ -598,6 +598,8 @@ struct AccountView: View {
         .buttonStyle(.plain)
         // Enlarged 1% per spec; the label stays centered within the button.
         .scaleEffect(1.01)
+        // Nudged 0.1% of screen height down per spec.
+        .offset(y: 0.85)
         .mtrxFadeInFromBottom(isVisible: appeared, delay: 0.2)
     }
 

@@ -37,38 +37,86 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            // Page-specific background gradient
-            backgroundGradient
-                .animation(Motion.springGentle, value: currentPage)
+            // Blackout theme.
+            Color.black.ignoresSafeArea()
 
-            TabView(selection: $currentPage) {
-                welcomePage
-                    .tag(OnboardingPage.welcome)
-
-                signInPage
-                    .tag(OnboardingPage.signIn)
-
-                walletSetupPage
-                    .tag(OnboardingPage.walletSetup)
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .animation(Motion.springDefault, value: currentPage)
-
-            // Custom page indicators
-            VStack {
+            VStack(spacing: 0) {
                 Spacer()
-                pageIndicator
-                    .padding(.bottom, Spacing.md)
+
+                // Trinity's pulsating orb.
+                GlassOrb(size: 132)
+                    .padding(.bottom, Spacing.lg)
+
+                // MTRX — the same living, slowly color-shifting gradient as the
+                // user's name on the Home screen.
+                TimelineView(.animation) { context in
+                    let t = context.date.timeIntervalSinceReferenceDate
+                    let shift = CGFloat(sin(t * 0.25)) * 0.5
+                    Text("MTRX")
+                        .font(.mtrxDisplayLarge)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.labelPrimary, Color.trinityPrimary,
+                                         Color(red: 0.72, green: 0.78, blue: 0.99), Color.labelPrimary],
+                                startPoint: UnitPoint(x: -0.5 + shift, y: 0.5),
+                                endPoint: UnitPoint(x: 1.0 + shift, y: 0.5)
+                            )
+                        )
+                }
+
+                Text("The future.")
+                    .font(.mtrxTitle1)
+                    .foregroundStyle(
+                        LinearGradient(colors: [.accentPrimary, .accentSecondary],
+                                       startPoint: .leading, endPoint: .trailing)
+                    )
+                    .padding(.top, Spacing.xs)
+
+                Spacer()
+
+                // Sign in with Apple — or progress while finishing setup.
+                VStack(spacing: Spacing.ml) {
+                    if isAuthenticating || isCreatingWallet {
+                        VStack(spacing: Spacing.md) {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .scaleEffect(1.2)
+                                .tint(.accentPrimary)
+                            Text("Setting up your account…")
+                                .font(.mtrxSubheadline)
+                                .foregroundStyle(Color.labelSecondary)
+                        }
+                        .frame(height: 56)
+                    } else {
+                        Button {
+                            performSignIn()
+                        } label: {
+                            HStack(spacing: Spacing.sm) {
+                                Image(systemName: "apple.logo")
+                                    .font(.system(size: 18, weight: .semibold))
+                                Text("Sign in with Apple")
+                            }
+                            .foregroundStyle(Color.black)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+                        }
+                    }
+
+                    Text("By continuing, you agree to our Terms of Service\nand Privacy Policy")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelTertiary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, Spacing.lg)
+                .padding(.bottom, Spacing.xxl)
             }
-            .ignoresSafeArea(.keyboard)
         }
         .alert("Sign In Error", isPresented: $showErrorAlert) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(authError ?? "An unexpected error occurred. Please try again.")
-        }
-        .onAppear {
-            detectBiometricType()
         }
     }
 
@@ -486,12 +534,7 @@ struct OnboardingView: View {
             // Returning user — restore their existing wallet address
             walletAddress = existing
             isCreatingWallet = false
-            withAnimation(Motion.springBouncy) {
-                walletCreated = true
-            }
-            withAnimation(Motion.springDefault.delay(0.2)) {
-                walletBadgeAppeared = true
-            }
+            completeOnboarding()
             return
         }
 
@@ -518,12 +561,7 @@ struct OnboardingView: View {
                         from: self.signInResult?.userId ?? UUID().uuidString
                     )
                 }
-                withAnimation(Motion.springBouncy) {
-                    self.walletCreated = true
-                }
-                withAnimation(Motion.springDefault.delay(0.2)) {
-                    self.walletBadgeAppeared = true
-                }
+                self.completeOnboarding()
             }
         }
     }
@@ -559,7 +597,7 @@ struct OnboardingView: View {
 
                     isAuthenticating = false
                     isCreatingWallet = true
-                    currentPage = .walletSetup
+                    createRealWallet()
                 }
             } catch {
                 await MainActor.run {

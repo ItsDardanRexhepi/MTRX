@@ -116,11 +116,7 @@ struct RootView: View {
                 .zIndex(10)
             }
         }
-        .onAppear {
-            // Small delay so the app is fully active before the first prompt —
-            // a prompt fired too early at launch gets cancelled by the system.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { authenticate() }
-        }
+        .onAppear { authenticate() }
         .onChange(of: appState.isAuthenticated) { _, auth in
             if auth { authenticate() } else { unlocked = false; authPending = false }
         }
