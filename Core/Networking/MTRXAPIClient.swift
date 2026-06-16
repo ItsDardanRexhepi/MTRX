@@ -276,6 +276,26 @@ struct PostCreateRequest: Encodable {
     let visibility: String?
 }
 
+/// Typed contract for the social feed. The backend returns snake_case keys.
+struct FeedResponse: Decodable {
+    let posts: [FeedPost]
+
+    struct FeedPost: Decodable {
+        let id: String
+        let displayName: String
+        let handle: String
+        let avatarInitials: String?
+        let body: String
+        let timestamp: Date?
+        let isVerified: Bool?
+        let proofHash: String?
+        let governanceTag: String?
+        let likeCount: Int?
+        let repostCount: Int?
+        let commentCount: Int?
+    }
+}
+
 // C29 - Privacy
 struct PrivacyProofRequest: Encodable {
     let proofType: String
@@ -1273,6 +1293,12 @@ final class MTRXAPIClient: @unchecked Sendable {
     }
 
     func listFeed() async throws -> [String: AnyCodableValue] {
+        try await get(path: "/api/v1/social/feed")
+    }
+
+    /// Typed social feed — decodes into `FeedResponse`. Used by the Social tab
+    /// and the Home feed window.
+    func feed() async throws -> FeedResponse {
         try await get(path: "/api/v1/social/feed")
     }
 

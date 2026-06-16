@@ -60,3 +60,4 @@ Config/Secrets.swift
 # Dev tooling
 .claude/
 build/
+BACKEND_ACTIVATION.md

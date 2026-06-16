@@ -349,6 +349,34 @@ final class SocialViewModel: ObservableObject {
 
     init() {
         loadSampleData()
+        Task { await loadLiveFeed() }
+    }
+
+    /// Overlay the live feed from the gateway. Falls back silently to the
+    /// sample posts if the backend isn't reachable, so the feed never blanks.
+    @MainActor
+    func loadLiveFeed() async {
+        guard let live = try? await MTRXAPIClient.shared.feed(), !live.posts.isEmpty else { return }
+        posts = live.posts.map { p in
+            SocialPostDisplay(
+                id: p.id,
+                displayName: p.displayName,
+                handle: p.handle,
+                avatarInitials: p.avatarInitials ?? String(p.displayName.prefix(2)).uppercased(),
+                avatarColor: .accentPrimary,
+                timestamp: p.timestamp ?? Date(),
+                body: p.body,
+                isVerified: p.isVerified ?? false,
+                hasOnChainProof: p.proofHash != nil,
+                proofHash: p.proofHash,
+                governanceTag: p.governanceTag,
+                likeCount: p.likeCount ?? 0,
+                repostCount: p.repostCount ?? 0,
+                commentCount: p.commentCount ?? 0,
+                isLiked: false,
+                isReposted: false
+            )
+        }
     }
 
     // MARK: Filtered Posts
