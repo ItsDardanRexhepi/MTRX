@@ -790,19 +790,48 @@ struct SocialView: View {
             // No scale — the sliver fills full-height so there's no black gap
             // in the top corner.
             .offset(x: drawer.isOpen ? sideMenuWidth : 0)
-            // Swipe right anywhere (Social only) to open the drawer, and
-            // swipe left anywhere to close it — the single drawer gesture.
+            // Horizontal swipes drive the whole Social tab:
+            //  • swipe left  → next sub-tab (Feed→Governance→Search→Notifications→Messaging)
+            //  • swipe right → previous sub-tab
+            //  • on the first tab (Feed), swipe right opens the side drawer;
+            //    swipe left closes the drawer whenever it's open.
             .simultaneousGesture(
                 DragGesture(minimumDistance: 24)
                     .onEnded { value in
                         let w = value.translation.width
                         let h = value.translation.height
+                        // Only act on a clearly horizontal swipe so vertical
+                        // scrolling is never hijacked.
                         guard abs(w) > 70, abs(w) > abs(h) * 1.6 else { return }
-                        if w > 0 && !drawer.isOpen {
+
+                        // The drawer takes priority while it's open.
+                        if drawer.isOpen {
+                            if w < 0 { closeSideMenu() }
+                            return
+                        }
+
+                        let tabs = topTabs
+                        if let idx = tabs.firstIndex(of: viewModel.selectedTab) {
+                            if w < 0, idx < tabs.count - 1 {
+                                // Next tab.
+                                withAnimation(Motion.springSnappy) { viewModel.selectedTab = tabs[idx + 1] }
+                                MtrxHaptics.selection()
+                            } else if w > 0 {
+                                if idx > 0 {
+                                    // Previous tab.
+                                    withAnimation(Motion.springSnappy) { viewModel.selectedTab = tabs[idx - 1] }
+                                    MtrxHaptics.selection()
+                                } else {
+                                    // Already on Feed — open the side drawer.
+                                    MtrxHaptics.impact(.light)
+                                    withAnimation(.smooth(duration: 0.4)) { drawer.isOpen = true }
+                                }
+                            }
+                        } else if w > 0 {
+                            // Deep-link sub-tabs (groups/network/live): keep the
+                            // drawer reachable on a right-swipe.
                             MtrxHaptics.impact(.light)
                             withAnimation(.smooth(duration: 0.4)) { drawer.isOpen = true }
-                        } else if w < 0 && drawer.isOpen {
-                            closeSideMenu()
                         }
                     }
             )
