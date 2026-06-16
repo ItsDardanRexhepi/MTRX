@@ -82,6 +82,7 @@ struct MTRXApp: App {
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showLaunch = true
     // App-lock: Face ID once per launch. A single prompt fires while the
     // launch portal is on screen; on success we go straight to Home.
@@ -116,7 +117,13 @@ struct RootView: View {
                 .zIndex(10)
             }
         }
-        .onAppear { authenticate() }
+        .onAppear { if scenePhase == .active { authenticate() } }
+        .onChange(of: scenePhase) { _, phase in
+            // Fire Face ID the moment the scene is active — the earliest point
+            // the system presents it without cancelling. One scan, then the
+            // portal opens straight into Home, no second prompt.
+            if phase == .active { authenticate() }
+        }
         .onChange(of: appState.isAuthenticated) { _, auth in
             if auth { authenticate() } else { unlocked = false; authPending = false }
         }
@@ -131,14 +138,7 @@ struct RootView: View {
             let ok = (try? await BiometricAuth().authenticate(reason: "Unlock MTRX")) ?? false
             await MainActor.run {
                 authPending = false
-                if ok {
-                    unlocked = true
-                } else {
-                    // Self-heal: a launch-time prompt can be cancelled by the
-                    // system before the app is active. Retry shortly so the
-                    // portal never deadlocks and the user can always get in.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { authenticate() }
-                }
+                if ok { unlocked = true }
             }
         }
     }
