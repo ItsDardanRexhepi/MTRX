@@ -62,6 +62,29 @@ class EventsViewModel: ObservableObject {
         } catch { }
     }
 
+    // MARK: - Ticket check-in (QR)
+
+    @Published var scanResultMessage: String?
+    @Published var showScanResult: Bool = false
+
+    /// Validate a scanned ticket QR against the user's tickets and check it in.
+    /// The QR is expected to carry the ticket's id (uuid) or its event title.
+    func checkInScannedTicket(_ code: String) {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let index = tickets.firstIndex(where: { $0.id.uuidString == trimmed || $0.eventTitle == trimmed }) {
+            let ticket = tickets[index]
+            if ticket.used {
+                scanResultMessage = "Ticket for \(ticket.eventTitle) was already used."
+            } else {
+                tickets[index] = TicketItem(eventTitle: ticket.eventTitle, eventDate: ticket.eventDate, used: true)
+                scanResultMessage = "Checked in: \(ticket.eventTitle)."
+            }
+        } else {
+            scanResultMessage = "No matching ticket found for this code."
+        }
+        showScanResult = true
+    }
+
     func createEvent() async {
         guard !newTitle.isEmpty else { return }
         do {
@@ -99,6 +122,7 @@ class EventsViewModel: ObservableObject {
 
 struct EventsView: View {
     @StateObject private var viewModel = EventsViewModel()
+    @State private var showTicketScanner = false
 
     var body: some View {
         NavigationStack {
@@ -117,6 +141,15 @@ struct EventsView: View {
             .navigationTitle("Events")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showTicketScanner = true
+                    } label: {
+                        Image(systemName: Symbols.qrScanner)
+                            .foregroundStyle(Color.accentPrimary)
+                    }
+                    .accessibilityLabel("Scan ticket")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         viewModel.showCreate = true
@@ -129,6 +162,16 @@ struct EventsView: View {
             .task { await viewModel.load() }
             .sheet(isPresented: $viewModel.showCreate) {
                 createEventSheet
+            }
+            .fullScreenCover(isPresented: $showTicketScanner) {
+                QRScannerSheet(title: "Scan Ticket") { code in
+                    viewModel.checkInScannedTicket(code)
+                }
+            }
+            .alert("Ticket", isPresented: $viewModel.showScanResult) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(viewModel.scanResultMessage ?? "")
             }
         }
     }

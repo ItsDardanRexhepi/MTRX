@@ -196,6 +196,7 @@ struct CredentialVerification {
 struct VerifiableCredentialView: View {
     @StateObject private var viewModel = VerifiableCredentialViewModel()
     @State private var selectedTab: CredentialTab = .wallet
+    @State private var showQRScanner = false
 
     private let accentColor = Color(red: 0.0, green: 0.675, blue: 0.694)
 
@@ -222,6 +223,12 @@ struct VerifiableCredentialView: View {
             }
             .sheet(isPresented: $viewModel.showShareSheet) {
                 ShareSheet(items: [viewModel.sharePayload])
+            }
+            .fullScreenCover(isPresented: $showQRScanner) {
+                QRScannerSheet(title: "Scan Credential") { scanned in
+                    viewModel.verifyInput = scanned
+                    selectedTab = .verify
+                }
             }
         }
     }
@@ -480,7 +487,7 @@ struct VerifiableCredentialView: View {
                         .disabled(viewModel.isVerifying)
 
                         Button {
-                            // Scan QR placeholder
+                            showQRScanner = true
                         } label: {
                             Image(systemName: "qrcode.viewfinder")
                                 .font(.title2)

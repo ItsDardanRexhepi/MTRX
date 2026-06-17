@@ -27,6 +27,7 @@
 		B802916F6DB12D2E88C3D2DB /* PDFManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 411BFE1EB918755BBD83C35B /* PDFManager.swift */; };
 		566D03D4DE4AE6DAF3DE6B58 /* SpotlightManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 553711C0E9070FF8AF8E8A6B /* SpotlightManager.swift */; };
 		6AD419B311F2AD7B1980F9F7 /* VisionScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE9A8CF53C745D6DEC79796 /* VisionScanner.swift */; };
+		7A1B0C0D0E0F102030405071 /* QRCodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F102030405072 /* QRCodeScannerView.swift */; };
 		9B5D759130B9E41FCF0A74A3 /* BluetoothManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8188FEBC47124B8F2904F8A /* BluetoothManager.swift */; };
 		33637F74CCAEDE0C710C511F /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F97335940280809D7AF387A /* CarPlaySceneDelegate.swift */; };
 		9A5C04EF7026218E367F4F97 /* MultipeerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F2B685F6015C9CF09E1B29D /* MultipeerManager.swift */; };
@@ -318,6 +319,7 @@
 		411BFE1EB918755BBD83C35B /* PDFManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PDFManager.swift"; sourceTree = "<group>"; };
 		553711C0E9070FF8AF8E8A6B /* SpotlightManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotlightManager.swift"; sourceTree = "<group>"; };
 		EDE9A8CF53C745D6DEC79796 /* VisionScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VisionScanner.swift"; sourceTree = "<group>"; };
+		7A1B0C0D0E0F102030405072 /* QRCodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QRCodeScannerView.swift"; sourceTree = "<group>"; };
 		C8188FEBC47124B8F2904F8A /* BluetoothManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BluetoothManager.swift"; sourceTree = "<group>"; };
 		7F97335940280809D7AF387A /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CarPlaySceneDelegate.swift"; sourceTree = "<group>"; };
 		1F2B685F6015C9CF09E1B29D /* MultipeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MultipeerManager.swift"; sourceTree = "<group>"; };
@@ -719,6 +721,7 @@
 				411BFE1EB918755BBD83C35B,
 				553711C0E9070FF8AF8E8A6B,
 				EDE9A8CF53C745D6DEC79796,
+				7A1B0C0D0E0F102030405072,
 			);
 			path = "Computation";
 			name = "Computation";
@@ -1776,6 +1779,7 @@
 				B802916F6DB12D2E88C3D2DB /* PDFManager.swift */,
 				566D03D4DE4AE6DAF3DE6B58 /* SpotlightManager.swift */,
 				6AD419B311F2AD7B1980F9F7 /* VisionScanner.swift */,
+				7A1B0C0D0E0F102030405071 /* QRCodeScannerView.swift in Sources */,
 				9B5D759130B9E41FCF0A74A3 /* BluetoothManager.swift */,
 				33637F74CCAEDE0C710C511F /* CarPlaySceneDelegate.swift */,
 				9A5C04EF7026218E367F4F97 /* MultipeerManager.swift */,
