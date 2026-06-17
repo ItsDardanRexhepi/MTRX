@@ -17,6 +17,7 @@ final class AccessControlViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isEmpty: Bool = false
+    @Published var isDemo: Bool = false
 
     // Grant Form
     @Published var grantContract: String = ""
@@ -34,18 +35,54 @@ final class AccessControlViewModel: ObservableObject {
 
     // MARK: - Load
 
-    func loadAccessControl() {
+    func loadAccessControl() async {
         isLoading = true
         errorMessage = nil
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
-            guard let self else { return }
-            self.roles = ContractRole.sampleData
-            self.roleDefinitions = RoleDefinition.sampleData
-            self.auditLog = AuditEntry.sampleData
-            self.isEmpty = self.roles.isEmpty
-            self.isLoading = false
+        // Live from AccessControlService (per-wallet roles; role definitions + audit log
+        // are per-contract, so we use the contract of the user's first role) when
+        // configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let liveRoles = try await AccessControlService.shared.getUserRoles(address: address)
+                roles = liveRoles.map { r in
+                    ContractRole(
+                        contractName: r.contract, contractAddress: r.contract, role: r.role,
+                        grantedBy: r.grantedBy, grantedDate: r.grantedAt,
+                        expiryDate: r.expiresAt ?? Date.distantFuture
+                    )
+                }
+                if let contract = liveRoles.first?.contract {
+                    async let defsReq = AccessControlService.shared.getRoleDefinitions(contract: contract)
+                    async let logReq = AccessControlService.shared.getAccessLog(contract: contract)
+                    roleDefinitions = try await defsReq.map { d in
+                        RoleDefinition(name: d.name, permissions: d.permissions, icon: "shield.fill")
+                    }
+                    auditLog = try await logReq.map { e in
+                        AuditEntry(action: e.action, role: e.role, contractName: contract,
+                                   performedBy: e.actor, timestamp: e.timestamp)
+                    }
+                } else {
+                    roleDefinitions = []
+                    auditLog = []
+                }
+                isEmpty = roles.isEmpty
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                // Falls through to labeled demo data silently.
+            }
         }
+
+        errorMessage = nil
+        try? await Task.sleep(for: .milliseconds(700))
+        roles = ContractRole.sampleData
+        roleDefinitions = RoleDefinition.sampleData
+        auditLog = AuditEntry.sampleData
+        isEmpty = roles.isEmpty
+        isDemo = true
+        isLoading = false
     }
 
     // MARK: - Grant
@@ -207,7 +244,12 @@ struct AccessControlView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Access Control")
             .navigationBarTitleDisplayMode(.large)
-            .onAppear { viewModel.loadAccessControl() }
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
+            .task { await viewModel.loadAccessControl() }
             .alert("Role Granted", isPresented: $viewModel.grantSuccess) {
                 Button("OK", role: .cancel) { }
             } message: {

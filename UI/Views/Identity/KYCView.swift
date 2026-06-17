@@ -15,6 +15,19 @@ final class KYCViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isEmpty: Bool = false
+    @Published var isDemo: Bool = false
+
+    /// Best-effort map from the backend's KYC type strings to this screen's
+    /// VerificationType cases (the two enums don't line up 1:1).
+    private static func mapType(_ raw: String) -> VerificationType {
+        switch raw.lowercased() {
+        case "age", "ageverification": return .ageVerification
+        case "accreditedinvestor": return .accreditedInvestor
+        case "jurisdiction", "residency": return .residency
+        case "sanctions", "sanctionscheck": return .sanctionsCheck
+        default: return .identityProof
+        }
+    }
 
     // Verification Flow
     @Published var selectedVerificationType: VerificationType = .ageVerification
@@ -42,17 +55,44 @@ final class KYCViewModel: ObservableObject {
 
     // MARK: - Load
 
-    func loadBadges() {
+    func loadBadges() async {
         isLoading = true
         errorMessage = nil
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
-            guard let self else { return }
-            self.badges = KYCBadge.sampleData
-            self.sharedServices = ServiceShare.sampleData
-            self.isEmpty = self.badges.isEmpty
-            self.isLoading = false
+        // Live KYC status from KYCService (per-wallet) when configured; else demo.
+        // Badges are derived from the status's proofs; types are mapped best-effort.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let status = try await KYCService.shared.getKYCStatus(address: address)
+                badges = status.proofs.map { p in
+                    KYCBadge(
+                        type: Self.mapType(p.type),
+                        status: (p.expiresAt.map { $0 < Date() } ?? false) ? .expired : .verified,
+                        verifiedDate: p.issuedAt,
+                        expiryDate: p.expiresAt ?? Date.distantFuture
+                    )
+                }
+                let sharedIds = Set(status.proofs.flatMap { $0.sharedWith })
+                sharedServices = sharedIds.map { id in
+                    ServiceShare(id: id, name: id, icon: "app.badge.checkmark", isShared: true, sharedSince: nil)
+                }
+                isEmpty = badges.isEmpty
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                // Falls through to labeled demo data silently (this screen renders an
+                // error view whenever errorMessage is set).
+            }
         }
+
+        errorMessage = nil
+        try? await Task.sleep(for: .milliseconds(700))
+        badges = KYCBadge.sampleData
+        sharedServices = ServiceShare.sampleData
+        isEmpty = badges.isEmpty
+        isDemo = true
+        isLoading = false
     }
 
     // MARK: - Initiate Verification
@@ -250,7 +290,12 @@ struct KYCView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("KYC Verification")
             .navigationBarTitleDisplayMode(.large)
-            .onAppear { viewModel.loadBadges() }
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
+            .task { await viewModel.loadBadges() }
             .sheet(isPresented: $viewModel.isCapturing) {
                 captureFlowSheet
             }

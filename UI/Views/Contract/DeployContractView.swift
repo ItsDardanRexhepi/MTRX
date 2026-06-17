@@ -23,6 +23,7 @@ final class DeployContractViewModel: ObservableObject {
     @Published var gasEstimate: DeployGasEstimate?
     @Published var contentAppeared: Bool = false
     @Published var searchText: String = ""
+    @Published var isDemo: Bool = false
 
     // MARK: - Computed
 
@@ -50,6 +51,41 @@ final class DeployContractViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live contract templates from ContractService when configured; else demo.
+        // Per-template gas is only known after a template+params are chosen, so we do
+        // NOT show a hardcoded estimate when live — gasEstimate stays nil until a real
+        // estimateDeployment() call backs it.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let live = try await ContractService.shared.getTemplates()
+                templates = live.map { t in
+                    DeployTemplate(
+                        name: t.name, subtitle: t.description,
+                        icon: "doc.text.fill", color: .statusInfo, category: t.category,
+                        parameters: t.params.map { p in
+                            TemplateParameter(
+                                label: p.name,
+                                placeholder: p.defaultValue ?? p.description,
+                                type: Self.mapParamType(p.type),
+                                isRequired: true,
+                                defaultValue: p.defaultValue,
+                                hint: p.description
+                            )
+                        }
+                    )
+                }
+                gasEstimate = nil
+                isDemo = false
+                isLoading = false
+                withAnimation(Motion.springDefault) { contentAppeared = true }
+                return
+            } catch {
+                // This screen renders an error view whenever errorMessage is set, so
+                // fall through to labeled demo templates silently.
+            }
+        }
+
+        errorMessage = nil
         try? await Task.sleep(nanoseconds: 800_000_000)
 
         templates = DeployTemplate.sampleData
@@ -59,11 +95,21 @@ final class DeployContractViewModel: ObservableObject {
             maxGwei: 32,
             maxUSD: 16.64
         )
+        isDemo = true
         isLoading = false
 
         withAnimation(Motion.springDefault) {
             contentAppeared = true
         }
+    }
+
+    /// Map the backend's Solidity-ish type strings to the form's input kinds.
+    private static func mapParamType(_ raw: String) -> TemplateParameter.ParamType {
+        let t = raw.lowercased()
+        if t.contains("address") { return .address }
+        if t.hasPrefix("uint") || t.hasPrefix("int") || t.contains("number") { return .number }
+        if t.contains("bool") { return .toggle }
+        return .text
     }
 
     func selectTemplate(_ template: DeployTemplate) {
@@ -140,6 +186,9 @@ struct DeployContractView: View {
             .navigationTitle("Deploy Contract")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo && viewModel.selectedTemplate == nil { DemoBadge() }
+                }
                 ToolbarItem(placement: .topBarLeading) {
                     if viewModel.selectedTemplate != nil && viewModel.deployedAddress == nil {
                         Button {
