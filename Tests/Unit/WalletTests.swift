@@ -473,6 +473,58 @@ final class WalletTests: XCTestCase {
         }
     }
 
+    // MARK: - Component: Loyalty (23) / Marketplace (24) / Cashback (25) / BrandRewards (26) / Subscriptions (27)
+
+    @MainActor
+    func testLoyaltyAward_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await LoyaltyManager.shared.awardPointsOnChain(
+                user: "0x2222222222222222222222222222222222222222", points: 250,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service, contract: contract)
+        }
+    }
+
+    @MainActor
+    func testMarketplacePurchase_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await MarketplaceManager.shared.purchaseOnChain(
+                listingId: 12, paymentWei: 0,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service, contract: contract)
+        }
+    }
+
+    @MainActor
+    func testCashbackClaim_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await CashbackManager.shared.claimOnChain(
+                user: "0x2222222222222222222222222222222222222222",
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service, contract: contract)
+        }
+    }
+
+    @MainActor
+    func testBrandRewardsClaim_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await BrandRewardsManager.shared.claimRewardOnChain(
+                campaignId: 3,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service, contract: contract)
+        }
+    }
+
+    @MainActor
+    func testSubscriptionsSubscribe_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await SubscriptionsManager.shared.subscribeOnChain(
+                planId: 1, paymentWei: 0,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service, contract: contract)
+        }
+    }
+
     // MARK: - Component: Gaming (Component 14)
 
     @MainActor

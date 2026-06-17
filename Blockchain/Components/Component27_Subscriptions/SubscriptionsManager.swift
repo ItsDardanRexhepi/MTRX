@@ -143,6 +143,40 @@ final class SubscriptionsManager: ObservableObject {
         return subscription
     }
 
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `subscribe(uint256 planId)`.
+    static func encodeSubscribe(planId: UInt64) -> Data {
+        var data = ABIEncoder.functionSelector("subscribe(uint256)")
+        data.append(ABIEncoder.encodeUInt256(planId))
+        return data
+    }
+
+    /// Subscribe on-chain through the real submit pipeline: enclave-signed UserOp
+    /// → server paymaster → bundler. `paymentWei` is the first-period payment sent
+    /// with the call (user-signed self-custody). Contract address deferred to
+    /// PendingCredentials (nil until set → throws, never a fake subscription).
+    @MainActor
+    func subscribeOnChain(
+        planId: UInt64,
+        paymentWei: UInt64 = 0,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.subscriptions)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let subs = contract else {
+            throw SubscriptionError.paymentFailed("Subscriptions contract not configured (PendingCredentials.Components.subscriptions)")
+        }
+        return try await service.submitCall(
+            to: subs,
+            value: paymentWei,
+            data: Self.encodeSubscribe(planId: planId),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
+    }
+
     func cancelSubscription(subscriptionId: String) async throws {
         guard var sub = subscriptionStore[subscriptionId] else {
             throw SubscriptionError.subscriptionNotFound(subscriptionId)
