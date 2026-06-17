@@ -61,6 +61,7 @@ struct SubscriptionView: View {
     @State private var showUpgraded = false
     @State private var showRestored = false
     @State private var showError = false
+    @State private var showUnavailable = false
     @State private var restoreMessage = ""
     @State private var errorMessage = ""
 
@@ -123,6 +124,11 @@ struct SubscriptionView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage)
+            }
+            .alert("Not available yet", isPresented: $showUnavailable) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Subscriptions go live once the plans are set up in the App Store. The price shown is the planned plan price.")
             }
         }
     }
@@ -333,7 +339,7 @@ struct SubscriptionView: View {
                 isLoading: storeKit.isPurchasing && selectedTier == tier,
                 fullWidth: true
             ))
-            .disabled(storeKit.isPurchasing || product(for: tier) == nil)
+            .disabled(storeKit.isPurchasing)
         }
     }
 
@@ -420,10 +426,11 @@ struct SubscriptionView: View {
         storeKit.product(for: tier)
     }
 
-    /// Real, store-provided localized price (e.g. "$9.99"); placeholder while loading.
+    /// The price to show: StoreKit's real store-provided price when a product is
+    /// loaded, otherwise the configured plan price so the demo still shows the
+    /// intended prices on a device that has no App Store Connect products yet.
     private func priceText(for tier: SubscriptionTier) -> String {
-        if tier == .free { return "Free" }
-        return product(for: tier)?.displayPrice ?? "\u{2014}"
+        product(for: tier)?.displayPrice ?? tier.plannedMonthlyPrice
     }
 
     private func upgradeLabel(for tier: SubscriptionTier) -> String {
@@ -451,6 +458,13 @@ struct SubscriptionView: View {
     private func subscribe(to tier: SubscriptionTier) async {
         guard tier.isPaid else { return }
         selectedTier = tier
+        // No StoreKit product loaded yet (e.g. the App Store Connect products
+        // aren't set up) — show an honest message instead of attempting (and
+        // faking) a purchase. The price shown is the configured plan price.
+        guard product(for: tier) != nil else {
+            showUnavailable = true
+            return
+        }
         do {
             _ = try await storeKit.purchase(tier)
             MtrxHaptics.success()

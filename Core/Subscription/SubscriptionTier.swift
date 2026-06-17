@@ -48,6 +48,19 @@ enum SubscriptionTier: String, Codable, CaseIterable, Comparable {
         }
     }
 
+    /// The configured plan price shown BEFORE StoreKit loads a real product
+    /// (e.g. on a device build that has no App Store Connect products yet, so
+    /// the demo still shows the intended prices). Keep in sync with
+    /// `MTRX.storekit` and the App Store Connect products. The real charged
+    /// price always comes from the loaded StoreKit `Product` when available.
+    var plannedMonthlyPrice: String {
+        switch self {
+        case .free:       return "Free"
+        case .pro:        return "$9.99"
+        case .enterprise: return "$39.99"
+        }
+    }
+
     /// Short description for marketing/upgrade prompts.
     var tagline: String {
         switch self {

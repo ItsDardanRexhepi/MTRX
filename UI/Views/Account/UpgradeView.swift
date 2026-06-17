@@ -100,7 +100,7 @@ struct UpgradeView: View {
             Text(tier.displayName)
                 .font(.caption.bold())
 
-            Text(tier.priceDisplay)
+            Text(storeKit.product(for: tier)?.displayPrice ?? tier.plannedMonthlyPrice)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
