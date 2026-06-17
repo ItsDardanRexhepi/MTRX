@@ -71,6 +71,7 @@ struct GameRunnerView: View {
         HStack {
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
+                    .accessibilityLabel("Close game")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 38, height: 38)

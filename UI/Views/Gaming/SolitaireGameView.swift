@@ -428,6 +428,7 @@ struct SolitaireGameView: View {
     private func roundButton(_ symbol: String, _ action: @escaping () -> Void) -> some View {
         Button(action: { MtrxHaptics.impact(.light); action() }) {
             Image(systemName: symbol)
+                .accessibilityLabel(symbol == "xmark" ? "Close game" : symbol)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 38, height: 38)
