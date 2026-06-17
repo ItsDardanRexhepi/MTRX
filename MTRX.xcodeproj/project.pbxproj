@@ -281,6 +281,11 @@
 		CF6505A67436A73292D272AA /* WalletCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F90F7DC46C3D286B5024A8F /* WalletCore.swift */; };
 		D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */; };
 		7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */; };
+		86552B1E21F52038AFDD2DF0 /* SharedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB364D8A64A6055A797453D /* SharedModels.swift */; };
+		C874C129E7CF829BD04B5129 /* AccessControlService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 226C501D516E9EC9CDAB9F3B /* AccessControlService.swift */; };
+		A472D8B113A6CDF65ED0A4A7 /* AgentIdentityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EB4785859709AB0B06FCE59 /* AgentIdentityService.swift */; };
+		F2C8DDA6F2F5B1E8B8AC176C /* AlertsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FFDA9BE542D8C0333C8834B /* AlertsService.swift */; };
+		F222D10F915740C95E49F94F /* AttestationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF3BF8AA2BCC3809CA23218 /* AttestationService.swift */; };
 		7A1B0C0D0E0F1020304050A1 /* TransactionIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F1020304050A2 /* TransactionIndexer.swift */; };
 		7BA4A0A8EC45F85DD7C5E33B /* BiometricAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F0C10543A3899A4D41B2BCE /* BiometricAuth.swift */; };
 		B9521CFFF743D951E60FE2C5 /* WalletSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D87F42BA86A106D90185132 /* WalletSync.swift */; };
@@ -590,6 +595,11 @@
 		6F90F7DC46C3D286B5024A8F /* WalletCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WalletCore.swift"; path = "Core/Wallet/WalletCore.swift"; sourceTree = SOURCE_ROOT; };
 		1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SecureEnclaveManager.swift"; path = "Core/Wallet/SecureEnclaveManager.swift"; sourceTree = SOURCE_ROOT; };
 		7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DemoArtifacts.swift"; path = "Core/Utilities/DemoArtifacts.swift"; sourceTree = SOURCE_ROOT; };
+		BDB364D8A64A6055A797453D /* SharedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SharedModels.swift"; path = "Services/SharedModels.swift"; sourceTree = SOURCE_ROOT; };
+		226C501D516E9EC9CDAB9F3B /* AccessControlService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "AccessControlService.swift"; path = "Services/AccessControlService.swift"; sourceTree = SOURCE_ROOT; };
+		9EB4785859709AB0B06FCE59 /* AgentIdentityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "AgentIdentityService.swift"; path = "Services/AgentIdentityService.swift"; sourceTree = SOURCE_ROOT; };
+		9FFDA9BE542D8C0333C8834B /* AlertsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "AlertsService.swift"; path = "Services/AlertsService.swift"; sourceTree = SOURCE_ROOT; };
+		5AF3BF8AA2BCC3809CA23218 /* AttestationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "AttestationService.swift"; path = "Services/AttestationService.swift"; sourceTree = SOURCE_ROOT; };
 		7A1B0C0D0E0F1020304050A2 /* TransactionIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TransactionIndexer.swift"; path = "Blockchain/Wallet/TransactionIndexer.swift"; sourceTree = SOURCE_ROOT; };
 		4F0C10543A3899A4D41B2BCE /* BiometricAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "BiometricAuth.swift"; path = "Core/Wallet/BiometricAuth.swift"; sourceTree = SOURCE_ROOT; };
 		2D87F42BA86A106D90185132 /* WalletSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WalletSync.swift"; path = "Core/Wallet/WalletSync.swift"; sourceTree = SOURCE_ROOT; };
@@ -1712,6 +1722,11 @@
 				CF6505A67436A73292D272AA /* WalletCore.swift in Sources */,
 				D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */,
 				7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */,
+				86552B1E21F52038AFDD2DF0 /* SharedModels.swift in Sources */,
+				C874C129E7CF829BD04B5129 /* AccessControlService.swift in Sources */,
+				A472D8B113A6CDF65ED0A4A7 /* AgentIdentityService.swift in Sources */,
+				F2C8DDA6F2F5B1E8B8AC176C /* AlertsService.swift in Sources */,
+				F222D10F915740C95E49F94F /* AttestationService.swift in Sources */,
 				7A1B0C0D0E0F1020304050A1 /* TransactionIndexer.swift in Sources */,
 				7BA4A0A8EC45F85DD7C5E33B /* BiometricAuth.swift in Sources */,
 				B9521CFFF743D951E60FE2C5 /* WalletSync.swift in Sources */,

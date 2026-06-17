@@ -11,7 +11,7 @@ struct RoleAssignment: Codable, Identifiable {
     let expiresAt: Date?
 }
 
-struct RoleDefinition: Codable, Identifiable {
+struct SvcRoleDefinition: Codable, Identifiable {
     let id: UUID
     let role: String
     let name: String
@@ -19,7 +19,7 @@ struct RoleDefinition: Codable, Identifiable {
     let permissions: [String]
 }
 
-struct AccessLogEntry: Codable, Identifiable {
+struct SvcAccessLogEntry: Codable, Identifiable {
     let id: UUID
     let action: String
     let actor: String
@@ -63,11 +63,11 @@ final class AccessControlService {
         ])
     }
 
-    func getRoleDefinitions(contract: String) async throws -> [RoleDefinition] {
+    func getRoleDefinitions(contract: String) async throws -> [SvcRoleDefinition] {
         try await api.get(path: "/access-control/contracts/\(contract)/roles")
     }
 
-    func getAccessLog(contract: String) async throws -> [AccessLogEntry] {
+    func getAccessLog(contract: String) async throws -> [SvcAccessLogEntry] {
         try await api.get(path: "/access-control/contracts/\(contract)/log")
     }
 }
