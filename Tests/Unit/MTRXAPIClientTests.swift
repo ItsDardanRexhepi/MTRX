@@ -41,13 +41,13 @@ final class MTRXAPIClientTests: XCTestCase {
 
     // MARK: - baseURL & Init
 
-    func test_init_defaultsToLocalhost_whenEnvNotSet() {
-        // If MTRX_RUNTIME_URL is unset the fallback is http://localhost:8000.
-        // Run this check only when the env var is absent to avoid flaking in
-        // CI environments that pin it.
+    func test_init_defaultsToProductionGateway_whenEnvNotSet() {
+        // If MTRX_RUNTIME_URL is unset the fallback is the production gateway
+        // (https://api.openmatrix-ai.com — see MTRXAPIClient). Run this check
+        // only when the env var is absent to avoid flaking in CI that pins it.
         if ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"] == nil {
             let client = MTRXAPIClient()
-            XCTAssertEqual(client.baseURL, "http://localhost:8000")
+            XCTAssertEqual(client.baseURL, "https://api.openmatrix-ai.com")
         }
     }
 

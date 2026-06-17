@@ -212,6 +212,10 @@
 		FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA7F1A65C0DE00000000001 /* FeatureFlags.swift */; };
 		C0DEF11E00000000000A0002 /* PendingCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEF11E00000000000A0001 /* PendingCredentials.swift */; };
 		FE57FACE0000000000000A0B /* WalletTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79115443B6ADCE2298D66886 /* WalletTests.swift */; };
+		7A1B0C0D0E0F1020304050B1 /* BridgeSmokeTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F1020304050B2 /* BridgeSmokeTest.swift */; };
+		7A1B0C0D0E0F1020304050B3 /* InferenceRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F1020304050B4 /* InferenceRouterTests.swift */; };
+		7A1B0C0D0E0F1020304050B5 /* MTRXAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F1020304050B6 /* MTRXAPIClientTests.swift */; };
+		7A1B0C0D0E0F1020304050B7 /* MTRXPackagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F1020304050B8 /* MTRXPackagerTests.swift */; };
 		F0CC0DE5000000000000A002 /* MockURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CC0DE5000000000000A001 /* MockURLProtocol.swift */; };
 		008BCDADF7A3991CD709F8D4 /* BlockchainBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 096376876B5B90D0574F0CC5 /* BlockchainBridge.swift */; };
 		F4D3914114442BA6B4DEFC50 /* MTRXAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C08BF836C56955D9603329 /* MTRXAPIClient.swift */; };
@@ -459,6 +463,10 @@
 		43BC5281F0A7293A664FBF73 /* ComponentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComponentTests.swift"; sourceTree = "<group>"; };
 		5FCAACB696FF6B12A817D3C1 /* RexhepiFWTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RexhepiFWTests.swift"; sourceTree = "<group>"; };
 		79115443B6ADCE2298D66886 /* WalletTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WalletTests.swift"; sourceTree = "<group>"; };
+		7A1B0C0D0E0F1020304050B2 /* BridgeSmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "BridgeSmokeTest.swift"; path = "Tests/Unit/BridgeSmokeTest.swift"; sourceTree = SOURCE_ROOT; };
+		7A1B0C0D0E0F1020304050B4 /* InferenceRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "InferenceRouterTests.swift"; path = "Tests/Unit/InferenceRouterTests.swift"; sourceTree = SOURCE_ROOT; };
+		7A1B0C0D0E0F1020304050B6 /* MTRXAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MTRXAPIClientTests.swift"; path = "Tests/Unit/MTRXAPIClientTests.swift"; sourceTree = SOURCE_ROOT; };
+		7A1B0C0D0E0F1020304050B8 /* MTRXPackagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MTRXPackagerTests.swift"; path = "Tests/Unit/MTRXPackagerTests.swift"; sourceTree = SOURCE_ROOT; };
 		F0CC0DE5000000000000A001 /* MockURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MockURLProtocol.swift"; path = "Tests/Support/MockURLProtocol.swift"; sourceTree = SOURCE_ROOT; };
 		F40FBDFDDEFF29D9241A61F0 /* DynamicTypeSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicTypeSupport.swift"; sourceTree = "<group>"; };
 		76C71564885ABA3FD7C85F0E /* SwitchControlSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwitchControlSupport.swift"; sourceTree = "<group>"; };
@@ -1964,6 +1972,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				FE57FACE0000000000000A0B /* WalletTests.swift in Sources */,
+				7A1B0C0D0E0F1020304050B1 /* BridgeSmokeTest.swift in Sources */,
+				7A1B0C0D0E0F1020304050B3 /* InferenceRouterTests.swift in Sources */,
+				7A1B0C0D0E0F1020304050B5 /* MTRXAPIClientTests.swift in Sources */,
+				7A1B0C0D0E0F1020304050B7 /* MTRXPackagerTests.swift in Sources */,
 				F0CC0DE5000000000000A002 /* MockURLProtocol.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
