@@ -96,9 +96,11 @@ enum GovernanceError: Error, LocalizedError {
     case bilateralDisputeRejected
     case insufficientTokens
     case invalidModel
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
+        case .notConfigured: return "Governance contract not configured (PendingCredentials.Components.governance)."
         case .proposalNotFound(let id): return "Proposal not found: \(id)"
         case .votingClosed: return "Voting period has ended."
         case .alreadyVoted: return "Address has already voted on this proposal."
@@ -194,6 +196,48 @@ final class GovernanceManager: ObservableObject {
         await updateProposalInPublished(proposal)
         delegate?.governance(self, voteCast: vote)
         return vote
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// Stable on-chain support code for a vote choice (0 against, 1 for, 2 abstain).
+    static func supportCode(for choice: VoteChoice) -> UInt64 {
+        switch choice {
+        case .against: return 0
+        case .forProposal: return 1
+        case .abstain: return 2
+        }
+    }
+
+    /// ABI-encode `castVote(uint256 proposalId, uint8 support)`.
+    static func encodeCastVote(proposalId: UInt64, choice: VoteChoice) -> Data {
+        var data = ABIEncoder.functionSelector("castVote(uint256,uint8)")
+        data.append(ABIEncoder.encodeUInt256(proposalId))
+        data.append(ABIEncoder.encodeUInt256(supportCode(for: choice)))
+        return data
+    }
+
+    /// Cast an on-chain governance vote through the real submit pipeline:
+    /// enclave-signed UserOp → server paymaster → bundler. `proposalId` is the
+    /// on-chain numeric id. Contract address deferred to PendingCredentials
+    /// (nil until set → throws, never a fake vote).
+    @MainActor
+    func castVoteOnChain(
+        proposalId: UInt64,
+        choice: VoteChoice,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.governance)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let governance = contract else { throw GovernanceError.notConfigured }
+        return try await service.submitCall(
+            to: governance,
+            value: 0,
+            data: Self.encodeCastVote(proposalId: proposalId, choice: choice),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     // MARK: - Vote Weight Calculation

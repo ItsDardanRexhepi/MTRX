@@ -473,6 +473,63 @@ final class WalletTests: XCTestCase {
         }
     }
 
+    // MARK: - Component: Gaming (Component 14)
+
+    @MainActor
+    func testGamingMint_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await GamingManager.shared.mintAssetOnChain(
+                to: "0x2222222222222222222222222222222222222222",
+                tokenId: 1, amount: 100,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service, contract: contract
+            )
+        }
+    }
+
+    // MARK: - Component: IP (Component 15)
+
+    @MainActor
+    func testIPRegister_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await IPManager.shared.registerIPOnChain(
+                owner: "0x2222222222222222222222222222222222222222",
+                contentHash: Data(repeating: 0xCC, count: 32),
+                royaltyBps: 500,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service, contract: contract
+            )
+        }
+    }
+
+    // MARK: - Component: Payments (Component 17)
+
+    @MainActor
+    func testPaymentsSend_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await PaymentsManager.shared.sendPaymentOnChain(
+                token: contract,
+                recipient: "0x2222222222222222222222222222222222222222",
+                amount: 2_000_000,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service
+            )
+        }
+    }
+
+    // MARK: - Component: Governance (Component 19)
+
+    @MainActor
+    func testGovernanceCastVote_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await GovernanceManager.shared.castVoteOnChain(
+                proposalId: 9, choice: .forProposal,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service, contract: contract
+            )
+        }
+    }
+
     // MARK: - Component: SupplyChain (Component 12)
 
     @MainActor
