@@ -351,6 +351,7 @@ struct StorageView: View {
                         Image(systemName: viewModel.copiedCID == file.cid ? Symbols.complete : Symbols.copy)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(viewModel.copiedCID == file.cid ? Color.statusSuccess : Color.accentPrimary)
+                            .accessibilityLabel("Copy file ID")
                     }
                 }
             }

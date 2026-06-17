@@ -1524,6 +1524,7 @@ struct SocialView: View {
                                 Spacer()
                                 Button { viewModel.quoting = nil } label: {
                                     Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelTertiary)
+                                        .accessibilityLabel("Remove quoted post")
                                 }
                             }
                             Text(q.body).font(.system(size: 14)).foregroundStyle(Color.labelSecondary).lineLimit(3)
@@ -1548,6 +1549,7 @@ struct SocialView: View {
                                     if viewModel.composerPollOptions.count > 2 {
                                         Button { viewModel.composerPollOptions.remove(at: i) } label: {
                                             Image(systemName: "minus.circle.fill").foregroundStyle(Color.labelTertiary)
+                                                .accessibilityLabel("Remove poll choice")
                                         }
                                     }
                                 }
@@ -1598,6 +1600,7 @@ struct SocialView: View {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 24))
                                     .foregroundStyle(.white, .black.opacity(0.6))
+                                    .accessibilityLabel("Remove attached image")
                             }
                             .padding(8)
                         }
@@ -1613,6 +1616,7 @@ struct SocialView: View {
                             Button { viewModel.composerVideoFileName = nil } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundStyle(Color.labelTertiary)
+                                    .accessibilityLabel("Remove attached video")
                             }
                         }
                         .padding(Spacing.ms)
@@ -2164,6 +2168,7 @@ struct PostCardView: View {
                     .foregroundStyle(Color.labelTertiary)
                     .frame(width: 26, height: 26)
                     .contentShape(Rectangle())
+                    .accessibilityLabel("Post options")
             }
         }
     }
@@ -2377,6 +2382,8 @@ struct PostCardView: View {
                     Image(systemName: bookmarks.isBookmarked(post.id) ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 15))
                         .foregroundStyle(bookmarks.isBookmarked(post.id) ? Color.accentPrimary : Color.labelTertiary)
+                        .accessibilityLabel("Bookmark post")
+                        .accessibilityValue(bookmarks.isBookmarked(post.id) ? "Bookmarked" : "Not bookmarked")
                 }
                 .buttonStyle(.plain)
 
@@ -3086,6 +3093,7 @@ struct UserProfileSheet: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis").foregroundStyle(Color.accentPrimary)
+                            .accessibilityLabel("Profile options")
                     }
                 }
             }
@@ -3845,6 +3853,7 @@ struct SocialListDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showAddMembers = true } label: { Image(systemName: "person.badge.plus") }
                         .foregroundStyle(Color.accentPrimary)
+                        .accessibilityLabel("Add accounts to list")
                 }
             }
             .sheet(isPresented: $showAddMembers) {

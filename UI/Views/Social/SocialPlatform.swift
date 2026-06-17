@@ -654,6 +654,7 @@ struct StoryViewer: View {
                                     .font(.system(size: 15, weight: .semibold))
                                     .foregroundStyle(.white)
                                     .frame(width: 36, height: 36)
+                                    .accessibilityLabel("Delete story")
                             }
                         }
 
@@ -664,6 +665,7 @@ struct StoryViewer: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .frame(width: 36, height: 36)
+                                .accessibilityLabel("Close story viewer")
                         }
                     }
                 }
@@ -1219,6 +1221,7 @@ struct PostAttachmentView: View {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 30))
                                 .foregroundStyle(.white, .black.opacity(0.5))
+                                .accessibilityLabel("Close fullscreen image")
                         }
                         .padding()
                     }

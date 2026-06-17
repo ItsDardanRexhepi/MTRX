@@ -348,6 +348,7 @@ struct StreamingView: View {
                             } label: {
                                 Image(systemName: "pause.fill")
                                     .font(.system(size: 12, weight: .bold))
+                                    .accessibilityLabel("Pause stream")
                             }
                             .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .compact))
                         }
@@ -358,6 +359,7 @@ struct StreamingView: View {
                             } label: {
                                 Image(systemName: "play.fill")
                                     .font(.system(size: 12, weight: .bold))
+                                    .accessibilityLabel("Resume stream")
                             }
                             .buttonStyle(MtrxButtonStyle(variant: .primary, size: .compact))
                         }
@@ -368,6 +370,7 @@ struct StreamingView: View {
                             } label: {
                                 Image(systemName: Symbols.close)
                                     .font(.system(size: 12, weight: .bold))
+                                    .accessibilityLabel("Cancel stream")
                             }
                             .buttonStyle(MtrxButtonStyle(variant: .destructive, size: .compact))
                         }

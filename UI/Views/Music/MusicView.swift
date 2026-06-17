@@ -466,6 +466,7 @@ struct MusicView: View {
                             } label: {
                                 Image(systemName: "minus.circle.fill")
                                     .foregroundStyle(.red)
+                                    .accessibilityLabel("Remove collaborator")
                             }
                             .buttonStyle(.plain)
                         }

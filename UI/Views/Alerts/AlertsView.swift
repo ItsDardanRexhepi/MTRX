@@ -242,6 +242,7 @@ struct AlertsView: View {
                         Image(systemName: "trash")
                             .font(.system(size: 14))
                             .foregroundStyle(Color.statusError.opacity(0.7))
+                            .accessibilityLabel("Delete alert")
                     }
                 } else {
                     Image(systemName: "checkmark.circle.fill")

@@ -229,6 +229,7 @@ struct ContractView: View {
                         Image(systemName: viewModel.step == 0 ? Symbols.close : Symbols.back)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.labelPrimary)
+                            .accessibilityLabel(viewModel.step == 0 ? "Close" : "Go back")
                     }
                 }
             }
@@ -418,6 +419,7 @@ struct ContractView: View {
                                     .frame(width: 44, height: Spacing.Size.textFieldHeight)
                                     .background(Color.surfaceOverlay)
                                     .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm))
+                                    .accessibilityLabel("Paste address")
                             }
                         }
                     }

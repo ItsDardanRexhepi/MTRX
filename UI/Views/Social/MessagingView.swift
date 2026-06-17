@@ -621,6 +621,7 @@ struct ConversationDetailView: View {
                             ? Color.labelTertiary
                             : Color.accentPrimary
                     )
+                    .accessibilityLabel("Send message")
             }
             .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }

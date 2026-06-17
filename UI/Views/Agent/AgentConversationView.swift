@@ -394,16 +394,16 @@ struct AgentConversationView: View {
                 .frame(maxWidth: .infinity)
 
             HStack {
-                chromeButton("chevron.down") { dismiss() }
+                chromeButton("chevron.down", label: "Close conversation") { dismiss() }
                 Spacer()
-                chromeButton("square.and.pencil") { showChats = true }
+                chromeButton("square.and.pencil", label: "Chat history") { showChats = true }
             }
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
     }
 
-    private func chromeButton(_ icon: String, action: @escaping () -> Void) -> some View {
+    private func chromeButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
         Button {
             MtrxHaptics.impact(.light)
             action()
@@ -417,6 +417,7 @@ struct AgentConversationView: View {
                 .overlay(Circle().stroke(.white.opacity(0.07), lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     private var switcherCapsule: some View {
