@@ -77,6 +77,7 @@ enum MarketplaceError: Error, LocalizedError {
     case sellerCannotBuy
     case appealAlreadyFiled
     case insufficientPayment
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -86,6 +87,7 @@ enum MarketplaceError: Error, LocalizedError {
         case .sellerCannotBuy: return "Seller cannot buy their own listing."
         case .appealAlreadyFiled: return "Appeal already filed for this listing."
         case .insufficientPayment: return "Payment amount is insufficient."
+        case .notConfigured: return "Marketplace contract not configured (PendingCredentials.Components.marketplace)."
         }
     }
 }
@@ -186,6 +188,38 @@ final class MarketplaceManager: ObservableObject {
         await updateListingInPublished(listing)
         delegate?.marketplace(self, saleCompleted: sale)
         return sale
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `purchase(uint256 listingId)`.
+    static func encodePurchase(listingId: UInt64) -> Data {
+        var data = ABIEncoder.functionSelector("purchase(uint256)")
+        data.append(ABIEncoder.encodeUInt256(listingId))
+        return data
+    }
+
+    /// Buy a listing on-chain through the real submit pipeline: enclave-signed
+    /// UserOp → server paymaster → bundler. `paymentWei` is the price sent with
+    /// the call (user-signed self-custody). Contract address deferred to
+    /// PendingCredentials (nil until set → throws, never a fake purchase).
+    @MainActor
+    func purchaseOnChain(
+        listingId: UInt64,
+        paymentWei: UInt64 = 0,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.marketplace)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let marketplace = contract else { throw MarketplaceError.notConfigured }
+        return try await service.submitCall(
+            to: marketplace,
+            value: paymentWei,
+            data: Self.encodePurchase(listingId: listingId),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     // MARK: - Compliance Filter
