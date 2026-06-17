@@ -172,7 +172,10 @@ final class TrinityQueryEngine {
 final class TrinityPaymentService {
     static let shared = TrinityPaymentService()
     func send(amount: Decimal, token: String, to recipient: String) async throws -> String {
-        return "0x" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        // Do not fabricate a confirmed tx hash for a Siri payment that never
+        // executed — fail honestly until an on-chain network is configured.
+        throw NSError(domain: "MTRX.Intent", code: 1, userInfo: [NSLocalizedDescriptionKey:
+            "Payments aren't available in this build yet — configure a network first."])
     }
 }
 

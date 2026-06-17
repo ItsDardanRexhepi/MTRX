@@ -194,11 +194,16 @@ final class TransactionExecutor {
     static let shared = TransactionExecutor()
 
     func execute(type: TransactionType, to: String, amount: Decimal, token: String, network: BlockchainNetwork) async throws -> String {
-        return "0x" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        // No on-chain network is configured in this build, so we do NOT fabricate
+        // a confirmed transaction hash. Fail honestly — Siri reports it couldn't
+        // complete rather than claiming a send that never happened.
+        throw NSError(domain: "MTRX.Intent", code: 1, userInfo: [NSLocalizedDescriptionKey:
+            "On-chain transactions aren't available in this build yet — configure a network first."])
     }
 
     func approve(token: String, spender: String, amount: Decimal?) async throws -> String {
-        return "0x" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        throw NSError(domain: "MTRX.Intent", code: 1, userInfo: [NSLocalizedDescriptionKey:
+            "On-chain approvals aren't available in this build yet — configure a network first."])
     }
 }
 
