@@ -368,4 +368,108 @@ final class WalletTests: XCTestCase {
         XCTAssertNil(PendingCredentials.filled("   "))
         XCTAssertEqual(PendingCredentials.filled("  0xabc  "), "0xabc")
     }
+
+    // MARK: - Component money-path harness
+
+    /// Shared harness for every component's on-chain money path. Sets up a mocked
+    /// transport (paymaster SERVER + bundler), a real enclave key, and a test
+    /// config, then runs `call` (the component's pipeline method) and asserts it
+    /// (1) returned the bundler's hash, (2) actually submitted eth_sendUserOperation,
+    /// and (3) signed with the ENCLAVE key — the signature verifies against the
+    /// tag's public key, so the test FAILS if signing were bypassed, faked
+    /// (zero bytes), or done with a throwaway key.
+    @MainActor
+    func assertComponentMoneyPath(
+        expectedHash: String = "0xC0FFEE0000000000000000000000000000000000000000000000000000000abc",
+        contract: String = "0x9999999999999999999999999999999999999999",
+        _ call: (_ service: WalletTransactionService, _ signingKeyTag: String, _ contract: String) async throws -> WalletTransactionService.Submission
+    ) async throws {
+        let mockConfig = URLSessionConfiguration.ephemeral
+        mockConfig.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: mockConfig)
+        MockURLProtocol.reset()
+        defer { MockURLProtocol.reset() }
+
+        let entryPoint = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
+        MockURLProtocol.handler = { request in
+            let url = request.url?.absoluteString ?? ""
+            let json = request.httpBody.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+            if url.contains("paymaster.test") {
+                return try MockURLProtocol.json(["paymasterAndData": "0x" + String(repeating: "ab", count: 97)])
+            }
+            if (json?["method"] as? String) == "eth_sendUserOperation" {
+                return try MockURLProtocol.json(["jsonrpc": "2.0", "id": 1, "result": expectedHash])
+            }
+            return try MockURLProtocol.json(["jsonrpc": "2.0", "id": 1, "result": [:]])
+        }
+
+        let tag = "test.comp.\(UUID().uuidString)"
+        let enclave = SecureEnclaveManager.shared
+        defer { enclave.deleteKey(tag: tag) }
+        let pubRaw = try enclave.publicKeyData(tag: tag)
+
+        let cfg = WalletTransactionService.Config(
+            rpcURL: URL(string: "https://rpc.test")!,
+            bundlerURL: URL(string: "https://bundler.test")!,
+            chainID: 8453,
+            entryPoint: entryPoint,
+            paymasterAddress: "0x1111111111111111111111111111111111111111",
+            paymasterSignatureEndpoint: "https://paymaster.test/sign",
+            platformBudgetWei: 1_000_000_000_000_000_000
+        )
+        let service = try XCTUnwrap(WalletTransactionService(config: cfg, session: session))
+
+        let submission = try await call(service, tag, contract)
+
+        // Returned the BUNDLER's hash — not a hardcoded success.
+        XCTAssertEqual(submission.userOpHash, expectedHash, "must return the bundler's submit hash")
+
+        // Actually submitted via the bundler.
+        let sawBundler = MockURLProtocol.seenRequests.contains { req in
+            guard req.url?.absoluteString.contains("bundler.test") == true,
+                  let b = req.httpBody,
+                  let j = (try? JSONSerialization.jsonObject(with: b)) as? [String: Any] else { return false }
+            return (j["method"] as? String) == "eth_sendUserOperation"
+        }
+        XCTAssertTrue(sawBundler, "must submit via the bundler (eth_sendUserOperation)")
+
+        // CRITICAL: signed by the ENCLAVE key — verify against the tag's pubkey.
+        let sig = submission.signedOperation.signature
+        XCTAssertGreaterThan(sig.count, 0)
+        XCTAssertFalse(sig.allSatisfy { $0 == 0 }, "signature must not be all-zero")
+        var message = Data()
+        message.append(Self.hexToData(submission.signedOperation.hash))
+        message.append(ABIEncoder.encodeAddress(entryPoint))
+        message.append(ABIEncoder.encodeUInt256(UInt64(8453)))
+        let pub = try P256.Signing.PublicKey(rawRepresentation: pubRaw)
+        let ecdsa = try P256.Signing.ECDSASignature(derRepresentation: sig)
+        XCTAssertTrue(pub.isValidSignature(ecdsa, for: Keccak256.hash(data: message)),
+                      "money path must be signed by the ENCLAVE key — not faked, not a throwaway")
+    }
+
+    /// A throwaway ERC4337Manager for constructing component managers in tests.
+    /// Component on-chain methods route through the injected WalletTransactionService,
+    /// not this manager, so its endpoints are irrelevant.
+    @MainActor
+    static func dummyERC4337() -> ERC4337Manager {
+        let url = URL(string: "https://unused.invalid")!
+        return ERC4337Manager(entryPointAddress: "", paymasterAddress: nil, bundlerURL: url,
+                              networkConfig: BaseNetworkConfig(rpcURL: url, chainId: 8453, bundlerURL: url))
+    }
+
+    // MARK: - Component: NFT (Component 03)
+
+    @MainActor
+    func testNFTMint_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await NFTManager(erc4337Manager: Self.dummyERC4337()).mintOnChain(
+                to: "0x2222222222222222222222222222222222222222",
+                amount: 1,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag,
+                service: service,
+                contract: contract
+            )
+        }
+    }
 }

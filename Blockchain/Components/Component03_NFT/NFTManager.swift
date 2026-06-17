@@ -145,6 +145,41 @@ final class NFTManager {
         completion(.failure(.mintFailed(reason: "Not implemented")))
     }
 
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `mint(address to, uint256 amount)`.
+    static func encodeMint(to: String, amount: UInt64) -> Data {
+        var data = ABIEncoder.functionSelector("mint(address,uint256)")
+        data.append(ABIEncoder.encodeAddress(to))
+        data.append(ABIEncoder.encodeUInt256(amount))
+        return data
+    }
+
+    /// Mint on-chain through the real submit pipeline: enclave-signed
+    /// UserOperation → server paymaster → bundler. The NFT contract comes from
+    /// PendingCredentials (nil until set → throws, never a fake call). `service`
+    /// and `contract` are injectable for tests.
+    @MainActor
+    func mintOnChain(
+        to: String,
+        amount: UInt64 = 1,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.nft)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let nftContract = contract else {
+            throw NFTError.mintFailed(reason: "NFT contract not configured (PendingCredentials.Components.nft)")
+        }
+        return try await service.submitCall(
+            to: nftContract,
+            value: 0,
+            data: Self.encodeMint(to: to, amount: amount),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
+    }
+
     // MARK: - Transfer
 
     /// Transfer an NFT to another address
