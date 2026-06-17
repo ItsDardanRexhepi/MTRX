@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Models
 
-struct CommunityGroup: Codable, Identifiable {
+struct SvcCommunityGroup: Codable, Identifiable {
     var id: String { groupId }
     let groupId: String
     let name: String
@@ -20,7 +20,7 @@ struct TokenGate: Codable {
     let tokenSymbol: String
 }
 
-struct GroupPost: Codable, Identifiable {
+struct SvcGroupPost: Codable, Identifiable {
     var id: String { postId }
     let postId: String
     let groupId: String
@@ -49,13 +49,13 @@ final class GroupsService {
 
     private init() {}
 
-    func getUserGroups(address: String) async throws -> [CommunityGroup] {
+    func getUserGroups(address: String) async throws -> [SvcCommunityGroup] {
         try await api.get(path: "/groups", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func discoverGroups(category: String?) async throws -> [CommunityGroup] {
+    func discoverGroups(category: String?) async throws -> [SvcCommunityGroup] {
         var queryItems: [URLQueryItem] = []
         if let category {
             queryItems.append(URLQueryItem(name: "category", value: category))
@@ -63,7 +63,7 @@ final class GroupsService {
         return try await api.get(path: "/groups/discover", queryItems: queryItems.isEmpty ? nil : queryItems)
     }
 
-    func getGroupFeed(groupId: String) async throws -> [GroupPost] {
+    func getGroupFeed(groupId: String) async throws -> [SvcGroupPost] {
         try await api.get(path: "/groups/\(groupId)/feed")
     }
 
@@ -75,11 +75,11 @@ final class GroupsService {
         try await api.post(path: "/groups/\(groupId)/leave", body: nil as String?)
     }
 
-    func createGroup(params: GroupParams) async throws -> CommunityGroup {
+    func createGroup(params: GroupParams) async throws -> SvcCommunityGroup {
         try await api.post(path: "/groups", body: params)
     }
 
-    func postToGroup(groupId: String, content: String, attachmentData: Data?) async throws -> GroupPost {
+    func postToGroup(groupId: String, content: String, attachmentData: Data?) async throws -> SvcGroupPost {
         struct PostBody: Codable {
             let content: String
             let attachmentBase64: String?

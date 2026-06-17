@@ -12,7 +12,7 @@ struct InsuranceCoverage: Codable, Identifiable {
     let riskType: String
 }
 
-struct InsurancePolicy: Codable, Identifiable {
+struct SvcInsurancePolicy: Codable, Identifiable {
     var id: String { policyId }
     let policyId: String
     let coverageName: String
@@ -23,7 +23,7 @@ struct InsurancePolicy: Codable, Identifiable {
     let status: String
 }
 
-struct InsuranceClaim: Codable, Identifiable {
+struct SvcInsuranceClaim: Codable, Identifiable {
     var id: String { claimId }
     let claimId: String
     let policyId: String
@@ -47,26 +47,26 @@ final class InsuranceService {
         try await api.get(path: "/insurance/coverages", queryItems: nil)
     }
 
-    func purchaseCoverage(coverageId: String, amount: String, duration: Int) async throws -> InsurancePolicy {
+    func purchaseCoverage(coverageId: String, amount: String, duration: Int) async throws -> SvcInsurancePolicy {
         try await api.post(path: "/insurance/coverages/\(coverageId)/purchase", body: [
             "amount": amount,
             "duration": String(duration)
         ])
     }
 
-    func getUserPolicies(address: String) async throws -> [InsurancePolicy] {
+    func getUserPolicies(address: String) async throws -> [SvcInsurancePolicy] {
         try await api.get(path: "/insurance/policies", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func fileClaim(policyId: String, description: String) async throws -> InsuranceClaim {
+    func fileClaim(policyId: String, description: String) async throws -> SvcInsuranceClaim {
         try await api.post(path: "/insurance/policies/\(policyId)/claim", body: [
             "description": description
         ])
     }
 
-    func getClaimStatus(claimId: String) async throws -> InsuranceClaim {
+    func getClaimStatus(claimId: String) async throws -> SvcInsuranceClaim {
         try await api.get(path: "/insurance/claims/\(claimId)", queryItems: nil)
     }
 }

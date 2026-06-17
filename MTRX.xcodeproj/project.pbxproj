@@ -281,6 +281,11 @@
 		CF6505A67436A73292D272AA /* WalletCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F90F7DC46C3D286B5024A8F /* WalletCore.swift */; };
 		D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */; };
 		7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */; };
+		8AB6D367B8C7A38548718D7A /* GamingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D7C209BADB4C94B87CE696 /* GamingService.swift */; };
+		68E3C80B0B92C3D8F64EA621 /* GovernanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F900436F3D551449FDF6C96 /* GovernanceService.swift */; };
+		232308F5CA659D06DA2D74CB /* GroupsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A13E9BC5CB7CEBE3972C68A /* GroupsService.swift */; };
+		E24AF6EC39D210B5E237DC43 /* IndexerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B605BDCB074FAAEDCEF3D5 /* IndexerService.swift */; };
+		C1C175B9088145BA69FBC539 /* InsuranceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757A29E851DC1AC4AA1FC5D9 /* InsuranceService.swift */; };
 		48F8E216C1A449AC8DBCCE42 /* DerivativesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B9D61E6E5D86655E0CF25A /* DerivativesService.swift */; };
 		5FBB5A37B794D3C503F46C9F /* DisputeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA13E5D15C4C99611F9E7CB8 /* DisputeService.swift */; };
 		1775A58FDA675F281DFA89D3 /* ENSService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620E67D0DE8F8E5F3F21B3F2 /* ENSService.swift */; };
@@ -605,6 +610,11 @@
 		6F90F7DC46C3D286B5024A8F /* WalletCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WalletCore.swift"; path = "Core/Wallet/WalletCore.swift"; sourceTree = SOURCE_ROOT; };
 		1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SecureEnclaveManager.swift"; path = "Core/Wallet/SecureEnclaveManager.swift"; sourceTree = SOURCE_ROOT; };
 		7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DemoArtifacts.swift"; path = "Core/Utilities/DemoArtifacts.swift"; sourceTree = SOURCE_ROOT; };
+		49D7C209BADB4C94B87CE696 /* GamingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GamingService.swift"; path = "Services/GamingService.swift"; sourceTree = SOURCE_ROOT; };
+		6F900436F3D551449FDF6C96 /* GovernanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GovernanceService.swift"; path = "Services/GovernanceService.swift"; sourceTree = SOURCE_ROOT; };
+		6A13E9BC5CB7CEBE3972C68A /* GroupsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GroupsService.swift"; path = "Services/GroupsService.swift"; sourceTree = SOURCE_ROOT; };
+		74B605BDCB074FAAEDCEF3D5 /* IndexerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IndexerService.swift"; path = "Services/IndexerService.swift"; sourceTree = SOURCE_ROOT; };
+		757A29E851DC1AC4AA1FC5D9 /* InsuranceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "InsuranceService.swift"; path = "Services/InsuranceService.swift"; sourceTree = SOURCE_ROOT; };
 		F2B9D61E6E5D86655E0CF25A /* DerivativesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DerivativesService.swift"; path = "Services/DerivativesService.swift"; sourceTree = SOURCE_ROOT; };
 		BA13E5D15C4C99611F9E7CB8 /* DisputeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DisputeService.swift"; path = "Services/DisputeService.swift"; sourceTree = SOURCE_ROOT; };
 		620E67D0DE8F8E5F3F21B3F2 /* ENSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ENSService.swift"; path = "Services/ENSService.swift"; sourceTree = SOURCE_ROOT; };
@@ -1742,6 +1752,11 @@
 				CF6505A67436A73292D272AA /* WalletCore.swift in Sources */,
 				D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */,
 				7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */,
+				8AB6D367B8C7A38548718D7A /* GamingService.swift in Sources */,
+				68E3C80B0B92C3D8F64EA621 /* GovernanceService.swift in Sources */,
+				232308F5CA659D06DA2D74CB /* GroupsService.swift in Sources */,
+				E24AF6EC39D210B5E237DC43 /* IndexerService.swift in Sources */,
+				C1C175B9088145BA69FBC539 /* InsuranceService.swift in Sources */,
 				48F8E216C1A449AC8DBCCE42 /* DerivativesService.swift in Sources */,
 				5FBB5A37B794D3C503F46C9F /* DisputeService.swift in Sources */,
 				1775A58FDA675F281DFA89D3 /* ENSService.swift in Sources */,
