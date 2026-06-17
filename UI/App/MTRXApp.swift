@@ -228,6 +228,9 @@ struct MainTabView: View {
             await walletManager.refreshLivePrices()
             // Overlay the live portfolio from the gateway (falls back to demo).
             await walletManager.loadPortfolio()
+            // Mirror whatever the app ended up showing (live or demo) to the
+            // Home Screen widgets — covers the demo-fallback path too.
+            walletManager.publishWidgetSnapshots()
         }
         .onChange(of: selectedTab) { _, _ in
             MtrxHaptics.selection()
@@ -882,6 +885,50 @@ class WalletManager: ObservableObject {
     var portfolioChange24h: Double { 2.34 }
     var portfolioChangeAbsolute: Double { 127.45 }
 
+    /// Publish the current portfolio + DeFi positions to the App Group so the
+    /// Home Screen widgets reflect exactly what the app shows — live state when
+    /// the backend is wired, demo state otherwise. It mirrors `tokens` /
+    /// `defiPositions` verbatim and never invents widget-only numbers.
+    @MainActor
+    func publishWidgetSnapshots() {
+        let isUp = portfolioChange24h >= 0
+
+        let topTokens = tokens
+            .sorted { $0.valueUSD > $1.valueUSD }
+            .prefix(3)
+            .map { t in
+                WidgetPortfolioSnapshot.Token(
+                    symbol: t.symbol,
+                    value: t.valueUSD.formatted(.currency(code: "USD")),
+                    change: String(format: "%@%.1f%%", t.change24h >= 0 ? "+" : "", t.change24h),
+                    isUp: t.change24h >= 0
+                )
+            }
+
+        WidgetSharedStore.save(WidgetPortfolioSnapshot(
+            updatedAt: Date(),
+            totalValue: totalPortfolioValue.formatted(.currency(code: "USD")),
+            change24h: (isUp ? "+" : "-") + abs(portfolioChangeAbsolute).formatted(.currency(code: "USD")),
+            changePercent: String(format: "%@%.2f%%", isUp ? "+" : "", portfolioChange24h),
+            isPositive: isUp,
+            tokens: Array(topTokens)
+        ))
+
+        let positionsTotal = defiPositions.reduce(0) { $0 + $1.value }
+        WidgetSharedStore.save(WidgetPositionsSnapshot(
+            updatedAt: Date(),
+            totalValue: positionsTotal.formatted(.currency(code: "USD")),
+            positions: defiPositions.map { p in
+                WidgetPositionsSnapshot.Position(
+                    name: p.protocol_,
+                    healthFactor: p.healthFactor ?? 0,
+                    value: p.value.formatted(.currency(code: "USD")),
+                    apy: String(format: "%.1f%%", p.apy)
+                )
+            }
+        ))
+    }
+
     func reconnectIfNeeded() { }
     func persistState() { }
 
@@ -1042,6 +1089,7 @@ class WalletManager: ObservableObject {
             if let eth = token("ETH") {
                 balance = Decimal(eth.balance * eth.priceUSD)
             }
+            publishWidgetSnapshots()
         }
     }
 

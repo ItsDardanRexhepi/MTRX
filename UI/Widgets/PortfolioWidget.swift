@@ -20,43 +20,35 @@ struct PortfolioEntry: TimelineEntry {
 // MARK: - Provider
 
 struct PortfolioProvider: TimelineProvider {
-    func placeholder(in context: Context) -> PortfolioEntry {
-        PortfolioEntry(
-            date: .now,
-            totalValue: "$--,---",
-            change24h: "+$0.00",
-            changePercent: "0.00%",
-            isPositive: true,
-            topTokens: [
-                ("ETH", "$7,960", "+3.1%", true),
-                ("USDC", "$1,250", "+0.0%", true),
-                ("MTRX", "$1,170", "+12.4%", true),
-            ]
-        )
-    }
+    func placeholder(in context: Context) -> PortfolioEntry { .empty }
 
     func getSnapshot(in context: Context, completion: @escaping (PortfolioEntry) -> Void) {
-        completion(sampleEntry)
+        completion(currentEntry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PortfolioEntry>) -> Void) {
-        let timeline = Timeline(entries: [sampleEntry], policy: .after(Date().addingTimeInterval(15 * 60)))
+        let timeline = Timeline(entries: [currentEntry], policy: .after(Date().addingTimeInterval(15 * 60)))
         completion(timeline)
     }
 
-    private var sampleEntry: PortfolioEntry {
-        PortfolioEntry(
-            date: .now,
-            totalValue: "$12,450.23",
-            change24h: "+$340.50",
-            changePercent: "+2.81%",
-            isPositive: true,
-            topTokens: [
-                ("ETH", "$7,960", "+3.1%", true),
-                ("USDC", "$1,250", "+0.0%", true),
-                ("MTRX", "$1,170", "+12.4%", true),
-            ]
+    /// Reflects the app's published portfolio; honest empty state when none exists.
+    private var currentEntry: PortfolioEntry {
+        guard let s = WidgetSharedStore.portfolio() else { return .empty }
+        return PortfolioEntry(
+            date: s.updatedAt,
+            totalValue: s.totalValue,
+            change24h: s.change24h,
+            changePercent: s.changePercent,
+            isPositive: s.isPositive,
+            topTokens: s.tokens.map { ($0.symbol, $0.value, $0.change, $0.isUp) }
         )
+    }
+}
+
+extension PortfolioEntry {
+    /// Honest placeholder shown before the app has published any data.
+    static var empty: PortfolioEntry {
+        PortfolioEntry(date: .now, totalValue: "$\u{2014}", change24h: "\u{2014}", changePercent: "\u{2014}", isPositive: true, topTokens: [])
     }
 }
 

@@ -58,10 +58,13 @@ final class ActivityKitManager: ObservableObject {
         let content = ActivityContent(state: initialState, staleDate: Date().addingTimeInterval(300))
 
         do {
+            // Local updates only (pushType: nil). The app drives progress via
+            // updateTransactionProgress(); there is no APNs Live Activity push
+            // backend, so requesting a push token would never be fulfilled.
             let activity = try Activity.request(
                 attributes: attributes,
                 content: content,
-                pushType: .token
+                pushType: nil
             )
             activeActivities[transactionId] = activity.id
             return activity.id

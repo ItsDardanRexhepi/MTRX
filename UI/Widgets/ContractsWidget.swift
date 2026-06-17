@@ -20,12 +20,25 @@ struct ContractsProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ContractsEntry) -> Void) {
-        completion(ContractsEntry(date: .now, activeCount: 3, pendingCount: 1, nextDeadline: "Milestone due Apr 15", recentActivity: "Escrow funded"))
+        completion(currentEntry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ContractsEntry>) -> Void) {
-        let entry = ContractsEntry(date: .now, activeCount: 3, pendingCount: 1, nextDeadline: "Milestone due Apr 15", recentActivity: "Escrow funded")
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(30 * 60))))
+        completion(Timeline(entries: [currentEntry], policy: .after(Date().addingTimeInterval(30 * 60))))
+    }
+
+    /// Reflects the app's published contract activity; honest empty state when none exists.
+    private var currentEntry: ContractsEntry {
+        guard let s = WidgetSharedStore.contracts() else {
+            return ContractsEntry(date: .now, activeCount: 0, pendingCount: 0, nextDeadline: nil, recentActivity: nil)
+        }
+        return ContractsEntry(
+            date: s.updatedAt,
+            activeCount: s.activeCount,
+            pendingCount: s.pendingCount,
+            nextDeadline: s.nextDeadline,
+            recentActivity: s.recentActivity
+        )
     }
 }
 

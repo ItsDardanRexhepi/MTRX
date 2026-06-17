@@ -26,28 +26,25 @@ struct PositionsProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (PositionsEntry) -> Void) {
-        completion(PositionsEntry(
-            date: .now,
-            totalValue: "$5,470",
-            positions: [
-                PositionData(name: "Aave V3", healthFactor: 2.8, value: "$2,500", apy: "4.2%"),
-                PositionData(name: "Uniswap V3", healthFactor: 0, value: "$1,800", apy: "12.5%"),
-                PositionData(name: "MTRX Stake", healthFactor: 0, value: "$1,170", apy: "8.7%"),
-            ]
-        ))
+        completion(currentEntry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PositionsEntry>) -> Void) {
-        let entry = PositionsEntry(
-            date: .now,
-            totalValue: "$5,470",
-            positions: [
-                PositionData(name: "Aave V3", healthFactor: 2.8, value: "$2,500", apy: "4.2%"),
-                PositionData(name: "Uniswap V3", healthFactor: 0, value: "$1,800", apy: "12.5%"),
-                PositionData(name: "MTRX Stake", healthFactor: 0, value: "$1,170", apy: "8.7%"),
-            ]
+        completion(Timeline(entries: [currentEntry], policy: .after(Date().addingTimeInterval(15 * 60))))
+    }
+
+    /// Reflects the app's published DeFi positions; honest empty state when none exists.
+    private var currentEntry: PositionsEntry {
+        guard let s = WidgetSharedStore.positions() else {
+            return PositionsEntry(date: .now, totalValue: "$\u{2014}", positions: [])
+        }
+        return PositionsEntry(
+            date: s.updatedAt,
+            totalValue: s.totalValue,
+            positions: s.positions.map {
+                PositionData(name: $0.name, healthFactor: $0.healthFactor, value: $0.value, apy: $0.apy)
+            }
         )
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(15 * 60))))
     }
 }
 

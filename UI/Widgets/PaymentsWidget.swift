@@ -20,12 +20,25 @@ struct PaymentsProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (PaymentsEntry) -> Void) {
-        completion(PaymentsEntry(date: .now, nextPayment: "Rent Agreement", nextPaymentAmount: "0.5 ETH", nextPaymentDate: "Apr 15", subscriptionRenewals: 2))
+        completion(currentEntry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PaymentsEntry>) -> Void) {
-        let entry = PaymentsEntry(date: .now, nextPayment: "Rent Agreement", nextPaymentAmount: "0.5 ETH", nextPaymentDate: "Apr 15", subscriptionRenewals: 2)
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(60 * 60))))
+        completion(Timeline(entries: [currentEntry], policy: .after(Date().addingTimeInterval(60 * 60))))
+    }
+
+    /// Reflects the app's published upcoming payments; honest empty state when none exists.
+    private var currentEntry: PaymentsEntry {
+        guard let s = WidgetSharedStore.payments() else {
+            return PaymentsEntry(date: .now, nextPayment: nil, nextPaymentAmount: nil, nextPaymentDate: nil, subscriptionRenewals: 0)
+        }
+        return PaymentsEntry(
+            date: s.updatedAt,
+            nextPayment: s.nextPayment,
+            nextPaymentAmount: s.nextPaymentAmount,
+            nextPaymentDate: s.nextPaymentDate,
+            subscriptionRenewals: s.subscriptionRenewals
+        )
     }
 }
 
