@@ -41,6 +41,7 @@ enum StablecoinError: Error, LocalizedError {
     case swapFailed(reason: String)
     case depegDetected(token: String, price: Double)
     case approvalFailed
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -50,6 +51,7 @@ enum StablecoinError: Error, LocalizedError {
         case .swapFailed(let r): return "Swap failed: \(r)"
         case .depegDetected(let t, let p): return "\(t) depeg detected. Price: \(p)"
         case .approvalFailed: return "Token approval failed."
+        case .notConfigured: return "Stablecoin token not configured (PendingCredentials.Components.stablecoin)."
         }
     }
 }
@@ -102,6 +104,40 @@ final class StablecoinManager {
         // TODO: ABI-encode transfer(address,uint256), submit via ERC-4337
         delegate?.stablecoin(self, didTransfer: amount, token: token)
         completion(.failure(.transferFailed))
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode the ERC-20 `transfer(address to, uint256 amount)`.
+    static func encodeTransfer(to: String, amount: UInt64) -> Data {
+        var data = ABIEncoder.functionSelector("transfer(address,uint256)")
+        data.append(ABIEncoder.encodeAddress(to))
+        data.append(ABIEncoder.encodeUInt256(amount))
+        return data
+    }
+
+    /// Transfer a stablecoin on-chain through the real submit pipeline:
+    /// enclave-signed UserOp → server paymaster → bundler. A standard ERC-20
+    /// transfer of the user's OWN balance — self-custody, never custodial. The
+    /// token contract is deferred to PendingCredentials (or pass an explicit
+    /// supported-token address); nil → throws, never a fake transfer.
+    @MainActor
+    func transferOnChain(
+        token: String? = PendingCredentials.filled(PendingCredentials.Components.stablecoin),
+        to: String,
+        amount: UInt64,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService
+    ) async throws -> WalletTransactionService.Submission {
+        guard let tokenAddress = token else { throw StablecoinError.notConfigured }
+        return try await service.submitCall(
+            to: tokenAddress,
+            value: 0,
+            data: Self.encodeTransfer(to: to, amount: amount),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     /// Approve a spender for token allowance

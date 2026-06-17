@@ -473,6 +473,22 @@ final class WalletTests: XCTestCase {
         }
     }
 
+    // MARK: - Component: Stablecoin (Component 07)
+
+    @MainActor
+    func testStablecoinTransfer_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await StablecoinManager(erc4337Manager: Self.dummyERC4337()).transferOnChain(
+                token: contract,
+                to: "0x2222222222222222222222222222222222222222",
+                amount: 1_000_000, // 1 USDC (6 decimals)
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag,
+                service: service
+            )
+        }
+    }
+
     // MARK: - Component: RWA (Component 04, securities-adjacent / self-custody)
 
     @MainActor
