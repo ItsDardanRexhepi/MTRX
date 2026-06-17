@@ -473,6 +473,22 @@ final class WalletTests: XCTestCase {
         }
     }
 
+    // MARK: - Component: ContractConversion (Component 01)
+
+    @MainActor
+    func testContractConversionDeploy_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await ContractConversion(erc4337Manager: Self.dummyERC4337()).deployOnChain(
+                salt: Data(repeating: 0x01, count: 32),
+                bytecode: Data([0x60, 0x80, 0x60, 0x40]), // sample creation code
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag,
+                service: service,
+                contract: contract
+            )
+        }
+    }
+
     // MARK: - Component: DAO (Component 06)
 
     @MainActor

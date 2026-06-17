@@ -212,6 +212,46 @@ final class ContractConversion {
         completion(.failure(.deploymentFailed(reason: "Not implemented")))
     }
 
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `deploy(bytes32 salt, bytes bytecode)` (CREATE2 factory).
+    /// `bytecode` is the already-compiled contract creation code — compilation
+    /// itself is out of scope for the app (no in-app Solidity compiler).
+    static func encodeDeploy(salt: Data, bytecode: Data) -> Data {
+        var saltWord = Data(repeating: 0, count: 32)
+        let head = salt.prefix(32)
+        saltWord.replaceSubrange(0..<head.count, with: head)
+        var out = ABIEncoder.functionSelector("deploy(bytes32,bytes)")
+        out.append(saltWord)
+        out.append(ABIEncoder.encodeOffset(64)) // bytes arg follows 2 head words
+        out.append(ABIEncoder.encodeBytes(bytecode))
+        return out
+    }
+
+    /// Deploy compiled bytecode through the real submit pipeline: enclave-signed
+    /// UserOp → server paymaster → bundler. Factory address deferred to
+    /// PendingCredentials (nil until set → throws, never a fake deploy).
+    @MainActor
+    func deployOnChain(
+        salt: Data,
+        bytecode: Data,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.contractConversion)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let factory = contract else {
+            throw ContractConversionError.deploymentFailed(reason: "ContractConversion factory not configured (PendingCredentials.Components.contractConversion)")
+        }
+        return try await service.submitCall(
+            to: factory,
+            value: 0,
+            data: Self.encodeDeploy(salt: salt, bytecode: bytecode),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
+    }
+
     // MARK: - Private Helpers
 
     private func convertClause(_ clause: LegalClause, terms: [ContractTerm]) -> ConvertedClause {
