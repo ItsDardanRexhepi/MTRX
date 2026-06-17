@@ -77,6 +77,7 @@ enum IPError: Error, LocalizedError {
     case feePeriodNotElapsed
     case assetRevoked
     case nonQualifyingTransaction
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -87,6 +88,7 @@ enum IPError: Error, LocalizedError {
         case .feePeriodNotElapsed: return "90-day fee period has not yet elapsed."
         case .assetRevoked: return "IP asset has been revoked."
         case .nonQualifyingTransaction: return "Transaction type does not qualify for royalty."
+        case .notConfigured: return "IP registry not configured (PendingCredentials.Components.ip)."
         }
     }
 }
@@ -145,6 +147,43 @@ final class IPManager: ObservableObject {
         await MainActor.run { assets.append(asset) }
         delegate?.ipManager(self, assetRegistered: asset)
         return asset
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `registerIP(address owner, bytes32 contentHash, uint256 royaltyBps)`.
+    static func encodeRegisterIP(owner: String, contentHash: Data, royaltyBps: UInt64) -> Data {
+        var hashWord = Data(repeating: 0, count: 32)
+        let head = contentHash.prefix(32)
+        hashWord.replaceSubrange(0..<head.count, with: head)
+        var out = ABIEncoder.functionSelector("registerIP(address,bytes32,uint256)")
+        out.append(ABIEncoder.encodeAddress(owner))
+        out.append(hashWord)
+        out.append(ABIEncoder.encodeUInt256(royaltyBps))
+        return out
+    }
+
+    /// Register an IP asset on-chain through the real submit pipeline: enclave-signed
+    /// UserOp → server paymaster → bundler. Registry address deferred to
+    /// PendingCredentials (nil until set → throws, never a fake registration).
+    @MainActor
+    func registerIPOnChain(
+        owner: String,
+        contentHash: Data,
+        royaltyBps: UInt64 = 500,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.ip)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let registry = contract else { throw IPError.notConfigured }
+        return try await service.submitCall(
+            to: registry,
+            value: 0,
+            data: Self.encodeRegisterIP(owner: owner, contentHash: contentHash, royaltyBps: royaltyBps),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     // MARK: - Royalty Enforcement
