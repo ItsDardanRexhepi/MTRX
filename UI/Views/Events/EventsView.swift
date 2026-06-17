@@ -283,6 +283,7 @@ struct EventsView: View {
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - My Tickets

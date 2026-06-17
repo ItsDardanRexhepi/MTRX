@@ -369,6 +369,7 @@ struct KYCView: View {
         .padding(Spacing.md)
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Initiate Verification

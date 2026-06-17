@@ -367,6 +367,7 @@ struct AccessControlView: View {
             }
         }
         .padding(.vertical, Spacing.xs)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Grant

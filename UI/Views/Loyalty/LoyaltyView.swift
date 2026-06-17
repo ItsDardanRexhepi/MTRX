@@ -273,6 +273,7 @@ struct LoyaltyView: View {
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Earn / Redeem Segment

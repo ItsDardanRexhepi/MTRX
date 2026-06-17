@@ -255,6 +255,7 @@ struct TreasuryView: View {
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Transaction History

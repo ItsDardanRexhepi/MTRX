@@ -204,6 +204,7 @@ struct TradingView: View {
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Order Section

@@ -327,6 +327,7 @@ struct GovernanceView: View {
                     .foregroundStyle(Color.labelTertiary)
             }
         }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Active Proposals
@@ -650,6 +651,7 @@ struct GovernanceView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
     }
 
     private func voteDescription(for option: GovernanceViewModel.VoteOption) -> String {

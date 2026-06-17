@@ -344,6 +344,7 @@ struct LiquidityView: View {
         .padding(.vertical, Spacing.ms)
         .padding(.horizontal, Spacing.contentPadding)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Add Liquidity Sheet

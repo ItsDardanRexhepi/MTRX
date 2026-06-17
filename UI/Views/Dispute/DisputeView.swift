@@ -368,6 +368,7 @@ struct DisputeView: View {
                 }
             }
         }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Jury View

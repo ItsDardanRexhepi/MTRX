@@ -215,6 +215,7 @@ struct StablecoinView: View {
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Convert Section

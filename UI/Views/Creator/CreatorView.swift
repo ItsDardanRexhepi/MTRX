@@ -289,6 +289,7 @@ struct CreatorView: View {
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Launch Token Sheet

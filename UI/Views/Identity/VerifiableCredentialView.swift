@@ -389,6 +389,7 @@ struct VerifiableCredentialView: View {
             }
         }
         .padding(.vertical, Spacing.xs)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Issue

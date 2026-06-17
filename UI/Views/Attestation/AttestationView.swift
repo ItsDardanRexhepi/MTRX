@@ -294,6 +294,7 @@ struct AttestationView: View {
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Verify Section
