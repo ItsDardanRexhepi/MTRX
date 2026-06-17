@@ -281,6 +281,11 @@
 		CF6505A67436A73292D272AA /* WalletCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F90F7DC46C3D286B5024A8F /* WalletCore.swift */; };
 		D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */; };
 		7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */; };
+		E34C7C1D81161CACE7FA4519 /* OnChainSubscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1B7B67532CF594DB3F0FAB /* OnChainSubscriptionService.swift */; };
+		C3D8CEFE0F0BEFAE62F48D5B /* OracleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E7DDC7CD7D41281624E244 /* OracleService.swift */; };
+		4A6E6FE80216B1E32A07A6C0 /* PortfolioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73C47EE557C213A0BB1011E /* PortfolioService.swift */; };
+		488B5E270F502AE5D67F63DF /* RWAService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA65F9ED9FD392608622CECB /* RWAService.swift */; };
+		998543D9714FDFF7A962554E /* ReputationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470B67F4E3EA2FD2BBC2927D /* ReputationService.swift */; };
 		EE029600F05F06F3CD201B3E /* LoyaltyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98F3DDBF274BFDD1B4BAB234 /* LoyaltyService.swift */; };
 		2BFC20F66EDA0B419CD7183A /* MessagingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F1FA3A9701DE51F8B22115 /* MessagingService.swift */; };
 		75AB115A10C193A07EC1D0A1 /* MultiSigService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99DFC5F2AAE2B4AA6DFF7039 /* MultiSigService.swift */; };
@@ -620,6 +625,11 @@
 		6F90F7DC46C3D286B5024A8F /* WalletCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WalletCore.swift"; path = "Core/Wallet/WalletCore.swift"; sourceTree = SOURCE_ROOT; };
 		1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SecureEnclaveManager.swift"; path = "Core/Wallet/SecureEnclaveManager.swift"; sourceTree = SOURCE_ROOT; };
 		7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DemoArtifacts.swift"; path = "Core/Utilities/DemoArtifacts.swift"; sourceTree = SOURCE_ROOT; };
+		BE1B7B67532CF594DB3F0FAB /* OnChainSubscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OnChainSubscriptionService.swift"; path = "Services/OnChainSubscriptionService.swift"; sourceTree = SOURCE_ROOT; };
+		59E7DDC7CD7D41281624E244 /* OracleService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OracleService.swift"; path = "Services/OracleService.swift"; sourceTree = SOURCE_ROOT; };
+		B73C47EE557C213A0BB1011E /* PortfolioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PortfolioService.swift"; path = "Services/PortfolioService.swift"; sourceTree = SOURCE_ROOT; };
+		AA65F9ED9FD392608622CECB /* RWAService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RWAService.swift"; path = "Services/RWAService.swift"; sourceTree = SOURCE_ROOT; };
+		470B67F4E3EA2FD2BBC2927D /* ReputationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ReputationService.swift"; path = "Services/ReputationService.swift"; sourceTree = SOURCE_ROOT; };
 		98F3DDBF274BFDD1B4BAB234 /* LoyaltyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LoyaltyService.swift"; path = "Services/LoyaltyService.swift"; sourceTree = SOURCE_ROOT; };
 		C6F1FA3A9701DE51F8B22115 /* MessagingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MessagingService.swift"; path = "Services/MessagingService.swift"; sourceTree = SOURCE_ROOT; };
 		99DFC5F2AAE2B4AA6DFF7039 /* MultiSigService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MultiSigService.swift"; path = "Services/MultiSigService.swift"; sourceTree = SOURCE_ROOT; };
@@ -1772,6 +1782,11 @@
 				CF6505A67436A73292D272AA /* WalletCore.swift in Sources */,
 				D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */,
 				7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */,
+				E34C7C1D81161CACE7FA4519 /* OnChainSubscriptionService.swift in Sources */,
+				C3D8CEFE0F0BEFAE62F48D5B /* OracleService.swift in Sources */,
+				4A6E6FE80216B1E32A07A6C0 /* PortfolioService.swift in Sources */,
+				488B5E270F502AE5D67F63DF /* RWAService.swift in Sources */,
+				998543D9714FDFF7A962554E /* ReputationService.swift in Sources */,
 				EE029600F05F06F3CD201B3E /* LoyaltyService.swift in Sources */,
 				2BFC20F66EDA0B419CD7183A /* MessagingService.swift in Sources */,
 				75AB115A10C193A07EC1D0A1 /* MultiSigService.swift in Sources */,

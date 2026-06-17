@@ -35,7 +35,7 @@ struct PortfolioTransaction: Codable, Identifiable {
     let gasUSD: Double?
 }
 
-struct PortfolioSnapshot: Codable {
+struct SvcPortfolioSnapshot: Codable {
     let date: Date
     let totalValueUSD: Double
 }
@@ -60,7 +60,7 @@ final class PortfolioService {
         ])
     }
 
-    func getPerformanceHistory(address: String, days: Int) async throws -> [PortfolioSnapshot] {
+    func getPerformanceHistory(address: String, days: Int) async throws -> [SvcPortfolioSnapshot] {
         try await api.get(path: "/portfolio/\(address)/performance", queryItems: [
             URLQueryItem(name: "days", value: String(days))
         ])
