@@ -215,11 +215,16 @@ struct HomeView: View {
                 Text(timeGreeting)
                     .contentShape(Rectangle())
                     .onTapGesture { MtrxHaptics.impact(.light); showWeatherPopup = true }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("Opens weather")
                 Text("·")
+                    .accessibilityHidden(true)
                 // Tap the date → an interactive liquid-glass calendar.
                 Text(Date().formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
                     .contentShape(Rectangle())
                     .onTapGesture { MtrxHaptics.impact(.light); showCalendarPopup = true }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("Opens calendar")
             }
             .font(.mtrxCaption1)
             .foregroundStyle(Color.trinityPrimary.opacity(0.85))
@@ -260,6 +265,9 @@ struct HomeView: View {
                     nameDraft = appState.displayName
                     showNameEditor = true
                 }
+                .accessibilityLabel("Name, \(firstName)")
+                .accessibilityHint("Edit your name")
+                .accessibilityAddTraits(.isButton)
 
                 // Daily flow ring — the open loop of the day.
                 Button {
@@ -285,6 +293,9 @@ struct HomeView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Daily flow")
+                .accessibilityValue(dailyFlow.isComplete ? "All tasks complete" : "\(dailyFlow.completed.count) of 3 tasks complete")
+                .accessibilityHint("Opens daily flow")
 
                 // The ask bar and the orb are one element: a single glass
                 // pill wearing the orb's iridescent skin. Tap to open the
@@ -596,6 +607,7 @@ struct HomeView: View {
                             .foregroundStyle(Color.labelSecondary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Close chat")
                 }
 
                 // Conversation — the real Trinity transcript. Fills the card.
@@ -719,6 +731,7 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(homeChatInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .accessibilityLabel("Send message")
                 }
                 .padding(.leading, 11)
                 .padding(.trailing, 5)
@@ -908,6 +921,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(.plain)
                 .offset(x: -6, y: -6)
+                .accessibilityLabel("Remove \(action.title) from quick actions")
             }
         }
         .modifier(JiggleEffect(active: editingActions))
@@ -947,6 +961,7 @@ struct HomeView: View {
         }
         .buttonStyle(.plain)
         .modifier(JiggleEffect(active: editingActions))
+        .accessibilityLabel("Add quick action")
     }
 
     private func open(_ action: HomeAction) {
@@ -972,6 +987,12 @@ struct HomeView: View {
                 portfolioCardLabel
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(VoiceOverSupport.portfolioLabel(
+                value: walletManager.totalPortfolioValue.formatted(.currency(code: "USD")),
+                change: String(format: "%.2f%%", abs(walletManager.portfolioChange24h)),
+                isPositive: walletManager.portfolioChange24h >= 0
+            ))
+            .accessibilityHint("Opens portfolio")
         }
     }
 
@@ -1580,6 +1601,7 @@ struct PortfolioSheet: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.labelPrimary)
                     }
+                    .accessibilityLabel("Close portfolio")
                 }
             }
             .navigationDestination(item: $activeMove) { move in
