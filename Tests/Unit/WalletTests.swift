@@ -397,6 +397,19 @@ final class WalletTests: XCTestCase {
         XCTAssertFalse(CoordinationIntelligence.hasOpposingDirective("market looks calm", "network is healthy"))
     }
 
+    // MARK: - Transaction indexer (eth_getLogs producer) decode helpers
+
+    func testTxIndexer_decodesTransferValueAndAddress() {
+        // 1e18 (1 token) as a 32-byte hex word → exact decimal (beyond UInt64-safe via Decimal).
+        let oneToken = "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000"
+        XCTAssertEqual(TransactionIndexer.decimalString(fromHexWord: oneToken), "1000000000000000000")
+        XCTAssertEqual(TransactionIndexer.decimalString(fromHexWord: "0x" + String(repeating: "0", count: 64)), "0")
+
+        // 20-byte address recovered from a 32-byte indexed topic.
+        let topic = "0x000000000000000000000000abcdef0123456789abcdef0123456789abcdef01"
+        XCTAssertEqual(TransactionIndexer.address(fromTopic: topic), "0xabcdef0123456789abcdef0123456789abcdef01")
+    }
+
     // MARK: - Config keystone
 
     func testPendingCredentials_blankReturnsNil() {

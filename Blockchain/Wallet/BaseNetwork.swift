@@ -33,15 +33,26 @@ struct JSONRPCRequest: Codable {
         case bool(Bool)
         case dict([String: String])
         case array([String])
+        /// eth_getLogs filter object: { fromBlock, toBlock, address?, topics: [String?] }.
+        /// `topics` allows nulls (wildcard slots), which `dict([String:String])`
+        /// can't express — hence a dedicated case.
+        case logFilter(fromBlock: String, toBlock: String, address: String?, topics: [String?])
+
+        private enum FilterKey: String, CodingKey { case fromBlock, toBlock, address, topics }
 
         func encode(to encoder: Encoder) throws {
-            var container = encoder.singleValueContainer()
             switch self {
-            case .string(let v): try container.encode(v)
-            case .int(let v): try container.encode(v)
-            case .bool(let v): try container.encode(v)
-            case .dict(let v): try container.encode(v)
-            case .array(let v): try container.encode(v)
+            case .string(let v): var c = encoder.singleValueContainer(); try c.encode(v)
+            case .int(let v): var c = encoder.singleValueContainer(); try c.encode(v)
+            case .bool(let v): var c = encoder.singleValueContainer(); try c.encode(v)
+            case .dict(let v): var c = encoder.singleValueContainer(); try c.encode(v)
+            case .array(let v): var c = encoder.singleValueContainer(); try c.encode(v)
+            case .logFilter(let from, let to, let address, let topics):
+                var c = encoder.container(keyedBy: FilterKey.self)
+                try c.encode(from, forKey: .fromBlock)
+                try c.encode(to, forKey: .toBlock)
+                if let address { try c.encode(address, forKey: .address) }
+                try c.encode(topics, forKey: .topics)
             }
         }
 
@@ -67,6 +78,31 @@ struct JSONRPCResponse: Codable {
         let code: Int
         let message: String
     }
+}
+
+/// A single `eth_getLogs` result entry.
+struct EthLog: Codable {
+    let address: String
+    let topics: [String]
+    let data: String
+    let blockNumber: String        // hex
+    let transactionHash: String
+    let logIndex: String?          // hex
+    let removed: Bool?
+}
+
+/// `eth_getLogs` returns an array, so it needs its own response shape
+/// (JSONRPCResponse.result is a single String).
+struct JSONRPCLogsResponse: Codable {
+    let result: [EthLog]?
+    let error: JSONRPCResponse.RPCError?
+}
+
+/// Minimal `eth_getBlockByNumber` response — we only need the block timestamp.
+struct JSONRPCBlockResponse: Codable {
+    struct Block: Codable { let timestamp: String } // hex seconds
+    let result: Block?
+    let error: JSONRPCResponse.RPCError?
 }
 
 struct BlockInfo {
@@ -374,6 +410,72 @@ final class BaseNetwork {
     func getTransactionReceipt(txHash: String, completion: @escaping (Result<JSONRPCResponse, BlockchainNetworkError>) -> Void) {
         let request = buildRequest(method: "eth_getTransactionReceipt", params: [.string(txHash)])
         sendRequest(request, completion: completion)
+    }
+
+    /// Fetch event logs matching a filter (eth_getLogs). `address` filters by the
+    /// emitting contract (empty → any). `topics` may contain nils for wildcard
+    /// slots. Decodes the array result directly (JSONRPCResponse holds only a String).
+    func getLogs(address: String,
+                 fromBlock: String,
+                 toBlock: String = "latest",
+                 topics: [String?],
+                 completion: @escaping (Result<[EthLog], BlockchainNetworkError>) -> Void) {
+        guard let url = endpoints.activeHTTP else {
+            completion(.failure(.connectionFailed(reason: "RPC URL not set — fill PendingCredentials.Network.rpcURL")))
+            return
+        }
+        let filter = JSONRPCRequest.RPCParam.logFilter(
+            fromBlock: fromBlock, toBlock: toBlock,
+            address: address.isEmpty ? nil : address, topics: topics
+        )
+        let request = buildRequest(method: "eth_getLogs", params: [filter])
+        post(request, decode: JSONRPCLogsResponse.self, url: url) { result in
+            switch result {
+            case .success(let response):
+                if let err = response.error { completion(.failure(.rpcError(code: err.code, message: err.message))) }
+                else { completion(.success(response.result ?? [])) }
+            case .failure(let error): completion(.failure(error))
+            }
+        }
+    }
+
+    /// Fetch a block's UNIX timestamp (eth_getBlockByNumber, full=false).
+    func getBlockTimestamp(blockNumberHex: String, completion: @escaping (Result<Date, BlockchainNetworkError>) -> Void) {
+        guard let url = endpoints.activeHTTP else {
+            completion(.failure(.connectionFailed(reason: "RPC URL not set")))
+            return
+        }
+        let request = buildRequest(method: "eth_getBlockByNumber", params: [.string(blockNumberHex), .bool(false)])
+        post(request, decode: JSONRPCBlockResponse.self, url: url) { result in
+            switch result {
+            case .success(let response):
+                if let err = response.error { completion(.failure(.rpcError(code: err.code, message: err.message))); return }
+                guard let tsHex = response.result?.timestamp,
+                      let seconds = UInt64(tsHex.dropFirst(2), radix: 16) else {
+                    completion(.failure(.invalidResponse)); return
+                }
+                completion(.success(Date(timeIntervalSince1970: TimeInterval(seconds))))
+            case .failure(let error): completion(.failure(error))
+            }
+        }
+    }
+
+    /// Generic POST + decode for endpoints whose result shape differs from
+    /// JSONRPCResponse (eth_getLogs / eth_getBlockByNumber).
+    private func post<T: Decodable>(_ request: JSONRPCRequest, decode: T.Type, url: URL,
+                                    completion: @escaping (Result<T, BlockchainNetworkError>) -> Void) {
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.timeoutInterval = 30
+        do { urlRequest.httpBody = try JSONEncoder().encode(request) }
+        catch { completion(.failure(.invalidResponse)); return }
+        urlSession.dataTask(with: urlRequest) { data, _, error in
+            if let error = error { completion(.failure(.connectionFailed(reason: error.localizedDescription))); return }
+            guard let data = data else { completion(.failure(.invalidResponse)); return }
+            do { completion(.success(try JSONDecoder().decode(T.self, from: data))) }
+            catch { completion(.failure(.invalidResponse)) }
+        }.resume()
     }
 
     /// Get contract code at address
