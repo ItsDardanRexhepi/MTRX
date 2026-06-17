@@ -100,6 +100,7 @@ enum FundraisingError: Error, LocalizedError {
     case vestingNotReady
     case verificationFailed(String)
     case insufficientVotes
+    case displayOnly
 
     var errorDescription: String? {
         switch self {
@@ -112,11 +113,18 @@ enum FundraisingError: Error, LocalizedError {
         case .vestingNotReady: return "Vesting release not yet available."
         case .verificationFailed(let r): return "Verification failed: \(r)"
         case .insufficientVotes: return "Not enough contributor votes for verification."
+        case .displayOnly: return "Fundraising contributions are display-only in this build — no in-app execution."
         }
     }
 }
 
 // MARK: - FundraisingManager
+//
+// REGULATED COMPONENT — DISPLAY-ONLY.
+// Investment crowdfunding / token fundraising can constitute a regulated
+// securities offering. This build displays campaigns, milestones and progress
+// but performs NO in-app execution. `contribute` refuses with `.displayOnly`
+// rather than fabricating a contribution. Gated by FeatureFlags.mvpMode upstream.
 
 final class FundraisingManager: ObservableObject {
 
@@ -163,40 +171,10 @@ final class FundraisingManager: ObservableObject {
 
     // MARK: - Contributions (100% to Recipient)
 
+    /// Contribute — REGULATED display-only: refuses (no in-app execution).
+    /// Previously fabricated a contribution and advanced the campaign; removed.
     func contribute(campaignId: String, contributorAddress: String, amount: Double) async throws -> FundContribution {
-        guard var campaign = campaignStore[campaignId] else {
-            throw FundraisingError.campaignNotFound(campaignId)
-        }
-        guard campaign.status == .active else {
-            throw FundraisingError.campaignExpired
-        }
-        guard Date() < campaign.deadline else {
-            // Auto-refund on missed deadline
-            try await triggerAutoRefund(campaignId: campaignId)
-            throw FundraisingError.campaignExpired
-        }
-
-        let contribution = FundContribution(
-            id: UUID().uuidString,
-            campaignId: campaignId,
-            contributorAddress: contributorAddress,
-            amount: amount,
-            timestamp: Date(),
-            refunded: false
-        )
-
-        campaign.raisedAmount += amount
-        campaign.contributorCount += 1
-        if campaign.raisedAmount >= campaign.goalAmount {
-            campaign.status = .funded
-        }
-        campaignStore[campaignId] = campaign
-        contributionsByCampaign[campaignId, default: []].append(contribution)
-
-        await MainActor.run { contributions.append(contribution) }
-        await updateCampaignInPublished(campaign)
-        delegate?.fundraising(self, contributionReceived: contribution)
-        return contribution
+        throw FundraisingError.displayOnly
     }
 
     // MARK: - Milestone Verification
