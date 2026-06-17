@@ -57,6 +57,7 @@ enum AttestationComponentError: Error, LocalizedError {
     case verificationFailed
     case attestationExpired
     case invalidEvidence
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -65,6 +66,7 @@ enum AttestationComponentError: Error, LocalizedError {
         case .verificationFailed: return "Attestation verification failed."
         case .attestationExpired: return "Attestation has expired."
         case .invalidEvidence: return "Evidence provided is invalid."
+        case .notConfigured: return "Attestation contract not configured (PendingCredentials.Components.attestation)."
         }
     }
 }
@@ -143,6 +145,48 @@ final class AttestationComponent {
                 completion(.failure(.verificationFailed))
             }
         }
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `attest(bytes32 schemaUID, address recipient, bytes data)`.
+    /// ASSUMPTION: the deployed attestation contract exposes this selector
+    /// (EAS-style attest). Adjust the signature if the deployed ABI differs.
+    static func encodeAttest(schemaUID: Data, recipient: String, data: Data) -> Data {
+        var schemaWord = Data(repeating: 0, count: 32)
+        let head = schemaUID.prefix(32)
+        schemaWord.replaceSubrange(0..<head.count, with: head) // left-aligned bytes32
+        var out = ABIEncoder.functionSelector("attest(bytes32,address,bytes)")
+        out.append(schemaWord)
+        out.append(ABIEncoder.encodeAddress(recipient))
+        out.append(ABIEncoder.encodeOffset(96)) // bytes arg follows 3 head words
+        out.append(ABIEncoder.encodeBytes(data))
+        return out
+    }
+
+    /// Create an attestation on-chain through the real submit pipeline:
+    /// enclave-signed UserOp → server paymaster → bundler. The contract address
+    /// is deferred to PendingCredentials (nil until set → throws, never faked).
+    /// Static: the money path needs no instance state, so it stays testable
+    /// without constructing the full EAS/proof/queue graph.
+    @MainActor
+    static func createAttestationOnChain(
+        schemaUID: Data,
+        recipient: String,
+        data: Data,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.attestation)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let attestationContract = contract else { throw AttestationComponentError.notConfigured }
+        return try await service.submitCall(
+            to: attestationContract,
+            value: 0,
+            data: encodeAttest(schemaUID: schemaUID, recipient: recipient, data: data),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     // MARK: - Verification

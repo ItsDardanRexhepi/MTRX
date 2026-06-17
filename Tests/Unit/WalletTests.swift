@@ -472,4 +472,21 @@ final class WalletTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - Component: Attestation (Component 08)
+
+    @MainActor
+    func testAttestation_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await AttestationComponent.createAttestationOnChain(
+                schemaUID: Data(repeating: 0xAB, count: 32),
+                recipient: "0x2222222222222222222222222222222222222222",
+                data: Data("claim:verified".utf8),
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag,
+                service: service,
+                contract: contract
+            )
+        }
+    }
 }
