@@ -14,7 +14,7 @@ struct NFTAsset: Codable, Identifiable {
     let imageURL: String?
     let collectionName: String
     let floorPrice: Double?
-    let traits: [NFTTrait]
+    let traits: [SvcNFTTrait]
 
     private enum CodingKeys: String, CodingKey {
         case tokenId, contract, name, description, imageURL, collectionName, floorPrice, traits
@@ -29,11 +29,11 @@ struct NFTAsset: Codable, Identifiable {
         self.imageURL = try? container.decode(String.self, forKey: .imageURL)
         self.collectionName = (try? container.decode(String.self, forKey: .collectionName)) ?? ""
         self.floorPrice = try? container.decode(Double.self, forKey: .floorPrice)
-        self.traits = (try? container.decode([NFTTrait].self, forKey: .traits)) ?? []
+        self.traits = (try? container.decode([SvcNFTTrait].self, forKey: .traits)) ?? []
     }
 }
 
-struct NFTTrait: Codable, Identifiable {
+struct SvcNFTTrait: Codable, Identifiable {
     let id: UUID
     let traitType: String
     let value: String

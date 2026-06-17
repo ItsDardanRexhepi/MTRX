@@ -26,7 +26,7 @@ struct RedemptionOption: Codable, Identifiable {
     let type: String
 }
 
-struct CashbackReward: Codable, Identifiable {
+struct SvcCashbackReward: Codable, Identifiable {
     var id: String { rewardId }
     let rewardId: String
     let source: String
@@ -64,7 +64,7 @@ final class LoyaltyService {
         try await api.post(path: "/loyalty/programs/\(programId)/redeem", body: ["optionId": optionId])
     }
 
-    func getCashback(address: String) async throws -> [CashbackReward] {
+    func getCashback(address: String) async throws -> [SvcCashbackReward] {
         try await api.get(path: "/loyalty/cashback", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])

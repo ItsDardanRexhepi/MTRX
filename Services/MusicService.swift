@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Models
 
-struct MusicTrack: Codable, Identifiable {
+struct SvcMusicTrack: Codable, Identifiable {
     var id: String { trackId }
     let trackId: String
     let title: String
@@ -10,12 +10,12 @@ struct MusicTrack: Codable, Identifiable {
     let artworkURL: String?
     let audioURL: String?
     let pricePerPlay: Double
-    let splits: [RoyaltySplit]
+    let splits: [SvcRoyaltySplit]
     let totalPlays: Int
     let totalEarnings: Double
 }
 
-struct RoyaltySplit: Codable, Identifiable {
+struct SvcRoyaltySplit: Codable, Identifiable {
     let id: UUID
     let address: String
     let ens: String?
@@ -26,7 +26,7 @@ struct RoyaltySplit: Codable, Identifiable {
 struct MusicMetadata: Codable {
     let title: String
     let description: String?
-    let splits: [RoyaltySplit]
+    let splits: [SvcRoyaltySplit]
     let pricePerPlay: Double
 }
 
@@ -46,11 +46,11 @@ final class MusicService {
 
     private init() {}
 
-    func getCatalog() async throws -> [MusicTrack] {
+    func getCatalog() async throws -> [SvcMusicTrack] {
         try await api.get(path: "/music/catalog")
     }
 
-    func uploadTrack(audioData: Data, artwork: Data, metadata: MusicMetadata) async throws -> MusicTrack {
+    func uploadTrack(audioData: Data, artwork: Data, metadata: MusicMetadata) async throws -> SvcMusicTrack {
         struct UploadBody: Codable {
             let audioBase64: String
             let artworkBase64: String
@@ -68,7 +68,7 @@ final class MusicService {
         try await api.post(path: "/music/tracks/\(trackId)/play", body: nil as String?)
     }
 
-    func getUserTracks(address: String) async throws -> [MusicTrack] {
+    func getUserTracks(address: String) async throws -> [SvcMusicTrack] {
         try await api.get(path: "/music/tracks", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
@@ -78,7 +78,7 @@ final class MusicService {
         try await api.post(path: "/music/tracks/\(trackId)/claim", body: nil as String?)
     }
 
-    func getRoyaltySplits(trackId: String) async throws -> [RoyaltySplit] {
+    func getRoyaltySplits(trackId: String) async throws -> [SvcRoyaltySplit] {
         try await api.get(path: "/music/tracks/\(trackId)/splits")
     }
 }

@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Models
 
-struct MultiSigWallet: Codable, Identifiable {
+struct SvcMultiSigWallet: Codable, Identifiable {
     var id: String { walletId }
     let walletId: String
     let name: String
@@ -39,7 +39,7 @@ final class MultiSigService {
 
     private init() {}
 
-    func getUserMultiSigs(address: String) async throws -> [MultiSigWallet] {
+    func getUserMultiSigs(address: String) async throws -> [SvcMultiSigWallet] {
         try await api.get(path: "/multisig/wallets", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
@@ -59,7 +59,7 @@ final class MultiSigService {
         try await api.post(path: "/multisig/wallets/\(multiSigId)/transactions/\(txId)/reject", body: nil as String?)
     }
 
-    func createMultiSig(name: String, signers: [String], threshold: Int) async throws -> MultiSigWallet {
+    func createMultiSig(name: String, signers: [String], threshold: Int) async throws -> SvcMultiSigWallet {
         let body = CreateMultiSigBody(name: name, signers: signers, threshold: threshold)
         return try await api.post(path: "/multisig/wallets", body: body)
     }
