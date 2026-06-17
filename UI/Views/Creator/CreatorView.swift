@@ -28,9 +28,12 @@ class CreatorViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isLaunching: Bool = false
+    @Published var isDemo: Bool = false
 
     var totalRevenue: String {
-        "$4,832.50"
+        // CreatorService has no revenue endpoint; this figure is illustrative and
+        // only shown in demo mode (the screen carries a DemoBadge then).
+        isDemo ? "$4,832.50" : "—"
     }
 
     var totalHolders: Int {
@@ -48,19 +51,30 @@ class CreatorViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        // Live tokens from the gateway; fall back to samples if it isn't up.
-        if let live = try? await MTRXAPIClient.shared.creatorTokens(), !live.tokens.isEmpty {
-            tokens = live.tokens.map {
-                CreatorTokenItem(name: $0.name, symbol: $0.symbol, currentPrice: $0.currentPrice,
-                                 holders: $0.holders, volume24h: $0.volume24h)
+        // Live creator tokens from CreatorService (per-wallet) when configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let live = try await CreatorService.shared.getCreatorTokens(address: address)
+                tokens = live.map { t in
+                    CreatorTokenItem(
+                        name: t.name, symbol: t.symbol,
+                        currentPrice: "$" + t.currentPrice.formatted(.number.precision(.fractionLength(4))),
+                        holders: t.holders,
+                        volume24h: "$" + t.volume24h.formatted(.number.precision(.fractionLength(2)))
+                    )
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live creator data unavailable — showing demo."
             }
-            isLoading = false
-            return
         }
 
         do {
             try await Task.sleep(for: .milliseconds(600))
             tokens = CreatorViewModel.sampleTokens
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load creator data."
@@ -122,6 +136,9 @@ struct CreatorView: View {
             .navigationTitle("Creator")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         viewModel.showLaunch = true

@@ -33,6 +33,7 @@ class RWAViewModel: ObservableObject {
     @Published var selectedCategory: String = "All"
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var isDemo: Bool = false
 
     let categories = ["All", "Real Estate", "Treasury Bonds", "Commodities", "Private Credit"]
 
@@ -55,22 +56,44 @@ class RWAViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        // Live assets from the gateway; fall back to sample data if it isn't up.
-        if let live = try? await MTRXAPIClient.shared.rwaAssets(), !live.assets.isEmpty {
-            assets = live.assets.map { a in
-                RWAItem(name: a.name, category: a.category,
-                        apy: a.apy ?? "—", minInvestment: a.minInvestment ?? "—",
-                        riskRating: a.riskRating ?? "—")
+        // Live RWA marketplace (global) + holdings (per-wallet) from RWAService; else demo.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let liveAssets = try await RWAService.shared.getRWAAssets()
+                assets = liveAssets.map { a in
+                    RWAItem(
+                        name: a.name, category: a.category,
+                        apy: String(format: "%.1f%%", a.apy),
+                        minInvestment: "$" + a.minimumInvestment.formatted(.number.precision(.fractionLength(0))),
+                        riskRating: a.riskRating
+                    )
+                }
+                if let address = MtrxSession.walletAddress {
+                    let liveHoldings = try await RWAService.shared.getUserHoldings(address: address)
+                    holdings = liveHoldings.map { h in
+                        RWAHoldingItem(
+                            assetName: h.assetName,
+                            tokenBalance: h.tokenBalance.formatted(.number.precision(.fractionLength(2))),
+                            usdValue: "$" + h.usdValue.formatted(.number.precision(.fractionLength(2))),
+                            pendingYield: "$" + h.pendingYield.formatted(.number.precision(.fractionLength(2)))
+                        )
+                    }
+                } else {
+                    holdings = []
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live RWA data unavailable — showing demo."
             }
-            holdings = RWAViewModel.sampleHoldings
-            isLoading = false
-            return
         }
 
         do {
             try await Task.sleep(for: .milliseconds(600))
             assets = RWAViewModel.sampleAssets
             holdings = RWAViewModel.sampleHoldings
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load RWA data."
@@ -120,6 +143,11 @@ struct RWAView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Real World Assets")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
         }
     }

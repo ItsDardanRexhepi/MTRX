@@ -32,15 +32,44 @@ class IndexerViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isTranslating: Bool = false
     @Published var isRunning: Bool = false
+    @Published var isDemo: Bool = false
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short; return f
+    }()
 
     func load() async {
         isLoading = true
         errorMessage = nil
 
+        // Live subgraphs (global) + saved queries (per-wallet) from IndexerService; else demo.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let liveSubgraphs = try await IndexerService.shared.getSubgraphs()
+                subgraphs = liveSubgraphs.map { s in
+                    SubgraphItem(name: s.name, protocol_: s.protocol_ ?? "", description: s.description)
+                }
+                if let address = MtrxSession.walletAddress {
+                    let liveQueries = try await IndexerService.shared.getUserQueries(address: address)
+                    queries = liveQueries.map { q in
+                        QueryItem(name: q.name, lastRunAt: q.lastRunAt.map { Self.dateFormatter.string(from: $0) })
+                    }
+                } else {
+                    queries = []
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live indexer data unavailable — showing demo."
+            }
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             queries = IndexerViewModel.sampleQueries
             subgraphs = IndexerViewModel.sampleSubgraphs
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load indexer data."
@@ -150,6 +179,11 @@ struct IndexerView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Indexer")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
         }
     }

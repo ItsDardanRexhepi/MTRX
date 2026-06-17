@@ -42,6 +42,11 @@ class OnChainSubscriptionsViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isCancelling: Bool = false
     @Published var isSubscribing: Bool = false
+    @Published var isDemo: Bool = false
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "MMM dd, yyyy"; return f
+    }()
 
     let tabs = ["My Subscriptions", "Browse"]
 
@@ -49,10 +54,45 @@ class OnChainSubscriptionsViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live offerings (global) + subscriptions (per-wallet) from
+        // OnChainSubscriptionService when configured; else demo.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let liveOfferings = try await OnChainSubscriptionService.shared.getSubscriptionOfferings()
+                offerings = liveOfferings.map { o in
+                    OfferingItem(
+                        name: o.name, description: o.description,
+                        tiers: o.tiers.map { t in
+                            TierItem(name: t.name, price: "\(t.price.formatted()) \(t.token)/mo", features: t.features)
+                        }
+                    )
+                }
+                if let address = MtrxSession.walletAddress {
+                    let liveSubs = try await OnChainSubscriptionService.shared.getUserSubscriptions(address: address)
+                    subscriptions = liveSubs.map { s in
+                        SubItem(
+                            service: s.service, tier: s.tier,
+                            price: "\(s.price.formatted()) \(s.token)/mo", token: s.token,
+                            nextBillingDate: Self.dateFormatter.string(from: s.nextBillingDate),
+                            status: s.status
+                        )
+                    }
+                } else {
+                    subscriptions = []
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live subscription data unavailable — showing demo."
+            }
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             subscriptions = OnChainSubscriptionsViewModel.sampleSubscriptions
             offerings = OnChainSubscriptionsViewModel.sampleOfferings
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load subscriptions."
@@ -148,6 +188,11 @@ struct OnChainSubscriptionsView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Subscriptions")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
         }
     }
