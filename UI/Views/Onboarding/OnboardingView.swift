@@ -86,7 +86,7 @@ struct OnboardingView: View {
                                 .font(.mtrxSubheadline)
                                 .foregroundStyle(Color.labelSecondary)
                         }
-                        .frame(height: 56)
+                        .frame(minHeight: 56)
                     } else {
                         Button {
                             performSignIn()
@@ -94,6 +94,7 @@ struct OnboardingView: View {
                             HStack(spacing: Spacing.sm) {
                                 Image(systemName: "apple.logo")
                                     .font(.system(size: 18, weight: .semibold))
+                                    .accessibilityHidden(true)
                                 Text("Sign in with Apple")
                             }
                             .foregroundStyle(Color.black)
@@ -183,6 +184,8 @@ struct OnboardingView: View {
                     .animation(Motion.springSnappy, value: currentPage)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Page \((OnboardingPage.allCases.firstIndex(of: currentPage) ?? 0) + 1) of \(OnboardingPage.allCases.count)")
     }
 
     // MARK: - Welcome Page
@@ -359,7 +362,7 @@ struct OnboardingView: View {
                             .font(.mtrxSubheadline)
                             .foregroundStyle(Color.labelSecondary)
                     }
-                    .frame(height: 56)
+                    .frame(minHeight: 56)
                     .transition(.mtrxScale)
                 } else {
                     // Sign in with Apple button
@@ -369,6 +372,7 @@ struct OnboardingView: View {
                         HStack(spacing: Spacing.sm) {
                             Image(systemName: "apple.logo")
                                 .font(.system(size: 18, weight: .semibold))
+                                .accessibilityHidden(true)
                             Text("Sign in with Apple")
                         }
                         .foregroundStyle(Color(uiColor: .systemBackground))
@@ -454,6 +458,7 @@ struct OnboardingView: View {
                         Text(truncatedAddress)
                             .font(.mtrxMono)
                             .foregroundStyle(Color.labelPrimary)
+                            .accessibilityLabel("Wallet address, \(truncatedAddress)")
 
                         MtrxDivider()
 
@@ -765,6 +770,7 @@ private struct OnboardingFeatureCard: View {
                 Spacer(minLength: 0)
             }
         }
+        .accessibilityElement(children: .combine)
     }
 }
 
