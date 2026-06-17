@@ -342,8 +342,13 @@ final class BlockchainBridge {
     func connectWallet(address: String, bundlerURL: URL? = nil, paymasterAddress: String? = nil) {
         connectedWalletAddress = address
 
-        let rpcURL = URL(string: "https://mainnet.base.org")!
-        let bundler = bundlerURL ?? URL(string: "https://bundler.base.org")!
+        // Endpoints from PendingCredentials — no hardcoded URLs. A non-routable
+        // `.invalid` placeholder is used while a value is blank (safe no-op).
+        let rpcURL = URL(string: PendingCredentials.filled(PendingCredentials.Network.rpcURL)
+                         ?? "https://unconfigured.invalid")!
+        let bundler = bundlerURL
+            ?? URL(string: PendingCredentials.filled(PendingCredentials.AccountAbstraction.bundlerURL)
+                   ?? "https://unconfigured.invalid")!
         let networkConfig = BaseNetworkConfig(rpcURL: rpcURL, chainId: chainId, bundlerURL: bundler)
 
         let manager = ERC4337Manager(

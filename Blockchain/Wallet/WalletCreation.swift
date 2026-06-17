@@ -128,10 +128,18 @@ final class WalletCreation {
 
     /// Convenience initializer using default providers.
     convenience init() {
+        // Endpoints come from PendingCredentials — no hardcoded URLs. While a
+        // value is blank a non-routable `.invalid` placeholder is used so no real
+        // call can succeed (safe no-op) until the config is filled in; chain id
+        // stays 0 (unconfigured) rather than assuming a network.
+        let rpc = URL(string: PendingCredentials.filled(PendingCredentials.Network.rpcURL)
+                      ?? "https://unconfigured.invalid")!
+        let bundler = URL(string: PendingCredentials.filled(PendingCredentials.AccountAbstraction.bundlerURL)
+                          ?? "https://unconfigured.invalid")!
         let networkConfig = BaseNetworkConfig(
-            rpcURL: URL(string: "https://mainnet.base.org")!,
-            chainId: 8453,
-            bundlerURL: URL(string: "https://bundler.base.org")!
+            rpcURL: rpc,
+            chainId: UInt64(PendingCredentials.Network.chainID),
+            bundlerURL: bundler
         )
         self.init(
             biometricProvider: DefaultBiometricAuthProvider(),
