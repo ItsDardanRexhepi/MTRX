@@ -1,44 +1,20 @@
 import SwiftUI
 
-/// App Clip preview for marketplace listings — item details, seller reputation, price
+/// App Clip teaser for a marketplace listing. Shows only the listing reference
+/// from the invocation URL and routes to the full app. It does NOT fabricate a
+/// title, price, image, or seller rating — an App Clip can't fetch those
+/// without a backend, and inventing them would be fake.
 struct AppClipMarketplace: View {
     let listingId: String
-    @State private var listing: AppClipMarketplaceListing?
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                if let listing {
-                    RoundedRectangle(cornerRadius: 12).fill(.quaternary).frame(height: 250)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(listing.title).font(.title2).bold()
-                        Text(listing.description_).foregroundColor(.secondary)
-                        HStack {
-                            Text(listing.price).font(.title3).bold()
-                            Spacer()
-                            Label("\(listing.sellerRating)/5", systemImage: "star.fill").foregroundColor(.yellow)
-                        }
-                        Text("5% platform fee • 95% to seller").font(.caption).foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal)
-
-                    Button(action: {}) {
-                        Text("Get Full App to Purchase")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.accentColor)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
-                    }
-                    .padding(.horizontal)
-                } else {
-                    ProgressView("Loading listing...")
-                }
-            }
-        }
+        AppClipTeaser(
+            icon: "bag.circle.fill",
+            kind: "Marketplace Listing",
+            reference: "Listing \(listingId)",
+            message: "Open MTRX to view this listing's details, verified seller, and price, and to purchase securely.",
+            actionTitle: "Get MTRX to Purchase"
+        )
         .navigationTitle("Marketplace")
-        .task { listing = AppClipMarketplaceListing(title: "Digital Art #\(listingId)", description_: "Verified NFT listing", price: "0.5 ETH", sellerRating: 4.8) }
     }
 }
-
-struct AppClipMarketplaceListing { let title: String; let description_: String; let price: String; let sellerRating: Double }
