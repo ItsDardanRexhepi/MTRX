@@ -484,9 +484,11 @@ struct MtrxSectionHeader: View {
                                            startPoint: .top, endPoint: .bottom)
                         )
                         .frame(width: 3, height: 16)
+                        .accessibilityHidden(true)
                     Text(title)
                         .font(.mtrxTitle3)
                         .foregroundStyle(Color.labelPrimary)
+                        .accessibilityAddTraits(.isHeader)
                 }
                 if let subtitle {
                     Text(subtitle)
@@ -688,6 +690,7 @@ struct MtrxEmptyState: View {
                 .font(.system(size: 48, weight: .light))
                 .foregroundStyle(Color.labelTertiary)
                 .padding(.bottom, Spacing.sm)
+                .accessibilityHidden(true)
 
             VStack(spacing: Spacing.sm) {
                 Text(title)
@@ -699,6 +702,7 @@ struct MtrxEmptyState: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 280)
             }
+            .accessibilityElement(children: .combine)
 
             if let actionLabel, let action {
                 Button(action: action) {
@@ -750,6 +754,8 @@ struct MtrxLoadingView: View {
                 MtrxSkeletonRow()
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading")
     }
 }
 
@@ -765,6 +771,7 @@ struct MtrxErrorView: View {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 44, weight: .light))
                 .foregroundStyle(Color.statusError.opacity(0.7))
+                .accessibilityHidden(true)
 
             VStack(spacing: Spacing.sm) {
                 Text("Something went wrong")
@@ -775,6 +782,7 @@ struct MtrxErrorView: View {
                     .foregroundStyle(Color.labelSecondary)
                     .multilineTextAlignment(.center)
             }
+            .accessibilityElement(children: .combine)
 
             if let retryAction {
                 Button("Try Again", action: retryAction)
