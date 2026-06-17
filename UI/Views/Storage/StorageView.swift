@@ -4,6 +4,7 @@
 // Decentralized storage — file management, IPFS/Filecoin uploads, CID tracking, pin status.
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Data Models
 
@@ -33,6 +34,13 @@ class StorageViewModel: ObservableObject {
     @Published var isUploading: Bool = false
     @Published var copiedCID: String?
 
+    // Picked-file state (populated by the real document picker)
+    @Published var showFilePicker: Bool = false
+    @Published var selectedFileData: Data?
+    @Published var selectedFileName: String?
+    @Published var selectedFileSizeLabel: String?
+    @Published var selectedMimeType: String?
+
     let storageLayers = ["IPFS", "Filecoin"]
 
     var totalFiles: Int { files.count }
@@ -58,27 +66,90 @@ class StorageViewModel: ObservableObject {
         }
     }
 
+    /// Handle the result of the system document picker. Reads the picked file's
+    /// real bytes (security-scoped), size and MIME type — no placeholder values.
+    func handlePickedFile(_ result: Result<[URL], Error>) {
+        switch result {
+        case .failure(let error):
+            errorMessage = "Couldn't open the file: \(error.localizedDescription)"
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let data = try Data(contentsOf: url)
+                selectedFileData = data
+                selectedFileName = url.lastPathComponent
+                if uploadFilename.isEmpty { uploadFilename = url.lastPathComponent }
+                selectedFileSizeLabel = ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)
+                selectedMimeType = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+                errorMessage = nil
+            } catch {
+                errorMessage = "Couldn't read the file: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// Request/response shapes for the real `/storage/files` upload.
+    private struct UploadBody: Encodable {
+        let dataBase64: String
+        let filename: String
+        let mimeType: String
+        let layer: String
+    }
+    private struct UploadedFile: Decodable {
+        let cid: String
+        let mimeType: String?
+        let size: Int64?
+    }
+
     func uploadFile() async {
         guard !uploadFilename.isEmpty else { return }
+        guard let data = selectedFileData else {
+            errorMessage = "Select a file first."
+            return
+        }
         isUploading = true
+        errorMessage = nil
         do {
-            try await Task.sleep(for: .seconds(1.5))
+            // Real upload via the in-build API client — the backend assigns the
+            // CID. We never fabricate one; on failure we surface the error rather
+            // than inventing a result. (The old Services/StorageService.swift is
+            // not in the build; we call MTRXAPIClient directly.)
+            let body = UploadBody(
+                dataBase64: data.base64EncodedString(),
+                filename: uploadFilename,
+                mimeType: selectedMimeType ?? "application/octet-stream",
+                layer: selectedLayer
+            )
+            let uploaded: UploadedFile = try await MTRXAPIClient.shared.post(path: "/storage/files", body: body)
+            let sizeLabel = uploaded.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+                ?? selectedFileSizeLabel
+                ?? ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)
             let file = FileItem(
                 filename: uploadFilename,
-                mimeType: "application/octet-stream",
-                size: "1.2 MB",
+                mimeType: uploaded.mimeType ?? selectedMimeType ?? "application/octet-stream",
+                size: sizeLabel,
                 uploadedAt: "Just now",
                 layer: selectedLayer,
                 isPinned: selectedLayer == "IPFS",
-                cid: "Qm\(UUID().uuidString.prefix(16))"
+                cid: uploaded.cid
             )
             files.insert(file, at: 0)
-            uploadFilename = ""
-            isUploading = false
+            resetUploadForm()
             showUpload = false
         } catch {
-            isUploading = false
+            errorMessage = "Upload failed: \(error.localizedDescription)"
         }
+        isUploading = false
+    }
+
+    private func resetUploadForm() {
+        uploadFilename = ""
+        selectedFileData = nil
+        selectedFileName = nil
+        selectedFileSizeLabel = nil
+        selectedMimeType = nil
     }
 
     func copyCID(_ cid: String) {
@@ -262,17 +333,24 @@ struct StorageView: View {
                 }
 
                 VStack(spacing: Spacing.md) {
-                    // File picker placeholder
+                    // Real document picker
                     Button {
-                        // File picker would open here
+                        viewModel.showFilePicker = true
                     } label: {
                         VStack(spacing: Spacing.md) {
-                            Image(systemName: "arrow.up.doc.fill")
+                            Image(systemName: viewModel.selectedFileData == nil ? "arrow.up.doc.fill" : "doc.fill")
                                 .font(.system(size: 36))
                                 .foregroundStyle(Color.accentPrimary)
-                            Text("Select File")
+                            Text(viewModel.selectedFileName ?? "Select File")
                                 .font(.mtrxBody)
                                 .foregroundStyle(Color.labelSecondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            if let size = viewModel.selectedFileSizeLabel {
+                                Text(size)
+                                    .font(.mtrxCaption1)
+                                    .foregroundStyle(Color.labelSecondary)
+                            }
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 120)
@@ -339,12 +417,19 @@ struct StorageView: View {
                     isLoading: viewModel.isUploading,
                     fullWidth: true
                 ))
-                .disabled(viewModel.uploadFilename.isEmpty || viewModel.isUploading)
-                .opacity(viewModel.uploadFilename.isEmpty ? 0.5 : 1)
+                .disabled(viewModel.uploadFilename.isEmpty || viewModel.selectedFileData == nil || viewModel.isUploading)
+                .opacity(viewModel.uploadFilename.isEmpty || viewModel.selectedFileData == nil ? 0.5 : 1)
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.bottom, Spacing.lg)
             }
             .background(MtrxGradientBackground(style: .primary))
+            .fileImporter(
+                isPresented: $viewModel.showFilePicker,
+                allowedContentTypes: [.item],
+                allowsMultipleSelection: false
+            ) { result in
+                viewModel.handlePickedFile(result)
+            }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
