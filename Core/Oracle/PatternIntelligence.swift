@@ -164,11 +164,48 @@ final class PatternIntelligence {
             return 0.0
         }
 
-        // TODO: Implement Pearson correlation with time-alignment
-        // - Align timestamps between feeds
-        // - Compute rolling correlation windows
-        // - Apply lag detection for lead/lag relationships
-        return 0.0
+        // Time-align: bucket both series to the same coarse time grid (averaging
+        // multiple samples in a bucket), pair the buckets present in BOTH feeds,
+        // then compute Pearson's r over the paired values. Needs ≥3 overlapping
+        // buckets, otherwise there isn't enough to correlate → 0 (not fabricated).
+        let bucketSeconds: TimeInterval = 60
+        func bucketed(_ data: [DataPoint]) -> [Int: Double] {
+            var sums: [Int: (sum: Double, count: Int)] = [:]
+            for point in data {
+                let bucket = Int((point.timestamp.timeIntervalSince1970 / bucketSeconds).rounded())
+                let current = sums[bucket] ?? (0, 0)
+                sums[bucket] = (current.sum + point.value, current.count + 1)
+            }
+            return sums.mapValues { $0.sum / Double($0.count) }
+        }
+
+        let mapA = bucketed(dataA)
+        let mapB = bucketed(dataB)
+        let commonBuckets = Set(mapA.keys).intersection(mapB.keys).sorted()
+        guard commonBuckets.count >= 3 else { return 0.0 }
+
+        let x = commonBuckets.map { mapA[$0]! }
+        let y = commonBuckets.map { mapB[$0]! }
+        return Self.pearson(x, y)
+    }
+
+    /// Pearson product-moment correlation coefficient, clamped to [-1, 1].
+    static func pearson(_ x: [Double], _ y: [Double]) -> Double {
+        let n = Double(x.count)
+        guard n > 0, x.count == y.count else { return 0.0 }
+        let meanX = x.reduce(0, +) / n
+        let meanY = y.reduce(0, +) / n
+        var covariance = 0.0, varianceX = 0.0, varianceY = 0.0
+        for index in x.indices {
+            let dx = x[index] - meanX
+            let dy = y[index] - meanY
+            covariance += dx * dy
+            varianceX += dx * dx
+            varianceY += dy * dy
+        }
+        guard varianceX > 0, varianceY > 0 else { return 0.0 }
+        let r = covariance / (sqrt(varianceX) * sqrt(varianceY))
+        return max(-1.0, min(1.0, r))
     }
 
     /// Get all known patterns for a specific feed.
@@ -240,11 +277,35 @@ final class PatternIntelligence {
     }
 
     private func detectAnomalies() -> [DetectedPattern] {
-        // TODO: Implement statistical anomaly detection
-        // - Z-score analysis across all feeds
-        // - Isolation forest for multivariate anomalies
-        // - CUSUM for change-point detection
-        return []
+        // Per-feed z-score outlier detection: flag the latest reading when it sits
+        // ≥3 standard deviations from the feed's own mean. Needs ≥8 samples and a
+        // non-zero spread so a flat or tiny series can't manufacture an "anomaly".
+        var anomalies: [DetectedPattern] = []
+
+        for (feed, data) in feedDataCache where data.count >= 8 {
+            let values = data.map(\.value)
+            let n = Double(values.count)
+            let mean = values.reduce(0, +) / n
+            let variance = values.reduce(0.0) { $0 + ($1 - mean) * ($1 - mean) } / n
+            let std = sqrt(variance)
+            guard std > 0, let latest = data.last else { continue }
+
+            let z = abs(latest.value - mean) / std
+            if z >= 3.0 {
+                anomalies.append(DetectedPattern(
+                    type: .anomaly,
+                    feeds: [feed],
+                    description: String(format: "Statistical anomaly in %@: latest %.2f is %.1fσ from the mean %.2f",
+                                        feed.rawValue, latest.value, z, mean),
+                    strength: min(1.0, z / 5.0),
+                    confidence: min(1.0, 0.5 + z / 10.0),
+                    isAnomaly: true,
+                    metadata: ["zScore": String(format: "%.2f", z), "mean": String(format: "%.4f", mean)]
+                ))
+            }
+        }
+
+        return anomalies
     }
 
     private func categorize(feeds: [DataFeed]) -> InsightCategory {

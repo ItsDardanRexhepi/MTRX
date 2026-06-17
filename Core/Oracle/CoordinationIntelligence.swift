@@ -148,44 +148,63 @@ final class CoordinationIntelligence {
 
     // MARK: - Conflict Resolution
 
-    /// Detect and resolve conflicts between insights across layers.
+    /// Detect and resolve conflicts between Trinity and Morpheus insights.
+    /// Resolution keeps the stronger insight, weighted by PRIORITY first
+    /// (a critical insight outranks a merely-confident one) and confidence as the
+    /// tie-breaker — not confidence alone.
     private func resolveConflicts() {
-        // TODO: Implement conflict detection logic
-        // - Check if Trinity and Morpheus have contradictory recommendations
-        // - Ensure Oracle insights don't cause Trinity to give conflicting advice
-        // - Resolve timing conflicts (e.g., "buy now" vs "wait for dip")
-
         let trinityInsights = activeInsightsByLayer[.trinity] ?? []
         let morpheusInsights = activeInsightsByLayer[.morpheus] ?? []
 
-        // Check for directional conflicts
         for trinityInsight in trinityInsights {
             for morpheusInsight in morpheusInsights {
-                if areConflicting(trinityInsight, morpheusInsight) {
-                    // Resolve in favor of higher confidence
-                    // TODO: Implement more sophisticated conflict resolution
-                    if trinityInsight.confidence < morpheusInsight.confidence {
-                        activeInsightsByLayer[.trinity]?.removeAll { $0.id == trinityInsight.id }
-                    } else {
-                        activeInsightsByLayer[.morpheus]?.removeAll { $0.id == morpheusInsight.id }
-                    }
+                guard areConflicting(trinityInsight, morpheusInsight) else { continue }
+                if Self.conflictWeight(trinityInsight) < Self.conflictWeight(morpheusInsight) {
+                    activeInsightsByLayer[.trinity]?.removeAll { $0.id == trinityInsight.id }
+                } else {
+                    activeInsightsByLayer[.morpheus]?.removeAll { $0.id == morpheusInsight.id }
                 }
             }
         }
     }
 
-    /// Check if two insights are conflicting.
+    /// Priority dominates (each level worth a full point); confidence breaks ties.
+    static func conflictWeight(_ insight: OracleInsight) -> Double {
+        Double(insight.priority.rawValue) + min(1.0, max(0.0, insight.confidence))
+    }
+
+    /// Check if two insights are conflicting (same topic, opposite stance).
     private func areConflicting(_ a: OracleInsight, _ b: OracleInsight) -> Bool {
-        // TODO: Implement semantic conflict detection
-        // For now, simple heuristic: same category with opposing types
+        // Only insights about the same category can directly conflict.
         guard a.category == b.category else { return false }
 
-        // Threat vs opportunity on same topic = conflict
+        // 1. Opposing insight TYPES (threat vs opportunity) on the same topic.
         if (a.type == .threat && b.type == .opportunity) ||
            (a.type == .opportunity && b.type == .threat) {
             return true
         }
 
+        // 2. Opposing recommended DIRECTIVES in the content (directional/timing
+        //    conflict): e.g. "buy" vs "sell", "now" vs "wait", "increase" vs "reduce".
+        return Self.hasOpposingDirective(a.content, b.content)
+    }
+
+    /// Detect directly-opposing action words across two recommendation strings.
+    static func hasOpposingDirective(_ a: String, _ b: String) -> Bool {
+        let opposingPairs: [(String, String)] = [
+            ("buy", "sell"), ("accumulate", "exit"), ("increase", "reduce"),
+            ("increase", "decrease"), ("enter", "exit"), ("hold", "sell"),
+            ("now", "wait"), ("bullish", "bearish"), ("long", "short"),
+            ("add", "trim"), ("risk-on", "risk-off")
+        ]
+        let lowerA = " \(a.lowercased()) "
+        let lowerB = " \(b.lowercased()) "
+        for (first, second) in opposingPairs {
+            if (lowerA.contains(first) && lowerB.contains(second)) ||
+               (lowerA.contains(second) && lowerB.contains(first)) {
+                return true
+            }
+        }
         return false
     }
 

@@ -378,6 +378,25 @@ final class WalletTests: XCTestCase {
                        "Empty vector yields zero similarity (no fabricated relevance)")
     }
 
+    // MARK: - Oracle intelligence (real correlation + conflict, not stubs)
+
+    @MainActor
+    func testOraclePearson_correlationIsReal() {
+        XCTAssertEqual(PatternIntelligence.pearson([1, 2, 3, 4], [2, 4, 6, 8]), 1.0, accuracy: 0.0001,
+                       "Perfectly proportional series → +1")
+        XCTAssertEqual(PatternIntelligence.pearson([1, 2, 3, 4], [4, 3, 2, 1]), -1.0, accuracy: 0.0001,
+                       "Perfectly inverse series → -1")
+        XCTAssertEqual(PatternIntelligence.pearson([1, 1, 1], [1, 2, 3]), 0.0,
+                       "Zero-variance series → 0 (no fabricated correlation)")
+    }
+
+    @MainActor
+    func testOracleConflict_opposingDirectivesDetected() {
+        XCTAssertTrue(CoordinationIntelligence.hasOpposingDirective("recommend you buy now", "signals say sell"))
+        XCTAssertTrue(CoordinationIntelligence.hasOpposingDirective("act now", "better to wait for a dip"))
+        XCTAssertFalse(CoordinationIntelligence.hasOpposingDirective("market looks calm", "network is healthy"))
+    }
+
     // MARK: - Config keystone
 
     func testPendingCredentials_blankReturnsNil() {
