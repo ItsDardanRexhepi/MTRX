@@ -61,6 +61,7 @@ enum DeFiLendingError: Error, LocalizedError {
     case repaymentExceedsDebt
     case priceOracleError
     case networkError(underlying: Error)
+    case displayOnly
 
     var errorDescription: String? {
         switch self {
@@ -71,11 +72,22 @@ enum DeFiLendingError: Error, LocalizedError {
         case .repaymentExceedsDebt: return "Repayment amount exceeds outstanding debt."
         case .priceOracleError: return "Failed to fetch price from oracle."
         case .networkError(let e): return "Network error: \(e.localizedDescription)"
+        case .displayOnly: return "Lending is display-only in this build — execute it yourself in self-custody on the protocol's own interface."
         }
     }
 }
 
 // MARK: - DeFiLending
+//
+// REGULATED COMPONENT — DISPLAY-ONLY.
+// Lending/borrowing is a regulated financial activity. This build provides
+// read/display only (pools, positions, health factor). It performs NO in-app
+// execution — not custodial, and not even user-signed self-custody — so that the
+// app never originates a regulated lending transaction. The mutating methods
+// below intentionally refuse with `.displayOnly`. (Also gated by
+// FeatureFlags.mvpMode upstream.) Wiring a self-custody path later would be a
+// one-line route through WalletTransactionService, identical to the
+// non-regulated components — left out deliberately.
 
 final class DeFiLending {
 
@@ -110,50 +122,26 @@ final class DeFiLending {
 
     // MARK: - Deposit / Withdraw
 
-    /// Deposit collateral into a lending pool
+    /// Deposit collateral — REGULATED display-only: refuses (no in-app execution).
     func deposit(asset: String, amount: UInt64, completion: @escaping (Result<String, DeFiLendingError>) -> Void) {
-        processingQueue.async { [weak self] in
-            guard let self = self else { return }
-            guard self.pools[asset] != nil else {
-                completion(.failure(.poolNotFound(asset: asset)))
-                return
-            }
-            // TODO: ABI-encode deposit call, submit via ERC-4337
-            self.delegate?.lending(self, didDeposit: amount, asset: asset)
-            completion(.success(UUID().uuidString))
-        }
+        completion(.failure(.displayOnly))
     }
 
-    /// Withdraw collateral from a lending pool
+    /// Withdraw collateral — REGULATED display-only: refuses (no in-app execution).
     func withdraw(asset: String, amount: UInt64, completion: @escaping (Result<String, DeFiLendingError>) -> Void) {
-        // TODO: Check health factor after withdrawal, ABI-encode withdraw, submit
-        completion(.success(UUID().uuidString))
+        completion(.failure(.displayOnly))
     }
 
     // MARK: - Borrow / Repay
 
-    /// Borrow against deposited collateral
+    /// Borrow — REGULATED display-only: refuses (no in-app execution).
     func borrow(asset: String, amount: UInt64, completion: @escaping (Result<LendingPosition, DeFiLendingError>) -> Void) {
-        processingQueue.async { [weak self] in
-            guard let self = self else { return }
-            // TODO: Validate collateral ratio, ABI-encode borrow, submit via ERC-4337
-            self.delegate?.lending(self, didBorrow: amount, asset: asset)
-            completion(.failure(.borrowLimitExceeded))
-        }
+        completion(.failure(.displayOnly))
     }
 
-    /// Repay borrowed amount
+    /// Repay — REGULATED display-only: refuses (no in-app execution).
     func repay(positionId: String, amount: UInt64, completion: @escaping (Result<LendingPosition, DeFiLendingError>) -> Void) {
-        guard let position = positions[positionId] else {
-            completion(.failure(.poolNotFound(asset: "unknown")))
-            return
-        }
-        guard amount <= position.borrowAmount + position.interestAccrued else {
-            completion(.failure(.repaymentExceedsDebt))
-            return
-        }
-        // TODO: ABI-encode repay, submit via ERC-4337
-        completion(.failure(.networkError(underlying: NSError(domain: "DeFi", code: -1))))
+        completion(.failure(.displayOnly))
     }
 
     // MARK: - Liquidation
@@ -163,14 +151,9 @@ final class DeFiLending {
         return positions.values.filter { $0.isLiquidatable }
     }
 
-    /// Execute liquidation of an unhealthy position
+    /// Liquidation — REGULATED display-only: refuses (no in-app execution).
     func liquidate(positionId: String, completion: @escaping (Result<LiquidationEvent, DeFiLendingError>) -> Void) {
-        guard let position = positions[positionId], position.isLiquidatable else {
-            completion(.failure(.liquidationFailed))
-            return
-        }
-        // TODO: ABI-encode liquidation call, submit via ERC-4337
-        completion(.failure(.liquidationFailed))
+        completion(.failure(.displayOnly))
     }
 
     // MARK: - Health Factor
