@@ -501,6 +501,7 @@ struct GovernanceView: View {
                                     .font(.mtrxSubheadline)
                                     .foregroundStyle(Color.labelPrimary)
                                     .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                                 Text("by \(proposal.author)")
                                     .font(.mtrxCaption2)
                                     .foregroundStyle(Color.labelTertiary)

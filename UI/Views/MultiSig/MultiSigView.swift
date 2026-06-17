@@ -260,6 +260,7 @@ struct MultiSigView: View {
                             .font(.mtrxMonoSmall)
                             .foregroundStyle(Color.labelSecondary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                             .truncationMode(.middle)
                     }
                     Spacer()
@@ -333,6 +334,7 @@ struct MultiSigView: View {
                                 .font(.mtrxMonoSmall)
                                 .foregroundStyle(Color.labelPrimary)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.75)
                                 .truncationMode(.middle)
                             Spacer()
                         }
@@ -397,6 +399,7 @@ struct MultiSigView: View {
                             .font(.mtrxMonoSmall)
                             .foregroundStyle(Color.labelSecondary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                             .truncationMode(.middle)
                     }
                     Spacer()

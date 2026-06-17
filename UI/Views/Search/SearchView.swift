@@ -310,6 +310,7 @@ struct SearchView: View {
                                 .font(.mtrxMonoSmall)
                                 .foregroundStyle(Color.labelSecondary)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.75)
                         }
 
                         Spacer()

@@ -299,6 +299,7 @@ struct MusicView: View {
                 Text(track.title)
                     .font(.mtrxHeadline)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 Text(track.artist)
                     .font(.mtrxSubheadline)
@@ -601,6 +602,7 @@ struct MusicView: View {
                     Text(viewModel.currentTrack?.title ?? "")
                         .font(.mtrxCaptionBold)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     Text(viewModel.currentTrack?.artist ?? "")
                         .font(.mtrxCaption2)
                         .foregroundStyle(.secondary)

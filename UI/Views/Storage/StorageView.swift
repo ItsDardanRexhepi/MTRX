@@ -313,6 +313,7 @@ struct StorageView: View {
                                 .font(.mtrxBodyBold)
                                 .foregroundStyle(Color.labelPrimary)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                             if file.isPinned {
                                 Image(systemName: "pin.fill")
                                     .font(.system(size: 10))
@@ -338,6 +339,7 @@ struct StorageView: View {
                         .font(.mtrxMono)
                         .foregroundStyle(Color.labelSecondary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                         .truncationMode(.middle)
 
                     Spacer()
@@ -377,6 +379,7 @@ struct StorageView: View {
                                 .font(.mtrxBody)
                                 .foregroundStyle(Color.labelSecondary)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                                 .truncationMode(.middle)
                             if let size = viewModel.selectedFileSizeLabel {
                                 Text(size)

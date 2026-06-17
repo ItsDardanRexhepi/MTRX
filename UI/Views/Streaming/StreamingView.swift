@@ -291,6 +291,7 @@ struct StreamingView: View {
                             .font(.mtrxMonoSmall)
                             .foregroundStyle(Color.labelPrimary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                             .truncationMode(.middle)
                     }
                     Spacer()
@@ -421,6 +422,7 @@ struct StreamingView: View {
                             .font(.mtrxMonoSmall)
                             .foregroundStyle(Color.labelPrimary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                             .truncationMode(.middle)
                     }
                     Spacer()

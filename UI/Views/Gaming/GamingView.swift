@@ -187,6 +187,7 @@ struct GamingView: View {
                         .font(.mtrxBodyBold)
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
 
                     HStack(spacing: Spacing.md) {
                         HStack(spacing: Spacing.xs) {

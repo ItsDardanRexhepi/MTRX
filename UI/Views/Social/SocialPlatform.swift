@@ -431,6 +431,7 @@ struct StoriesRail: View {
                     .font(.mtrxCaption2)
                     .foregroundStyle(Color.labelSecondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
         }
         .buttonStyle(.plain)
@@ -1188,6 +1189,7 @@ struct PostAttachmentView: View {
                                 .font(.mtrxCaption1)
                                 .foregroundStyle(Color.accentPrimary)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.75)
                             Spacer()
                             Image(systemName: "arrow.up.right.square")
                                 .font(.system(size: 13))

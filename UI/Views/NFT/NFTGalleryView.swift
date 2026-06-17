@@ -402,11 +402,13 @@ struct NFTGridCell: View {
                 .font(.mtrxCaptionBold)
                 .foregroundStyle(Color.labelPrimary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
             Text(nft.collectionName)
                 .font(.mtrxCaption2)
                 .foregroundStyle(Color.labelSecondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
             if let floor = nft.floorPrice {
                 HStack(spacing: Spacing.xs) {

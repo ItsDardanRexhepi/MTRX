@@ -255,6 +255,7 @@ struct NFTDetailView: View {
                 .font(.mtrxCalloutBold)
                 .foregroundStyle(Color.labelPrimary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Spacing.ms)

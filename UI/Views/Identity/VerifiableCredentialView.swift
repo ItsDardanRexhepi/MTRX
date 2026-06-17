@@ -585,6 +585,7 @@ struct VerifiableCredentialView: View {
             Text(value)
                 .font(.mtrxMono)
                 .lineLimit(1)
+                .minimumScaleFactor(0.75)
                 .truncationMode(.middle)
         }
     }

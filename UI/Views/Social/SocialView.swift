@@ -2101,6 +2101,7 @@ struct PostCardView: View {
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(Color.labelPrimary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
             if post.isVerified {
                 Image(systemName: "checkmark.seal.fill")
@@ -2267,6 +2268,7 @@ struct PostCardView: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(Color.labelPrimary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 if quoted.isVerified {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 11))
@@ -2306,6 +2308,7 @@ struct PostCardView: View {
                 Text(hash)
                     .font(.mtrxMonoSmall)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
         }
         .foregroundStyle(Color.statusSuccess)

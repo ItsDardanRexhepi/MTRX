@@ -322,6 +322,7 @@ struct ReputationView: View {
                         Text(entry.address)
                             .font(.mtrxMono)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
 
                         Spacer()
 

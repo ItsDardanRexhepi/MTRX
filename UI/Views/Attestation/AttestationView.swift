@@ -269,6 +269,7 @@ struct AttestationView: View {
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(Color.labelSecondary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
 
                     HStack(spacing: Spacing.xs) {
