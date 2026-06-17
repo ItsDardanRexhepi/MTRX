@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Models
 
-struct VerifiableCredential: Codable, Identifiable {
+struct SvcVerifiableCredential: Codable, Identifiable {
     let id: String
     let type: String
     let issuerDID: String
@@ -33,13 +33,13 @@ final class VerifiableCredentialService {
 
     private init() {}
 
-    func getCredentials(address: String) async throws -> [VerifiableCredential] {
+    func getCredentials(address: String) async throws -> [SvcVerifiableCredential] {
         try await api.get(path: "/credentials", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func issueCredential(recipient: String, type: String, claims: [String: String], expiryDate: Date?) async throws -> VerifiableCredential {
+    func issueCredential(recipient: String, type: String, claims: [String: String], expiryDate: Date?) async throws -> SvcVerifiableCredential {
         struct IssueBody: Codable {
             let recipient: String
             let type: String

@@ -63,7 +63,7 @@ struct SvcDIDDocument: Codable, Identifiable {
     var id: String { did }
     let did: String
     let controller: String
-    let verificationMethods: [VerificationMethod]
+    let verificationMethods: [SvcVerificationMethod]
     let services: [DIDService]
 
     private enum CodingKeys: String, CodingKey {
@@ -71,7 +71,7 @@ struct SvcDIDDocument: Codable, Identifiable {
     }
 }
 
-struct VerificationMethod: Codable, Identifiable {
+struct SvcVerificationMethod: Codable, Identifiable {
     let id: String
     let type: String
     let controller: String
