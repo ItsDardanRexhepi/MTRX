@@ -42,6 +42,24 @@ final class WalletTests: XCTestCase {
         XCTAssertGreaterThan(a.count, 0)
     }
 
+    /// Load-bearing anti-fake guard: exercises the ACTUAL former-fake site
+    /// (`DefaultSecureEnclaveProvider.sign`, which once returned `Data(count: 64)`).
+    /// If that method were ever reverted to a zero-byte signature, the
+    /// not-all-zero assertion below FAILS — which the SecureEnclaveManager-only
+    /// tests above would not catch. (Proven: reverting the method makes this fail.)
+    func testDefaultProvider_signIsRealNotZeroBytes() throws {
+        let provider = DefaultSecureEnclaveProvider()
+        let tag = "test.defaultprovider.\(UUID().uuidString)"
+        defer { try? provider.deleteKey(tag: tag) }
+
+        _ = try provider.generateKeyPair(tag: tag)
+        let sig = try provider.sign(data: Data("intent envelope".utf8), withKeyTag: tag)
+
+        XCTAssertGreaterThan(sig.count, 0, "Provider signature must not be empty")
+        XCTAssertFalse(sig.allSatisfy { $0 == 0 },
+                       "Provider signature must not be all-zero (guards the Data(count:64) fake)")
+    }
+
     // MARK: - Address derivation
 
     @MainActor
