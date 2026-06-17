@@ -172,7 +172,8 @@ final class InferenceRouterTests: XCTestCase {
 
     // MARK: - Generation Fallback
 
-    func testSimpleGenerationReturnsResult() async {
+    func testSimpleGenerationReturnsResult() async throws {
+        try Self.skipUnlessIntegration()
         let result = await router.generate(
             prompt: "Hello Trinity",
             complexity: .simple
@@ -186,7 +187,8 @@ final class InferenceRouterTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(result.latencyMs, 0)
     }
 
-    func testComplexGenerationReturnsResult() async {
+    func testComplexGenerationReturnsResult() async throws {
+        try Self.skipUnlessIntegration()
         let result = await router.generate(
             prompt: "Deploy an ERC-20 token called TestCoin",
             complexity: .complex
@@ -199,7 +201,8 @@ final class InferenceRouterTests: XCTestCase {
         )
     }
 
-    func testPrivacyModeBlocksGateway() async {
+    func testPrivacyModeBlocksGateway() async throws {
+        try Self.skipUnlessIntegration()
         router.isPrivacyModeEnabled = true
         let result = await router.generate(
             prompt: "What is my portfolio worth?",
@@ -217,6 +220,17 @@ final class InferenceRouterTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// The generation tests call `router.generate()`, which reaches the inference
+    /// gateway and blocks on network timeouts on the simulator (~520s for the
+    /// suite). They run only as integration tests — set `RUN_INTEGRATION_TESTS=1`.
+    /// The default fast suite skips them; both remain runnable.
+    static func skipUnlessIntegration() throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_INTEGRATION_TESTS"] == "1",
+            "Set RUN_INTEGRATION_TESTS=1 to run the network-dependent generation tests."
+        )
+    }
 
     private func makeIntent(
         category: IntentCategory,
