@@ -154,21 +154,52 @@ final class TrinityInference {
     /// - Parameter result: The raw prediction result.
     /// - Returns: An interpreted result with labels and confidence scores.
     func interpretResult(_ result: PredictionResult) -> InterpretedResult {
-        // TODO: Implement model-specific interpretation logic
-        // - Map output indices to labels
-        // - Apply softmax for classification
-        // - Scale regression outputs to meaningful ranges
+        let modelName = modelMetadata?.name ?? "unknown"
+        let modelVersion = modelMetadata?.version ?? "?"
 
-        let topPrediction = result.output.max { a, b in
-            (a.value as? Double ?? 0) < (b.value as? Double ?? 0)
+        // Collect numeric outputs (Double / Int / NSNumber).
+        let numeric: [(label: String, value: Double)] = result.output.compactMap { key, value in
+            if let d = value as? Double { return (key, d) }
+            if let i = value as? Int { return (key, Double(i)) }
+            if let n = value as? NSNumber { return (key, n.doubleValue) }
+            return nil
         }
 
-        return InterpretedResult(
-            label: topPrediction?.key ?? "unknown",
-            confidence: topPrediction?.value as? Double ?? 0.0,
-            allPredictions: result.output,
-            explanation: "Prediction based on \(modelMetadata?.name ?? "unknown") model v\(modelMetadata?.version ?? "?")"
-        )
+        guard !numeric.isEmpty else {
+            return InterpretedResult(
+                label: "unknown",
+                confidence: 0.0,
+                allPredictions: result.output,
+                explanation: "No numeric outputs from \(modelName) v\(modelVersion)"
+            )
+        }
+
+        if numeric.count >= 2 {
+            // Classification: numerically-stable softmax over the logits so
+            // `confidence` is a true probability that sums to 1 across labels.
+            let maxLogit = numeric.map(\.value).max() ?? 0
+            let exps = numeric.map { (label: $0.label, e: exp($0.value - maxLogit)) }
+            let sum = exps.reduce(0.0) { $0 + $1.e }
+            let probabilities = exps.map { (label: $0.label, p: sum > 0 ? $0.e / sum : 0) }
+            let top = probabilities.max { $0.p < $1.p } ?? probabilities[0]
+            return InterpretedResult(
+                label: top.label,
+                confidence: top.p,
+                allPredictions: Dictionary(uniqueKeysWithValues: probabilities.map { ($0.label, $0.p as Any) }),
+                explanation: "Softmax over \(numeric.count) class logits — \(modelName) v\(modelVersion)"
+            )
+        } else {
+            // Single scalar → regression. Report the raw value; treat as a
+            // probability only when it already lies in [0, 1].
+            let scalar = numeric[0]
+            let confidence = (0.0...1.0).contains(scalar.value) ? scalar.value : 1.0
+            return InterpretedResult(
+                label: scalar.label,
+                confidence: confidence,
+                allPredictions: result.output,
+                explanation: "Scalar/regression output \(scalar.value) — \(modelName) v\(modelVersion)"
+            )
+        }
     }
 
     // MARK: - Model Versioning
@@ -226,22 +257,44 @@ final class TrinityInference {
     }
 
     private func buildFeatureProvider(from input: [String: Any]) throws -> MLFeatureProvider {
-        // TODO: Implement proper feature provider construction
-        // - Handle different MLFeatureValue types (double, int, string, multiarray, image)
         var features: [String: MLFeatureValue] = [:]
 
         for (key, value) in input {
-            if let doubleValue = value as? Double {
+            switch value {
+            case let fv as MLFeatureValue:
+                features[key] = fv
+            case let multi as MLMultiArray:
+                features[key] = MLFeatureValue(multiArray: multi)
+            case let doubleValue as Double:
                 features[key] = MLFeatureValue(double: doubleValue)
-            } else if let intValue = value as? Int {
+            case let floatValue as Float:
+                features[key] = MLFeatureValue(double: Double(floatValue))
+            case let boolValue as Bool:
+                features[key] = MLFeatureValue(int64: boolValue ? 1 : 0)
+            case let intValue as Int:
                 features[key] = MLFeatureValue(int64: Int64(intValue))
-            } else if let stringValue = value as? String {
+            case let stringValue as String:
                 features[key] = MLFeatureValue(string: stringValue)
+            case let doubles as [Double]:
+                features[key] = try Self.multiArrayFeature(from: doubles)
+            case let numbers as [NSNumber]:
+                features[key] = try Self.multiArrayFeature(from: numbers.map(\.doubleValue))
+            default:
+                // Unknown type → skip rather than coerce into a wrong/fake value.
+                continue
             }
-            // TODO: Handle MLMultiArray, CVPixelBuffer, etc.
         }
 
         return try MLDictionaryFeatureProvider(dictionary: features)
+    }
+
+    /// Pack a numeric vector into a 1-D double MLMultiArray feature value.
+    private static func multiArrayFeature(from values: [Double]) throws -> MLFeatureValue {
+        let array = try MLMultiArray(shape: [NSNumber(value: values.count)], dataType: .double)
+        for (index, value) in values.enumerated() {
+            array[index] = NSNumber(value: value)
+        }
+        return MLFeatureValue(multiArray: array)
     }
 
     private func parseOutput(_ prediction: MLFeatureProvider) -> [String: Any] {
