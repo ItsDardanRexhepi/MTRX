@@ -24,26 +24,50 @@ class OraclesViewModel: ObservableObject {
     @Published var subscribedFeeds: [FeedItem] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var isDemo: Bool = false
+
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter(); f.unitsStyle = .short; return f
+    }()
 
     func load() async {
         isLoading = true
         errorMessage = nil
 
-        // Live feeds from the gateway; fall back to samples if it isn't up.
-        if let live = try? await MTRXAPIClient.shared.oracleFeeds(), !live.feeds.isEmpty {
-            feeds = live.feeds.map {
-                FeedItem(name: $0.name, pair: $0.pair, currentValue: $0.currentValue,
-                         lastUpdated: $0.lastUpdated, isSubscribed: $0.isSubscribed ?? false)
+        // Live feeds from OracleService when configured; else demo. Available feeds
+        // are global; subscription state comes from the signed-in wallet's feeds.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                async let availReq = OracleService.shared.getAvailableFeeds()
+                let subscribedIds: Set<String>
+                if let address = MtrxSession.walletAddress {
+                    subscribedIds = Set(try await OracleService.shared.getUserFeeds(address: address).map(\.feedId))
+                } else {
+                    subscribedIds = []
+                }
+                let avail = try await availReq
+                feeds = avail.map { f in
+                    FeedItem(
+                        name: f.name, pair: f.pair,
+                        currentValue: "$" + f.currentValue.formatted(.number.precision(.fractionLength(2))),
+                        lastUpdated: Self.relativeFormatter.localizedString(for: f.lastUpdated, relativeTo: Date()),
+                        isSubscribed: subscribedIds.contains(f.feedId)
+                    )
+                }
+                subscribedFeeds = feeds.filter(\.isSubscribed)
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live oracle feeds unavailable — showing demo."
             }
-            subscribedFeeds = feeds.filter(\.isSubscribed)
-            isLoading = false
-            return
         }
 
         do {
             try await Task.sleep(for: .milliseconds(700))
             feeds = OraclesViewModel.sampleFeeds
             subscribedFeeds = feeds.filter(\.isSubscribed)
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load oracle feeds."
@@ -101,6 +125,11 @@ struct OraclesView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Oracles")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
         }
     }

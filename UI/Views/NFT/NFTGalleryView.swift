@@ -71,6 +71,7 @@ class NFTGalleryViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var selectedCollection: String?
+    @Published var isDemo: Bool = false
 
     var collectionNames: [String] {
         let names = Set(nfts.map(\.collectionName))
@@ -86,27 +87,34 @@ class NFTGalleryViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        // Live NFTs from the gateway; fall back to samples if it isn't up.
-        if let live = try? await MTRXAPIClient.shared.nftGallery(), !live.nfts.isEmpty {
-            nfts = live.nfts.map { n in
-                NFTDisplayItem(
-                    tokenId: n.tokenId,
-                    contract: n.contract ?? "",
-                    name: n.name,
-                    collectionName: n.collectionName ?? "",
-                    imageURL: n.imageUrl,
-                    floorPrice: n.floorPrice,
-                    description: n.description ?? "",
-                    traits: []
-                )
+        // Live NFTs from NFTService (per-wallet) when configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let live = try await NFTService.shared.getUserNFTs(address: address)
+                nfts = live.map { n in
+                    NFTDisplayItem(
+                        tokenId: n.tokenId,
+                        contract: n.contract,
+                        name: n.name,
+                        collectionName: n.collectionName,
+                        imageURL: n.imageURL,
+                        floorPrice: n.floorPrice,
+                        description: n.description,
+                        traits: n.traits.map { NFTTrait(traitType: $0.traitType, value: $0.value) }
+                    )
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live NFTs unavailable — showing demo."
             }
-            isLoading = false
-            return
         }
 
         do {
             try await Task.sleep(for: .milliseconds(800))
             nfts = NFTGalleryViewModel.sampleNFTs
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load your NFTs. Please try again."
@@ -215,6 +223,11 @@ struct NFTGalleryView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("NFT Gallery")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
         }
     }

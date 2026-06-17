@@ -23,6 +23,7 @@ final class DomainViewModel: ObservableObject {
     @Published var isRegistering: Bool = false
     @Published var registrationComplete: Bool = false
     @Published var contentAppeared: Bool = false
+    @Published var isDemo: Bool = false
 
     // MARK: - Load
 
@@ -31,9 +32,27 @@ final class DomainViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live domains from ENSService (per-wallet) when configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let live = try await ENSService.shared.getUserDomains(address: address)
+                userDomains = live.map { d in
+                    ENSDomain(name: d.name, expiryDate: d.expiresAt,
+                              isPrimary: d.isPrimary, resolvedAddress: d.owner)
+                }
+                isDemo = false
+                isLoading = false
+                withAnimation(Motion.springDefault) { contentAppeared = true }
+                return
+            } catch {
+                errorMessage = "Live domains unavailable — showing demo."
+            }
+        }
+
         try? await Task.sleep(nanoseconds: 800_000_000)
 
         userDomains = ENSDomain.sampleData
+        isDemo = true
         isLoading = false
 
         withAnimation(Motion.springDefault) {
@@ -142,6 +161,11 @@ struct DomainView: View {
         }
         .navigationTitle("ENS Domains")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .sheet(isPresented: $viewModel.showRegisterSheet) {
                 registerSheet
             }

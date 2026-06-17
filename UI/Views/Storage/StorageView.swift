@@ -27,6 +27,11 @@ class StorageViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var showUpload: Bool = false
+    @Published var isDemo: Bool = false
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .none; return f
+    }()
 
     // Upload form
     @Published var uploadFilename: String = ""
@@ -56,9 +61,33 @@ class StorageViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live files from StorageService (per-wallet) when configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let live = try await StorageService.shared.getUserFiles(address: address)
+                files = live.map { f in
+                    FileItem(
+                        filename: f.filename,
+                        mimeType: f.mimeType,
+                        size: ByteCountFormatter.string(fromByteCount: f.size, countStyle: .file),
+                        uploadedAt: Self.dateFormatter.string(from: f.uploadedAt),
+                        layer: f.layer,
+                        isPinned: f.isPinned,
+                        cid: f.cid
+                    )
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live files unavailable — showing demo."
+            }
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             files = StorageViewModel.sampleFiles
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load storage data."
@@ -210,6 +239,9 @@ struct StorageView: View {
             .navigationTitle("Storage")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         viewModel.showUpload = true

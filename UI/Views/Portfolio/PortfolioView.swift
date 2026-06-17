@@ -35,6 +35,11 @@ class PortfolioViewModel: ObservableObject {
     @Published var transactions: [TransactionItem] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var isDemo: Bool = false
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .none; return f
+    }()
 
     var changeColor: Color {
         if change24h.hasPrefix("+") { return .priceUp }
@@ -52,12 +57,46 @@ class PortfolioViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live portfolio from PortfolioService (per-wallet) when configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                async let summaryReq = PortfolioService.shared.getPortfolioSummary(address: address)
+                async let txReq = PortfolioService.shared.getTransactionHistory(address: address, page: 1)
+                let summary = try await summaryReq
+                let txs = try await txReq
+                totalValue = summary.totalValueUSD.formatted(.currency(code: "USD"))
+                change24h = String(format: "%+.2f%%", summary.change24hPercent)
+                tokens = summary.tokens.map { t in
+                    PortfolioTokenItem(
+                        name: t.name, symbol: t.symbol,
+                        balance: String(format: "%.4f", t.balance),
+                        usdValue: t.usdValue.formatted(.currency(code: "USD")),
+                        changePercent: String(format: "%+.2f%%", t.change24hPercent)
+                    )
+                }
+                transactions = txs.map { tx in
+                    let amountLabel = tx.amount
+                        .map { String(format: "%+.4f \(tx.token ?? "")", $0).trimmingCharacters(in: .whitespaces) } ?? "—"
+                    return TransactionItem(
+                        type: tx.type, token: tx.token, amount: amountLabel,
+                        date: Self.dateFormatter.string(from: tx.timestamp), status: tx.status
+                    )
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live portfolio unavailable — showing demo."
+            }
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(600))
             totalValue = "$12,847.63"
             change24h = "+3.42%"
             tokens = PortfolioViewModel.sampleTokens
             transactions = PortfolioViewModel.sampleTransactions
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load portfolio data."
@@ -102,6 +141,11 @@ struct PortfolioView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Portfolio")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
         }
     }
