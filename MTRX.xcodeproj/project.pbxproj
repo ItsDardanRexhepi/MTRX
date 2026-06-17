@@ -204,6 +204,8 @@
 		7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5908575B08029A598F60B914 /* PositionsWidget.swift */; };
 		E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8421C44BD0C6A17F16769739 /* Secrets.swift */; };
 		FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA7F1A65C0DE00000000001 /* FeatureFlags.swift */; };
+		C0DEF11E00000000000A0002 /* PendingCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEF11E00000000000A0001 /* PendingCredentials.swift */; };
+		FE57FACE0000000000000A0B /* WalletTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79115443B6ADCE2298D66886 /* WalletTests.swift */; };
 		008BCDADF7A3991CD709F8D4 /* BlockchainBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 096376876B5B90D0574F0CC5 /* BlockchainBridge.swift */; };
 		F4D3914114442BA6B4DEFC50 /* MTRXAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C08BF836C56955D9603329 /* MTRXAPIClient.swift */; };
 		304899E5C51643F27A3F6B3E /* MTRXPackager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA04AE50584879537DC82F8 /* MTRXPackager.swift */; };
@@ -489,6 +491,7 @@
 		8205FBB87B74C328432EBDEB /* PortfolioWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PortfolioWidget.swift"; sourceTree = "<group>"; };
 		5908575B08029A598F60B914 /* PositionsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PositionsWidget.swift"; sourceTree = "<group>"; };
 		A97C29AD63741CF438998CE6 /* MTRX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MTRX.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FE57FACE0000000000000A02 /* MTRXTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MTRXTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		553964F95E0F5DFBBB4736F9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Config/Info.plist"; sourceTree = "<group>"; };
 		8D562B3E40B6C9EC53F38F07 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* ComponentRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComponentRegistry.swift"; sourceTree = "<group>"; };
@@ -498,6 +501,7 @@
 		E5F6A7B8C9D0E1F2A3B4C5D6 /* StakingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StakingView.swift"; sourceTree = "<group>"; };
 		8421C44BD0C6A17F16769739 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Secrets.swift"; path = "Config/Secrets.swift"; sourceTree = SOURCE_ROOT; };
 		FEA7F1A65C0DE00000000001 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FeatureFlags.swift"; path = "Config/FeatureFlags.swift"; sourceTree = SOURCE_ROOT; };
+		C0DEF11E00000000000A0001 /* PendingCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PendingCredentials.swift"; path = "Config/PendingCredentials.swift"; sourceTree = SOURCE_ROOT; };
 		096376876B5B90D0574F0CC5 /* BlockchainBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "BlockchainBridge.swift"; path = "Core/Blockchain/BlockchainBridge.swift"; sourceTree = SOURCE_ROOT; };
 		B2C08BF836C56955D9603329 /* MTRXAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MTRXAPIClient.swift"; path = "Core/Networking/MTRXAPIClient.swift"; sourceTree = SOURCE_ROOT; };
 		5BA04AE50584879537DC82F8 /* MTRXPackager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MTRXPackager.swift"; path = "Core/Packager/MTRXPackager.swift"; sourceTree = SOURCE_ROOT; };
@@ -594,6 +598,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FE57FACE0000000000000A04 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -618,6 +629,7 @@
 			isa = PBXGroup;
 			children = (
 				A97C29AD63741CF438998CE6 /* MTRX.app */,
+				FE57FACE0000000000000A02 /* MTRXTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1586,6 +1598,23 @@
 			productReference = A97C29AD63741CF438998CE6 /* MTRX.app */;
 			productType = "com.apple.product-type.application";
 		};
+		FE57FACE0000000000000A01 /* MTRXTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FE57FACE0000000000000A05 /* Build configuration list for PBXNativeTarget "MTRXTests" */;
+			buildPhases = (
+				FE57FACE0000000000000A03 /* Sources */,
+				FE57FACE0000000000000A04 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FE57FACE0000000000000A09 /* PBXTargetDependency */,
+			);
+			name = MTRXTests;
+			productName = MTRXTests;
+			productReference = FE57FACE0000000000000A02 /* MTRXTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -1605,6 +1634,7 @@
 			projectRoot = "";
 			targets = (
 				131A2C91E218714B600E74BB /* MTRX */,
+				FE57FACE0000000000000A01 /* MTRXTests */,
 			);
 		};
 /* End PBXProject section */
@@ -1699,6 +1729,7 @@
 				7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */,
 				E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */,
 				FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */,
+				C0DEF11E00000000000A0002 /* PendingCredentials.swift in Sources */,
 				008BCDADF7A3991CD709F8D4 /* BlockchainBridge.swift in Sources */,
 				F4D3914114442BA6B4DEFC50 /* MTRXAPIClient.swift in Sources */,
 				304899E5C51643F27A3F6B3E /* MTRXPackager.swift in Sources */,
@@ -1896,7 +1927,33 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FE57FACE0000000000000A03 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FE57FACE0000000000000A0B /* WalletTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		FE57FACE0000000000000A09 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 131A2C91E218714B600E74BB /* MTRX */;
+			targetProxy = FE57FACE0000000000000A08 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		FE57FACE0000000000000A08 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 131A2C91E218714B600E74BB;
+			remoteInfo = MTRX;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin XCBuildConfiguration section */
 		B74382A4D110BEFC1DEB55E4 /* Debug */ = {
@@ -2013,9 +2070,58 @@
 			};
 			name = Release;
 		};
+		FE57FACE0000000000000A06 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z8T732UGMV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.opnmatrx.mtrx.tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MTRX.app/MTRX";
+			};
+			name = Debug;
+		};
+		FE57FACE0000000000000A07 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Z8T732UGMV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.opnmatrx.mtrx.tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MTRX.app/MTRX";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		FE57FACE0000000000000A05 /* Build configuration list for PBXNativeTarget "MTRXTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FE57FACE0000000000000A06 /* Debug */,
+				FE57FACE0000000000000A07 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		2430554D374B194A930F1CFA /* Build configuration list for PBXProject */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

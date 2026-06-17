@@ -541,31 +541,26 @@ struct OnboardingView: View {
 
         let userId = signInResult?.userId ?? appState.currentUserID
 
-        // Returning user — restore their existing wallet address.
-        let existingKey = "com.mtrx.walletAddress." + userId
-        if let existing = UserDefaults.standard.string(forKey: existingKey),
-           !existing.isEmpty,
-           existing.hasPrefix("0x"),
-           existing.count == 42 {
-            walletAddress = existing
-            isCreatingWallet = false
-            completeOnboarding()
-            return
+        // Real wallet: the address is derived from a device Secure Enclave key
+        // (created on first use; signing is Face ID-gated). No fake or
+        // deterministic-from-Apple-ID key material — the private key lives only
+        // in this device's Secure Enclave and never leaves it; cross-device
+        // access goes through recovery. createWalletIfNeeded is synchronous
+        // local key generation, so onboarding never blocks on the network: the
+        // on-chain ERC-4337 smart account is deployed lazily on first transaction.
+        do {
+            let address = try WalletCore.shared.createWalletIfNeeded(
+                appleUserId: userId.isEmpty ? "local" : userId
+            )
+            walletAddress = address
+            if !userId.isEmpty {
+                UserDefaults.standard.set(address, forKey: "com.mtrx.walletAddress." + userId)
+            }
+        } catch {
+            // Enclave/Keychain unavailable — surface it, never fake an address.
+            walletCreationError = error.localizedDescription
         }
 
-        // New user — derive a stable wallet address from their Apple ID and go
-        // straight into the app. We deliberately do NOT block onboarding on the
-        // heavyweight ERC-4337 creation here: it triggers a second biometric
-        // prompt (the user already authenticated at launch + Sign in with Apple)
-        // and a network round-trip that can hang with no gateway yet, leaving
-        // the user stuck on "Setting up your account…". The address is stable
-        // per Apple ID, so the on-chain smart account is deployed lazily on the
-        // first transaction, keyed to this same identity.
-        let address = generateDeterministicAddress(from: userId.isEmpty ? UUID().uuidString : userId)
-        walletAddress = address
-        if !userId.isEmpty {
-            UserDefaults.standard.set(address, forKey: existingKey)
-        }
         isCreatingWallet = false
         completeOnboarding()
     }
@@ -679,16 +674,6 @@ struct OnboardingView: View {
         let prefix = walletAddress.prefix(6)
         let suffix = walletAddress.suffix(4)
         return "\(prefix)...\(suffix)"
-    }
-
-    /// Emergency fallback address generator — used only when ERC-4337
-    /// wallet creation fails. This address cannot sign real transactions.
-    /// It is a placeholder so onboarding can complete.
-    private func generateDeterministicAddress(from userId: String) -> String {
-        let data = Data(userId.utf8)
-        let hash = SHA256.hash(data: data)
-        let hexBytes = hash.prefix(20).map { String(format: "%02x", $0) }.joined()
-        return "0x" + hexBytes
     }
 
     private func detectBiometricType() {

@@ -1,90 +1,131 @@
 import XCTest
 @testable import MTRX
 
-/// Test ERC-4337 account creation, gas sponsorship, Base network, wallet balance tracking
+/// Real tests for the wallet stack: Secure Enclave signing, address derivation,
+/// the Base network config gate, and gas-sponsorship policy evaluation.
+/// Everything here exercises the actual shipping APIs (no mock-success stubs);
+/// on the Simulator the enclave falls back to a real software P-256 key.
 final class WalletTests: XCTestCase {
 
-    // MARK: - Account Creation
+    // MARK: - Secure Enclave (real CryptoKit)
 
-    func testERC4337AccountCreation_NoSeedPhrase() {
-        let wallet = WalletCreation()
-        let account = wallet.createSmartAccount()
-        XCTAssertNotNil(account, "ERC-4337 account should be created")
-        XCTAssertNil(account?.seedPhrase, "Smart accounts must NOT expose seed phrases")
-        XCTAssertTrue(account?.address.hasPrefix("0x") ?? false, "Address should be valid hex")
+    func testEnclave_signProducesRealNonEmptySignature() throws {
+        let mgr = SecureEnclaveManager.shared
+        let tag = "test.enclave.\(UUID().uuidString)"
+        defer { mgr.deleteKey(tag: tag) }
+
+        try mgr.ensureKey(tag: tag)
+        XCTAssertTrue(mgr.hasKey(tag: tag), "Key should exist after ensureKey")
+
+        let message = Data("hello mtrx".utf8)
+        let sig = try mgr.sign(message, tag: tag)
+        XCTAssertGreaterThan(sig.count, 0, "Signature must not be empty (no zero-byte fakes)")
+        XCTAssertFalse(sig.allSatisfy { $0 == 0 }, "Signature must not be all zero bytes")
     }
 
-    func testAccountCreation_GeneratesUniqueAddresses() {
-        let wallet = WalletCreation()
-        let account1 = wallet.createSmartAccount()
-        let account2 = wallet.createSmartAccount()
-        XCTAssertNotEqual(account1?.address, account2?.address, "Each account should have unique address")
+    func testEnclave_deleteKeyRemovesIt() throws {
+        let mgr = SecureEnclaveManager.shared
+        let tag = "test.enclave.del.\(UUID().uuidString)"
+        try mgr.ensureKey(tag: tag)
+        XCTAssertTrue(mgr.hasKey(tag: tag))
+        mgr.deleteKey(tag: tag)
+        XCTAssertFalse(mgr.hasKey(tag: tag), "Key should be gone after deleteKey")
     }
 
-    // MARK: - Gas Sponsorship
-
-    func testGasSponsorship_OnBase() {
-        let sponsorship = GasSponsorship()
-        let isSponsored = sponsorship.shouldSponsor(network: .base, userOperation: UserOperation(sender: "0x1234", callData: Data()))
-        XCTAssertTrue(isSponsored, "Gas should be sponsored on Base network")
+    func testEnclave_publicKeyIsStablePerTag() throws {
+        let mgr = SecureEnclaveManager.shared
+        let tag = "test.enclave.pub.\(UUID().uuidString)"
+        defer { mgr.deleteKey(tag: tag) }
+        let a = try mgr.publicKeyData(tag: tag)
+        let b = try mgr.publicKeyData(tag: tag)
+        XCTAssertEqual(a, b, "Same tag must yield the same public key")
+        XCTAssertGreaterThan(a.count, 0)
     }
 
-    func testGasSponsorship_EstimatesCorrectly() {
-        let sponsorship = GasSponsorship()
-        let estimate = sponsorship.estimateGas(for: UserOperation(sender: "0x1234", callData: Data()))
-        XCTAssertGreaterThan(estimate, 0, "Gas estimate should be positive")
+    // MARK: - Address derivation
+
+    @MainActor
+    func testWalletCore_derivesValidHexAddress() {
+        let pub = Data((0..<32).map { UInt8($0) })
+        let addr = WalletCore.deriveAddress(fromPublicKey: pub)
+        XCTAssertTrue(addr.hasPrefix("0x"), "Address should be 0x-prefixed")
+        XCTAssertEqual(addr.count, 42, "EVM address is 0x + 40 hex chars")
     }
 
-    // MARK: - Base Network
+    // MARK: - Network config gate (no hardcoded endpoints)
 
-    func testBaseNetwork_ChainId() {
-        let network = BaseNetwork()
-        XCTAssertEqual(network.chainId, 8453, "Base mainnet chain ID should be 8453")
+    func testBaseNetwork_chainIdConstant() {
+        XCTAssertEqual(BaseNetwork.chainId, 8453, "Base mainnet chain id")
     }
 
-    func testBaseNetwork_RPCEndpoint() {
-        let network = BaseNetwork()
-        XCTAssertNotNil(network.rpcURL, "RPC URL should be configured")
+    func testBaseNetwork_activeEndpointNilUntilConfigured() {
+        if PendingCredentials.filled(PendingCredentials.Network.rpcURL) == nil {
+            XCTAssertNil(BaseNetwork.RPCEndpoints().activeHTTP,
+                         "No RPC configured → no active endpoint (no hardcoded URL)")
+        }
+        let custom = URL(string: "https://example.test")!
+        XCTAssertEqual(BaseNetwork.RPCEndpoints(custom: custom).activeHTTP, custom)
     }
 
-    // MARK: - Balance Tracking
+    // MARK: - Gas sponsorship policy + estimation
 
-    func testWalletBalance_TracksMultipleTokens() {
-        let tracker = WalletBalanceTracker()
-        tracker.updateBalance(token: "ETH", amount: 2.5)
-        tracker.updateBalance(token: "USDC", amount: 1000.0)
-        XCTAssertEqual(tracker.balance(for: "ETH"), 2.5)
-        XCTAssertEqual(tracker.balance(for: "USDC"), 1000.0)
+    private func sampleOperation(callGas: UInt64 = 100_000) -> UserOperation {
+        UserOperation(
+            sender: "0x000000000000000000000000000000000000dEaD",
+            nonce: 0,
+            initCode: Data(),
+            callData: Data([0x01, 0x02, 0x03]),
+            callGasLimit: callGas,
+            verificationGasLimit: 100_000,
+            preVerificationGas: 21_000,
+            maxFeePerGas: 1_000_000,
+            maxPriorityFeePerGas: 1_000_000,
+            paymasterAndData: Data(),
+            signature: Data()
+        )
     }
 
-    func testWalletBalance_UnknownTokenReturnsZero() {
-        let tracker = WalletBalanceTracker()
-        XCTAssertEqual(tracker.balance(for: "UNKNOWN"), 0.0)
+    func testGasSponsorship_evaluatesFreeTierPolicy() {
+        let sponsorship = GasSponsorship(paymasterAddress: "", platformBudgetWei: 1_000_000_000_000)
+        let result = sponsorship.evaluateSponsorship(
+            operation: sampleOperation(),
+            userAddress: "0xUser",
+            userTier: .free
+        )
+        switch result {
+        case .success(let policy):
+            XCTAssertEqual(policy.userTier, .free)
+        case .failure(let error):
+            XCTFail("Free-tier op within limits should qualify, got \(error)")
+        }
     }
 
-    // MARK: - Transaction Signing
-
-    func testTransactionSigning_ProducesValidSignature() {
-        let wallet = WalletCreation()
-        let account = wallet.createSmartAccount()
-        let signature = account?.sign(data: "test transaction".data(using: .utf8)!)
-        XCTAssertNotNil(signature, "Signing should produce a signature")
-        XCTAssertGreaterThan(signature?.count ?? 0, 0, "Signature should not be empty")
+    func testGasSponsorship_rejectsOverGasLimit() {
+        let sponsorship = GasSponsorship(paymasterAddress: "", platformBudgetWei: 1_000_000_000_000)
+        let result = sponsorship.evaluateSponsorship(
+            operation: sampleOperation(callGas: 5_000_000),
+            userAddress: "0xUser",
+            userTier: .free
+        )
+        if case .success = result {
+            XCTFail("Operation exceeding the per-op gas limit must be rejected")
+        }
     }
 
-    // MARK: - NeoSafe Address Validation
+    func testGasSponsorship_costIsZeroWhenPriceUnknown() {
+        let sponsorship = GasSponsorship(paymasterAddress: "", platformBudgetWei: 1_000_000_000_000)
+        let estimate = sponsorship.estimateGas(for: sampleOperation())
+        XCTAssertGreaterThan(estimate.totalGasWei, 0, "L2 execution fee should be > 0")
+        if PendingCredentials.filled(PendingCredentials.Pricing.ethUsdSource) == nil {
+            XCTAssertEqual(estimate.estimatedCostUSD, 0, "USD cost is 0 when no price source is set")
+        }
+    }
 
-    func testNeoSafeAddress_Constant() {
-        XCTAssertEqual(WalletConstants.neoSafeAddress, "0x46fF491D7054A6F500026B3E81f358190f8d8Ec5")
+    // MARK: - Config keystone
+
+    func testPendingCredentials_blankReturnsNil() {
+        XCTAssertNil(PendingCredentials.filled(""))
+        XCTAssertNil(PendingCredentials.filled("   "))
+        XCTAssertEqual(PendingCredentials.filled("  0xabc  "), "0xabc")
     }
 }
-
-// MARK: - Test Helpers
-
-struct UserOperation { let sender: String; let callData: Data }
-struct WalletBalanceTracker {
-    private var balances: [String: Double] = [:]
-    mutating func updateBalance(token: String, amount: Double) { balances[token] = amount }
-    func balance(for token: String) -> Double { balances[token] ?? 0.0 }
-}
-enum WalletConstants { static let neoSafeAddress = "0x46fF491D7054A6F500026B3E81f358190f8d8Ec5" }

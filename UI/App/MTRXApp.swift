@@ -776,6 +776,11 @@ class AppState: ObservableObject {
             try? await MTRXAPIClient.shared.deleteAccount()
         }
 
+        // Destroy the device Secure Enclave signing key for this account — a
+        // real key deletion, so no signing material survives account deletion.
+        let walletKeyTag = "wallet." + (currentUserID.isEmpty ? "local" : currentUserID)
+        SecureEnclaveManager.shared.deleteKey(tag: walletKeyTag)
+
         isAuthenticated = false
         currentUserID = ""
         displayName = ""

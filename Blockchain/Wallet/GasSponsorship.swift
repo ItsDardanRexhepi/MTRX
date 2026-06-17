@@ -146,6 +146,14 @@ final class GasSponsorship {
     /// Paymaster provider for on-chain interactions
     private let paymasterProvider: PaymasterProvider?
 
+    /// Cached ETH/USD spot price. 0 = unknown — we never substitute a fake/stale
+    /// price. Refreshed from PendingCredentials.Pricing.ethUsdSource.
+    private var cachedEthUsdPrice: Double = 0
+
+    /// Cached Base L1 base fee (wei). 0 = unknown. Pushed from the network layer
+    /// (Base GasPriceOracle predeploy) via updateL1BaseFee.
+    private var cachedL1BaseFeeWei: UInt64 = 0
+
     private let sponsorshipQueue = DispatchQueue(label: "com.mtrx.gas.sponsorship", qos: .userInitiated)
 
     // MARK: - Initialization
@@ -238,10 +246,19 @@ final class GasSponsorship {
             case .failure(let error):
                 completion(.failure(error))
             case .success:
-                // Attach paymaster data to operation
-                let sponsoredOp = self.attachPaymasterData(to: operation)
-                self.recordSponsorship(userAddress: userAddress, operation: sponsoredOp)
-                completion(.success(sponsoredOp))
+                // Fetch the verifying-paymaster data from the signing SERVER
+                // (the only holder of the paymaster key) and attach it. If the
+                // server isn't configured/reachable, the op proceeds unsponsored
+                // — we never fabricate a paymaster signature.
+                Task { [weak self] in
+                    guard let self = self else { return }
+                    let pmData = await self.fetchPaymasterAndData(for: operation)
+                    let sponsoredOp = self.withPaymasterData(pmData, operation: operation)
+                    self.sponsorshipQueue.async {
+                        self.recordSponsorship(userAddress: userAddress, operation: sponsoredOp)
+                        completion(.success(sponsoredOp))
+                    }
+                }
             }
         }
     }
@@ -345,9 +362,8 @@ final class GasSponsorship {
         return policies.values.first { $0.userTier == tier && $0.isActive }
     }
 
-    private func attachPaymasterData(to operation: UserOperation) -> UserOperation {
-        // TODO: Construct paymaster data with signature from verifying paymaster
-        return UserOperation(
+    private func withPaymasterData(_ pmData: Data, operation: UserOperation) -> UserOperation {
+        UserOperation(
             sender: operation.sender,
             nonce: operation.nonce,
             initCode: operation.initCode,
@@ -357,14 +373,87 @@ final class GasSponsorship {
             preVerificationGas: operation.preVerificationGas,
             maxFeePerGas: operation.maxFeePerGas,
             maxPriorityFeePerGas: operation.maxPriorityFeePerGas,
-            paymasterAndData: buildPaymasterAndData(),
+            paymasterAndData: pmData,
             signature: operation.signature
         )
     }
 
-    private func buildPaymasterAndData() -> Data {
-        // TODO: Encode paymaster address + valid until + valid after + signature
-        return Data()
+    private struct PaymasterRequest: Encodable {
+        let sender: String
+        let nonce: String
+        let initCode: String
+        let callData: String
+        let callGasLimit: String
+        let verificationGasLimit: String
+        let preVerificationGas: String
+        let maxFeePerGas: String
+        let maxPriorityFeePerGas: String
+        let entryPoint: String
+        let chainId: Int
+    }
+
+    private struct PaymasterReply: Decodable {
+        /// Fully-encoded `paymasterAndData` (0x hex): the server appends the
+        /// paymaster address, validity window, and ITS OWN signature. The key
+        /// never leaves the server.
+        let paymasterAndData: String
+    }
+
+    /// Request the verifying-paymaster `paymasterAndData` from the server
+    /// signing endpoint. Returns empty Data (operation is unsponsored) when the
+    /// endpoint/paymaster isn't configured or the server is unreachable — never
+    /// a fabricated signature.
+    private func fetchPaymasterAndData(for op: UserOperation) async -> Data {
+        guard let endpoint = PendingCredentials.filled(PendingCredentials.AccountAbstraction.paymasterSignatureEndpoint),
+              let url = URL(string: endpoint),
+              PendingCredentials.filled(PendingCredentials.AccountAbstraction.paymasterAddress) != nil else {
+            return Data()
+        }
+
+        func hexU(_ v: UInt64) -> String { "0x" + String(v, radix: 16) }
+        func hexD(_ d: Data) -> String { "0x" + d.map { String(format: "%02x", $0) }.joined() }
+
+        let request = PaymasterRequest(
+            sender: op.sender,
+            nonce: hexU(op.nonce),
+            initCode: hexD(op.initCode),
+            callData: hexD(op.callData),
+            callGasLimit: hexU(op.callGasLimit),
+            verificationGasLimit: hexU(op.verificationGasLimit),
+            preVerificationGas: hexU(op.preVerificationGas),
+            maxFeePerGas: hexU(op.maxFeePerGas),
+            maxPriorityFeePerGas: hexU(op.maxPriorityFeePerGas),
+            entryPoint: PendingCredentials.AccountAbstraction.entryPointAddress,
+            chainId: PendingCredentials.Network.chainID
+        )
+
+        var urlReq = URLRequest(url: url)
+        urlReq.httpMethod = "POST"
+        urlReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlReq.timeoutInterval = 20
+        do {
+            urlReq.httpBody = try JSONEncoder().encode(request)
+            let (data, response) = try await URLSession.shared.data(for: urlReq)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return Data() }
+            let reply = try JSONDecoder().decode(PaymasterReply.self, from: data)
+            return Self.hexToData(reply.paymasterAndData)
+        } catch {
+            return Data()
+        }
+    }
+
+    private static func hexToData(_ hex: String) -> Data {
+        var s = hex.hasPrefix("0x") ? String(hex.dropFirst(2)) : hex
+        if s.count % 2 != 0 { s = "0" + s }
+        var data = Data(); data.reserveCapacity(s.count / 2)
+        var idx = s.startIndex
+        while idx < s.endIndex {
+            let next = s.index(idx, offsetBy: 2)
+            guard let byte = UInt8(s[idx..<next], radix: 16) else { return Data() }
+            data.append(byte)
+            idx = next
+        }
+        return data
     }
 
     private func recordSponsorship(userAddress: String, operation: UserOperation) {
@@ -392,15 +481,50 @@ final class GasSponsorship {
         delegate?.sponsorship(self, didSponsorOperation: operation.hash, gasUsed: gasUsed)
     }
 
+    /// Real EVM calldata gas accounting (4 gas per zero byte, 16 per non-zero)
+    /// over the L1-posted bytes plus the rollup fixed overhead, multiplied by the
+    /// cached Base L1 base fee. Returns 0 when the L1 base fee is unknown — an
+    /// honest "unknown", never a guessed fee. The live L1 base fee comes from the
+    /// Base GasPriceOracle predeploy (0x420000000000000000000000000000000000000F)
+    /// and is pushed in via updateL1BaseFee.
     private func estimateL1DataFee(for operation: UserOperation) -> UInt64 {
-        // TODO: Estimate L1 data posting cost for Base rollup
-        // Based on calldata size and current L1 gas price
-        return UInt64(operation.callData.count) * 16
+        guard cachedL1BaseFeeWei > 0 else { return 0 }
+        var bytes = operation.callData
+        bytes.append(operation.initCode)
+        bytes.append(operation.signature)
+        var l1Gas: UInt64 = 0
+        for byte in bytes { l1Gas += (byte == 0 ? 4 : 16) }
+        l1Gas += 1088   // rollup fixed overhead (Optimism/Base data-fee model)
+        return l1Gas &* cachedL1BaseFeeWei
     }
 
     private func convertWeiToUSD(_ wei: UInt64) -> Double {
-        // TODO: Use oracle price feed for ETH/USD conversion
-        let ethPrice = 3000.0
-        return Double(wei) / 1e18 * ethPrice
+        guard cachedEthUsdPrice > 0 else { return 0 }   // unknown → honest 0
+        return Double(wei) / 1e18 * cachedEthUsdPrice
+    }
+
+    // MARK: - Live pricing inputs (read from config; no hardcoded values)
+
+    /// Refresh ETH/USD from `PendingCredentials.Pricing.ethUsdSource`. An HTTPS
+    /// source must return `{ "usd": <number> }`. An on-chain Chainlink aggregator
+    /// (0x source) is read by the network layer and pushed via updateEthUsdPrice.
+    func refreshEthUsdPrice() async {
+        guard let source = PendingCredentials.filled(PendingCredentials.Pricing.ethUsdSource) else { return }
+        guard !source.hasPrefix("0x"), let url = URL(string: source) else { return }
+        struct PriceReply: Decodable { let usd: Double }
+        guard let (data, response) = try? await URLSession.shared.data(from: url),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let reply = try? JSONDecoder().decode(PriceReply.self, from: data) else { return }
+        cachedEthUsdPrice = reply.usd
+    }
+
+    /// Push an ETH/USD price obtained elsewhere (e.g. an on-chain Chainlink read).
+    func updateEthUsdPrice(_ price: Double) {
+        if price > 0 { cachedEthUsdPrice = price }
+    }
+
+    /// Push the current Base L1 base fee (wei) obtained from the GasPriceOracle.
+    func updateL1BaseFee(_ wei: UInt64) {
+        cachedL1BaseFeeWei = wei
     }
 }

@@ -28,6 +28,12 @@ artifacts/
 .env
 .env.*
 
+# Keystores / signing material
+*.p12
+*.keystore
+*.jks
+*.mobileprovision
+
 # OS
 .DS_Store
 Thumbs.db

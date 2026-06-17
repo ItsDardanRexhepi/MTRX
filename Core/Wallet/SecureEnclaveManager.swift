@@ -83,6 +83,11 @@ final class SecureEnclaveManager {
         throw KeyError.corruptKeyData
     }
 
+    /// Whether a key already exists for `tag` — read-only, never creates one.
+    func hasKey(tag: String) -> Bool {
+        ((try? loadKeyData(tag: tag)) ?? nil) != nil
+    }
+
     /// Remove the key for `tag` (sign-out / account reset).
     func deleteKey(tag: String) {
         let query: [String: Any] = [

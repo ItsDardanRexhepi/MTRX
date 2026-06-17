@@ -127,19 +127,25 @@ final class BaseNetwork {
     // MARK: - RPC Endpoints
 
     struct RPCEndpoints {
-        static let primary = URL(string: "https://mainnet.base.org")!
-        static let fallback = URL(string: "https://base.llamarpc.com")!
-        static let websocket = URL(string: "wss://base.publicnode.com")!
-        static let bundler = URL(string: "https://bundler.base.org")!
-
+        /// Optional explicit override (used by tests). When nil, the active
+        /// endpoints are read from PendingCredentials — no hardcoded URLs.
         let custom: URL?
 
         init(custom: URL? = nil) {
             self.custom = custom
         }
 
-        var activeHTTP: URL {
-            return custom ?? RPCEndpoints.primary
+        /// Active HTTP JSON-RPC endpoint. `nil` until
+        /// `PendingCredentials.Network.rpcURL` is filled in — callers then
+        /// operate in a no-op/offline mode rather than hitting a hardcoded URL.
+        var activeHTTP: URL? {
+            if let custom { return custom }
+            return PendingCredentials.filled(PendingCredentials.Network.rpcURL).flatMap { URL(string: $0) }
+        }
+
+        /// WebSocket endpoint for live subscriptions. `nil` → HTTP polling.
+        var websocketURL: URL? {
+            PendingCredentials.filled(PendingCredentials.Network.webSocketURL).flatMap { URL(string: $0) }
         }
     }
 
@@ -175,6 +181,29 @@ final class BaseNetwork {
 
     private let networkQueue = DispatchQueue(label: "com.mtrx.base.network", qos: .userInitiated)
 
+    /// URLSession used for JSON-RPC POSTs.
+    private lazy var urlSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.waitsForConnectivity = false
+        return URLSession(configuration: config)
+    }()
+
+    /// Live WebSocket transport (nil until connected / when unavailable).
+    private var webSocketTask: URLSessionWebSocketTask?
+    /// eth_subscribe request id → callback delivering the node's subscription id.
+    private var subscribeReplies: [Int: (String) -> Void] = [:]
+    /// node subscription id → newHeads handler.
+    private var blockHandlers: [String: (BlockInfo) -> Void] = [:]
+    /// node subscription id → pending-transaction handler.
+    private var pendingTxHandlers: [String: (String) -> Void] = [:]
+    /// local subscription id → node subscription id (for unsubscribe).
+    private var localToNodeSub: [String: String] = [:]
+    /// Polling timer used as the newHeads fallback when no WebSocket is set.
+    private var pollTimer: DispatchSourceTimer?
+    /// local subscription id → newHeads handler, driven by polling.
+    private var pollBlockHandlers: [String: (BlockInfo) -> Void] = [:]
+
     // MARK: - Initialization
 
     init(endpoints: RPCEndpoints = RPCEndpoints()) {
@@ -193,7 +222,10 @@ final class BaseNetwork {
 
             switch result {
             case .success(let chainId):
-                guard chainId == BaseNetwork.chainId else {
+                // Validate against the configured chain id when one is set;
+                // with the blank empty we accept whatever the RPC reports.
+                let expected = PendingCredentials.Network.chainID
+                if expected != 0, chainId != UInt64(expected) {
                     self.connectionState = .disconnected
                     completion(.failure(.invalidChainId))
                     return
@@ -214,7 +246,15 @@ final class BaseNetwork {
     func disconnect() {
         connectionState = .disconnected
         subscriptions.removeAll()
-        // TODO: Close WebSocket connection
+        blockHandlers.removeAll()
+        pendingTxHandlers.removeAll()
+        pollBlockHandlers.removeAll()
+        localToNodeSub.removeAll()
+        subscribeReplies.removeAll()
+        pollTimer?.cancel()
+        pollTimer = nil
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
     }
 
     // MARK: - RPC Methods
@@ -351,24 +391,53 @@ final class BaseNetwork {
 
     // MARK: - WebSocket
 
-    /// Subscribe to new block headers
+    /// Subscribe to new block headers. Uses WebSocket `eth_subscribe newHeads`
+    /// when a WebSocket endpoint is configured, otherwise falls back to HTTP
+    /// block-number polling (a documented tradeoff: polling delivers the block
+    /// number but not the full header fields).
     func subscribeToNewBlocks(handler: @escaping (BlockInfo) -> Void) -> String {
-        let subscriptionId = UUID().uuidString
-        // TODO: Send eth_subscribe via WebSocket for newHeads
-        return subscriptionId
+        let localId = UUID().uuidString
+        if webSocketTask != nil {
+            let reqId = nextRequestId()
+            subscribeReplies[reqId] = { [weak self] nodeSubId in
+                self?.blockHandlers[nodeSubId] = handler
+                self?.localToNodeSub[localId] = nodeSubId
+            }
+            sendWebSocket(["jsonrpc": "2.0", "id": reqId, "method": "eth_subscribe", "params": ["newHeads"]])
+        } else {
+            pollBlockHandlers[localId] = handler
+            ensurePolling()
+        }
+        return localId
     }
 
-    /// Subscribe to pending transactions for an address
+    /// Subscribe to pending transactions (WebSocket `newPendingTransactions`;
+    /// no polling fallback — pending-tx polling is not supported by HTTP RPC).
     func subscribeToPendingTransactions(address: String, handler: @escaping (String) -> Void) -> String {
-        let subscriptionId = UUID().uuidString
-        // TODO: Send eth_subscribe via WebSocket for pendingTransactions
-        return subscriptionId
+        let localId = UUID().uuidString
+        guard webSocketTask != nil else { return localId }
+        let reqId = nextRequestId()
+        subscribeReplies[reqId] = { [weak self] nodeSubId in
+            self?.pendingTxHandlers[nodeSubId] = handler
+            self?.localToNodeSub[localId] = nodeSubId
+        }
+        sendWebSocket(["jsonrpc": "2.0", "id": reqId, "method": "eth_subscribe", "params": ["newPendingTransactions"]])
+        return localId
     }
 
-    /// Unsubscribe from a WebSocket subscription
-    func unsubscribe(subscriptionId: String) {
-        subscriptions.removeValue(forKey: subscriptionId)
-        // TODO: Send eth_unsubscribe via WebSocket
+    /// Unsubscribe from a subscription (WebSocket or polling).
+    func unsubscribe(subscriptionId localId: String) {
+        pollBlockHandlers.removeValue(forKey: localId)
+        if pollBlockHandlers.isEmpty {
+            pollTimer?.cancel()
+            pollTimer = nil
+        }
+        if let nodeSub = localToNodeSub.removeValue(forKey: localId) {
+            blockHandlers.removeValue(forKey: nodeSub)
+            pendingTxHandlers.removeValue(forKey: nodeSub)
+            sendWebSocket(["jsonrpc": "2.0", "id": nextRequestId(), "method": "eth_unsubscribe", "params": [nodeSub]])
+        }
+        subscriptions.removeValue(forKey: localId)
     }
 
     // MARK: - Block Explorer
@@ -400,29 +469,187 @@ final class BaseNetwork {
     }
 
     private func sendRequest(_ request: JSONRPCRequest, retryCount: Int = 0, completion: @escaping (Result<JSONRPCResponse, BlockchainNetworkError>) -> Void) {
-        networkQueue.async { [weak self] in
+        guard let url = endpoints.activeHTTP else {
+            completion(.failure(.connectionFailed(reason: "RPC URL not set — fill PendingCredentials.Network.rpcURL")))
+            return
+        }
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.timeoutInterval = 30
+        do {
+            urlRequest.httpBody = try JSONEncoder().encode(request)
+        } catch {
+            completion(.failure(.invalidResponse))
+            return
+        }
+
+        // Schedule a retry (with linear backoff) on the network queue.
+        let retry: () -> Bool = { [weak self] in
+            guard let self = self, retryCount < self.maxRetries else { return false }
+            self.networkQueue.asyncAfter(deadline: .now() + self.retryDelaySeconds * Double(retryCount + 1)) {
+                self.sendRequest(request, retryCount: retryCount + 1, completion: completion)
+            }
+            return true
+        }
+
+        urlSession.dataTask(with: urlRequest) { [weak self] data, response, error in
             guard let self = self else { return }
 
-            // TODO: Serialize request to JSON
-            // Send via URLSession to endpoints.activeHTTP
-            // Parse response
-            // On failure, retry with fallback endpoint
+            if let urlError = error as? URLError {
+                let retriable: Set<URLError.Code> = [
+                    .timedOut, .networkConnectionLost, .notConnectedToInternet,
+                    .cannotConnectToHost, .dnsLookupFailed, .cannotFindHost,
+                ]
+                if retriable.contains(urlError.code), retry() { return }
+                self.consecutiveFailures += 1
+                completion(.failure(urlError.code == .timedOut
+                    ? .requestTimeout
+                    : .connectionFailed(reason: urlError.localizedDescription)))
+                return
+            }
+            if let error = error {
+                self.consecutiveFailures += 1
+                completion(.failure(.connectionFailed(reason: error.localizedDescription)))
+                return
+            }
 
-            self.lastSuccessfulRequest = Date()
-            self.consecutiveFailures = 0
+            if let http = response as? HTTPURLResponse {
+                if http.statusCode == 429 {
+                    if retry() { return }
+                    completion(.failure(.rateLimited)); return
+                }
+                if http.statusCode >= 500 {
+                    if retry() { return }
+                    completion(.failure(.connectionFailed(reason: "HTTP \(http.statusCode)"))); return
+                }
+                guard (200..<300).contains(http.statusCode) else {
+                    completion(.failure(.connectionFailed(reason: "HTTP \(http.statusCode)"))); return
+                }
+            }
 
-            let mockResponse = JSONRPCResponse(jsonrpc: "2.0", id: request.id, result: nil, error: nil)
-            completion(.success(mockResponse))
-        }
+            guard let data = data else { completion(.failure(.invalidResponse)); return }
+            do {
+                let decoded = try JSONDecoder().decode(JSONRPCResponse.self, from: data)
+                self.lastSuccessfulRequest = Date()
+                self.consecutiveFailures = 0
+                if let rpcErr = decoded.error {
+                    completion(.failure(.rpcError(code: rpcErr.code, message: rpcErr.message)))
+                } else {
+                    completion(.success(decoded))
+                }
+            } catch {
+                completion(.failure(.invalidResponse))
+            }
+        }.resume()
     }
 
     private func connectWebSocket() {
-        // TODO: Establish WebSocket connection to endpoints.websocket
-        // Handle reconnection on disconnect
+        guard let wsURL = endpoints.websocketURL else {
+            // No WebSocket configured — newHeads uses HTTP polling on demand.
+            return
+        }
+        let task = urlSession.webSocketTask(with: wsURL)
+        webSocketTask = task
+        task.resume()
+        webSocketDelegate?.webSocket(didConnect: wsURL)
+        receiveLoop()
+    }
+
+    private func receiveLoop() {
+        webSocketTask?.receive { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .failure(let error):
+                self.webSocketDelegate?.webSocket(didDisconnect: error)
+                self.webSocketTask = nil   // drop; polling can take over
+            case .success(let message):
+                self.handleWebSocketMessage(message)
+                self.receiveLoop()
+            }
+        }
+    }
+
+    private func handleWebSocketMessage(_ message: URLSessionWebSocketTask.Message) {
+        let data: Data
+        switch message {
+        case .data(let d): data = d
+        case .string(let s): data = Data(s.utf8)
+        @unknown default: return
+        }
+        webSocketDelegate?.webSocket(didReceiveMessage: data)
+        guard let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+
+        // eth_subscribe reply: { id, result: "0x<subId>" }
+        if let id = obj["id"] as? Int, let subId = obj["result"] as? String, let reply = subscribeReplies[id] {
+            subscribeReplies.removeValue(forKey: id)
+            reply(subId)
+            return
+        }
+        // eth_subscription notification.
+        if obj["method"] as? String == "eth_subscription",
+           let params = obj["params"] as? [String: Any],
+           let subId = params["subscription"] as? String {
+            if let header = params["result"] as? [String: Any], let handler = blockHandlers[subId] {
+                if let info = Self.blockInfo(fromHeader: header) { handler(info) }
+            } else if let txHash = params["result"] as? String, let handler = pendingTxHandlers[subId] {
+                handler(txHash)
+            }
+        }
+    }
+
+    private func sendWebSocket(_ payload: [String: Any]) {
+        guard let task = webSocketTask,
+              let data = try? JSONSerialization.data(withJSONObject: payload),
+              let str = String(data: data, encoding: .utf8) else { return }
+        task.send(.string(str)) { _ in }
+    }
+
+    private func nextRequestId() -> Int {
+        requestIdCounter += 1
+        return requestIdCounter
+    }
+
+    private func ensurePolling() {
+        guard pollTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: networkQueue)
+        timer.schedule(deadline: .now() + 2, repeating: 2.0)   // Base ~2s block time
+        timer.setEventHandler { [weak self] in self?.pollTick() }
+        pollTimer = timer
+        timer.resume()
+    }
+
+    private func pollTick() {
+        let previous = latestBlockNumber
+        getBlockNumber { [weak self] result in
+            guard let self = self, case .success(let n) = result,
+                  n != previous, !self.pollBlockHandlers.isEmpty else { return }
+            // Polling delivers the new block number; full header fields
+            // (gasUsed / baseFee / hash) are only available over WebSocket.
+            let info = BlockInfo(number: n, hash: "", timestamp: Date(),
+                                 transactionCount: 0, gasUsed: 0, baseFeePerGas: self.currentGasPrice)
+            for handler in self.pollBlockHandlers.values { handler(info) }
+        }
+    }
+
+    private static func blockInfo(fromHeader header: [String: Any]) -> BlockInfo? {
+        func hex(_ key: String) -> UInt64 {
+            guard let s = header[key] as? String else { return 0 }
+            return UInt64(s.hasPrefix("0x") ? String(s.dropFirst(2)) : s, radix: 16) ?? 0
+        }
+        return BlockInfo(
+            number: hex("number"),
+            hash: header["hash"] as? String ?? "",
+            timestamp: Date(timeIntervalSince1970: TimeInterval(hex("timestamp"))),
+            transactionCount: 0,
+            gasUsed: hex("gasUsed"),
+            baseFeePerGas: hex("baseFeePerGas")
+        )
     }
 
     private func startBlockPolling() {
-        // TODO: Poll for new blocks at regular intervals as fallback
-        // Update latestBlockNumber
+        // Polling is started lazily by newHeads subscribers when no WebSocket
+        // is configured (see ensurePolling) — nothing to start eagerly.
     }
 }

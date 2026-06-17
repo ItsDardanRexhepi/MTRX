@@ -3,7 +3,9 @@
 //
 // One-tap wallet creation with no seed phrase, Face ID recovery
 
+import CryptoKit
 import Foundation
+import Security
 
 // MARK: - Protocols
 
@@ -106,6 +108,9 @@ final class WalletCreation {
 
     /// Cloud backup identifier
     private var cloudBackupID: String?
+
+    /// New device key tag awaiting an on-chain guardian owner-rotation.
+    private var pendingRecoveryKeyTag: String?
 
     private let creationQueue = DispatchQueue(label: "com.mtrx.wallet.creation", qos: .userInitiated)
 
@@ -303,32 +308,89 @@ final class WalletCreation {
     }
 
     private func performWalletRecovery(completion: @escaping (Result<SmartWallet, WalletCreationError>) -> Void) {
-        // TODO: Retrieve encrypted recovery data from cloud backup
-        // Decrypt using Secure Enclave
-        // Restore wallet state
-        guard let backupID = cloudBackupID else {
+        // Retrieve the AES-GCM-encrypted backup + key from iCloud Keychain
+        // (synced across the user's devices) and restore the wallet's metadata.
+        // NOTE: the Secure Enclave private key is non-exportable and is NOT in
+        // the backup — this restores the wallet's identity (address + owner
+        // public key). Regaining signing CONTROL on a brand-new device requires
+        // social recovery (guardian owner-rotation), not this metadata restore.
+        do {
+            guard let ciphertext = try Self.iCloudKeychainLoad(account: Self.backupCiphertextAccount),
+                  let keyData = try Self.iCloudKeychainLoad(account: Self.backupKeyAccount) else {
+                completion(.failure(.invalidRecoveryData))
+                return
+            }
+            let key = SymmetricKey(data: keyData)
+            let box = try AES.GCM.SealedBox(combined: ciphertext)
+            let plaintext = try AES.GCM.open(box, using: key)
+            let backup = try JSONDecoder().decode(RecoveryBackup.self, from: plaintext)
+            let publicKey = Self.dataFromHex(backup.publicKeyHex)
+            let wallet = SmartWallet(
+                address: backup.address,
+                publicKey: publicKey,
+                createdAt: backup.createdAt,
+                recoveryMethod: .cloudBackup,
+                accountType: .standard,
+                isDeployed: false
+            )
+            self.activeWallet = wallet
+            DispatchQueue.main.async {
+                self.delegate?.walletCreation(self, didRecoverWallet: wallet)
+                completion(.success(wallet))
+            }
+        } catch {
             completion(.failure(.invalidRecoveryData))
-            return
         }
-
-        _ = backupID
-        // TODO: Fetch backup, decrypt, re-derive account
-        completion(.failure(.invalidRecoveryData))
     }
 
     private func performGuardianRecovery(
         approvals: [GuardianApproval],
         completion: @escaping (Result<SmartWallet, WalletCreationError>) -> Void
     ) {
-        // TODO: Generate new key pair in Secure Enclave
-        // Submit guardian approvals to smart account recovery module
-        // Execute owner rotation on-chain
+        // Social recovery rotates the account's owner key on-chain via the
+        // recovery module. Requires the deployed module address (config) — with
+        // it blank we fail loudly rather than pretend to recover.
+        guard PendingCredentials.filled(PendingCredentials.Recovery.socialRecoveryModuleAddress) != nil else {
+            completion(.failure(.guardianSetupFailed))
+            return
+        }
+
+        // 1. Generate a NEW real Secure Enclave key for this device (the old
+        //    device's key is unavailable — that's the whole point of recovery).
+        let newKeyTag = "\(keyTagPrefix).owner.\(UUID().uuidString)"
+        let newKeyPair: SecureEnclaveKeyPair
+        do {
+            newKeyPair = try secureEnclaveProvider.generateKeyPair(tag: newKeyTag)
+        } catch {
+            completion(.failure(.keyGenerationFailed))
+            return
+        }
+
+        // 2. The owner-rotation that authorises the new P-256 key must be
+        //    submitted as a UserOperation to the recovery module through the
+        //    ERC-4337 bundler. That requires the configured chain/bundler. With
+        //    the config blank we cannot complete recovery — and we never fake a
+        //    successful on-chain rotation. The rotation submission is performed
+        //    by the same UserOperation submit pipeline used for component
+        //    execution (Phase 5), keyed to socialRecoveryModuleAddress.
+        guard PendingCredentials.isChainConfigured else {
+            try? secureEnclaveProvider.deleteKey(tag: newKeyTag)
+            completion(.failure(.guardianSetupFailed))
+            return
+        }
+        // Hold the new device key; the rotation UserOperation (guardian-approved)
+        // is submitted via WalletTransactionService once the chain is live.
+        self.pendingRecoveryKeyTag = newKeyTag
         completion(.failure(.guardianSetupFailed))
     }
 
     private func deriveAccountAddress(from publicKey: Data) -> String {
-        // TODO: Compute CREATE2 address from factory + owner public key
-        return "0x" + publicKey.prefix(20).map { String(format: "%02x", $0) }.joined()
+        // Display address derived from the real Secure Enclave public key.
+        // The canonical on-chain CREATE2 address is computed by ERC4337Manager
+        // at first deployment using the factory from PendingCredentials.
+        let digest = SHA256.hash(data: publicKey)
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "0x" + String(hex.prefix(40))
     }
 
     private func setupRecovery(
@@ -368,10 +430,98 @@ final class WalletCreation {
     }
 
     private func backupToCloud(publicKey: Data, completion: @escaping (Result<Void, Error>) -> Void) {
-        // TODO: Encrypt key reference and store in iCloud Keychain
-        let backupID = UUID().uuidString
-        self.cloudBackupID = backupID
-        completion(.success(()))
+        do {
+            let backup = RecoveryBackup(
+                publicKeyHex: publicKey.map { String(format: "%02x", $0) }.joined(),
+                address: deriveAccountAddress(from: publicKey),
+                createdAt: Date()
+            )
+            let plaintext = try JSONEncoder().encode(backup)
+
+            // Real AES-GCM encryption. Ciphertext + key go into iCloud Keychain
+            // (synced across the user's devices). The Secure Enclave private key
+            // is non-exportable and is deliberately NOT part of the backup —
+            // only the recoverable wallet metadata is.
+            let key = SymmetricKey(size: .bits256)
+            let sealed = try AES.GCM.seal(plaintext, using: key)
+            guard let ciphertext = sealed.combined else {
+                completion(.failure(WalletCreationError.cloudBackupFailed))
+                return
+            }
+            let keyData = key.withUnsafeBytes { Data(Array($0)) }
+
+            try Self.iCloudKeychainStore(account: Self.backupCiphertextAccount, data: ciphertext)
+            try Self.iCloudKeychainStore(account: Self.backupKeyAccount, data: keyData)
+            self.cloudBackupID = backup.address
+            completion(.success(()))
+        } catch {
+            completion(.failure(error))
+        }
+    }
+}
+
+// MARK: - Recovery Backup (AES-GCM + iCloud Keychain)
+
+extension WalletCreation {
+
+    /// The recoverable, non-secret wallet metadata. The signing private key is
+    /// NOT here — Secure Enclave keys are non-exportable.
+    struct RecoveryBackup: Codable {
+        let publicKeyHex: String
+        let address: String
+        let createdAt: Date
+    }
+
+    fileprivate static let backupService = "com.opnmatrx.mtrx.recovery"
+    fileprivate static let backupCiphertextAccount = "com.mtrx.recovery.ciphertext"
+    fileprivate static let backupKeyAccount = "com.mtrx.recovery.key"
+
+    /// Store `data` in iCloud Keychain (synchronizable → syncs across the user's
+    /// devices when iCloud Keychain is enabled; the Keychain Sharing/iCloud
+    /// entitlement gates real syncing).
+    fileprivate static func iCloudKeychainStore(account: String, data: Data) throws {
+        let base: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: backupService,
+            kSecAttrAccount as String: account,
+            kSecAttrSynchronizable as String: kCFBooleanTrue as Any,
+        ]
+        SecItemDelete(base as CFDictionary)
+        var add = base
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        let status = SecItemAdd(add as CFDictionary, nil)
+        guard status == errSecSuccess else { throw WalletCreationError.cloudBackupFailed }
+    }
+
+    fileprivate static func dataFromHex(_ hex: String) -> Data {
+        var s = hex.hasPrefix("0x") ? String(hex.dropFirst(2)) : hex
+        if s.count % 2 != 0 { s = "0" + s }
+        var data = Data(); data.reserveCapacity(s.count / 2)
+        var idx = s.startIndex
+        while idx < s.endIndex {
+            let next = s.index(idx, offsetBy: 2)
+            guard let byte = UInt8(s[idx..<next], radix: 16) else { return Data() }
+            data.append(byte)
+            idx = next
+        }
+        return data
+    }
+
+    fileprivate static func iCloudKeychainLoad(account: String) throws -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: backupService,
+            kSecAttrAccount as String: account,
+            kSecAttrSynchronizable as String: kCFBooleanTrue as Any,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else { throw WalletCreationError.cloudBackupFailed }
+        return item as? Data
     }
 }
 
@@ -392,37 +542,55 @@ struct GuardianApproval {
 
 // MARK: - Default Provider Implementations
 
-/// Default biometric authentication using LocalAuthentication.
+/// Real biometric authentication — wraps the production BiometricAuth
+/// (LocalAuthentication / LAContext) in Core/Wallet. No fake success.
 final class DefaultBiometricAuthProvider: BiometricAuthProvider {
     func authenticateWithBiometrics(reason: String, completion: @escaping (Result<Bool, Error>) -> Void) {
-        // TODO: Integrate LAContext for Face ID / Touch ID
-        completion(.success(true))
+        Task {
+            do {
+                let ok = try await BiometricAuth.shared.authenticate(
+                    reason: reason,
+                    allowPasscodeFallback: true
+                )
+                if ok {
+                    completion(.success(true))
+                } else {
+                    completion(.failure(WalletCreationError.biometricAuthFailed))
+                }
+            } catch {
+                completion(.failure(error))
+            }
+        }
     }
 
     func isBiometricAvailable() -> Bool {
-        return true
+        BiometricAuth.shared.canUseBiometrics
     }
 }
 
-/// Default Secure Enclave provider using the Security framework.
+/// Real Secure Enclave provider — wraps the production SecureEnclaveManager
+/// in Core/Wallet (CryptoKit SecureEnclave.P256, software P-256 fallback,
+/// Keychain-backed). No random-byte keys, no zero-byte signatures.
 final class DefaultSecureEnclaveProvider: SecureEnclaveProvider {
+
+    private let manager = SecureEnclaveManager.shared
+
     func generateKeyPair(tag: String) throws -> SecureEnclaveKeyPair {
-        // TODO: Use SecKeyCreateRandomKey with kSecAttrTokenIDSecureEnclave
-        let randomBytes = (0..<32).map { _ in UInt8.random(in: 0...255) }
-        return SecureEnclaveKeyPair(publicKey: Data(randomBytes), keyTag: tag)
+        // Creates the enclave key on first use and returns its REAL public key.
+        let publicKey = try manager.publicKeyData(tag: tag)
+        return SecureEnclaveKeyPair(publicKey: publicKey, keyTag: tag)
     }
 
     func sign(data: Data, withKeyTag tag: String) throws -> Data {
-        // TODO: Use SecKeyCreateSignature with Secure Enclave key
-        return Data(count: 64)
+        // Real P-256 DER signature over SHA-256(data) from the enclave key.
+        try manager.sign(data, tag: tag)
     }
 
     func deleteKey(tag: String) throws {
-        // TODO: Use SecItemDelete to remove Secure Enclave key
+        manager.deleteKey(tag: tag)
     }
 
     func keyExists(tag: String) -> Bool {
-        // TODO: Use SecItemCopyMatching to check key existence
-        return false
+        manager.hasKey(tag: tag)
     }
 }

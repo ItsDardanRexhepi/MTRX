@@ -232,8 +232,8 @@ final class ERC4337Manager {
     // MARK: - Initialization
 
     init(
-        entryPointAddress: String = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
-        paymasterAddress: String? = nil,
+        entryPointAddress: String = PendingCredentials.filled(PendingCredentials.AccountAbstraction.entryPointAddress) ?? "",
+        paymasterAddress: String? = PendingCredentials.filled(PendingCredentials.AccountAbstraction.paymasterAddress),
         bundlerURL: URL,
         networkConfig: BaseNetworkConfig
     ) {
@@ -764,9 +764,12 @@ final class ERC4337Manager {
     }
 
     private func buildInitCode(owner: String = "", salt: UInt64 = 0) -> Data {
-        // Factory address is derived from the entrypoint ecosystem.
-        // Default SimpleAccountFactory on Base.
-        let factoryAddress = "0x9406Cc6185a346906296840746125a0E44976454"
+        // Factory address comes from PendingCredentials — no hardcoded value.
+        // P-256 CONSTRAINT: this MUST be a P-256 / secp256r1-verifying account
+        // factory (RIP-7212 / WebAuthn-style). The owner key is an Apple Secure
+        // Enclave P-256 key, which cannot produce secp256k1 signatures, so a
+        // stock secp256k1 SimpleAccountFactory would reject every UserOperation.
+        let factoryAddress = PendingCredentials.filled(PendingCredentials.AccountAbstraction.accountFactoryAddress) ?? ""
         let factoryClean = factoryAddress.hasPrefix("0x") ? String(factoryAddress.dropFirst(2)) : factoryAddress
         let factoryBytes = Data(hexString: factoryClean) ?? Data(repeating: 0, count: 20)
 
@@ -788,22 +791,16 @@ final class ERC4337Manager {
         return data
     }
 
-    /// Build paymaster data: paymaster address (20 bytes) + empty validation data.
+    /// Paymaster data is NOT assembled here. A valid verifying-paymaster
+    /// `paymasterAndData` requires the paymaster's signature, and that key lives
+    /// ONLY on the server — never in the app. So this returns empty ("unsponsored
+    /// / self-paid"); the real, server-signed `paymasterAndData` is fetched from
+    /// PendingCredentials.AccountAbstraction.paymasterSignatureEndpoint by
+    /// GasSponsorship and attached to the UserOperation there. (Previously this
+    /// emitted a 65-byte zero signature — a fake the EntryPoint would reject;
+    /// that has been removed.)
     private func buildPaymasterData() -> Data {
-        guard let paymaster = paymasterAddress else { return Data() }
-        let paymasterClean = paymaster.hasPrefix("0x") ? String(paymaster.dropFirst(2)) : paymaster
-        let paymasterBytes = Data(hexString: paymasterClean) ?? Data(repeating: 0, count: 20)
-
-        var paymasterData = Data()
-        paymasterData.append(paymasterBytes)
-
-        // validUntil (uint48) + validAfter (uint48) = 12 bytes, set to 0 for no expiry
-        paymasterData.append(Data(repeating: 0, count: 12))
-
-        // Empty signature placeholder (65 bytes of zeros)
-        paymasterData.append(Data(repeating: 0, count: 65))
-
-        return paymasterData
+        return Data()
     }
 
     // MARK: - Bundler RPC Helpers
