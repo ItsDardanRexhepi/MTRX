@@ -68,6 +68,7 @@ enum DEXError: Error, LocalizedError {
     case slippageExceeded
     case swapFailed(String)
     case invalidAmount
+    case displayOnly
 
     var errorDescription: String? {
         switch self {
@@ -77,11 +78,19 @@ enum DEXError: Error, LocalizedError {
         case .slippageExceeded: return "Price slippage exceeds tolerance."
         case .swapFailed(let r): return "Swap failed: \(r)"
         case .invalidAmount: return "Amount must be greater than zero."
+        case .displayOnly: return "DEX swaps are display-only in this build — swap yourself in self-custody on the DEX's own interface."
         }
     }
 }
 
 // MARK: - DEXManager
+//
+// REGULATED COMPONENT — DISPLAY-ONLY.
+// Operating an exchange / facilitating token swaps can constitute regulated
+// activity. This build displays pools, quotes and price data but performs NO
+// in-app execution. swap/addLiquidity refuse with `.displayOnly` rather than
+// fabricating reserve changes. Quote math (calculateSwapOutput) stays for
+// display. Gated by FeatureFlags.mvpMode upstream.
 
 final class DEXManager: ObservableObject {
 
@@ -142,55 +151,10 @@ final class DEXManager: ObservableObject {
     // MARK: - Zero-Fee Swaps
 
     /// Execute a swap. User pays zero fees; platform absorbs LP cost.
+    /// Swap — REGULATED display-only: refuses (no in-app execution). Previously
+    /// simulated a constant-product swap and mutated reserves; that is removed.
     func swap(poolId: String, userAddress: String, tokenIn: String, amountIn: Double, minAmountOut: Double) async throws -> DEXSwap {
-        guard amountIn > 0 else { throw DEXError.invalidAmount }
-        guard var pool = poolStore[poolId] else { throw DEXError.poolNotFound(poolId) }
-
-        let pair = "\(pool.token0)/\(pool.token1)"
-        guard let oraclePrice = oraclePrices[pair] else {
-            throw DEXError.oraclePriceUnavailable(pair)
-        }
-
-        // Constant-product AMM calculation
-        let (amountOut, platformFee) = try calculateSwapOutput(
-            pool: pool, tokenIn: tokenIn, amountIn: amountIn
-        )
-
-        guard amountOut >= minAmountOut else {
-            throw DEXError.slippageExceeded
-        }
-
-        // Update reserves
-        if tokenIn == pool.token0 {
-            pool.reserve0 += amountIn
-            pool.reserve1 -= amountOut
-        } else {
-            pool.reserve1 += amountIn
-            pool.reserve0 -= amountOut
-        }
-        pool.volume24h += amountIn
-        pool.currentPrice = oraclePrice
-        poolStore[poolId] = pool
-
-        let swap = DEXSwap(
-            id: UUID().uuidString,
-            poolId: poolId,
-            userAddress: userAddress,
-            tokenIn: tokenIn,
-            tokenOut: tokenIn == pool.token0 ? pool.token1 : pool.token0,
-            amountIn: amountIn,
-            amountOut: amountOut,
-            userFee: 0,                  // zero fee to user
-            platformAbsorbedFee: platformFee,
-            oraclePrice: oraclePrice,
-            executedAt: Date(),
-            txHash: nil
-        )
-
-        await MainActor.run { swaps.append(swap) }
-        await updatePoolInPublished(pool)
-        delegate?.dex(self, swapCompleted: swap)
-        return swap
+        throw DEXError.displayOnly
     }
 
     /// Constant-product AMM with LP fee absorbed by platform.
@@ -220,58 +184,14 @@ final class DEXManager: ObservableObject {
 
     // MARK: - Liquidity
 
+    /// Add liquidity — REGULATED display-only: refuses (no in-app execution).
     func addLiquidity(poolId: String, provider: String, amount0: Double, amount1: Double) async throws -> LiquidityProvision {
-        guard var pool = poolStore[poolId] else { throw DEXError.poolNotFound(poolId) }
-
-        let lpTokens = sqrt(amount0 * amount1)
-        pool.reserve0 += amount0
-        pool.reserve1 += amount1
-        pool.totalLiquidity += lpTokens
-        poolStore[poolId] = pool
-
-        let event = LiquidityProvision(
-            id: UUID().uuidString,
-            poolId: poolId,
-            providerAddress: provider,
-            amount0: amount0,
-            amount1: amount1,
-            lpTokensMinted: lpTokens,
-            timestamp: Date(),
-            isRemoval: false
-        )
-
-        await updatePoolInPublished(pool)
-        delegate?.dex(self, liquidityProvided: event)
-        return event
+        throw DEXError.displayOnly
     }
 
+    /// Remove liquidity — REGULATED display-only: refuses (no in-app execution).
     func removeLiquidity(poolId: String, provider: String, lpTokens: Double) async throws -> LiquidityProvision {
-        guard var pool = poolStore[poolId] else { throw DEXError.poolNotFound(poolId) }
-        guard pool.totalLiquidity > 0 else { throw DEXError.insufficientLiquidity }
-
-        let share = lpTokens / pool.totalLiquidity
-        let amount0 = pool.reserve0 * share
-        let amount1 = pool.reserve1 * share
-
-        pool.reserve0 -= amount0
-        pool.reserve1 -= amount1
-        pool.totalLiquidity -= lpTokens
-        poolStore[poolId] = pool
-
-        let event = LiquidityProvision(
-            id: UUID().uuidString,
-            poolId: poolId,
-            providerAddress: provider,
-            amount0: amount0,
-            amount1: amount1,
-            lpTokensMinted: lpTokens,
-            timestamp: Date(),
-            isRemoval: true
-        )
-
-        await updatePoolInPublished(pool)
-        delegate?.dex(self, liquidityProvided: event)
-        return event
+        throw DEXError.displayOnly
     }
 
     // MARK: - Queries
