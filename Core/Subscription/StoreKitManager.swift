@@ -201,7 +201,9 @@ final class StoreKitManager {
             }
         }
 
-        // Update FeatureGate with the found tier
+        // Update FeatureGate with the found tier and mirror it into the
+        // app-wide tier key so every reader (launch restore, agent VM,
+        // Social, Settings) honors the verified StoreKit entitlement.
         if let info = subscriptionInfo {
             FeatureGate.shared.updateTier(
                 info.tier,
@@ -209,13 +211,18 @@ final class StoreKitManager {
                 trialEndDate: info.trialEndDate,
                 originalTransactionId: info.originalTransactionId
             )
+            UserDefaults.standard.set(info.tier.rawValue, forKey: Self.tierDefaultsKey)
         } else {
             // No active subscription — fall back to free
             FeatureGate.shared.fallbackToFree()
+            UserDefaults.standard.set(SubscriptionTier.free.rawValue, forKey: Self.tierDefaultsKey)
         }
 
         currentSubscription = subscriptionInfo
     }
+
+    /// UserDefaults key mirroring the verified tier for app-wide readers.
+    static let tierDefaultsKey = "com.mtrx.subscriptionTier"
 
     // MARK: - Trial Detection
 

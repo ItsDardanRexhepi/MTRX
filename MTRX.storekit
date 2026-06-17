@@ -1,0 +1,103 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "6D3A9C10-1F2E-4B7A-9C5D-1A2B3C4D5E01",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "20653",
+      "localizations" : [
+
+      ],
+      "name" : "MTRX Membership",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "4.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6D3A9C10-1F2E-4B7A-9C5D-1A2B3C4D5E02",
+          "introductoryOffer" : {
+            "internalID" : "6D3A9C10-1F2E-4B7A-9C5D-1A2B3C4D5E03",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P3D"
+          },
+          "localizations" : [
+            {
+              "description" : "Remove limits, priority Trinity, advanced dashboard and custom skills",
+              "displayName" : "MTRX Pro",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.opnmatrx.mtrx.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "MTRX Pro Monthly",
+          "subscriptionGroupID" : "20653",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "19.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "6D3A9C10-1F2E-4B7A-9C5D-1A2B3C4D5E04",
+          "introductoryOffer" : {
+            "internalID" : "6D3A9C10-1F2E-4B7A-9C5D-1A2B3C4D5E05",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P3D"
+          },
+          "localizations" : [
+            {
+              "description" : "Unlimited everything, teams, white-label, API access and audit logs",
+              "displayName" : "MTRX Enterprise",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.opnmatrx.mtrx.enterprise.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "MTRX Enterprise Monthly",
+          "subscriptionGroupID" : "20653",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

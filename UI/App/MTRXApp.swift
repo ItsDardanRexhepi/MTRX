@@ -210,12 +210,17 @@ struct MainTabView: View {
         // tabs. The tint still shifts green→cyan per selected tab.
         .tint(tabTint)
         .task {
-            // Restore the demo subscription tier so FeatureGate honors
-            // it from the first frame after a relaunch.
-            if let raw = UserDefaults.standard.string(forKey: "com.mtrx.subscriptionTier"),
+            // Optimistically restore the last verified tier so FeatureGate
+            // honors it from the first frame after a relaunch…
+            if let raw = UserDefaults.standard.string(forKey: StoreKitManager.tierDefaultsKey),
                let tier = SubscriptionTier(rawValue: raw) {
                 FeatureGate.shared.updateTier(tier)
             }
+            // …then verify against StoreKit. Real entitlements are
+            // authoritative: this confirms an active subscription/trial or
+            // downgrades to free if none is found.
+            await StoreKitManager.shared.loadProducts()
+            await StoreKitManager.shared.refreshEntitlements()
             // Sync wallet prices to the live feed so every screen and
             // every agent quote agree.
             await walletManager.refreshLivePrices()

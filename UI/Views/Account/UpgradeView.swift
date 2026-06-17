@@ -12,7 +12,6 @@ struct UpgradeView: View {
     @State private var storeKit = StoreKitManager.shared
     @State private var isPurchasing = false
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("com.mtrx.subscriptionTier") private var currentTierRaw: String = SubscriptionTier.free.rawValue
 
     var body: some View {
         NavigationStack {
@@ -129,21 +128,13 @@ struct UpgradeView: View {
     private func startTrial(for productId: String) async {
         isPurchasing = true
         defer { isPurchasing = false }
-        // Real StoreKit path first.
+        // Real StoreKit purchase. The 3-day introductory offer is applied
+        // automatically when the user is eligible; on success the entitlement
+        // refresh updates FeatureGate and the app-wide tier. A cancel or a
+        // store error simply leaves the user on their current tier — no
+        // feature is unlocked without a verified transaction.
         await storeKit.startTrialIfEligible(for: productId)
-
-        // Testable path: if no live product landed the purchase, grant the
-        // tier locally on a 3-day trial so the whole flow is fully usable
-        // and every tier can be exercised end-to-end.
-        let target: SubscriptionTier = productId == StoreKitManager.enterpriseProductId ? .enterprise : .pro
-        let current = SubscriptionTier(rawValue: currentTierRaw) ?? .free
-        if current < target {
-            currentTierRaw = target.rawValue
-            FeatureGate.shared.updateTier(
-                target,
-                isTrialActive: true,
-                trialEndDate: Calendar.current.date(byAdding: .day, value: 3, to: Date())
-            )
+        if FeatureGate.shared.currentTier.isPaid {
             MtrxHaptics.success()
         }
         dismiss()

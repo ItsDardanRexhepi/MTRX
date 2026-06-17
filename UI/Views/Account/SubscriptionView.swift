@@ -3,20 +3,11 @@
 // Copyright 2026 OPN MATRX. All rights reserved.
 
 import SwiftUI
+import StoreKit
 
 // MARK: - Tier UI Extensions
 
 private extension SubscriptionTier {
-
-    var price: String {
-        switch self {
-        case .free:       return "$0"
-        case .pro:        return "$9.99"
-        case .enterprise: return "$39.99"
-        }
-    }
-
-    var priceSuffix: String { "/month" }
 
     var badgeStyle: MtrxBadge.BadgeStyle {
         switch self {
@@ -62,21 +53,20 @@ private extension SubscriptionTier {
 // MARK: - Subscription View
 
 struct SubscriptionView: View {
-    @State private var selectedTier: SubscriptionTier = .pro
-    @State private var isPurchasing = false
-    @State private var appeared = false
-    @State private var showTrialStarted = false
-    @State private var showRestored = false
-    @State private var showUpgraded = false
+    @State private var storeKit = StoreKitManager.shared
+    @State private var gate = FeatureGate.shared
 
-    /// Demo subscription — persists across launches and drives
-    /// FeatureGate so the whole app honors the chosen tier.
-    @AppStorage("com.mtrx.subscriptionTier") private var currentTierRaw: String = SubscriptionTier.free.rawValue
-    private var currentTier: SubscriptionTier {
-        SubscriptionTier(rawValue: currentTierRaw) ?? .free
-    }
-    private let contractsUsed: Int = 3
-    private let contractsLimit: Int = 3
+    @State private var selectedTier: SubscriptionTier = .pro
+    @State private var appeared = false
+    @State private var showUpgraded = false
+    @State private var showRestored = false
+    @State private var showError = false
+    @State private var restoreMessage = ""
+    @State private var errorMessage = ""
+
+    /// The effective tier comes from the verified StoreKit entitlement
+    /// (via FeatureGate) — never from a local flag.
+    private var currentTier: SubscriptionTier { gate.currentTier }
 
     @Environment(\.dismiss) private var dismiss
 
@@ -89,7 +79,7 @@ struct SubscriptionView: View {
                     VStack(spacing: Spacing.lg) {
                         currentPlanCard
                         tierCards
-                        trialBanner
+                        if showTrialBanner { trialBanner }
                         legalSection
                     }
                     .padding(.horizontal, Spacing.contentPadding)
@@ -109,7 +99,9 @@ struct SubscriptionView: View {
                     }
                 }
             }
-            .onAppear {
+            .task {
+                if !storeKit.isLoaded { await storeKit.loadProducts() }
+                await storeKit.refreshEntitlements()
                 withAnimation(Motion.springDefault.delay(0.1)) {
                     appeared = true
                 }
@@ -120,9 +112,17 @@ struct SubscriptionView: View {
             ) {
                 Button("Done", role: .cancel) {}
             } message: {
-                Text(currentTier == .free
-                    ? "You're back on the Free plan. Upgrade again anytime."
-                    : "Demo purchase complete — no charge. \(currentTier.displayName) features are unlocked across the app.")
+                Text(upgradeAlertMessage)
+            }
+            .alert("Restore Purchases", isPresented: $showRestored) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(restoreMessage)
+            }
+            .alert("Purchase Failed", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
             }
         }
     }
@@ -147,50 +147,84 @@ struct SubscriptionView: View {
                         .font(.mtrxTitle2)
                         .foregroundStyle(Color.labelPrimary)
 
-                    Text(currentTier.isPaid
-                        ? "Renews \((Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()).formatted(.dateTime.month(.abbreviated).day().year()))"
-                        : "Upgrade for premium features")
+                    Text(planStatusText)
                         .font(.mtrxSubheadline)
                         .foregroundStyle(currentTier.isPaid ? Color.labelSecondary : Color.accentPrimary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                MtrxDivider()
-
-                // Usage row with progress bar
-                VStack(alignment: .leading, spacing: Spacing.sm) {
-                    HStack {
-                        Text("\(contractsUsed)/\(contractsLimit) contracts used")
-                            .font(.mtrxCaptionBold)
-                            .foregroundStyle(Color.labelSecondary)
-
-                        Spacer()
-
-                        Text("\(Int(Double(contractsUsed) / Double(contractsLimit) * 100))%")
-                            .font(.mtrxMonoSmall)
-                            .foregroundStyle(contractsUsed >= contractsLimit ? Color.statusWarning : Color.accentPrimary)
-                    }
-
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.surfaceOverlay)
-                                .frame(height: 8)
-
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(contractsUsed >= contractsLimit ? Color.statusWarning : Color.accentPrimary)
-                                .frame(
-                                    width: geo.size.width * min(Double(contractsUsed) / Double(contractsLimit), 1.0),
-                                    height: 8
-                                )
-                        }
-                    }
-                    .frame(height: 8)
+                if let usage = contractUsage {
+                    MtrxDivider()
+                    usageRow(used: usage.used, limit: usage.limit)
                 }
             }
         }
         .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.lg)
         .mtrxFadeInFromBottom(isVisible: appeared)
+    }
+
+    /// Real contract-deployment usage for the current tier (nil limit = unlimited).
+    private var contractUsage: (used: Int, limit: Int?)? {
+        let used = gate.subscriptionState.currentUsage(.contractDeployments)
+        let limit = Feature.contractDeployments.limit(for: currentTier)
+        return (used, limit)
+    }
+
+    private func usageRow(used: Int, limit: Int?) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack {
+                Text(limit == nil
+                    ? "\(used) contract deployments this month"
+                    : "\(used)/\(limit!) deployments used")
+                    .font(.mtrxCaptionBold)
+                    .foregroundStyle(Color.labelSecondary)
+
+                Spacer()
+
+                if let limit {
+                    Text("\(Int(Double(used) / Double(max(limit, 1)) * 100))%")
+                        .font(.mtrxMonoSmall)
+                        .foregroundStyle(used >= limit ? Color.statusWarning : Color.accentPrimary)
+                } else {
+                    Text("Unlimited")
+                        .font(.mtrxMonoSmall)
+                        .foregroundStyle(Color.statusSuccess)
+                }
+            }
+
+            if let limit {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.surfaceOverlay)
+                            .frame(height: 8)
+
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(used >= limit ? Color.statusWarning : Color.accentPrimary)
+                            .frame(
+                                width: geo.size.width * min(Double(used) / Double(max(limit, 1)), 1.0),
+                                height: 8
+                            )
+                    }
+                }
+                .frame(height: 8)
+            }
+        }
+    }
+
+    /// Honest plan-status line driven by the verified subscription.
+    private var planStatusText: String {
+        if gate.isInTrial {
+            let days = gate.trialDaysRemaining
+            return "Free trial \u{2022} \(days) day\(days == 1 ? "" : "s") left"
+        }
+        if currentTier.isPaid {
+            if let exp = storeKit.currentSubscription?.expirationDate {
+                return "Renews \(exp.formatted(.dateTime.month(.abbreviated).day().year()))"
+            }
+            return "Active"
+        }
+        return "Upgrade for premium features"
     }
 
     // MARK: - Tier Cards
@@ -224,12 +258,14 @@ struct SubscriptionView: View {
                     Spacer()
 
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
-                        Text(tier.price)
+                        Text(priceText(for: tier))
                             .font(.mtrxMono)
                             .foregroundStyle(Color.labelPrimary)
-                        Text(tier.priceSuffix)
-                            .font(.mtrxCaption1)
-                            .foregroundStyle(Color.labelTertiary)
+                        if tier.isPaid {
+                            Text("/month")
+                                .font(.mtrxCaption1)
+                                .foregroundStyle(Color.labelTertiary)
+                        }
                     }
                 }
 
@@ -254,34 +290,59 @@ struct SubscriptionView: View {
                     }
                 }
 
-                // Action button
-                if isCurrent {
-                    Button {} label: {
-                        Text("Current Plan")
-                    }
-                    .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .regular, fullWidth: true))
-                    .disabled(true)
-                    .opacity(0.5)
-                } else {
-                    Button {
-                        selectedTier = tier
-                        handleSubscribeTap()
-                    } label: {
-                        Text(upgradeLabel(for: tier))
-                    }
-                    .buttonStyle(MtrxButtonStyle(
-                        variant: tier == .enterprise ? .accent : .primary,
-                        size: .regular,
-                        isLoading: isPurchasing && selectedTier == tier,
-                        fullWidth: true
-                    ))
-                    .disabled(isPurchasing)
-                }
+                tierActionButton(for: tier, isCurrent: isCurrent)
             }
         }
     }
 
+    @ViewBuilder
+    private func tierActionButton(for tier: SubscriptionTier, isCurrent: Bool) -> some View {
+        if isCurrent {
+            if tier.isPaid {
+                Button {
+                    Task { await storeKit.manageSubscription() }
+                } label: {
+                    Text("Manage Subscription")
+                }
+                .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .regular, fullWidth: true))
+            } else {
+                Button {} label: {
+                    Text("Current Plan")
+                }
+                .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .regular, fullWidth: true))
+                .disabled(true)
+                .opacity(0.5)
+            }
+        } else if tier == .free {
+            // Downgrading to Free means cancelling in the App Store.
+            Button {
+                Task { await storeKit.manageSubscription() }
+            } label: {
+                Text("Manage in App Store")
+            }
+            .buttonStyle(MtrxButtonStyle(variant: .ghost, size: .regular, fullWidth: true))
+        } else {
+            Button {
+                Task { await subscribe(to: tier) }
+            } label: {
+                Text(upgradeLabel(for: tier))
+            }
+            .buttonStyle(MtrxButtonStyle(
+                variant: tier == .enterprise ? .accent : .primary,
+                size: .regular,
+                isLoading: storeKit.isPurchasing && selectedTier == tier,
+                fullWidth: true
+            ))
+            .disabled(storeKit.isPurchasing || product(for: tier) == nil)
+        }
+    }
+
     // MARK: - Trial Banner
+
+    /// Only advertise a free trial when StoreKit actually offers one to this user.
+    private var showTrialBanner: Bool {
+        currentTier == .free && storeKit.isTrialAvailable(for: .pro)
+    }
 
     private var trialBanner: some View {
         MtrxCard(style: .glass) {
@@ -297,7 +358,7 @@ struct SubscriptionView: View {
                             .font(.mtrxHeadline)
                             .foregroundStyle(Color.labelPrimary)
 
-                        Text("No charge until trial ends")
+                        Text("No charge until the trial ends")
                             .font(.mtrxCaption1)
                             .foregroundStyle(Color.labelSecondary)
                     }
@@ -306,23 +367,12 @@ struct SubscriptionView: View {
                 }
 
                 Button {
-                    MtrxHaptics.success()
-                    currentTierRaw = SubscriptionTier.pro.rawValue
-                    FeatureGate.shared.updateTier(
-                        .pro,
-                        isTrialActive: true,
-                        trialEndDate: Calendar.current.date(byAdding: .day, value: 3, to: Date())
-                    )
-                    showTrialStarted = true
+                    Task { await subscribe(to: .pro) }
                 } label: {
                     Text("Start Free Trial")
                 }
                 .buttonStyle(MtrxButtonStyle(variant: .accent, size: .regular, fullWidth: true))
-                .alert("Pro Trial Active", isPresented: $showTrialStarted) {
-                    Button("Let's go", role: .cancel) {}
-                } message: {
-                    Text("You have 3 days of MTRX Pro, free. Unlimited deployments, advanced analytics, and priority agent responses are unlocked.")
-                }
+                .disabled(storeKit.isPurchasing || product(for: .pro) == nil)
             }
         }
         .overlay(
@@ -355,43 +405,79 @@ struct SubscriptionView: View {
 
             Button {
                 MtrxHaptics.impact(.light)
-                showRestored = true
+                Task { await restore() }
             } label: {
                 Text("Restore Purchases")
             }
             .buttonStyle(MtrxButtonStyle(variant: .ghost, size: .compact))
-            .alert("Purchases Restored", isPresented: $showRestored) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Your purchase history is synced — your plan is up to date.")
-            }
         }
         .padding(.top, Spacing.sm)
     }
 
-    // MARK: - Actions
+    // MARK: - Helpers
+
+    private func product(for tier: SubscriptionTier) -> Product? {
+        storeKit.product(for: tier)
+    }
+
+    /// Real, store-provided localized price (e.g. "$4.99"); placeholder while loading.
+    private func priceText(for tier: SubscriptionTier) -> String {
+        if tier == .free { return "Free" }
+        return product(for: tier)?.displayPrice ?? "\u{2014}"
+    }
 
     private func upgradeLabel(for tier: SubscriptionTier) -> String {
-        switch tier {
-        case .free: return "Switch to Free"
-        case .pro: return "Upgrade — $9.99/mo"
-        case .enterprise: return "Upgrade — $39.99/mo"
+        if storeKit.isTrialAvailable(for: tier) {
+            return "Start 3-Day Free Trial"
+        }
+        return "Upgrade \u{2014} \(priceText(for: tier))/mo"
+    }
+
+    private var upgradeAlertMessage: String {
+        if currentTier == .free {
+            return "You're on the Free plan. Upgrade anytime."
+        }
+        if gate.isInTrial {
+            return "Your 3-day free trial of \(currentTier.displayName) is active. You won't be charged until it ends — cancel anytime in the App Store."
+        }
+        return "\(currentTier.displayName) is now active. Thanks for subscribing."
+    }
+
+    // MARK: - Actions
+
+    /// Real StoreKit 2 purchase. The 3-day introductory offer is applied
+    /// automatically when the user is eligible. No feature unlocks without a
+    /// verified transaction; a user cancel is silent.
+    private func subscribe(to tier: SubscriptionTier) async {
+        guard tier.isPaid else { return }
+        selectedTier = tier
+        do {
+            _ = try await storeKit.purchase(tier)
+            MtrxHaptics.success()
+            showUpgraded = true
+        } catch StoreError.purchaseFailed(let reason) {
+            // "User cancelled" / "pending" are not errors to surface loudly.
+            if reason != "User cancelled" {
+                errorMessage = reason
+                showError = true
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            showError = true
         }
     }
 
-    /// Demo purchase: no charge — after a short processing beat the
-    /// tier flips, persists, and FeatureGate unlocks it app-wide.
-    private func handleSubscribeTap() {
-        isPurchasing = true
-        MtrxHaptics.success()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            withAnimation(Motion.springDefault) {
-                isPurchasing = false
-                currentTierRaw = selectedTier.rawValue
-                FeatureGate.shared.updateTier(selectedTier)
-                showUpgraded = true
-            }
+    /// Real restore via AppStore.sync(); reports the verified outcome.
+    private func restore() async {
+        do {
+            try await storeKit.restorePurchases()
+            restoreMessage = currentTier == .free
+                ? "No active subscription was found on your Apple ID."
+                : "Your \(currentTier.displayName) plan has been restored."
+            showRestored = true
+        } catch {
+            restoreMessage = "Couldn't restore purchases: \(error.localizedDescription)"
+            showRestored = true
         }
     }
 }
