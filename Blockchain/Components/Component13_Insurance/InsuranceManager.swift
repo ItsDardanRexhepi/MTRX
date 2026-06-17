@@ -87,6 +87,7 @@ enum InsuranceError: Error, LocalizedError {
     case conditionNotMet
     case payoutFailed(String)
     case premiumInsufficient
+    case displayOnly
 
     var errorDescription: String? {
         switch self {
@@ -96,11 +97,18 @@ enum InsuranceError: Error, LocalizedError {
         case .conditionNotMet: return "Trigger condition not met."
         case .payoutFailed(let r): return "Payout failed: \(r)"
         case .premiumInsufficient: return "Premium amount is insufficient for requested coverage."
+        case .displayOnly: return "Insurance is display-only in this build — no in-app payout execution."
         }
     }
 }
 
 // MARK: - InsuranceManager
+//
+// REGULATED COMPONENT — DISPLAY-ONLY.
+// Insurance underwriting/payout is a regulated activity. This build displays
+// policies, claims and trigger conditions but performs NO in-app payout
+// execution (custodial or self-custody). `executePayout` refuses with
+// `.displayOnly` rather than fabricating a payout. Gated by FeatureFlags.mvpMode.
 
 final class InsuranceManager: ObservableObject {
 
@@ -192,30 +200,10 @@ final class InsuranceManager: ObservableObject {
 
     // MARK: - Payouts
 
+    /// Payout — REGULATED display-only: refuses (no in-app execution). Previously
+    /// fabricated a payout and marked the claim paid; that fake execution is removed.
     func executePayout(claimId: String) async throws -> InsurancePayout {
-        guard var claim = claimStore[claimId] else {
-            throw InsuranceError.policyNotFound(claimId)
-        }
-        guard let policy = policyStore[claim.policyId] else {
-            throw InsuranceError.policyNotFound(claim.policyId)
-        }
-
-        let payout = InsurancePayout(
-            id: UUID().uuidString,
-            claimId: claimId,
-            policyId: policy.id,
-            amount: policy.coverageAmount,
-            token: policy.premiumToken,
-            transactionHash: nil,
-            paidAt: Date()
-        )
-
-        claim.status = .paidOut
-        claimStore[claimId] = claim
-
-        await MainActor.run { payouts.append(payout) }
-        delegate?.insurance(self, payoutExecuted: payout)
-        return payout
+        throw InsuranceError.displayOnly
     }
 
     // MARK: - Oracle Monitoring
