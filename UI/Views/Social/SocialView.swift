@@ -80,8 +80,6 @@ struct SocialPostDisplay: Identifiable {
     var imageData: Data? = nil
     var videoFileName: String? = nil
     var linkURL: String? = nil
-    /// Set when this post was brought over from another platform.
-    var importedFrom: String? = nil
     /// An attached poll (Twitter-style) — voters and results.
     var poll: SocialPoll? = nil
     /// A quoted post this one wraps with commentary.
@@ -470,8 +468,7 @@ final class SocialViewModel: ObservableObject {
                 isReposted: false,
                 imageData: p.imageData,
                 videoFileName: p.videoFileName,
-                linkURL: p.linkURL,
-                importedFrom: p.importedFrom
+                linkURL: p.linkURL
             )
         }
         posts.append(contentsOf: older)
@@ -886,9 +883,6 @@ struct SocialView: View {
                 SocialProfileSheet(
                     myPosts: viewModel.posts.filter {
                         $0.handle == socialIdentity.handle(displayName: appState.displayName)
-                    },
-                    onImport: { imported in
-                        viewModel.posts.insert(contentsOf: imported, at: 0)
                     }
                 )
                 .environmentObject(appState)
@@ -2085,19 +2079,6 @@ struct PostCardView: View {
                 }
                 if let tag = post.governanceTag {
                     governanceChip(tag)
-                }
-                if let origin = post.importedFrom {
-                    HStack(spacing: 5) {
-                        Image(systemName: "square.and.arrow.down")
-                            .font(.system(size: 10, weight: .semibold))
-                        Text("Imported from \(origin)")
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .foregroundStyle(Color.labelTertiary)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Color.surfaceOverlay)
-                    .clipShape(Capsule())
                 }
 
                 actionRow

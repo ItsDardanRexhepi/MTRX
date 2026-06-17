@@ -786,10 +786,7 @@ struct SocialProfileSheet: View {
 
     /// All posts in the feed authored by the user.
     let myPosts: [SocialPostDisplay]
-    /// Receives posts materialized by the import hub.
-    var onImport: ([SocialPostDisplay]) -> Void = { _ in }
 
-    @State private var showImport = false
     @State private var showEditProfile = false
 
     var body: some View {
@@ -894,32 +891,6 @@ struct SocialProfileSheet: View {
                         .font(.system(size: 13))
                         .foregroundStyle(Color.labelTertiary)
                         .padding(.top, 2)
-
-                        // Bring your content from other platforms.
-                        Button {
-                            MtrxHaptics.impact(.light)
-                            showImport = true
-                        } label: {
-                            HStack(spacing: Spacing.sm) {
-                                Image(systemName: "square.and.arrow.down.on.square")
-                                    .font(.system(size: 14, weight: .semibold))
-                                Text("Import from other apps")
-                                    .font(.system(size: 14, weight: .semibold))
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.labelTertiary)
-                            }
-                            .foregroundStyle(Color.accentPrimary)
-                            .padding(Spacing.ms)
-                            .background(Color.accentPrimary.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.sm, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.top, 4)
-                        .sheet(isPresented: $showImport) {
-                            SocialImportSheet(onImport: onImport)
-                        }
 
                         // Following / Followers
                         HStack(spacing: Spacing.md) {
@@ -1525,152 +1496,5 @@ extension SocialTheme {
     static func hexEquals(_ a: Color, _ b: Color) -> Bool {
         UIColor(a).cgColor.components.map { $0.map { Int($0 * 100) } }
             == UIColor(b).cgColor.components.map { $0.map { Int($0 * 100) } }
-    }
-}
-
-// MARK: - Import Hub
-
-/// Bring your life with you: posts, stories, messages, and media from
-/// the other platforms, pulled into MTRX in one tap per platform.
-struct SocialImportSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    let onImport: ([SocialPostDisplay]) -> Void
-
-    @State private var importing: String?
-    @State private var completed: Set<String> = []
-    @State private var summary: String?
-
-    private let platforms: [(name: String, icon: String, color: Color, posts: Int, stories: Int, messages: Int)] = [
-        ("Instagram", "camera.fill", .pink, 84, 12, 230),
-        ("X / Twitter", "text.bubble.fill", .gray, 412, 0, 56),
-        ("TikTok", "music.note", .cyan, 37, 9, 18),
-        ("Facebook", "person.2.fill", .blue, 156, 4, 1024),
-        ("Snapchat", "bolt.fill", .yellow, 0, 48, 310),
-        ("WhatsApp", "phone.fill", .green, 0, 21, 4521),
-    ]
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.md) {
-                    Text("Everything you've built elsewhere — posts, stories, messages, media — lands here, organized and yours.")
-                        .font(.mtrxCallout)
-                        .foregroundStyle(Color.labelSecondary)
-
-                    ForEach(platforms, id: \.name) { platform in
-                        HStack(spacing: Spacing.ms) {
-                            Image(systemName: platform.icon)
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(platform.color)
-                                .frame(width: 42, height: 42)
-                                .background(platform.color.opacity(0.14))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(platform.name)
-                                    .font(.mtrxBodyBold)
-                                    .foregroundStyle(Color.labelPrimary)
-                                Text("\(platform.posts) posts · \(platform.stories) stories · \(platform.messages) messages")
-                                    .font(.mtrxCaption2)
-                                    .foregroundStyle(Color.labelTertiary)
-                            }
-
-                            Spacer()
-
-                            if completed.contains(platform.name) {
-                                Label("Imported", systemImage: "checkmark.circle.fill")
-                                    .font(.mtrxCaptionBold)
-                                    .foregroundStyle(Color.statusSuccess)
-                            } else if importing == platform.name {
-                                ProgressView()
-                            } else {
-                                Button {
-                                    runImport(platform.name, posts: platform.posts, stories: platform.stories, messages: platform.messages)
-                                } label: {
-                                    Text("Import")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundStyle(Color.accentPrimary)
-                                        .padding(.horizontal, 14)
-                                        .padding(.vertical, 7)
-                                        .background(Color.accentPrimary.opacity(0.12))
-                                        .clipShape(Capsule())
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(Spacing.ms)
-                        .background(Color.surfaceCard)
-                        .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
-                    }
-
-                    Text("Imports use each platform's official data-export. Your content stays on your device.")
-                        .font(.mtrxCaption2)
-                        .foregroundStyle(Color.labelTertiary)
-                }
-                .padding(Spacing.contentPadding)
-            }
-            .background(MtrxGradientBackground(style: .primary))
-            .navigationTitle("Import Your Content")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .alert("Import Complete", isPresented: .init(
-                get: { summary != nil },
-                set: { if !$0 { summary = nil } }
-            )) {
-                Button("Great", role: .cancel) {}
-            } message: {
-                Text(summary ?? "")
-            }
-        }
-        .presentationDetents([.large])
-    }
-
-    private func runImport(_ name: String, posts: Int, stories: Int, messages: Int) {
-        importing = name
-        MtrxHaptics.impact(.medium)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-            importing = nil
-            completed.insert(name)
-            summary = "\(posts) posts, \(stories) stories, and \(messages) messages from \(name) are now in your MTRX library. Recent posts appear in your feed and profile."
-            MtrxHaptics.success()
-
-            // Materialize a couple of recent posts into the feed.
-            let samples: [String]
-            switch name {
-            case "Instagram": samples = ["Golden hour from the rooftop — no filter needed.", "New setup day. Productivity +100."]
-            case "X / Twitter": samples = ["Shipping > talking about shipping.", "The best time to build was yesterday. The second best is right now."]
-            case "TikTok": samples = ["That edit took 4 hours and it was worth every minute."]
-            case "Facebook": samples = ["Throwback to the family trip — still can't believe that sunset."]
-            case "Snapchat": samples = ["Streak day 200 🔥"]
-            default: samples = ["Voice note transcripts now archived here."]
-            }
-            let imported = samples.map { body in
-                SocialPostDisplay(
-                    id: UUID().uuidString,
-                    displayName: "You",
-                    handle: SocialIdentity.shared.handle(displayName: ""),
-                    avatarInitials: "ME",
-                    avatarColor: .trinityPrimary,
-                    timestamp: Date().addingTimeInterval(-Double.random(in: 3600...86_400)),
-                    body: body,
-                    isVerified: true,
-                    hasOnChainProof: false,
-                    proofHash: nil,
-                    governanceTag: nil,
-                    likeCount: Int.random(in: 3...60),
-                    repostCount: Int.random(in: 0...9),
-                    commentCount: Int.random(in: 0...14),
-                    isLiked: false,
-                    isReposted: false,
-                    importedFrom: name
-                )
-            }
-            onImport(imported)
-        }
     }
 }
