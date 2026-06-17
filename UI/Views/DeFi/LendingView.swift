@@ -59,6 +59,7 @@ class LendingViewModel: ObservableObject {
     @Published var actionMarket: LendingMarketDisplay?
     @Published var actionAmount: String = ""
     @Published var isSubmitting: Bool = false
+    @Published var isDemo: Bool = false
 
     enum LendingTab: String, CaseIterable {
         case supply = "Supply"
@@ -101,30 +102,32 @@ class LendingViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        // Live markets from the gateway; fall back to sample data if it isn't up.
-        if let pools = try? await MTRXAPIClient.shared.defiListPools(), !pools.isEmpty {
-            markets = pools.map { p in
-                LendingMarketDisplay(
-                    id: p.poolId, token: p.asset, symbol: p.asset,
-                    supplyAPY: p.apy, borrowAPR: p.apy,
-                    totalSupply: p.totalLiquidity,
-                    totalBorrow: p.totalLiquidity * p.utilizationRate
-                )
+        // Live markets from LendingService when configured; else demo.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let live = try await LendingService.shared.getLendingMarkets()
+                markets = live.map { m in
+                    LendingMarketDisplay(
+                        id: m.id.uuidString, token: m.token, symbol: m.symbol,
+                        supplyAPY: m.supplyAPY, borrowAPR: m.borrowAPR,
+                        totalSupply: m.totalSupply, totalBorrow: m.totalBorrow
+                    )
+                }
+                // A user position needs a signed-in wallet; left nil (no open
+                // position) when live until that's wired.
+                position = nil
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live lending markets unavailable — showing demo."
             }
-            position = LendingViewModel.samplePosition
-            isLoading = false
-            return
         }
 
-        do {
-            try await Task.sleep(for: .milliseconds(700))
-            markets = LendingViewModel.sampleMarkets
-            position = LendingViewModel.samplePosition
-            isLoading = false
-        } catch {
-            errorMessage = "Unable to load lending markets."
-            isLoading = false
-        }
+        markets = LendingViewModel.sampleMarkets
+        position = LendingViewModel.samplePosition
+        isDemo = true
+        isLoading = false
     }
 
     func beginAction(_ action: LendingAction, market: LendingMarketDisplay) {
@@ -190,6 +193,11 @@ struct LendingView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Lending")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
             .sheet(isPresented: $viewModel.showActionSheet) {
                 actionSheet

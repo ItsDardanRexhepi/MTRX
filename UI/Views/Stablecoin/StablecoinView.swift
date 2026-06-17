@@ -37,6 +37,7 @@ class StablecoinViewModel: ObservableObject {
     @Published var fromToken: String = "USDC"
     @Published var toToken: String = "DAI"
     @Published var isConverting: Bool = false
+    @Published var isDemo: Bool = false
 
     var availableTokens: [String] {
         balances.map(\.symbol)
@@ -46,15 +47,45 @@ class StablecoinViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        do {
-            try await Task.sleep(for: .milliseconds(700))
-            balances = StablecoinViewModel.sampleBalances
-            pegStatuses = StablecoinViewModel.samplePegStatuses
-            isLoading = false
-        } catch {
-            errorMessage = "Unable to load stablecoin data."
-            isLoading = false
+        // Live peg status (global) + balances (per-wallet) from StablecoinService
+        // when configured; else demo.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let pegs = try await StablecoinService.shared.getPegStatus()
+                pegStatuses = pegs.map {
+                    PegItem(
+                        symbol: $0.symbol,
+                        currentPrice: String(format: "$%.4f", $0.currentPrice),
+                        deviation: String(format: "%+.2f%%", $0.pegDeviation),
+                        status: $0.status
+                    )
+                }
+                if let address = MtrxSession.walletAddress {
+                    let live = try await StablecoinService.shared.getStablecoinBalances(address: address)
+                    balances = live.map {
+                        StablecoinItem(
+                            symbol: $0.symbol,
+                            balance: String(format: "%.2f", $0.balance),
+                            usdValue: String(format: "$%.2f", $0.usdValue),
+                            yieldAPY: $0.yieldAPY.map { String(format: "%.1f%%", $0) }
+                        )
+                    }
+                } else {
+                    // No signed-in wallet yet: no balances to show (peg status is global).
+                    balances = []
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live stablecoin data unavailable — showing demo."
+            }
         }
+
+        balances = StablecoinViewModel.sampleBalances
+        pegStatuses = StablecoinViewModel.samplePegStatuses
+        isDemo = true
+        isLoading = false
     }
 
     func convert() async {
@@ -113,6 +144,11 @@ struct StablecoinView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Stablecoins")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
         }
     }

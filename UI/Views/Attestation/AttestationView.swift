@@ -27,6 +27,11 @@ class AttestationViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showCreate: Bool = false
     @Published var selectedTab: Int = 0
+    @Published var isDemo: Bool = false
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "MMM dd, yyyy"; return f
+    }()
 
     // Create form
     @Published var createSchema: String = ""
@@ -48,15 +53,32 @@ class AttestationViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        do {
-            try await Task.sleep(for: .milliseconds(600))
-            received = AttestationViewModel.sampleReceived
-            issued = AttestationViewModel.sampleIssued
-            isLoading = false
-        } catch {
-            errorMessage = "Unable to load attestations."
-            isLoading = false
+        // Live from AttestationService (per-wallet) when configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let live = try await AttestationService.shared.getAttestationsForAddress(address: address)
+                let items = live.map { a in
+                    AttestationItem(
+                        uid: a.uid, schema: a.schema, attester: a.attester,
+                        recipient: a.recipient,
+                        timestamp: Self.dateFormatter.string(from: a.timestamp),
+                        isRevoked: a.isRevoked
+                    )
+                }
+                received = items.filter { $0.recipient.lowercased() == address.lowercased() }
+                issued = items.filter { $0.attester.lowercased() == address.lowercased() }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live attestations unavailable — showing demo."
+            }
         }
+
+        received = AttestationViewModel.sampleReceived
+        issued = AttestationViewModel.sampleIssued
+        isDemo = true
+        isLoading = false
     }
 
     func createAttestation() async {
@@ -136,6 +158,9 @@ struct AttestationView: View {
             .navigationTitle("Attestations")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         viewModel.showCreate = true

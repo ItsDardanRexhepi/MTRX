@@ -27,6 +27,11 @@ class AlertsViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var showCreateAlert: Bool = false
+    @Published var isDemo: Bool = false
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "MMM dd, yyyy"; return f
+    }()
 
     let conditions = ["above", "below"]
 
@@ -54,14 +59,30 @@ class AlertsViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        do {
-            try await Task.sleep(for: .milliseconds(500))
-            alerts = AlertsViewModel.sampleAlerts
-            isLoading = false
-        } catch {
-            errorMessage = "Unable to load alerts."
-            isLoading = false
+        // Live from AlertsService (per-wallet) when configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let live = try await AlertsService.shared.getAlerts(address: address)
+                alerts = live.map { a in
+                    AlertItem(
+                        token: a.token,
+                        condition: a.condition.rawValue,
+                        targetPrice: String(format: "$%.2f", a.targetPrice),
+                        createdAt: Self.dateFormatter.string(from: a.createdAt),
+                        triggered: a.triggeredAt != nil
+                    )
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live alerts unavailable — showing demo."
+            }
         }
+
+        alerts = AlertsViewModel.sampleAlerts
+        isDemo = true
+        isLoading = false
     }
 
     func createAlert() async {
@@ -118,6 +139,9 @@ struct AlertsView: View {
             .navigationTitle("Alerts")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         viewModel.showCreateAlert = true

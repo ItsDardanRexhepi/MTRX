@@ -33,6 +33,11 @@ class LoyaltyViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isClaiming: Bool = false
     @Published var selectedSegment: String = "Earn"
+    @Published var isDemo: Bool = false
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "MMM dd, yyyy"; return f
+    }()
 
     let segments = ["Earn", "Redeem"]
 
@@ -52,27 +57,36 @@ class LoyaltyViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        // Live programs + cashback from the gateway; fall back to samples.
-        if let live = try? await MTRXAPIClient.shared.loyalty(),
-           !(live.programs.isEmpty && live.cashback.isEmpty) {
-            programs = live.programs.map { ProgramItem(name: $0.name, points: $0.points, tierName: $0.tierName) }
-            cashback = live.cashback.map {
-                CashbackItem(source: $0.source, amount: $0.amount, token: $0.token,
-                             earnedAt: $0.earnedAt, claimed: $0.claimed)
+        // Live programs + cashback from LoyaltyService (per-wallet) when
+        // configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                async let livePrograms = LoyaltyService.shared.getLoyaltyPoints(address: address)
+                async let liveCashback = LoyaltyService.shared.getCashback(address: address)
+                programs = try await livePrograms.map {
+                    ProgramItem(name: $0.name, points: $0.points, tierName: $0.tierName)
+                }
+                cashback = try await liveCashback.map {
+                    CashbackItem(
+                        source: $0.source,
+                        amount: String(format: "%.4f", $0.amount),
+                        token: $0.token,
+                        earnedAt: Self.dateFormatter.string(from: $0.earnedAt),
+                        claimed: $0.claimed
+                    )
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live loyalty data unavailable — showing demo."
             }
-            isLoading = false
-            return
         }
 
-        do {
-            try await Task.sleep(for: .milliseconds(700))
-            programs = LoyaltyViewModel.samplePrograms
-            cashback = LoyaltyViewModel.sampleCashback
-            isLoading = false
-        } catch {
-            errorMessage = "Unable to load loyalty data."
-            isLoading = false
-        }
+        programs = LoyaltyViewModel.samplePrograms
+        cashback = LoyaltyViewModel.sampleCashback
+        isDemo = true
+        isLoading = false
     }
 
     func claimCashback(_ item: CashbackItem) async {
@@ -151,6 +165,11 @@ struct LoyaltyView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Loyalty")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
         }
     }
