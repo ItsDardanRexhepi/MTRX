@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Models
 
-struct ContentPost: Codable, Identifiable {
+struct SvcContentPost: Codable, Identifiable {
     var id: String { contentId }
     let contentId: String
     let title: String
@@ -24,11 +24,11 @@ final class ContentService {
 
     private init() {}
 
-    func getFeed(addresses: [String]) async throws -> [ContentPost] {
+    func getFeed(addresses: [String]) async throws -> [SvcContentPost] {
         try await api.post(path: "/content/feed", body: ["addresses": addresses])
     }
 
-    func publishContent(title: String, body: String, attachments: [Data]) async throws -> ContentPost {
+    func publishContent(title: String, body: String, attachments: [Data]) async throws -> SvcContentPost {
         struct PublishBody: Codable {
             let title: String
             let body: String
@@ -39,11 +39,11 @@ final class ContentService {
         return try await api.post(path: "/content", body: payload)
     }
 
-    func getContent(contentId: String) async throws -> ContentPost {
+    func getContent(contentId: String) async throws -> SvcContentPost {
         try await api.get(path: "/content/\(contentId)")
     }
 
-    func getUserContent(address: String) async throws -> [ContentPost] {
+    func getUserContent(address: String) async throws -> [SvcContentPost] {
         try await api.get(path: "/content", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])

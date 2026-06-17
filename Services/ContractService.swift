@@ -31,7 +31,7 @@ struct SvcContractResult: Codable {
     let displayValue: String
 }
 
-struct ContractTemplate: Codable, Identifiable {
+struct SvcContractTemplate: Codable, Identifiable {
     var id: String { templateId }
     let templateId: String
     let name: String
@@ -92,7 +92,7 @@ final class ContractService {
         return try await api.post(path: "/contracts/\(contract)/write", body: body)
     }
 
-    func getTemplates() async throws -> [ContractTemplate] {
+    func getTemplates() async throws -> [SvcContractTemplate] {
         try await api.get(path: "/contracts/templates")
     }
 

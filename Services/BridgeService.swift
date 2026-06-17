@@ -14,20 +14,20 @@ struct BridgeRoute: Codable, Identifiable {
     let provider: String
 }
 
-struct BridgeTransaction: Codable, Identifiable {
+struct SvcBridgeTransaction: Codable, Identifiable {
     var id: String { txId }
     let txId: String
     let fromChain: String
     let toChain: String
     let token: String
     let amount: String
-    let status: BridgeStatus
+    let status: SvcBridgeStatus
     let sourceTxHash: String?
     let destinationTxHash: String?
     let createdAt: Date
 }
 
-enum BridgeStatus: String, Codable {
+enum SvcBridgeStatus: String, Codable {
     case pending
     case confirming
     case arrived
@@ -37,9 +37,9 @@ enum BridgeStatus: String, Codable {
 // MARK: - Service
 
 @MainActor
-final class BridgeService {
+final class BridgeGatewayService {
 
-    static let shared = BridgeService()
+    static let shared = BridgeGatewayService()
     private let api = MTRXAPIClient.shared
 
     private init() {}
@@ -53,11 +53,11 @@ final class BridgeService {
         ])
     }
 
-    func executeBridge(route: BridgeRoute) async throws -> BridgeTransaction {
+    func executeBridge(route: BridgeRoute) async throws -> SvcBridgeTransaction {
         try await api.post(path: "/bridge/execute", body: route)
     }
 
-    func getBridgeStatus(txId: String) async throws -> BridgeTransaction {
+    func getBridgeStatus(txId: String) async throws -> SvcBridgeTransaction {
         try await api.get(path: "/bridge/status/\(txId)")
     }
 }
