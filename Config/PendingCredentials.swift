@@ -59,6 +59,36 @@ enum PendingCredentials {
         filled(Backend.gatewayURL) != nil
     }
 
+    /// True once Apple Pay can take a REAL charge: a registered merchant id and
+    /// a server-side processor endpoint that decrypts the payment token and
+    /// charges the card. While false, the Apple Pay button stays hidden — the
+    /// app never reports a successful charge it didn't make.
+    static var isApplePayConfigured: Bool {
+        filled(Payments.applePayMerchantID) != nil
+            && filled(Payments.applePayProcessorChargeURL) != nil
+    }
+
+    // MARK: - Payments (Apple Pay)
+
+    enum Payments {
+
+        /// Apple Pay merchant identifier, registered in the Apple Developer
+        /// portal and enabled on the app's Apple Pay capability.
+        /// Format: `merchant.com.yourcompany.app`.
+        static let applePayMerchantID = ""
+
+        /// HTTPS endpoint on YOUR server that receives the encrypted Apple Pay
+        /// payment token, submits it to your payment processor (Stripe /
+        /// Braintree / Adyen / …) to charge the card, and returns HTTP 200 only
+        /// on a confirmed charge. The app POSTs the token here and reports
+        /// success ONLY when this endpoint confirms — never optimistically.
+        static let applePayProcessorChargeURL = ""
+
+        /// ISO country + currency for the Apple Pay sheet.
+        static let countryCode = "US"
+        static let currencyCode = "USD"
+    }
+
     // MARK: - Network (JSON-RPC + realtime)
 
     enum Network {
