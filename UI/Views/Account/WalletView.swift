@@ -507,6 +507,8 @@ struct AccountWalletView: View {
             .foregroundColor(viewModel.isPositive ? .priceUp : .priceDown)
         }
         .padding()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(VoiceOverSupport.portfolioLabel(value: viewModel.totalValue, change: viewModel.change24h, isPositive: viewModel.isPositive))
     }
 
     // MARK: - Action Buttons
@@ -574,6 +576,7 @@ struct AccountWalletView: View {
         }
         .pickerStyle(.segmented)
         .padding(.horizontal)
+        .accessibilityLabel("Portfolio view")
     }
 
     // MARK: - Tab Content
@@ -1004,6 +1007,7 @@ struct AddAccountSheet: View {
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal, Spacing.contentPadding)
+                    .accessibilityLabel("Account type")
 
                     Text(kind == .bank
                          ? "Securely connect a bank — we never see or store your login, only your balance."
@@ -1111,6 +1115,7 @@ struct AddAccountSheet: View {
                     .foregroundStyle(.white, Color.statusError)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(acct.name)")
         }
         .padding(Spacing.ms)
         .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.md)
