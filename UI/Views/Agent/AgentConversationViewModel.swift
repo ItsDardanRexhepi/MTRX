@@ -852,6 +852,14 @@ final class AgentConversationViewModel: ObservableObject {
             pendingAction = nil
         }
 
+        // 1.5 — Apple Music control (MusicKit). Trinity can search and play
+        // whatever the user asks, plus pause / skip / repeat, when Apple Music
+        // is connected. If it isn't, MusicKitManager returns an honest message.
+        if let cmd = parseMusicCommand(lower: lower, original: text.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            handleMusicCommand(cmd)
+            return true
+        }
+
         // 2 — Live wallet queries: when Apple Intelligence is available it
         // answers these naturally (the prompt carries live wallet context),
         // so the static summary only serves devices without it.
@@ -1105,6 +1113,62 @@ final class AgentConversationViewModel: ObservableObject {
             """
         }
         messages.append(AgentMessage(text: text, role: .agent, agentName: name))
+    }
+
+    // MARK: - Apple Music control
+
+    private enum MusicCommand { case play(String), pause, resume, next, previous }
+
+    /// Detects a music request in natural language. Returns nil for anything
+    /// that isn't clearly about music so other intents aren't hijacked.
+    private func parseMusicCommand(lower: String, original: String) -> MusicCommand? {
+        if lower == "pause" || lower.contains("pause music") || lower.contains("pause the music")
+            || lower.contains("stop the music") || lower.contains("stop music") { return .pause }
+        if lower == "skip" || lower.contains("next song") || lower.contains("skip song")
+            || lower.contains("next track") || lower.contains("skip this") || lower.contains("skip the song") { return .next }
+        if lower.contains("previous song") || lower.contains("previous track")
+            || lower.contains("go back a song") || lower.contains("last song") || lower.contains("play that again") { return .previous }
+        if lower == "resume" || lower.contains("resume music") || lower == "play music"
+            || lower == "play" || lower.contains("keep playing") || lower.contains("unpause") { return .resume }
+
+        let triggers = ["play me ", "play some ", "put on ", "queue up ", "play "]
+        for t in triggers where lower.hasPrefix(t) {
+            if lower.contains(" game") || lower.hasSuffix(" game") || lower.contains("video") { return nil }
+            var q = String(original.dropFirst(t.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            for p in ["the song ", "a song ", "song ", "the track ", "track ", "some "] where q.lowercased().hasPrefix(p) {
+                q = String(q.dropFirst(p.count)); break
+            }
+            q = q.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !q.isEmpty { return .play(q) }
+        }
+        return nil
+    }
+
+    private func handleMusicCommand(_ cmd: MusicCommand) {
+        let music = MusicKitManager.shared
+        switch cmd {
+        case .play(let query):
+            Task { @MainActor in
+                let outcome = await music.play(query: query)
+                respondAsTrinity(outcome.message)
+            }
+        case .pause:
+            if music.isPlaying { music.togglePlayPause(); respondAsTrinity("Paused.") }
+            else { respondAsTrinity(music.hasNowPlaying ? "Already paused." : "Nothing's playing right now.") }
+        case .resume:
+            if music.hasNowPlaying {
+                if !music.isPlaying { music.togglePlayPause() }
+                respondAsTrinity("Playing.")
+            } else {
+                respondAsTrinity("Tell me what to play and I'll start it — as long as your Apple Music is connected in the player.")
+            }
+        case .next:
+            if music.hasNowPlaying { music.skipNext(); respondAsTrinity("Skipped ahead.") }
+            else { respondAsTrinity("Nothing's playing to skip.") }
+        case .previous:
+            if music.hasNowPlaying { music.skipPrevious(); respondAsTrinity("Back a track.") }
+            else { respondAsTrinity("Nothing's playing.") }
+        }
     }
 
     private func livePortfolioSummary(_ wm: WalletManager) -> String {
