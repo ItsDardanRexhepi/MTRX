@@ -159,6 +159,7 @@ struct ComputeView: View {
                         viewModel.showSubmit = true
                     } label: {
                         Image(systemName: Symbols.addCircle)
+                            .accessibilityLabel("Submit compute job")
                             .foregroundStyle(Color.accentPrimary)
                     }
                 }

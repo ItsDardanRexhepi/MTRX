@@ -149,6 +149,7 @@ struct AlertsView: View {
                         Image(systemName: "plus.circle.fill")
                             .foregroundStyle(Color(red: 0.0, green: 0.675, blue: 0.694))
                     }
+                    .accessibilityLabel("Create alert")
                 }
             }
             .task { await viewModel.load() }

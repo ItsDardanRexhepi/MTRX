@@ -197,6 +197,7 @@ struct DisputeView: View {
                         MtrxHaptics.impact(.medium)
                     } label: {
                         Image(systemName: Symbols.add)
+                            .accessibilityLabel("Create dispute")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 56, height: 56)

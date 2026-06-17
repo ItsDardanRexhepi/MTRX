@@ -187,6 +187,7 @@ struct StreamingView: View {
                     MtrxHaptics.impact(.medium)
                 } label: {
                     Image(systemName: Symbols.add)
+                        .accessibilityLabel("Create payment stream")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 56, height: 56)

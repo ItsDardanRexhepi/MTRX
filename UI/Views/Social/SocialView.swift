@@ -1412,6 +1412,7 @@ struct SocialView: View {
             MtrxHaptics.impact(.medium)
         } label: {
             Image(systemName: Symbols.add)
+                .accessibilityLabel("New post")
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 56, height: 56)
@@ -3749,7 +3750,7 @@ struct SocialListsSheet: View {
                         .foregroundStyle(Color.accentPrimary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showCreate = true } label: { Image(systemName: "plus") }
+                    Button { showCreate = true } label: { Image(systemName: "plus").accessibilityLabel("New list") }
                         .foregroundStyle(Color.accentPrimary)
                 }
             }

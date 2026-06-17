@@ -184,6 +184,7 @@ struct EventsView: View {
                         viewModel.showCreate = true
                     } label: {
                         Image(systemName: Symbols.addCircle)
+                            .accessibilityLabel("Create event")
                             .foregroundStyle(Color.accentPrimary)
                     }
                 }

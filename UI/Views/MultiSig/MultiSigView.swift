@@ -193,6 +193,7 @@ struct MultiSigView: View {
                             MtrxHaptics.impact(.medium)
                         } label: {
                             Image(systemName: Symbols.addCircle)
+                                .accessibilityLabel("Create multisig wallet")
                                 .foregroundStyle(accent)
                         }
                     }

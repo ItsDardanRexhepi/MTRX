@@ -274,6 +274,7 @@ struct MessagingView: View {
                         MtrxHaptics.selection()
                     } label: {
                         Image(systemName: Symbols.add)
+                            .accessibilityLabel("New message")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(Color.accentPrimary)
                     }

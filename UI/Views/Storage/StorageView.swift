@@ -247,6 +247,7 @@ struct StorageView: View {
                         viewModel.showUpload = true
                     } label: {
                         Image(systemName: Symbols.addCircle)
+                            .accessibilityLabel("Upload file")
                             .foregroundStyle(Color.accentPrimary)
                     }
                 }
