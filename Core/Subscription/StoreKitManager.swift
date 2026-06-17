@@ -6,8 +6,8 @@
 // trial detection, and subscription lifecycle.
 //
 // Product IDs (configured in App Store Connect):
-//   com.opnmatrx.mtrx.pro.monthly        — $4.99/month with 3-day free trial
-//   com.opnmatrx.mtrx.enterprise.monthly — $19.99/month with 3-day free trial
+//   com.opnmatrx.mtrx.pro.monthly        — $9.99/month with 3-day free trial
+//   com.opnmatrx.mtrx.enterprise.monthly — $39.99/month with 3-day free trial
 //
 // Both paid tiers offer a 3-day introductory offer (free trial) configured
 // as a "Pay as you go" introductory offer in App Store Connect.

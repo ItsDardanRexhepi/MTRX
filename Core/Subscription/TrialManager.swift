@@ -4,7 +4,7 @@
 // Tracks trial status, provides countdown display, and handles
 // the transition from trial to paid/free tier.
 //
-// Both Pro ($4.99/mo) and Enterprise ($19.99/mo) offer a 3-day free trial.
+// Both Pro ($9.99/mo) and Enterprise ($39.99/mo) offer a 3-day free trial.
 // During the trial, users get full access to their chosen tier's features.
 // After the trial ends, they auto-convert to paid subscribers unless they cancel,
 // in which case they fall back to the Free tier.

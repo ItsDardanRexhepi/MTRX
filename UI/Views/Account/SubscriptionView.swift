@@ -420,7 +420,7 @@ struct SubscriptionView: View {
         storeKit.product(for: tier)
     }
 
-    /// Real, store-provided localized price (e.g. "$4.99"); placeholder while loading.
+    /// Real, store-provided localized price (e.g. "$9.99"); placeholder while loading.
     private func priceText(for tier: SubscriptionTier) -> String {
         if tier == .free { return "Free" }
         return product(for: tier)?.displayPrice ?? "\u{2014}"
