@@ -83,7 +83,16 @@ final class DeployContractViewModel: ObservableObject {
 
         try? await Task.sleep(nanoseconds: 3_000_000_000)
 
-        deployedAddress = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+        // SIMULATED deploy (no chain configured). Derive a deterministic,
+        // content-addressed demo address from the template + params — never the
+        // old hardcoded real Uniswap router address. The real on-chain deploy
+        // runs through the WalletTransactionService pipeline once PendingCredentials
+        // is filled.
+        let seed = (selectedTemplate?.name ?? "contract") + "|" + parameterValues
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: "&")
+        deployedAddress = DemoArtifacts.address(seed: seed)
         isDeploying = false
         showConfirmation = false
         MtrxHaptics.success()

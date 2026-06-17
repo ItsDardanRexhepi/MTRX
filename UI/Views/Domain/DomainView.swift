@@ -69,7 +69,7 @@ final class DomainViewModel: ObservableObject {
                 name: result.name,
                 expiryDate: Calendar.current.date(byAdding: .year, value: selectedDuration.years, to: Date()) ?? Date(),
                 isPrimary: userDomains.isEmpty,
-                resolvedAddress: "0x1a2b3c4d5e6f7890abcdef1234567890abcdef12"
+                resolvedAddress: DemoArtifacts.address(seed: "ens|\(result.name)")
             )
             userDomains.insert(newDomain, at: 0)
         }
@@ -523,19 +523,19 @@ struct ENSDomain: Identifiable {
             name: "neomatic.eth",
             expiryDate: Calendar.current.date(byAdding: .year, value: 2, to: Date()) ?? Date(),
             isPrimary: true,
-            resolvedAddress: "0x1a2b3c4d5e6f7890abcdef1234567890abcdef12"
+            resolvedAddress: DemoArtifacts.address(seed: "ens|neomatic.eth")
         ),
         ENSDomain(
             name: "mtrx-dev.eth",
             expiryDate: Calendar.current.date(byAdding: .month, value: 4, to: Date()) ?? Date(),
             isPrimary: false,
-            resolvedAddress: "0x1a2b3c4d5e6f7890abcdef1234567890abcdef12"
+            resolvedAddress: DemoArtifacts.address(seed: "ens|mtrx-dev.eth")
         ),
         ENSDomain(
             name: "trinity-ai.eth",
             expiryDate: Calendar.current.date(byAdding: .month, value: 2, to: Date()) ?? Date(),
             isPrimary: false,
-            resolvedAddress: "0x9f8e7d6c5b4a3210fedcba0987654321fedcba09"
+            resolvedAddress: DemoArtifacts.address(seed: "ens|trinity-ai.eth")
         ),
     ]
 }

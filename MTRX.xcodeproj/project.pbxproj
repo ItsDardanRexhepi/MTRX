@@ -276,6 +276,7 @@
 		354C1A418EDECABAAE91E966 /* IntentQueueService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD6F05763125332E2E905F3 /* IntentQueueService.swift */; };
 		CF6505A67436A73292D272AA /* WalletCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F90F7DC46C3D286B5024A8F /* WalletCore.swift */; };
 		D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */; };
+		7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */; };
 		7BA4A0A8EC45F85DD7C5E33B /* BiometricAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F0C10543A3899A4D41B2BCE /* BiometricAuth.swift */; };
 		B9521CFFF743D951E60FE2C5 /* WalletSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D87F42BA86A106D90185132 /* WalletSync.swift */; };
 		E89DA464BAA3574A5A5D44F3 /* LedgerBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E76603E0373DA6297E6253 /* LedgerBridge.swift */; };
@@ -579,6 +580,7 @@
 		3CD6F05763125332E2E905F3 /* IntentQueueService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IntentQueueService.swift"; path = "Services/IntentQueueService.swift"; sourceTree = SOURCE_ROOT; };
 		6F90F7DC46C3D286B5024A8F /* WalletCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WalletCore.swift"; path = "Core/Wallet/WalletCore.swift"; sourceTree = SOURCE_ROOT; };
 		1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SecureEnclaveManager.swift"; path = "Core/Wallet/SecureEnclaveManager.swift"; sourceTree = SOURCE_ROOT; };
+		7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DemoArtifacts.swift"; path = "Core/Utilities/DemoArtifacts.swift"; sourceTree = SOURCE_ROOT; };
 		4F0C10543A3899A4D41B2BCE /* BiometricAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "BiometricAuth.swift"; path = "Core/Wallet/BiometricAuth.swift"; sourceTree = SOURCE_ROOT; };
 		2D87F42BA86A106D90185132 /* WalletSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WalletSync.swift"; path = "Core/Wallet/WalletSync.swift"; sourceTree = SOURCE_ROOT; };
 		C9E76603E0373DA6297E6253 /* LedgerBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LedgerBridge.swift"; path = "Core/Wallet/LedgerBridge.swift"; sourceTree = SOURCE_ROOT; };
@@ -1699,6 +1701,7 @@
 				9B0D61499BEA348A65C8FB76 /* TrinitySiri.swift in Sources */,
 				CF6505A67436A73292D272AA /* WalletCore.swift in Sources */,
 				D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */,
+				7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */,
 				7BA4A0A8EC45F85DD7C5E33B /* BiometricAuth.swift in Sources */,
 				B9521CFFF743D951E60FE2C5 /* WalletSync.swift in Sources */,
 				E89DA464BAA3574A5A5D44F3 /* LedgerBridge.swift in Sources */,

@@ -247,7 +247,7 @@ final class WalletViewModel: ObservableObject {
         formatter.dateStyle = .medium
         transactions = DemoDataProvider.transactions.map { tx in
             TransactionInfo(
-                hash: "0x" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(16)),
+                hash: String(DemoArtifacts.hash(seed: "tx|\(tx.title)|\(tx.amount)|\(tx.date.timeIntervalSince1970)").prefix(18)),
                 description_: tx.title,
                 amount: tx.amount,
                 date: formatter.string(from: tx.date),
@@ -1118,12 +1118,15 @@ struct AddAccountSheet: View {
         connecting = provider
         MtrxHaptics.impact(.medium)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
-            let balance = Double(Int.random(in: 500...25_000)) + Double(Int.random(in: 0...99)) / 100
+            // Honest demo link: a deterministic masked detail and a ZERO balance
+            // (not a fabricated random dollar amount that would inflate the
+            // portfolio total). A real balance arrives once the account is synced.
+            let demoAddr = DemoArtifacts.address(seed: "linked|\(provider)")
             let detail = kind == .bank
-                ? "••••\(Int.random(in: 1000...9999))"
-                : "0x\(String(format: "%04x", Int.random(in: 0...0xffff)))…\(String(format: "%04x", Int.random(in: 0...0xffff)))"
+                ? "••••" + String(demoAddr.suffix(4))
+                : String(demoAddr.prefix(6)) + "…" + String(demoAddr.suffix(4))
             walletManager.addLinkedAccount(
-                LinkedAccount(kind: kind, name: provider, detail: detail, balanceUSD: balance)
+                LinkedAccount(kind: kind, name: provider, detail: detail, balanceUSD: 0)
             )
             connecting = nil
             MtrxHaptics.success()

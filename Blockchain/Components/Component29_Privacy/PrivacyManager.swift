@@ -249,14 +249,12 @@ final class PrivacyManager: ObservableObject {
         "shielded_\(UUID().uuidString.prefix(16))"
     }
 
+    /// A real Groth16 proof requires an actual prover (circuit + proving key),
+    /// which isn't available on-device. We do NOT fabricate a zero-byte proof
+    /// with a random verification key — we fail honestly so callers can route to
+    /// a real prover or surface the limitation.
     private func generateZKProof(sender: String, amount: Double) throws -> ZKProof {
-        ZKProof(
-            proofData: Data(repeating: 0, count: 32).base64EncodedString(),
-            publicInputs: [sender],
-            verificationKey: UUID().uuidString,
-            proofType: .groth16,
-            generatedAt: Date()
-        )
+        throw PrivacyError.proofGenerationFailed("On-device ZK proving is unavailable — supply a proof from a real prover.")
     }
 }
 

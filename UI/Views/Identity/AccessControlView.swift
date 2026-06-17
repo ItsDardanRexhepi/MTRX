@@ -62,7 +62,7 @@ final class AccessControlViewModel: ObservableObject {
             guard let self else { return }
             let newRole = ContractRole(
                 contractName: self.grantContract,
-                contractAddress: "0x\(UUID().uuidString.prefix(8))...",
+                contractAddress: String(DemoArtifacts.address(seed: "role|\(self.grantContract)").prefix(10)) + "…",
                 role: self.grantRole,
                 grantedBy: "You",
                 grantedDate: Date(),

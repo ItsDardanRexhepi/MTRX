@@ -108,7 +108,7 @@ final class ContractViewModel: ObservableObject {
                 DeployedContractsStore.shared.items.insert(ContractListItem(
                     title: self.contractName.isEmpty ? template.rawValue : self.contractName,
                     contractType: template.rawValue,
-                    counterparty: "0x" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)).lowercased() + "…",
+                    counterparty: String(DemoArtifacts.address(seed: "contract|\(self.contractName)|\(template.rawValue)").prefix(10)) + "…",
                     value: "$0.00",
                     valueNumeric: 0,
                     status: .active,

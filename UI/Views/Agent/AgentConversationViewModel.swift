@@ -941,12 +941,14 @@ final class AgentConversationViewModel: ObservableObject {
             try? await Task.sleep(for: .milliseconds(900))
             isTyping = false
 
-            let txHash = "0x" + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(16).lowercased()
+            // Deterministic DEMO reference (not a random UUID, not a confirmed
+            // on-chain tx). These actions move demo balances only — see wording below.
+            let txHash = String(DemoArtifacts.hash(seed: "\(action)").prefix(18))
             switch action {
             case .send(let amount, let token, let recipient):
                 if wm.demoSend(amount: amount, tokenSymbol: token, recipient: recipient) {
                     respondAsTrinity(
-                        "✅ **Sent.** \(Self.trim(amount)) \(token.uppercased()) is on its way to \(recipient).\n\nTransaction: `\(txHash)`\nStatus: Confirmed · Gas: covered by MTRX\n\nYour updated balance is in Account → Wallet — the transaction is at the top of your history.",
+                        "✅ **Sent (demo).** \(Self.trim(amount)) \(token.uppercased()) moved to \(recipient) in your demo wallet.\n\nDemo reference: `\(txHash)`\nSimulated — not broadcast on-chain · Gas would be covered by MTRX\n\nYour updated demo balance is in Account → Wallet.",
                         actions: [SuggestedAction(title: "Check balance", description: "See updated portfolio", action: "What's my balance?")]
                     )
                 } else {
@@ -958,7 +960,7 @@ final class AgentConversationViewModel: ObservableObject {
                 let formatted = String(format: "%@%.2f", symbol, amount)
                 if wm.demoSendFiat(amount: amount, currency: currency, recipient: recipient) {
                     respondAsTrinity(
-                        "✅ **Sent.** \(formatted) is on its way to \(recipient) — it arrives in seconds, with no fees.\n\nReference: `\(txHash)`\n\nYour cash balance just updated in Account → Wallet.",
+                        "✅ **Sent (demo).** \(formatted) moved to \(recipient) in your demo wallet — instant, no fees.\n\nDemo reference: `\(txHash)` (simulated — not broadcast)\n\nYour demo cash balance just updated in Account → Wallet.",
                         actions: [SuggestedAction(title: "Check balance", description: "See updated portfolio", action: "What's my balance?")]
                     )
                 } else {
@@ -969,7 +971,7 @@ final class AgentConversationViewModel: ObservableObject {
             case .swap(let amount, let from, let to):
                 if let received = wm.demoSwap(amount: amount, from: from, to: to) {
                     respondAsTrinity(
-                        "✅ **Swap complete.** \(Self.trim(amount)) \(from.uppercased()) → \(Self.trim(received)) \(to.uppercased()) at spot rate.\n\nTransaction: `\(txHash)`\nSlippage: 0.04% · Gas: covered by MTRX\n\nBoth balances just updated in your wallet.",
+                        "✅ **Swap complete (demo).** \(Self.trim(amount)) \(from.uppercased()) → \(Self.trim(received)) \(to.uppercased()) at spot rate.\n\nDemo reference: `\(txHash)`\nSimulated — not broadcast on-chain · Gas would be covered by MTRX\n\nBoth demo balances just updated in your wallet.",
                         actions: [SuggestedAction(title: "Check balance", description: "See updated portfolio", action: "What's my balance?")]
                     )
                 } else {
@@ -979,7 +981,7 @@ final class AgentConversationViewModel: ObservableObject {
             case .stake(let amount, let token):
                 if wm.demoStake(amount: amount, tokenSymbol: token) {
                     respondAsTrinity(
-                        "✅ **Staked.** \(Self.trim(amount)) \(token.uppercased()) is now earning **8.7% APY** in MTRX Staking.\n\nTransaction: `\(txHash)`\nRewards accrue continuously — you can unstake anytime.\n\nSee the position under Account → Wallet → DeFi.",
+                        "✅ **Staked (demo).** \(Self.trim(amount)) \(token.uppercased()) is now earning **8.7% APY** in your demo MTRX Staking position.\n\nDemo reference: `\(txHash)`\nSimulated — not broadcast on-chain. Rewards accrue in the demo; you can unstake anytime.\n\nSee the position under Account → Wallet → DeFi.",
                         actions: [SuggestedAction(title: "Check balance", description: "See updated portfolio", action: "What's my balance?")]
                     )
                 } else {
@@ -993,7 +995,7 @@ final class AgentConversationViewModel: ObservableObject {
                 try? await Task.sleep(for: .milliseconds(1400))
                 let address = wm.demoDeployContract(name: name)
                 respondAsTrinity(
-                    "✅ **Deployed.** \"\(name)\" is live on the MTRX network.\n\n• Glasswing audit: **passed** — 0 critical, 0 high findings\n• Morpheus gate: **cleared**\n• Contract: `\(address)`\n• Gas: covered by MTRX\n\nThe deployment is recorded in Account → Wallet → Activity.",
+                    "✅ **Deployed (demo).** \"\(name)\" is live in your demo environment.\n\n• Glasswing audit: **passed** — 0 critical, 0 high findings\n• Morpheus gate: **cleared**\n• Contract (simulated): `\(address)`\n• Gas would be covered by MTRX\n\nSimulated — not broadcast on-chain. The deployment is recorded in Account → Wallet → Activity.",
                     actions: [SuggestedAction(title: "Deploy another", description: "Start a new deployment", action: "Deploy a contract")]
                 )
             }
@@ -1464,7 +1466,7 @@ final class AgentConversationViewModel: ObservableObject {
         let lower = text.lowercased()
 
         if lower.contains("status") || lower.contains("system") {
-            return "System Status Report:\n\n- **Runtime**: All nodes operational\n- **Consensus**: Healthy, 99.97% uptime\n- **API Gateway**: Response time 45ms avg\n- **Smart Contract Engine**: 0 pending deployments\n- **Oracle Network**: All feeds active\n- **Security**: No anomalies detected\n- **Memory**: Trinity memory store healthy, \(Int.random(in: 1000...5000)) entries\n- **Morpheus**: Monitoring active, 0 interventions pending\n\nAll systems nominal. What would you like to inspect?"
+            return "System Status Report _(illustrative — demo environment)_:\n\n- **Runtime**: All nodes operational\n- **Consensus**: Healthy\n- **API Gateway**: Responsive\n- **Smart Contract Engine**: 0 pending deployments\n- **Oracle Network**: All feeds active\n- **Security**: No anomalies detected\n- **Memory**: Trinity memory store healthy\n- **Morpheus**: Monitoring active, 0 interventions pending\n\nAll systems nominal. What would you like to inspect?"
         }
         if lower.contains("deploy") || lower.contains("update") || lower.contains("upgrade") {
             return "Ready for deployment operation. Orchestrated pipeline status:\n\n1. Code compilation — standing by\n2. Glasswing security audit — 12-point vulnerability scan queued\n3. Ultron risk assessment — strategic analysis prepared\n4. Testnet validation — prepared\n5. Morpheus gate — final safety check before mainnet\n6. Mainnet deployment — awaiting your authorization\n\nAll agents coordinated via HiveMind. Provide the deployment target and I will execute. Full audit trail will be maintained."

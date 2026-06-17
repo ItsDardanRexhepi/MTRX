@@ -77,7 +77,8 @@ final class MultiSigViewModel: ObservableObject {
 
         let newWallet = MultiSigWallet(
             name: walletName,
-            address: "0x\(UUID().uuidString.prefix(40).lowercased())",
+            // Simulated address (no chain configured) — deterministic, not a real deploy.
+            address: DemoArtifacts.address(seed: "multisig|\(walletName)|\(validSigners.joined(separator: ","))"),
             threshold: Int(threshold) ?? 2,
             signers: validSigners,
             balanceETH: 0,
@@ -600,7 +601,7 @@ struct MultiSigWallet: Identifiable {
     static let sampleData: [MultiSigWallet] = [
         MultiSigWallet(
             name: "Team Treasury",
-            address: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+            address: DemoArtifacts.address(seed: "Team Treasury"),
             threshold: 2, signers: ["0x1a2b...3c4d", "0x5e6f...7890", "0xabcd...ef01"],
             balanceETH: 12.5, balanceUSD: 42_500,
             pendingTransactions: [
@@ -610,7 +611,7 @@ struct MultiSigWallet: Identifiable {
         ),
         MultiSigWallet(
             name: "Operations Fund",
-            address: "0x3d2341ADb2D31f1c5530cDe13BBFd3A058B32252",
+            address: DemoArtifacts.address(seed: "Operations Fund"),
             threshold: 3, signers: ["0x1a2b...3c4d", "0x5e6f...7890", "0xabcd...ef01", "0x9876...5432"],
             balanceETH: 5.8, balanceUSD: 19_720,
             pendingTransactions: []

@@ -103,7 +103,8 @@ final class KYCViewModel: ObservableObject {
     private func simulateProofProgress() {
         guard proofProgress < 1.0 else {
             isGeneratingProof = false
-            generatedProofID = "zk-\(UUID().uuidString.prefix(12))"
+            // Clearly-labelled demo id (no real prover on-device — see PrivacyManager).
+            generatedProofID = "zk-demo-" + String(DemoArtifacts.hash(seed: "kyc-proof").dropFirst(2).prefix(10))
             return
         }
 

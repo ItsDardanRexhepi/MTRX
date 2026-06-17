@@ -1086,7 +1086,9 @@ class WalletManager: ObservableObject {
     /// activity feed and returns the new contract address.
     @discardableResult
     func demoDeployContract(name: String) -> String {
-        let address = "0x" + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(40).lowercased()
+        // Deterministic, content-derived demo address (no chain configured) — not
+        // a random UUID and not a real deployed contract.
+        let address = DemoArtifacts.address(seed: "deploy|\(name)")
         transactions.insert(TransactionItem(
             type: .contract,
             title: "Deployed \(name)",

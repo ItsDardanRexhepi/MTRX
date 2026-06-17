@@ -66,7 +66,7 @@ class AttestationViewModel: ObservableObject {
         do {
             try await Task.sleep(for: .seconds(1))
             let newAttestation = AttestationItem(
-                uid: "0x\(UUID().uuidString.prefix(16).lowercased())",
+                uid: String(DemoArtifacts.hash(seed: "attest|\(createSchema)|\(createRecipient)").prefix(18)),
                 schema: createSchema,
                 attester: "0x1234...abcd",
                 recipient: createRecipient,
