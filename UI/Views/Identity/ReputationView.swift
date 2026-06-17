@@ -18,6 +18,7 @@ final class ReputationViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isEmpty: Bool = false
+    @Published var isDemo: Bool = false
 
     // MARK: - Computed
 
@@ -43,19 +44,53 @@ final class ReputationViewModel: ObservableObject {
 
     // MARK: - Load
 
-    func loadReputation() {
+    func loadReputation() async {
         isLoading = true
         errorMessage = nil
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-            guard let self else { return }
-            self.score = 742
-            self.breakdown = ScoreComponent.sampleData
-            self.leaderboard = LeaderboardEntry.sampleData
-            self.improvementActions = ImprovementAction.sampleData
-            self.isEmpty = false
-            self.isLoading = false
+        // Live reputation from ReputationService (per-wallet) when configured; else demo.
+        // maxScore caps and component icons are presentation chrome; the scores are real.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let profile = try await ReputationService.shared.getReputation(address: address)
+                async let leaderboardReq = ReputationService.shared.getLeaderboard(limit: 20)
+                async let actionsReq = ReputationService.shared.getImprovementActions(address: address)
+                score = profile.score
+                breakdown = [
+                    ScoreComponent(name: "Transaction History", score: profile.breakdown.transactionScore, maxScore: 250, icon: "arrow.left.arrow.right"),
+                    ScoreComponent(name: "Governance", score: profile.breakdown.governanceScore, maxScore: 250, icon: "person.3.fill"),
+                    ScoreComponent(name: "Attestations", score: profile.breakdown.attestationScore, maxScore: 250, icon: "checkmark.seal.fill"),
+                    ScoreComponent(name: "Longevity", score: profile.breakdown.longevityScore, maxScore: 250, icon: "clock.fill"),
+                ]
+                leaderboard = try await leaderboardReq.map { p in
+                    LeaderboardEntry(rank: p.rank, address: p.ens ?? p.address, score: p.score, tier: p.tier)
+                }
+                improvementActions = try await actionsReq.map { a in
+                    ImprovementAction(
+                        title: a.action, description: a.category, points: a.pointsGain,
+                        icon: "star.circle.fill",
+                        difficulty: ImprovementAction.Difficulty(rawValue: a.difficulty.capitalized) ?? .medium
+                    )
+                }
+                isEmpty = false
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                // This screen renders an error view whenever errorMessage is set, so
+                // fall through to labeled demo data silently rather than blocking it.
+            }
         }
+
+        errorMessage = nil
+        try? await Task.sleep(for: .milliseconds(800))
+        score = 742
+        breakdown = ScoreComponent.sampleData
+        leaderboard = LeaderboardEntry.sampleData
+        improvementActions = ImprovementAction.sampleData
+        isEmpty = false
+        isDemo = true
+        isLoading = false
     }
 }
 
@@ -161,7 +196,12 @@ struct ReputationView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Reputation")
             .navigationBarTitleDisplayMode(.large)
-            .onAppear { viewModel.loadReputation() }
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
+            .task { await viewModel.loadReputation() }
         }
     }
 
