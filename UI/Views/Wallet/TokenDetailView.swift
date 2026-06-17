@@ -251,6 +251,7 @@ struct TokenDetailView: View {
                             .font(.mtrxMonoSmall)
                             .foregroundStyle(Color.labelPrimary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
 
                     Spacer()
@@ -373,6 +374,7 @@ struct TokenDetailView: View {
                     .font(.mtrxMono)
                     .foregroundStyle(Color.labelPrimary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(tx.timestamp.relativeFormatted)
                     .font(.mtrxCaption1)
                     .foregroundStyle(Color.labelTertiary)
@@ -547,6 +549,7 @@ struct TokenTransactionHistoryView: View {
                 .font(.mtrxMono)
                 .foregroundStyle(Color.labelPrimary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .padding(.vertical, Spacing.sm)
         .contentShape(Rectangle())

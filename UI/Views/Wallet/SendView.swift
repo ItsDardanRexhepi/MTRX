@@ -384,6 +384,7 @@ struct SendView: View {
                 .font(mono ? .mtrxMonoSmall : .mtrxBody)
                 .foregroundStyle(Color.labelPrimary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
 

@@ -481,6 +481,7 @@ private struct TransactionActivityRow: View {
                     .font(.mtrxCaption1)
                     .foregroundStyle(Color.labelSecondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
 
             Spacer()
@@ -490,6 +491,7 @@ private struct TransactionActivityRow: View {
                     .font(.mtrxMono)
                     .foregroundStyle(amountColor(for: transaction))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 Text(relativeTimestamp(transaction.timestamp))
                     .font(.mtrxCaption2)

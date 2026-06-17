@@ -213,6 +213,7 @@ struct AccountView: View {
                             .font(.mtrxMonoSmall)
                             .foregroundStyle(Color.labelSecondary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                         Button {
                             UIPasteboard.general.string = fullDID
                             withAnimation(Motion.springSnappy) { copiedDID = true }
@@ -953,6 +954,7 @@ struct EditProfileSheet: View {
                                     .font(.mtrxMonoSmall)
                                     .foregroundStyle(Color.labelPrimary)
                                     .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
                                 Spacer()
                                 Image(systemName: Symbols.lock)
                                     .font(.system(size: 12, weight: .medium))

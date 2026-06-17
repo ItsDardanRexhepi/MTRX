@@ -319,6 +319,7 @@ struct WalletView: View {
                     .font(.mtrxMono)
                     .foregroundStyle(Color.labelPrimary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 HStack(spacing: Spacing.xs) {
                     Text(formatUSD(token.valueUSD))
@@ -409,11 +410,13 @@ struct WalletView: View {
                     .font(.mtrxCaptionBold)
                     .foregroundStyle(Color.labelPrimary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 Text(nft.collection)
                     .font(.mtrxCaption2)
                     .foregroundStyle(Color.labelSecondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
 
             HStack {
@@ -639,6 +642,7 @@ struct WalletView: View {
                     .font(.mtrxCaption1)
                     .foregroundStyle(Color.labelSecondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
 
             Spacer()
@@ -648,6 +652,7 @@ struct WalletView: View {
                     .font(.mtrxMono)
                     .foregroundStyle(txAmountColor(tx))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 HStack(spacing: Spacing.xs) {
                     Text(tx.timestamp.formatted(.relative(presentation: .named)))

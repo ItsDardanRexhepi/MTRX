@@ -656,10 +656,12 @@ struct AccountWalletView: View {
                             Text(nft.name)
                                 .font(.caption.weight(.medium))
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                             Text(nft.collection)
                                 .font(.caption2)
                                 .foregroundColor(Color.labelSecondary)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                         }
                     }
                 }
@@ -724,6 +726,7 @@ struct AccountWalletView: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(tx.description_).lineLimit(1).font(.subheadline)
+                            .minimumScaleFactor(0.8)
                             Text(tx.date).font(.caption).foregroundColor(Color.labelSecondary)
                         }
                         Spacer()

@@ -129,6 +129,7 @@ struct ReceiveView: View {
                         .font(.mtrxMonoSmall)
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                         .truncationMode(.middle)
 
                     Image(systemName: Symbols.copy)
