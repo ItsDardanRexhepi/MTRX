@@ -7,6 +7,9 @@
 
 import Foundation
 import CoreLocation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - User Context
 
@@ -22,10 +25,48 @@ struct UserContext: Sendable {
     let deviceState: DeviceState
     let preferences: TrinityUserPreferences
 
-    /// A relevance-scored summary of the most important context items.
+    /// A relevance-scored summary of the most important context items, highest first.
     var highlightedContext: [ContextHighlight] {
-        // TODO: Implement relevance scoring for context items
-        return []
+        var highlights: [ContextHighlight] = []
+
+        // Portfolio alerts are the most actionable signal.
+        if let portfolio = portfolioState {
+            for alert in portfolio.alerts {
+                let score: Double
+                switch alert.severity {
+                case .critical: score = 1.0
+                case .warning: score = 0.75
+                case .info: score = 0.4
+                }
+                highlights.append(ContextHighlight(category: "portfolio", summary: alert.message, relevanceScore: score))
+            }
+            if abs(portfolio.dailyChangePercent) >= 5 {
+                let sign = portfolio.dailyChangePercent >= 0 ? "+" : ""
+                highlights.append(ContextHighlight(
+                    category: "portfolio",
+                    summary: String(format: "Portfolio %@%.1f%% today", sign, portfolio.dailyChangePercent),
+                    relevanceScore: min(1.0, 0.5 + abs(portfolio.dailyChangePercent) / 20.0)
+                ))
+            }
+        }
+
+        // Recent failed transactions warrant attention.
+        let failed = recentTransactions.filter { $0.status.lowercased() == "failed" }
+        if !failed.isEmpty {
+            highlights.append(ContextHighlight(category: "transactions", summary: "\(failed.count) recent transaction(s) failed", relevanceScore: 0.85))
+        }
+
+        // Market open during the session is moderately relevant.
+        if timeContext.marketStatus == .open {
+            highlights.append(ContextHighlight(category: "market", summary: "Market is open", relevanceScore: 0.5))
+        }
+
+        // Wellbeing: short sleep is worth surfacing gently.
+        if let sleep = healthData?.sleepHours, sleep < 6 {
+            highlights.append(ContextHighlight(category: "health", summary: String(format: "Only %.1fh sleep last night", sleep), relevanceScore: 0.6))
+        }
+
+        return highlights.sorted { $0.relevanceScore > $1.relevanceScore }
     }
 }
 
@@ -191,7 +232,7 @@ final class TrinityContext {
         async let transactions = fetchRecentTransactions()
 
         let timeContext = buildTimeContext()
-        let deviceState = fetchDeviceState()
+        let deviceState = await fetchDeviceState()
         let preferences = loadTrinityUserPreferences()
 
         let context = UserContext(
@@ -281,24 +322,42 @@ final class TrinityContext {
         )
     }
 
+    @MainActor
     private func fetchDeviceState() -> DeviceState {
-        // TODO: Integrate with UIDevice / system APIs
+        #if canImport(UIKit)
+        let device = UIDevice.current
+        device.isBatteryMonitoringEnabled = true
+        // batteryLevel is -1 when monitoring is unavailable (e.g. Simulator) → nil.
+        let level: Double? = device.batteryLevel >= 0 ? Double(device.batteryLevel) : nil
+        let charging = device.batteryState == .charging || device.batteryState == .full
+        let brightness: Double? = Double(UIScreen.main.brightness)
+        #else
+        let level: Double? = nil
+        let charging = false
+        let brightness: Double? = nil
+        #endif
         return DeviceState(
-            batteryLevel: nil,
-            isCharging: false,
-            networkType: "wifi",
-            screenBrightness: nil
+            batteryLevel: level,
+            isCharging: charging,
+            networkType: TrinityNetworkMonitor.shared.networkType,
+            screenBrightness: brightness
         )
     }
 
     private func loadTrinityUserPreferences() -> TrinityUserPreferences {
-        // TODO: Load from UserDefaults or SwiftData
+        let defaults = UserDefaults.standard
+        func double(_ key: String, _ fallback: Double) -> Double {
+            defaults.object(forKey: key) != nil ? defaults.double(forKey: key) : fallback
+        }
+        func bool(_ key: String, _ fallback: Bool) -> Bool {
+            defaults.object(forKey: key) != nil ? defaults.bool(forKey: key) : fallback
+        }
         return TrinityUserPreferences(
-            language: Locale.current.language.languageCode?.identifier ?? "en",
-            currency: Locale.current.currency?.identifier ?? "USD",
-            riskTolerance: 0.5,
-            notificationsEnabled: true,
-            voiceEnabled: true
+            language: defaults.string(forKey: "trinity.language") ?? Locale.current.language.languageCode?.identifier ?? "en",
+            currency: defaults.string(forKey: "trinity.currency") ?? Locale.current.currency?.identifier ?? "USD",
+            riskTolerance: double("trinity.riskTolerance", 0.5),
+            notificationsEnabled: bool("trinity.notificationsEnabled", true),
+            voiceEnabled: bool("trinity.voiceEnabled", true)
         )
     }
 }
