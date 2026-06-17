@@ -68,10 +68,15 @@ class BridgeViewModel: ObservableObject {
     @Published var bridgeStatus: BridgeStatus = .idle
     @Published var showSourcePicker: Bool = false
     @Published var showDestPicker: Bool = false
+    /// A real route quote from BridgeService, fetched when a backend is configured.
+    @Published var liveRoute: BridgeRoute?
+    /// True while the fee/time shown are local illustrative estimates (no live route).
+    @Published var isDemo: Bool = true
 
     let availableTokens = ["ETH", "USDC", "USDT", "WBTC", "DAI"]
 
     var estimatedTime: String {
+        if let r = liveRoute { return "Arrives in ~\(r.estimatedTime)" }
         let minutes = max(sourceChain.estimatedMinutes, destinationChain.estimatedMinutes)
         if minutes == 1 {
             return "Arrives in ~1 minute"
@@ -79,7 +84,29 @@ class BridgeViewModel: ObservableObject {
         return "Arrives in ~\(minutes) minutes"
     }
 
-    var bridgeFeeUSD: String { "$1.85" }
+    var bridgeFeeUSD: String {
+        if let r = liveRoute { return r.fee.formatted(.currency(code: "USD")) }
+        return "$1.85"
+    }
+
+    /// Fetch a real bridge route whenever the inputs change and a backend is configured;
+    /// otherwise clear it and fall back to the local illustrative estimate.
+    func refreshQuote() async {
+        guard PendingCredentials.isBackendConfigured, canBridge else {
+            liveRoute = nil
+            isDemo = true
+            return
+        }
+        if let routes = try? await BridgeGatewayService.shared.getBridgeRoutes(
+            fromChain: sourceChain.rawValue, toChain: destinationChain.rawValue,
+            token: token, amount: amount), let best = routes.first {
+            liveRoute = best
+            isDemo = false
+        } else {
+            liveRoute = nil
+            isDemo = true
+        }
+    }
 
     var canBridge: Bool {
         !amount.isEmpty &&
@@ -156,7 +183,15 @@ struct BridgeView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Bridge")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge(label: "Estimated fee") }
+                }
+            }
             .task { await viewModel.load() }
+            .task(id: "\(viewModel.sourceChain.rawValue)|\(viewModel.destinationChain.rawValue)|\(viewModel.token)|\(viewModel.amount)") {
+                await viewModel.refreshQuote()
+            }
         }
     }
 

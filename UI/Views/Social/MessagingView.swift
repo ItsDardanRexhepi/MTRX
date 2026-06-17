@@ -39,6 +39,43 @@ final class MessagingViewModel: ObservableObject {
     @Published var selectedConversation: ChatConversation?
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
+    /// True while the conversation list is the local sample (no live messaging backend).
+    @Published var isDemo: Bool = true
+
+    private static func initials(for name: String) -> String {
+        let parts = name.split(separator: " ")
+        if parts.count >= 2 { return (parts[0].prefix(1) + parts[1].prefix(1)).uppercased() }
+        return name.prefix(2).uppercased()
+    }
+
+    private static func color(for name: String) -> Color {
+        let palette: [Color] = [.accentPrimary, .statusInfo, .statusSuccess, .statusWarning, .purple]
+        return palette[abs(name.hashValue) % palette.count]
+    }
+
+    /// Live conversations from MessagingService when configured; else the local sample.
+    func loadConversations() async {
+        guard PendingCredentials.isBackendConfigured, MtrxSession.walletAddress != nil else {
+            isDemo = true
+            return
+        }
+        if let live = try? await MessagingService.shared.getConversations() {
+            conversations = live.map { c in
+                let name = c.peerENS ?? c.peerAddress
+                return ChatConversation(
+                    id: c.conversationId, contactName: name,
+                    contactInitials: Self.initials(for: name),
+                    contactColor: Self.color(for: name),
+                    lastMessageText: c.lastMessage ?? "",
+                    timestamp: c.lastMessageAt ?? Date(),
+                    unreadCount: c.unreadCount
+                )
+            }
+            isDemo = false
+        } else {
+            isDemo = true
+        }
+    }
 
     /// Incognito chat mode — anything sent while on is ephemeral and
     /// purged the moment the user leaves the mode (or the chat).
@@ -110,13 +147,28 @@ final class MessagingViewModel: ObservableObject {
 
     // MARK: - Load Messages
 
-    func loadMessages(for conversation: ChatConversation) {
+    func loadMessages(for conversation: ChatConversation) async {
         selectedConversation = conversation
 
         // A conversation just started from contacts opens with a clean thread.
         if conversation.isNew {
             messages = []
             return
+        }
+
+        // Live thread from MessagingService when configured; else demo thread.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            if let live = try? await MessagingService.shared.getMessages(conversationId: conversation.id) {
+                messages = live.map { m in
+                    let fromUser = m.senderAddress.lowercased() == address.lowercased()
+                    return ChatMessage(
+                        id: m.messageId, text: m.content, isFromUser: fromUser,
+                        timestamp: m.sentAt,
+                        senderName: fromUser ? "You" : conversation.contactName
+                    )
+                }
+                return
+            }
         }
 
         let now = Date()
@@ -211,7 +263,11 @@ struct MessagingView: View {
                 }
             }
             .navigationTitle("Messages")
+            .task { await viewModel.loadConversations() }
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showNewMessage = true
@@ -399,8 +455,8 @@ struct ConversationDetailView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .onAppear {
-            viewModel.loadMessages(for: conversation)
+        .task {
+            await viewModel.loadMessages(for: conversation)
             appeared = true
         }
         .onDisappear {

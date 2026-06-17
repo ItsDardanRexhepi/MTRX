@@ -23,7 +23,20 @@ struct SwapView: View {
     @State private var showFromPicker: Bool = false
     @State private var showToPicker: Bool = false
 
+    /// A real DEX quote from SwapService, fetched when the backend is configured.
+    /// When nil (no backend, zero amount, or in-flight), the screen falls back to a
+    /// rate derived from the wallet's real token prices.
+    @State private var liveQuote: SwapQuote?
+
     // MARK: - Derived State
+
+    /// The live quote's output amount, but only if it still matches the current inputs.
+    private var liveToAmount: Double? {
+        guard let q = liveQuote,
+              q.fromToken == fromToken.symbol, q.toToken == toToken.symbol,
+              (Double(q.fromAmount) ?? -1) == fromAmount else { return nil }
+        return Double(q.toAmount)
+    }
 
     private var fromToken: AppTokenBalance {
         guard walletManager.tokens.indices.contains(fromTokenIndex) else {
@@ -44,15 +57,18 @@ struct SwapView: View {
     }
 
     private var exchangeRate: Double {
+        if let live = liveToAmount, fromAmount > 0 { return live / fromAmount }
         guard toToken.priceUSD > 0 else { return 0 }
         return fromToken.priceUSD / toToken.priceUSD
     }
 
     private var toAmount: Double {
-        fromAmount * exchangeRate
+        if let live = liveToAmount { return live }
+        return fromAmount * exchangeRate
     }
 
     private var priceImpact: Double {
+        if liveToAmount != nil, let q = liveQuote { return q.priceImpact }
         guard fromAmount > 0 else { return 0 }
         let impact = min(fromAmount * fromToken.priceUSD / 50000.0, 5.0)
         return impact
@@ -98,6 +114,19 @@ struct SwapView: View {
                 withAnimation(Motion.springDefault) {
                     isVisible = true
                 }
+            }
+            // Fetch a real DEX quote whenever the inputs change and a backend is
+            // configured; otherwise clear it and fall back to the price-ratio estimate.
+            .task(id: "\(fromTokenIndex)|\(toTokenIndex)|\(fromAmountText)") {
+                guard PendingCredentials.isBackendConfigured, fromAmount > 0 else {
+                    liveQuote = nil
+                    return
+                }
+                liveQuote = try? await SwapService.shared.getQuote(
+                    fromToken: fromToken.symbol,
+                    toToken: toToken.symbol,
+                    amount: fromAmountText
+                )
             }
         }
         .presentationDetents([.large])
