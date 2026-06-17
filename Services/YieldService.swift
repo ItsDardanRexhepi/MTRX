@@ -53,13 +53,13 @@ final class YieldService {
 
     // MARK: - Deposit to Strategy
 
-    func depositToStrategy(strategyId: String, amount: String, token: String) async throws -> TransactionResult {
+    func depositToStrategy(strategyId: String, amount: String, token: String) async throws -> SvcTransactionResult {
         struct DepositRequest: Encodable {
             let strategyId: String
             let amount: String
             let token: String
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/defi/yield/deposit",
             body: DepositRequest(strategyId: strategyId, amount: amount, token: token)
         )
@@ -68,12 +68,12 @@ final class YieldService {
 
     // MARK: - Withdraw from Strategy
 
-    func withdrawFromStrategy(strategyId: String, amount: String) async throws -> TransactionResult {
+    func withdrawFromStrategy(strategyId: String, amount: String) async throws -> SvcTransactionResult {
         struct WithdrawRequest: Encodable {
             let strategyId: String
             let amount: String
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/defi/yield/withdraw",
             body: WithdrawRequest(strategyId: strategyId, amount: amount)
         )

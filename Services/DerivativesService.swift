@@ -41,10 +41,10 @@ final class DerivativesService {
     private init() {}
 
     func getMarkets() async throws -> [PerpMarket] {
-        try await api.get("/derivatives/markets", queryItems: nil)
+        try await api.get(path: "/derivatives/markets", queryItems: nil)
     }
 
-    func openPosition(market: String, side: PositionSide, size: String, leverage: Int, tp: String?, sl: String?) async throws -> TransactionResult {
+    func openPosition(market: String, side: PositionSide, size: String, leverage: Int, tp: String?, sl: String?) async throws -> SvcTransactionResult {
         var body: [String: String] = [
             "market": market,
             "side": side.rawValue,
@@ -53,15 +53,15 @@ final class DerivativesService {
         ]
         if let tp { body["takeProfit"] = tp }
         if let sl { body["stopLoss"] = sl }
-        return try await api.post("/derivatives/positions", body: body)
+        return try await api.post(path: "/derivatives/positions", body: body)
     }
 
-    func closePosition(positionId: String) async throws -> TransactionResult {
-        try await api.post("/derivatives/positions/\(positionId)/close", body: nil as String?)
+    func closePosition(positionId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/derivatives/positions/\(positionId)/close", body: nil as String?)
     }
 
     func getUserPositions(address: String) async throws -> [PerpPosition] {
-        try await api.get("/derivatives/positions", queryItems: [
+        try await api.get(path: "/derivatives/positions", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }

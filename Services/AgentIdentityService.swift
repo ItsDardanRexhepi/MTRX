@@ -34,18 +34,18 @@ final class AgentIdentityService {
     private init() {}
 
     func getAgentIdentity(address: String) async throws -> AgentIdentityProfile {
-        try await api.get("/agents/\(address)")
+        try await api.get(path: "/agents/\(address)")
     }
 
-    func registerCapability(capability: String) async throws -> TransactionResult {
-        try await api.post("/agents/capabilities", body: ["capability": capability])
+    func registerCapability(capability: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/agents/capabilities", body: ["capability": capability])
     }
 
     func getInteractionHistory(agentId: String) async throws -> [AgentInteraction] {
-        try await api.get("/agents/\(agentId)/interactions")
+        try await api.get(path: "/agents/\(agentId)/interactions")
     }
 
-    func revokeAgent(agentId: String) async throws -> TransactionResult {
-        try await api.post("/agents/\(agentId)/revoke", body: nil as String?)
+    func revokeAgent(agentId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/agents/\(agentId)/revoke", body: nil as String?)
     }
 }

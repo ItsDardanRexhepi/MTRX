@@ -35,20 +35,20 @@ final class RWAService {
     private init() {}
 
     func getRWAAssets() async throws -> [RWAAssetListing] {
-        try await api.get("/rwa/assets", queryItems: nil)
+        try await api.get(path: "/rwa/assets", queryItems: nil)
     }
 
     func getUserHoldings(address: String) async throws -> [RWAHolding] {
-        try await api.get("/rwa/holdings", queryItems: [
+        try await api.get(path: "/rwa/holdings", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func purchaseRWA(assetId: String, amount: String) async throws -> TransactionResult {
-        try await api.post("/rwa/assets/\(assetId)/purchase", body: ["amount": amount])
+    func purchaseRWA(assetId: String, amount: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/rwa/assets/\(assetId)/purchase", body: ["amount": amount])
     }
 
-    func claimYield(holdingId: String) async throws -> TransactionResult {
-        try await api.post("/rwa/holdings/\(holdingId)/claim-yield", body: nil as String?)
+    func claimYield(holdingId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/rwa/holdings/\(holdingId)/claim-yield", body: nil as String?)
     }
 }

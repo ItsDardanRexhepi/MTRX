@@ -38,16 +38,16 @@ final class ReputationService {
     private init() {}
 
     func getReputation(address: String) async throws -> ReputationProfile {
-        try await api.get("/reputation/\(address)")
+        try await api.get(path: "/reputation/\(address)")
     }
 
     func getLeaderboard(limit: Int) async throws -> [ReputationProfile] {
-        try await api.get("/reputation/leaderboard", queryItems: [
+        try await api.get(path: "/reputation/leaderboard", queryItems: [
             URLQueryItem(name: "limit", value: String(limit))
         ])
     }
 
     func getImprovementActions(address: String) async throws -> [ReputationAction] {
-        try await api.get("/reputation/\(address)/actions")
+        try await api.get(path: "/reputation/\(address)/actions")
     }
 }

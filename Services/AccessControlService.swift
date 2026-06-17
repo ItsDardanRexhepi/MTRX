@@ -39,12 +39,12 @@ final class AccessControlService {
     private init() {}
 
     func getUserRoles(address: String) async throws -> [RoleAssignment] {
-        try await api.get("/access-control/roles", queryItems: [
+        try await api.get(path: "/access-control/roles", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func grantRole(contract: String, role: String, to address: String, expiresAt: Date?) async throws -> TransactionResult {
+    func grantRole(contract: String, role: String, to address: String, expiresAt: Date?) async throws -> SvcTransactionResult {
         struct GrantBody: Codable {
             let contract: String
             let role: String
@@ -52,11 +52,11 @@ final class AccessControlService {
             let expiresAt: Date?
         }
         let body = GrantBody(contract: contract, role: role, to: address, expiresAt: expiresAt)
-        return try await api.post("/access-control/roles/grant", body: body)
+        return try await api.post(path: "/access-control/roles/grant", body: body)
     }
 
-    func revokeRole(contract: String, role: String, from address: String) async throws -> TransactionResult {
-        try await api.post("/access-control/roles/revoke", body: [
+    func revokeRole(contract: String, role: String, from address: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/access-control/roles/revoke", body: [
             "contract": contract,
             "role": role,
             "from": address
@@ -64,10 +64,10 @@ final class AccessControlService {
     }
 
     func getRoleDefinitions(contract: String) async throws -> [RoleDefinition] {
-        try await api.get("/access-control/contracts/\(contract)/roles")
+        try await api.get(path: "/access-control/contracts/\(contract)/roles")
     }
 
     func getAccessLog(contract: String) async throws -> [AccessLogEntry] {
-        try await api.get("/access-control/contracts/\(contract)/log")
+        try await api.get(path: "/access-control/contracts/\(contract)/log")
     }
 }

@@ -59,32 +59,32 @@ final class OnChainSubscriptionService {
     private init() {}
 
     func getUserSubscriptions(address: String) async throws -> [OnChainSubscription] {
-        try await api.get("/subscriptions", queryItems: [
+        try await api.get(path: "/subscriptions", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func getSubscriptionOfferings() async throws -> [SubscriptionOffering] {
-        try await api.get("/subscriptions/offerings")
+        try await api.get(path: "/subscriptions/offerings")
     }
 
     func subscribe(offeringId: String, tierId: String) async throws -> OnChainSubscription {
-        try await api.post("/subscriptions", body: [
+        try await api.post(path: "/subscriptions", body: [
             "offeringId": offeringId,
             "tierId": tierId
         ])
     }
 
-    func cancelSubscription(subscriptionId: String) async throws -> TransactionResult {
-        try await api.post("/subscriptions/\(subscriptionId)/cancel", body: nil as String?)
+    func cancelSubscription(subscriptionId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/subscriptions/\(subscriptionId)/cancel", body: nil as String?)
     }
 
     func createOffering(params: SubscriptionOfferingParams) async throws -> SubscriptionOffering {
-        try await api.post("/subscriptions/offerings", body: params)
+        try await api.post(path: "/subscriptions/offerings", body: params)
     }
 
     func getSubscriberRevenue(address: String) async throws -> SubscriptionRevenue {
-        try await api.get("/subscriptions/revenue", queryItems: [
+        try await api.get(path: "/subscriptions/revenue", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }

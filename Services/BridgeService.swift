@@ -45,7 +45,7 @@ final class BridgeService {
     private init() {}
 
     func getBridgeRoutes(fromChain: String, toChain: String, token: String, amount: String) async throws -> [BridgeRoute] {
-        try await api.get("/bridge/routes", queryItems: [
+        try await api.get(path: "/bridge/routes", queryItems: [
             URLQueryItem(name: "fromChain", value: fromChain),
             URLQueryItem(name: "toChain", value: toChain),
             URLQueryItem(name: "token", value: token),
@@ -54,10 +54,10 @@ final class BridgeService {
     }
 
     func executeBridge(route: BridgeRoute) async throws -> BridgeTransaction {
-        try await api.post("/bridge/execute", body: route)
+        try await api.post(path: "/bridge/execute", body: route)
     }
 
     func getBridgeStatus(txId: String) async throws -> BridgeTransaction {
-        try await api.get("/bridge/status/\(txId)")
+        try await api.get(path: "/bridge/status/\(txId)")
     }
 }

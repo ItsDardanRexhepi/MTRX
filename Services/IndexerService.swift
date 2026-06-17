@@ -43,23 +43,23 @@ final class IndexerService {
     private init() {}
 
     func getSubgraphs() async throws -> [Subgraph] {
-        try await api.get("/indexer/subgraphs")
+        try await api.get(path: "/indexer/subgraphs")
     }
 
     func runQuery(subgraphId: String, query: String) async throws -> QueryResult {
-        try await api.post("/indexer/subgraphs/\(subgraphId)/query", body: ["query": query])
+        try await api.post(path: "/indexer/subgraphs/\(subgraphId)/query", body: ["query": query])
     }
 
     func translateToQuery(plainEnglish: String, subgraphId: String) async throws -> String {
         struct TranslateResult: Codable {
             let query: String
         }
-        let result: TranslateResult = try await api.post("/indexer/subgraphs/\(subgraphId)/translate", body: ["text": plainEnglish])
+        let result: TranslateResult = try await api.post(path: "/indexer/subgraphs/\(subgraphId)/translate", body: ["text": plainEnglish])
         return result.query
     }
 
     func getUserQueries(address: String) async throws -> [SavedQuery] {
-        try await api.get("/indexer/queries", queryItems: [
+        try await api.get(path: "/indexer/queries", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
@@ -71,6 +71,6 @@ final class IndexerService {
             let query: String
         }
         let body = SaveBody(name: name, subgraphId: subgraphId, query: query)
-        return try await api.post("/indexer/queries", body: body)
+        return try await api.post(path: "/indexer/queries", body: body)
     }
 }

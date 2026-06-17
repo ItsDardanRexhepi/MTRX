@@ -35,7 +35,7 @@ final class ComputeService {
     private init() {}
 
     func getComputeProviders() async throws -> [ComputeProvider] {
-        try await api.get("/compute/providers")
+        try await api.get(path: "/compute/providers")
     }
 
     func submitJob(type: String, inputs: Data, providerId: String, budget: String) async throws -> ComputeJob {
@@ -51,21 +51,21 @@ final class ComputeService {
             providerId: providerId,
             budget: budget
         )
-        return try await api.post("/compute/jobs", body: body)
+        return try await api.post(path: "/compute/jobs", body: body)
     }
 
     func getUserJobs(address: String) async throws -> [ComputeJob] {
-        try await api.get("/compute/jobs", queryItems: [
+        try await api.get(path: "/compute/jobs", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func getJobStatus(jobId: String) async throws -> ComputeJob {
-        try await api.get("/compute/jobs/\(jobId)")
+        try await api.get(path: "/compute/jobs/\(jobId)")
     }
 
     func downloadResult(jobId: String) async throws -> Data {
-        let result: [String: String] = try await api.get("/compute/jobs/\(jobId)/result")
+        let result: [String: String] = try await api.get(path: "/compute/jobs/\(jobId)/result")
         guard let base64 = result["data"],
               let data = Data(base64Encoded: base64) else {
             throw MTRXAPIError.decodingFailed("Failed to decode compute result data")

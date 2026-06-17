@@ -40,23 +40,23 @@ final class SupplyChainService {
     private init() {}
 
     func trackItem(itemId: String) async throws -> SupplyChainItem {
-        try await api.get("/supply-chain/items/\(itemId)", queryItems: nil)
+        try await api.get(path: "/supply-chain/items/\(itemId)", queryItems: nil)
     }
 
     func registerItem(params: ItemRegistrationParams) async throws -> SupplyChainItem {
-        try await api.post("/supply-chain/items", body: params)
+        try await api.post(path: "/supply-chain/items", body: params)
     }
 
-    func addCheckpoint(itemId: String, location: String, status: String, notes: String?) async throws -> TransactionResult {
+    func addCheckpoint(itemId: String, location: String, status: String, notes: String?) async throws -> SvcTransactionResult {
         var body: [String: String] = [
             "location": location,
             "status": status
         ]
         if let notes { body["notes"] = notes }
-        return try await api.post("/supply-chain/items/\(itemId)/checkpoints", body: body)
+        return try await api.post(path: "/supply-chain/items/\(itemId)/checkpoints", body: body)
     }
 
-    func transferOwnership(itemId: String, to: String) async throws -> TransactionResult {
-        try await api.post("/supply-chain/items/\(itemId)/transfer", body: ["to": to])
+    func transferOwnership(itemId: String, to: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/supply-chain/items/\(itemId)/transfer", body: ["to": to])
     }
 }

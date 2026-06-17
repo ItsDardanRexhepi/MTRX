@@ -30,11 +30,11 @@ struct WalletBalance: Codable {
     let address: String
     let ethBalance: Double
     let usdValue: Double
-    let tokens: [TokenBalance]
+    let tokens: [SvcTokenBalance]
     let lastUpdated: Date
 }
 
-struct TokenBalance: Codable, Identifiable {
+struct SvcTokenBalance: Codable, Identifiable {
     let id: UUID
     let name: String
     let symbol: String
@@ -59,7 +59,7 @@ struct TokenBalance: Codable, Identifiable {
     }
 }
 
-struct DIDDocument: Codable, Identifiable {
+struct SvcDIDDocument: Codable, Identifiable {
     var id: String { did }
     let did: String
     let controller: String
@@ -145,18 +145,18 @@ final class WalletService {
 
     // MARK: - DID Operations
 
-    func createDID() async throws -> DIDDocument {
+    func createDID() async throws -> SvcDIDDocument {
         struct EmptyRequest: Encodable {}
-        let document: DIDDocument = try await client.post(
+        let document: SvcDIDDocument = try await client.post(
             path: "/api/v1/identity/did/create",
             body: EmptyRequest()
         )
         return document
     }
 
-    func resolveDID(address: String) async throws -> DIDDocument? {
+    func resolveDID(address: String) async throws -> SvcDIDDocument? {
         do {
-            let document: DIDDocument = try await client.get(
+            let document: SvcDIDDocument = try await client.get(
                 path: "/api/v1/identity/did/resolve",
                 queryItems: [URLQueryItem(name: "address", value: address)]
             )

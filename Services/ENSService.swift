@@ -28,39 +28,39 @@ final class ENSService {
     private init() {}
 
     func searchName(query: String) async throws -> ENSSearchResult {
-        try await api.get("/ens/search", queryItems: [
+        try await api.get(path: "/ens/search", queryItems: [
             URLQueryItem(name: "query", value: query)
         ])
     }
 
-    func registerName(name: String, years: Int) async throws -> TransactionResult {
+    func registerName(name: String, years: Int) async throws -> SvcTransactionResult {
         struct RegisterBody: Codable {
             let name: String
             let years: Int
         }
         let body = RegisterBody(name: name, years: years)
-        return try await api.post("/ens/register", body: body)
+        return try await api.post(path: "/ens/register", body: body)
     }
 
     func getUserDomains(address: String) async throws -> [ENSDomain] {
-        try await api.get("/ens/domains", queryItems: [
+        try await api.get(path: "/ens/domains", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func setPrimaryName(name: String) async throws -> TransactionResult {
+    func setPrimaryName(name: String) async throws -> SvcTransactionResult {
         struct SetPrimaryBody: Codable {
             let name: String
         }
         let body = SetPrimaryBody(name: name)
-        return try await api.post("/ens/primary", body: body)
+        return try await api.post(path: "/ens/primary", body: body)
     }
 
     func resolveName(_ name: String) async throws -> String? {
         struct ResolveResponse: Codable {
             let address: String?
         }
-        let response: ResolveResponse = try await api.get("/ens/resolve", queryItems: [
+        let response: ResolveResponse = try await api.get(path: "/ens/resolve", queryItems: [
             URLQueryItem(name: "name", value: name)
         ])
         return response.address
@@ -70,7 +70,7 @@ final class ENSService {
         struct LookupResponse: Codable {
             let name: String?
         }
-        let response: LookupResponse = try await api.get("/ens/lookup", queryItems: [
+        let response: LookupResponse = try await api.get(path: "/ens/lookup", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
         return response.name

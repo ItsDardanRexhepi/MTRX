@@ -13,7 +13,7 @@ struct Attestation: Codable, Identifiable {
     let isRevoked: Bool
 }
 
-struct AttestationResult: Codable {
+struct SvcAttestationResult: Codable {
     let uid: String
     let txHash: String
     let attestation: Attestation?
@@ -30,22 +30,22 @@ final class AttestationService {
     private init() {}
 
     func getAttestationsForAddress(address: String) async throws -> [Attestation] {
-        try await api.get("/attestations", queryItems: [
+        try await api.get(path: "/attestations", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func createAttestation(schema: String, recipient: String, data: [String: String]) async throws -> AttestationResult {
+    func createAttestation(schema: String, recipient: String, data: [String: String]) async throws -> SvcAttestationResult {
         struct CreateBody: Codable {
             let schema: String
             let recipient: String
             let data: [String: String]
         }
         let body = CreateBody(schema: schema, recipient: recipient, data: data)
-        return try await api.post("/attestations", body: body)
+        return try await api.post(path: "/attestations", body: body)
     }
 
     func verifyAttestation(uid: String) async throws -> Attestation {
-        try await api.get("/attestations/\(uid)")
+        try await api.get(path: "/attestations/\(uid)")
     }
 }

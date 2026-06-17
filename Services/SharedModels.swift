@@ -3,10 +3,10 @@
 
 import Foundation
 
-// MARK: - TransactionResult
+// MARK: - SvcTransactionResult
 
 /// Represents the result of an on-chain transaction returned by the gateway.
-struct TransactionResult: Codable, Identifiable {
+struct SvcTransactionResult: Codable, Identifiable {
     let id: String
     let txHash: String
     let status: String

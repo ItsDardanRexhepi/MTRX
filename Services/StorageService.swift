@@ -26,7 +26,7 @@ final class StorageService {
     private init() {}
 
     func getUserFiles(address: String) async throws -> [DecentralizedFile] {
-        try await api.get("/storage/files", queryItems: [
+        try await api.get(path: "/storage/files", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
@@ -46,18 +46,18 @@ final class StorageService {
             layer: layer,
             pinDays: pinDays
         )
-        return try await api.post("/storage/files", body: body)
+        return try await api.post(path: "/storage/files", body: body)
     }
 
     func getFile(cid: String) async throws -> DecentralizedFile {
-        try await api.get("/storage/files/\(cid)")
+        try await api.get(path: "/storage/files/\(cid)")
     }
 
-    func pinFile(cid: String, days: Int) async throws -> TransactionResult {
-        try await api.post("/storage/files/\(cid)/pin", body: ["days": String(days)])
+    func pinFile(cid: String, days: Int) async throws -> SvcTransactionResult {
+        try await api.post(path: "/storage/files/\(cid)/pin", body: ["days": String(days)])
     }
 
-    func unpinFile(cid: String) async throws -> TransactionResult {
-        try await api.post("/storage/files/\(cid)/unpin", body: nil as String?)
+    func unpinFile(cid: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/storage/files/\(cid)/unpin", body: nil as String?)
     }
 }

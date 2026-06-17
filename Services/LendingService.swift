@@ -119,12 +119,12 @@ final class LendingService {
 
     // MARK: - Supply
 
-    func supply(token: String, amount: String) async throws -> TransactionResult {
+    func supply(token: String, amount: String) async throws -> SvcTransactionResult {
         struct SupplyRequest: Encodable {
             let token: String
             let amount: String
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/defi/lending/supply",
             body: SupplyRequest(token: token, amount: amount)
         )
@@ -133,12 +133,12 @@ final class LendingService {
 
     // MARK: - Withdraw
 
-    func withdraw(token: String, amount: String) async throws -> TransactionResult {
+    func withdraw(token: String, amount: String) async throws -> SvcTransactionResult {
         struct WithdrawRequest: Encodable {
             let token: String
             let amount: String
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/defi/lending/withdraw",
             body: WithdrawRequest(token: token, amount: amount)
         )
@@ -147,12 +147,12 @@ final class LendingService {
 
     // MARK: - Borrow
 
-    func borrow(token: String, amount: String) async throws -> TransactionResult {
+    func borrow(token: String, amount: String) async throws -> SvcTransactionResult {
         struct BorrowRequest: Encodable {
             let token: String
             let amount: String
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/defi/lending/borrow",
             body: BorrowRequest(token: token, amount: amount)
         )
@@ -161,12 +161,12 @@ final class LendingService {
 
     // MARK: - Repay
 
-    func repay(token: String, amount: String) async throws -> TransactionResult {
+    func repay(token: String, amount: String) async throws -> SvcTransactionResult {
         struct RepayRequest: Encodable {
             let token: String
             let amount: String
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/defi/lending/repay",
             body: RepayRequest(token: token, amount: amount)
         )

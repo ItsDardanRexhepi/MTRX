@@ -30,27 +30,27 @@ final class StablecoinService {
     private init() {}
 
     func getStablecoinBalances(address: String) async throws -> [StablecoinBalance] {
-        try await api.get("/stablecoins/balances", queryItems: [
+        try await api.get(path: "/stablecoins/balances", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func convertStablecoin(from: String, to: String, amount: String) async throws -> TransactionResult {
-        try await api.post("/stablecoins/convert", body: [
+    func convertStablecoin(from: String, to: String, amount: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/stablecoins/convert", body: [
             "from": from,
             "to": to,
             "amount": amount
         ])
     }
 
-    func mintDAI(collateralToken: String, collateralAmount: String) async throws -> TransactionResult {
-        try await api.post("/stablecoins/mint-dai", body: [
+    func mintDAI(collateralToken: String, collateralAmount: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/stablecoins/mint-dai", body: [
             "collateralToken": collateralToken,
             "collateralAmount": collateralAmount
         ])
     }
 
     func getPegStatus() async throws -> [StablecoinPegStatus] {
-        try await api.get("/stablecoins/peg-status")
+        try await api.get(path: "/stablecoins/peg-status")
     }
 }

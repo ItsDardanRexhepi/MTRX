@@ -54,24 +54,24 @@ final class EventsService {
     private init() {}
 
     func getEvents() async throws -> [OnChainEvent] {
-        try await api.get("/events")
+        try await api.get(path: "/events")
     }
 
     func getUserTickets(address: String) async throws -> [EventTicket] {
-        try await api.get("/events/tickets", queryItems: [
+        try await api.get(path: "/events/tickets", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func createEvent(params: EventParams) async throws -> OnChainEvent {
-        try await api.post("/events", body: params)
+        try await api.post(path: "/events", body: params)
     }
 
     func purchaseTicket(eventId: String) async throws -> EventTicket {
-        try await api.post("/events/\(eventId)/purchase", body: nil as String?)
+        try await api.post(path: "/events/\(eventId)/purchase", body: nil as String?)
     }
 
     func verifyTicket(ticketId: String) async throws -> TicketVerificationResult {
-        try await api.get("/events/tickets/\(ticketId)/verify")
+        try await api.get(path: "/events/tickets/\(ticketId)/verify")
     }
 }

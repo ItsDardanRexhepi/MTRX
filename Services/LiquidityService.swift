@@ -5,7 +5,7 @@ import Foundation
 
 // MARK: - Models
 
-struct LiquidityPool: Codable, Identifiable {
+struct SvcLiquidityPool: Codable, Identifiable {
     var id: String { poolId }
     let poolId: String
     let token0: String
@@ -71,8 +71,8 @@ final class LiquidityService {
 
     // MARK: - Pools
 
-    func getPools() async throws -> [LiquidityPool] {
-        let pools: [LiquidityPool] = try await client.get(
+    func getPools() async throws -> [SvcLiquidityPool] {
+        let pools: [SvcLiquidityPool] = try await client.get(
             path: "/api/v1/defi/liquidity/pools"
         )
         return pools
@@ -90,14 +90,14 @@ final class LiquidityService {
 
     // MARK: - Add Liquidity
 
-    func addLiquidity(poolId: String, amount0: String, amount1: String, priceRange: PriceRange) async throws -> TransactionResult {
+    func addLiquidity(poolId: String, amount0: String, amount1: String, priceRange: PriceRange) async throws -> SvcTransactionResult {
         struct AddLiquidityRequest: Encodable {
             let poolId: String
             let amount0: String
             let amount1: String
             let priceRange: PriceRange
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/defi/liquidity/add",
             body: AddLiquidityRequest(
                 poolId: poolId,
@@ -111,12 +111,12 @@ final class LiquidityService {
 
     // MARK: - Remove Liquidity
 
-    func removeLiquidity(positionId: String, percent: Int) async throws -> TransactionResult {
+    func removeLiquidity(positionId: String, percent: Int) async throws -> SvcTransactionResult {
         struct RemoveLiquidityRequest: Encodable {
             let positionId: String
             let percent: Int
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/defi/liquidity/remove",
             body: RemoveLiquidityRequest(positionId: positionId, percent: percent)
         )

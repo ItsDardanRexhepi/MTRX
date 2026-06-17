@@ -34,26 +34,26 @@ final class SocialGraphService {
     private init() {}
 
     func getFollowing(address: String) async throws -> [SocialProfile] {
-        try await api.get("/social/\(address)/following")
+        try await api.get(path: "/social/\(address)/following")
     }
 
     func getFollowers(address: String) async throws -> [SocialProfile] {
-        try await api.get("/social/\(address)/followers")
+        try await api.get(path: "/social/\(address)/followers")
     }
 
     func getActivityFeed(address: String) async throws -> [SocialActivity] {
-        try await api.get("/social/\(address)/activity")
+        try await api.get(path: "/social/\(address)/activity")
     }
 
-    func follow(address: String) async throws -> TransactionResult {
-        try await api.post("/social/follow", body: ["address": address])
+    func follow(address: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/social/follow", body: ["address": address])
     }
 
-    func unfollow(address: String) async throws -> TransactionResult {
-        try await api.post("/social/unfollow", body: ["address": address])
+    func unfollow(address: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/social/unfollow", body: ["address": address])
     }
 
     func getSuggestions(address: String) async throws -> [SocialProfile] {
-        try await api.get("/social/\(address)/suggestions")
+        try await api.get(path: "/social/\(address)/suggestions")
     }
 }

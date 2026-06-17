@@ -31,7 +31,7 @@ struct StakingOption: Codable, Identifiable {
     }
 }
 
-struct StakePosition: Codable, Identifiable {
+struct SvcStakePosition: Codable, Identifiable {
     var id: String { stakeId }
     let stakeId: String
     let pool: String
@@ -75,8 +75,8 @@ final class StakingService {
 
     // MARK: - User Stakes
 
-    func getUserStakes(address: String) async throws -> [StakePosition] {
-        let stakes: [StakePosition] = try await client.get(
+    func getUserStakes(address: String) async throws -> [SvcStakePosition] {
+        let stakes: [SvcStakePosition] = try await client.get(
             path: "/api/v1/defi/staking/positions",
             queryItems: [URLQueryItem(name: "address", value: address)]
         )
@@ -85,13 +85,13 @@ final class StakingService {
 
     // MARK: - Stake
 
-    func stake(token: String, amount: String, poolId: String) async throws -> TransactionResult {
+    func stake(token: String, amount: String, poolId: String) async throws -> SvcTransactionResult {
         struct StakeRequest: Encodable {
             let token: String
             let amount: String
             let poolId: String
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/defi/staking/stake",
             body: StakeRequest(token: token, amount: amount, poolId: poolId)
         )
@@ -100,12 +100,12 @@ final class StakingService {
 
     // MARK: - Unstake
 
-    func unstake(stakeId: String, amount: String) async throws -> TransactionResult {
+    func unstake(stakeId: String, amount: String) async throws -> SvcTransactionResult {
         struct UnstakeRequest: Encodable {
             let stakeId: String
             let amount: String
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/defi/staking/unstake",
             body: UnstakeRequest(stakeId: stakeId, amount: amount)
         )
@@ -114,11 +114,11 @@ final class StakingService {
 
     // MARK: - Claim Rewards
 
-    func claimRewards(stakeId: String) async throws -> TransactionResult {
+    func claimRewards(stakeId: String) async throws -> SvcTransactionResult {
         struct ClaimRequest: Encodable {
             let stakeId: String
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/defi/staking/claim",
             body: ClaimRequest(stakeId: stakeId)
         )

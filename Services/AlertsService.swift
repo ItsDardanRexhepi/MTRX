@@ -29,13 +29,13 @@ final class AlertsService {
     private init() {}
 
     func getAlerts(address: String) async throws -> [PriceAlert] {
-        try await api.get("/alerts", queryItems: [
+        try await api.get(path: "/alerts", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func createAlert(token: String, condition: AlertCondition, targetPrice: String) async throws -> PriceAlert {
-        try await api.post("/alerts", body: [
+        try await api.post(path: "/alerts", body: [
             "token": token,
             "condition": condition.rawValue,
             "targetPrice": targetPrice
@@ -43,6 +43,6 @@ final class AlertsService {
     }
 
     func deleteAlert(alertId: String) async throws {
-        let _: TransactionResult = try await api.post("/alerts/\(alertId)/delete", body: nil as String?)
+        let _: SvcTransactionResult = try await api.post(path: "/alerts/\(alertId)/delete", body: nil as String?)
     }
 }

@@ -32,24 +32,24 @@ final class DisputeService {
     private init() {}
 
     func createDispute(params: DisputeParams) async throws -> DisputeCase {
-        try await api.post("/disputes", body: params)
+        try await api.post(path: "/disputes", body: params)
     }
 
     func getDisputes(address: String) async throws -> [DisputeCase] {
-        try await api.get("/disputes", queryItems: [
+        try await api.get(path: "/disputes", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func getOpenJuryCases() async throws -> [DisputeCase] {
-        try await api.get("/disputes/jury", queryItems: nil)
+        try await api.get(path: "/disputes/jury", queryItems: nil)
     }
 
-    func submitVote(disputeId: String, ruling: Int) async throws -> TransactionResult {
-        try await api.post("/disputes/\(disputeId)/vote", body: ["ruling": String(ruling)])
+    func submitVote(disputeId: String, ruling: Int) async throws -> SvcTransactionResult {
+        try await api.post(path: "/disputes/\(disputeId)/vote", body: ["ruling": String(ruling)])
     }
 
-    func claimReward(disputeId: String) async throws -> TransactionResult {
-        try await api.post("/disputes/\(disputeId)/claim-reward", body: nil as String?)
+    func claimReward(disputeId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/disputes/\(disputeId)/claim-reward", body: nil as String?)
     }
 }

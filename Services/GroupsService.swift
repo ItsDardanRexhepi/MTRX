@@ -50,7 +50,7 @@ final class GroupsService {
     private init() {}
 
     func getUserGroups(address: String) async throws -> [CommunityGroup] {
-        try await api.get("/groups", queryItems: [
+        try await api.get(path: "/groups", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
@@ -60,23 +60,23 @@ final class GroupsService {
         if let category {
             queryItems.append(URLQueryItem(name: "category", value: category))
         }
-        return try await api.get("/groups/discover", queryItems: queryItems.isEmpty ? nil : queryItems)
+        return try await api.get(path: "/groups/discover", queryItems: queryItems.isEmpty ? nil : queryItems)
     }
 
     func getGroupFeed(groupId: String) async throws -> [GroupPost] {
-        try await api.get("/groups/\(groupId)/feed")
+        try await api.get(path: "/groups/\(groupId)/feed")
     }
 
-    func joinGroup(groupId: String) async throws -> TransactionResult {
-        try await api.post("/groups/\(groupId)/join", body: nil as String?)
+    func joinGroup(groupId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/groups/\(groupId)/join", body: nil as String?)
     }
 
-    func leaveGroup(groupId: String) async throws -> TransactionResult {
-        try await api.post("/groups/\(groupId)/leave", body: nil as String?)
+    func leaveGroup(groupId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/groups/\(groupId)/leave", body: nil as String?)
     }
 
     func createGroup(params: GroupParams) async throws -> CommunityGroup {
-        try await api.post("/groups", body: params)
+        try await api.post(path: "/groups", body: params)
     }
 
     func postToGroup(groupId: String, content: String, attachmentData: Data?) async throws -> GroupPost {
@@ -88,6 +88,6 @@ final class GroupsService {
             content: content,
             attachmentBase64: attachmentData?.base64EncodedString()
         )
-        return try await api.post("/groups/\(groupId)/posts", body: body)
+        return try await api.post(path: "/groups/\(groupId)/posts", body: body)
     }
 }

@@ -31,20 +31,20 @@ final class CreatorService {
     private init() {}
 
     func launchCreatorToken(params: CreatorTokenParams) async throws -> CreatorToken {
-        try await api.post("/creator/tokens", body: params)
+        try await api.post(path: "/creator/tokens", body: params)
     }
 
     func getCreatorTokens(address: String) async throws -> [CreatorToken] {
-        try await api.get("/creator/tokens", queryItems: [
+        try await api.get(path: "/creator/tokens", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func buyCreatorToken(tokenAddress: String, amount: String) async throws -> TransactionResult {
-        try await api.post("/creator/tokens/\(tokenAddress)/buy", body: ["amount": amount])
+    func buyCreatorToken(tokenAddress: String, amount: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/creator/tokens/\(tokenAddress)/buy", body: ["amount": amount])
     }
 
-    func sellCreatorToken(tokenAddress: String, amount: String) async throws -> TransactionResult {
-        try await api.post("/creator/tokens/\(tokenAddress)/sell", body: ["amount": amount])
+    func sellCreatorToken(tokenAddress: String, amount: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/creator/tokens/\(tokenAddress)/sell", body: ["amount": amount])
     }
 }

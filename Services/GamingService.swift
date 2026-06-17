@@ -33,7 +33,7 @@ struct Tournament: Codable, Identifiable {
     let status: String
 }
 
-struct ListingResult: Codable {
+struct SvcGamingListingResult: Codable {
     let listingId: String
     let txHash: String
 }
@@ -49,30 +49,30 @@ final class GamingService {
     private init() {}
 
     func getConnectedGames(address: String) async throws -> [GameApp] {
-        try await api.get("/gaming/games", queryItems: [
+        try await api.get(path: "/gaming/games", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func getGameAssets(gameId: String, address: String) async throws -> [GameAsset] {
-        try await api.get("/gaming/games/\(gameId)/assets", queryItems: [
+        try await api.get(path: "/gaming/games/\(gameId)/assets", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func buyGameAsset(assetId: String, price: String) async throws -> TransactionResult {
-        try await api.post("/gaming/assets/\(assetId)/buy", body: ["price": price])
+    func buyGameAsset(assetId: String, price: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/gaming/assets/\(assetId)/buy", body: ["price": price])
     }
 
-    func sellGameAsset(assetId: String, price: String) async throws -> ListingResult {
-        try await api.post("/gaming/assets/\(assetId)/sell", body: ["price": price])
+    func sellGameAsset(assetId: String, price: String) async throws -> SvcGamingListingResult {
+        try await api.post(path: "/gaming/assets/\(assetId)/sell", body: ["price": price])
     }
 
     func getTournaments() async throws -> [Tournament] {
-        try await api.get("/gaming/tournaments", queryItems: nil)
+        try await api.get(path: "/gaming/tournaments", queryItems: nil)
     }
 
-    func enterTournament(tournamentId: String) async throws -> TransactionResult {
-        try await api.post("/gaming/tournaments/\(tournamentId)/enter", body: nil as String?)
+    func enterTournament(tournamentId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/gaming/tournaments/\(tournamentId)/enter", body: nil as String?)
     }
 }

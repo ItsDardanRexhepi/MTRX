@@ -93,41 +93,41 @@ final class GovernanceService {
     private init() {}
 
     func getDAOs(address: String) async throws -> [DAO] {
-        try await api.get("/governance/daos", queryItems: [
+        try await api.get(path: "/governance/daos", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func getProposals(daoId: String) async throws -> [Proposal] {
-        try await api.get("/governance/daos/\(daoId)/proposals")
+        try await api.get(path: "/governance/daos/\(daoId)/proposals")
     }
 
-    func vote(proposalId: String, support: VoteSupport, reason: String?) async throws -> TransactionResult {
+    func vote(proposalId: String, support: VoteSupport, reason: String?) async throws -> SvcTransactionResult {
         struct VoteBody: Codable {
             let proposalId: String
             let support: VoteSupport
             let reason: String?
         }
         let body = VoteBody(proposalId: proposalId, support: support, reason: reason)
-        return try await api.post("/governance/proposals/\(proposalId)/vote", body: body)
+        return try await api.post(path: "/governance/proposals/\(proposalId)/vote", body: body)
     }
 
-    func createProposal(daoId: String, proposal: ProposalDraft) async throws -> TransactionResult {
-        try await api.post("/governance/daos/\(daoId)/proposals", body: proposal)
+    func createProposal(daoId: String, proposal: ProposalDraft) async throws -> SvcTransactionResult {
+        try await api.post(path: "/governance/daos/\(daoId)/proposals", body: proposal)
     }
 
     func getVotingPower(daoId: String, address: String) async throws -> VotingPower {
-        try await api.get("/governance/daos/\(daoId)/voting-power", queryItems: [
+        try await api.get(path: "/governance/daos/\(daoId)/voting-power", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func getTreasuryBalance(daoId: String) async throws -> TreasuryBalance {
-        try await api.get("/governance/daos/\(daoId)/treasury")
+        try await api.get(path: "/governance/daos/\(daoId)/treasury")
     }
 
     func getTreasuryHistory(daoId: String) async throws -> [TreasuryTransaction] {
-        try await api.get("/governance/daos/\(daoId)/treasury/history")
+        try await api.get(path: "/governance/daos/\(daoId)/treasury/history")
     }
 
     func proposeSpending(daoId: String, recipient: String, amount: String, token: String, description: String) async throws -> Proposal {
@@ -138,28 +138,28 @@ final class GovernanceService {
             let description: String
         }
         let body = SpendingBody(recipient: recipient, amount: amount, token: token, description: description)
-        return try await api.post("/governance/daos/\(daoId)/treasury/propose", body: body)
+        return try await api.post(path: "/governance/daos/\(daoId)/treasury/propose", body: body)
     }
 
-    func delegate(to address: String, token: String) async throws -> TransactionResult {
+    func delegate(to address: String, token: String) async throws -> SvcTransactionResult {
         struct DelegateBody: Codable {
             let to: String
             let token: String
         }
         let body = DelegateBody(to: address, token: token)
-        return try await api.post("/governance/delegate", body: body)
+        return try await api.post(path: "/governance/delegate", body: body)
     }
 
-    func undelegate(token: String) async throws -> TransactionResult {
+    func undelegate(token: String) async throws -> SvcTransactionResult {
         struct UndelegateBody: Codable {
             let token: String
         }
         let body = UndelegateBody(token: token)
-        return try await api.post("/governance/undelegate", body: body)
+        return try await api.post(path: "/governance/undelegate", body: body)
     }
 
     func getDelegations(address: String) async throws -> DelegationStatus {
-        try await api.get("/governance/delegations", queryItems: [
+        try await api.get(path: "/governance/delegations", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }

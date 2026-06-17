@@ -60,7 +60,7 @@ final class SwapService {
 
     // MARK: - Execute Swap
 
-    func executeSwap(quote: SwapQuote) async throws -> TransactionResult {
+    func executeSwap(quote: SwapQuote) async throws -> SvcTransactionResult {
         struct SwapExecuteRequest: Encodable {
             let quoteId: String
             let fromToken: String
@@ -69,7 +69,7 @@ final class SwapService {
             let toAmount: String
             let route: String
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/swap/execute",
             body: SwapExecuteRequest(
                 quoteId: quote.id.uuidString,

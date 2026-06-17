@@ -55,37 +55,37 @@ final class LaunchService {
     private init() {}
 
     func createLaunch(params: TokenLaunchParams) async throws -> TokenLaunch {
-        try await api.post("/launch/tokens", body: params)
+        try await api.post(path: "/launch/tokens", body: params)
     }
 
     func getActiveLaunches() async throws -> [TokenLaunch] {
-        try await api.get("/launch/tokens", queryItems: [
+        try await api.get(path: "/launch/tokens", queryItems: [
             URLQueryItem(name: "status", value: "active")
         ])
     }
 
-    func participateInLaunch(launchId: String, amount: String) async throws -> TransactionResult {
-        try await api.post("/launch/tokens/\(launchId)/participate", body: ["amount": amount])
+    func participateInLaunch(launchId: String, amount: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/launch/tokens/\(launchId)/participate", body: ["amount": amount])
     }
 
     func getUserLaunches(address: String) async throws -> [TokenLaunch] {
-        try await api.get("/launch/tokens", queryItems: [
+        try await api.get(path: "/launch/tokens", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func getVestingSchedule(address: String) async throws -> [VestingSchedule] {
-        try await api.get("/launch/vesting", queryItems: [
+        try await api.get(path: "/launch/vesting", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func claimVested(scheduleId: String) async throws -> TransactionResult {
-        try await api.post("/launch/vesting/\(scheduleId)/claim", body: nil as String?)
+    func claimVested(scheduleId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/launch/vesting/\(scheduleId)/claim", body: nil as String?)
     }
 
-    func distributeAirdrop(token: String, recipients: [AirdropRecipient]) async throws -> TransactionResult {
+    func distributeAirdrop(token: String, recipients: [AirdropRecipient]) async throws -> SvcTransactionResult {
         let body = AirdropBody(token: token, recipients: recipients)
-        return try await api.post("/launch/airdrop", body: body)
+        return try await api.post(path: "/launch/airdrop", body: body)
     }
 }

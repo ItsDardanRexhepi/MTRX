@@ -47,30 +47,30 @@ final class LoyaltyService {
     private init() {}
 
     func getLoyaltyPoints(address: String) async throws -> [LoyaltyProgram] {
-        try await api.get("/loyalty/programs", queryItems: [
+        try await api.get(path: "/loyalty/programs", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func getEarnActions(programId: String) async throws -> [EarnAction] {
-        try await api.get("/loyalty/programs/\(programId)/earn")
+        try await api.get(path: "/loyalty/programs/\(programId)/earn")
     }
 
     func getRedemptionOptions(programId: String) async throws -> [RedemptionOption] {
-        try await api.get("/loyalty/programs/\(programId)/redeem")
+        try await api.get(path: "/loyalty/programs/\(programId)/redeem")
     }
 
-    func redeemPoints(programId: String, optionId: String) async throws -> TransactionResult {
-        try await api.post("/loyalty/programs/\(programId)/redeem", body: ["optionId": optionId])
+    func redeemPoints(programId: String, optionId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/loyalty/programs/\(programId)/redeem", body: ["optionId": optionId])
     }
 
     func getCashback(address: String) async throws -> [CashbackReward] {
-        try await api.get("/loyalty/cashback", queryItems: [
+        try await api.get(path: "/loyalty/cashback", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func claimCashback(rewardId: String) async throws -> TransactionResult {
-        try await api.post("/loyalty/cashback/\(rewardId)/claim", body: nil as String?)
+    func claimCashback(rewardId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/loyalty/cashback/\(rewardId)/claim", body: nil as String?)
     }
 }

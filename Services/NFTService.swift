@@ -50,14 +50,14 @@ struct NFTTrait: Codable, Identifiable {
     }
 }
 
-struct NFTMetadata: Codable {
+struct SvcNFTMetadata: Codable {
     let name: String
     let description: String
-    let attributes: [NFTAttribute]
+    let attributes: [SvcNFTAttribute]
     let royaltyPercent: Double
 }
 
-struct NFTAttribute: Codable {
+struct SvcNFTAttribute: Codable {
     let key: String
     let value: String
 }
@@ -68,7 +68,7 @@ struct NFTMintResult: Codable {
     let txHash: String
 }
 
-struct ListingResult: Codable {
+struct SvcNFTListingResult: Codable {
     let listingId: String
     let txHash: String
 }
@@ -94,7 +94,7 @@ final class NFTService {
 
     // MARK: - Mint NFT (multipart upload)
 
-    func mintNFT(metadata: NFTMetadata, imageData: Data) async throws -> NFTMintResult {
+    func mintNFT(metadata: SvcNFTMetadata, imageData: Data) async throws -> NFTMintResult {
         let boundary = "Boundary-\(UUID().uuidString)"
         let baseURL = client.baseURL
         guard let url = URL(string: baseURL + "/api/v1/nft/mint") else {
@@ -155,13 +155,13 @@ final class NFTService {
 
     // MARK: - Transfer NFT
 
-    func transferNFT(tokenId: String, contract: String, to: String) async throws -> TransactionResult {
+    func transferNFT(tokenId: String, contract: String, to: String) async throws -> SvcTransactionResult {
         struct TransferRequest: Encodable {
             let tokenId: String
             let contract: String
             let to: String
         }
-        let result: TransactionResult = try await client.post(
+        let result: SvcTransactionResult = try await client.post(
             path: "/api/v1/nft/transfer",
             body: TransferRequest(tokenId: tokenId, contract: contract, to: to)
         )
@@ -170,13 +170,13 @@ final class NFTService {
 
     // MARK: - List NFT for Sale
 
-    func listNFTForSale(tokenId: String, contract: String, price: String) async throws -> ListingResult {
+    func listNFTForSale(tokenId: String, contract: String, price: String) async throws -> SvcNFTListingResult {
         struct ListForSaleRequest: Encodable {
             let tokenId: String
             let contract: String
             let price: String
         }
-        let result: ListingResult = try await client.post(
+        let result: SvcNFTListingResult = try await client.post(
             path: "/api/v1/nft/list-for-sale",
             body: ListForSaleRequest(tokenId: tokenId, contract: contract, price: price)
         )

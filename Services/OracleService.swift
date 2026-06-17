@@ -30,25 +30,25 @@ final class OracleService {
     private init() {}
 
     func getAvailableFeeds() async throws -> [OracleFeed] {
-        try await api.get("/oracle/feeds")
+        try await api.get(path: "/oracle/feeds")
     }
 
     func getUserFeeds(address: String) async throws -> [OracleFeed] {
-        try await api.get("/oracle/feeds", queryItems: [
+        try await api.get(path: "/oracle/feeds", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func subscribeFeed(feedId: String) async throws {
-        let _: TransactionResult = try await api.post("/oracle/feeds/\(feedId)/subscribe", body: nil as String?)
+        let _: SvcTransactionResult = try await api.post(path: "/oracle/feeds/\(feedId)/subscribe", body: nil as String?)
     }
 
     func unsubscribeFeed(feedId: String) async throws {
-        let _: TransactionResult = try await api.post("/oracle/feeds/\(feedId)/unsubscribe", body: nil as String?)
+        let _: SvcTransactionResult = try await api.post(path: "/oracle/feeds/\(feedId)/unsubscribe", body: nil as String?)
     }
 
     func getFeedHistory(feedId: String, days: Int) async throws -> [OracleDataPoint] {
-        try await api.get("/oracle/feeds/\(feedId)/history", queryItems: [
+        try await api.get(path: "/oracle/feeds/\(feedId)/history", queryItems: [
             URLQueryItem(name: "days", value: String(days))
         ])
     }

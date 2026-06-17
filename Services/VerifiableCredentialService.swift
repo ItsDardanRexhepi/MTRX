@@ -34,7 +34,7 @@ final class VerifiableCredentialService {
     private init() {}
 
     func getCredentials(address: String) async throws -> [VerifiableCredential] {
-        try await api.get("/credentials", queryItems: [
+        try await api.get(path: "/credentials", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
@@ -47,14 +47,14 @@ final class VerifiableCredentialService {
             let expiryDate: Date?
         }
         let body = IssueBody(recipient: recipient, type: type, claims: claims, expiryDate: expiryDate)
-        return try await api.post("/credentials", body: body)
+        return try await api.post(path: "/credentials", body: body)
     }
 
     func verifyCredential(credentialId: String) async throws -> CredentialVerificationResult {
-        try await api.get("/credentials/\(credentialId)/verify")
+        try await api.get(path: "/credentials/\(credentialId)/verify")
     }
 
-    func revokeCredential(credentialId: String) async throws -> TransactionResult {
-        try await api.post("/credentials/\(credentialId)/revoke", body: nil as String?)
+    func revokeCredential(credentialId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/credentials/\(credentialId)/revoke", body: nil as String?)
     }
 }

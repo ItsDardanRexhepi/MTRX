@@ -48,13 +48,13 @@ final class KYCService {
     private init() {}
 
     func getKYCStatus(address: String) async throws -> KYCStatus {
-        try await api.get("/kyc/status", queryItems: [
+        try await api.get(path: "/kyc/status", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func initiateVerification(type: String) async throws -> KYCSession {
-        try await api.post("/kyc/verify", body: ["type": type])
+        try await api.post(path: "/kyc/verify", body: ["type": type])
     }
 
     func submitVerification(sessionId: String, documentData: Data, selfieData: Data) async throws -> KYCResult {
@@ -68,14 +68,14 @@ final class KYCService {
             documentBase64: documentData.base64EncodedString(),
             selfieBase64: selfieData.base64EncodedString()
         )
-        return try await api.post("/kyc/verify/\(sessionId)/submit", body: body)
+        return try await api.post(path: "/kyc/verify/\(sessionId)/submit", body: body)
     }
 
-    func shareProof(proofId: String, recipient: String) async throws -> TransactionResult {
-        try await api.post("/kyc/proofs/\(proofId)/share", body: ["recipient": recipient])
+    func shareProof(proofId: String, recipient: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/kyc/proofs/\(proofId)/share", body: ["recipient": recipient])
     }
 
-    func revokeAccess(proofId: String, recipient: String) async throws -> TransactionResult {
-        try await api.post("/kyc/proofs/\(proofId)/revoke", body: ["recipient": recipient])
+    func revokeAccess(proofId: String, recipient: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/kyc/proofs/\(proofId)/revoke", body: ["recipient": recipient])
     }
 }

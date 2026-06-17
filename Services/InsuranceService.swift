@@ -44,29 +44,29 @@ final class InsuranceService {
     private init() {}
 
     func getCoverageOptions() async throws -> [InsuranceCoverage] {
-        try await api.get("/insurance/coverages", queryItems: nil)
+        try await api.get(path: "/insurance/coverages", queryItems: nil)
     }
 
     func purchaseCoverage(coverageId: String, amount: String, duration: Int) async throws -> InsurancePolicy {
-        try await api.post("/insurance/coverages/\(coverageId)/purchase", body: [
+        try await api.post(path: "/insurance/coverages/\(coverageId)/purchase", body: [
             "amount": amount,
             "duration": String(duration)
         ])
     }
 
     func getUserPolicies(address: String) async throws -> [InsurancePolicy] {
-        try await api.get("/insurance/policies", queryItems: [
+        try await api.get(path: "/insurance/policies", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func fileClaim(policyId: String, description: String) async throws -> InsuranceClaim {
-        try await api.post("/insurance/policies/\(policyId)/claim", body: [
+        try await api.post(path: "/insurance/policies/\(policyId)/claim", body: [
             "description": description
         ])
     }
 
     func getClaimStatus(claimId: String) async throws -> InsuranceClaim {
-        try await api.get("/insurance/claims/\(claimId)", queryItems: nil)
+        try await api.get(path: "/insurance/claims/\(claimId)", queryItems: nil)
     }
 }

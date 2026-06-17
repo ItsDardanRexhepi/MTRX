@@ -51,17 +51,17 @@ final class PortfolioService {
     private init() {}
 
     func getPortfolioSummary(address: String) async throws -> PortfolioSummary {
-        try await api.get("/portfolio/\(address)/summary")
+        try await api.get(path: "/portfolio/\(address)/summary")
     }
 
     func getTransactionHistory(address: String, page: Int) async throws -> [PortfolioTransaction] {
-        try await api.get("/portfolio/\(address)/transactions", queryItems: [
+        try await api.get(path: "/portfolio/\(address)/transactions", queryItems: [
             URLQueryItem(name: "page", value: String(page))
         ])
     }
 
     func getPerformanceHistory(address: String, days: Int) async throws -> [PortfolioSnapshot] {
-        try await api.get("/portfolio/\(address)/performance", queryItems: [
+        try await api.get(path: "/portfolio/\(address)/performance", queryItems: [
             URLQueryItem(name: "days", value: String(days))
         ])
     }

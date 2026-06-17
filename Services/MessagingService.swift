@@ -33,11 +33,11 @@ final class MessagingService {
     private init() {}
 
     func getConversations() async throws -> [XMTPConversation] {
-        try await api.get("/messaging/conversations")
+        try await api.get(path: "/messaging/conversations")
     }
 
     func getMessages(conversationId: String) async throws -> [XMTPMessage] {
-        try await api.get("/messaging/conversations/\(conversationId)/messages")
+        try await api.get(path: "/messaging/conversations/\(conversationId)/messages")
     }
 
     func sendMessage(conversationId: String, content: String) async throws -> XMTPMessage {
@@ -45,7 +45,7 @@ final class MessagingService {
             let content: String
         }
         let body = SendBody(content: content)
-        return try await api.post("/messaging/conversations/\(conversationId)/messages", body: body)
+        return try await api.post(path: "/messaging/conversations/\(conversationId)/messages", body: body)
     }
 
     func startConversation(with address: String) async throws -> XMTPConversation {
@@ -53,6 +53,6 @@ final class MessagingService {
             let peerAddress: String
         }
         let body = StartBody(peerAddress: address)
-        return try await api.post("/messaging/conversations", body: body)
+        return try await api.post(path: "/messaging/conversations", body: body)
     }
 }

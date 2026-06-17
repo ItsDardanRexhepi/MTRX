@@ -24,7 +24,7 @@ struct ABIParam: Codable, Identifiable {
     let displayValue: String?
 }
 
-struct ContractResult: Codable {
+struct SvcContractResult: Codable {
     let name: String
     let value: String
     let type: String
@@ -71,29 +71,29 @@ final class ContractService {
     private init() {}
 
     func getContractABI(address: String) async throws -> ContractABI {
-        try await api.get("/contracts/\(address)/abi")
+        try await api.get(path: "/contracts/\(address)/abi")
     }
 
-    func readFunction(contract: String, function: String, params: [String]) async throws -> [ContractResult] {
+    func readFunction(contract: String, function: String, params: [String]) async throws -> [SvcContractResult] {
         struct ReadBody: Codable {
             let function: String
             let params: [String]
         }
         let body = ReadBody(function: function, params: params)
-        return try await api.post("/contracts/\(contract)/read", body: body)
+        return try await api.post(path: "/contracts/\(contract)/read", body: body)
     }
 
-    func writeFunction(contract: String, function: String, params: [String]) async throws -> TransactionResult {
+    func writeFunction(contract: String, function: String, params: [String]) async throws -> SvcTransactionResult {
         struct WriteBody: Codable {
             let function: String
             let params: [String]
         }
         let body = WriteBody(function: function, params: params)
-        return try await api.post("/contracts/\(contract)/write", body: body)
+        return try await api.post(path: "/contracts/\(contract)/write", body: body)
     }
 
     func getTemplates() async throws -> [ContractTemplate] {
-        try await api.get("/contracts/templates")
+        try await api.get(path: "/contracts/templates")
     }
 
     func estimateDeployment(templateId: String, params: [String: String]) async throws -> DeploymentEstimate {
@@ -102,7 +102,7 @@ final class ContractService {
             let params: [String: String]
         }
         let body = EstimateBody(templateId: templateId, params: params)
-        return try await api.post("/contracts/deploy/estimate", body: body)
+        return try await api.post(path: "/contracts/deploy/estimate", body: body)
     }
 
     func deployContract(templateId: String, params: [String: String]) async throws -> DeploymentResult {
@@ -111,6 +111,6 @@ final class ContractService {
             let params: [String: String]
         }
         let body = DeployBody(templateId: templateId, params: params)
-        return try await api.post("/contracts/deploy", body: body)
+        return try await api.post(path: "/contracts/deploy", body: body)
     }
 }

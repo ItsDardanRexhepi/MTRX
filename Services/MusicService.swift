@@ -47,7 +47,7 @@ final class MusicService {
     private init() {}
 
     func getCatalog() async throws -> [MusicTrack] {
-        try await api.get("/music/catalog")
+        try await api.get(path: "/music/catalog")
     }
 
     func uploadTrack(audioData: Data, artwork: Data, metadata: MusicMetadata) async throws -> MusicTrack {
@@ -61,24 +61,24 @@ final class MusicService {
             artworkBase64: artwork.base64EncodedString(),
             metadata: metadata
         )
-        return try await api.post("/music/tracks", body: body)
+        return try await api.post(path: "/music/tracks", body: body)
     }
 
     func playTrack(trackId: String) async throws -> PlaySession {
-        try await api.post("/music/tracks/\(trackId)/play", body: nil as String?)
+        try await api.post(path: "/music/tracks/\(trackId)/play", body: nil as String?)
     }
 
     func getUserTracks(address: String) async throws -> [MusicTrack] {
-        try await api.get("/music/tracks", queryItems: [
+        try await api.get(path: "/music/tracks", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func claimEarnings(trackId: String) async throws -> TransactionResult {
-        try await api.post("/music/tracks/\(trackId)/claim", body: nil as String?)
+    func claimEarnings(trackId: String) async throws -> SvcTransactionResult {
+        try await api.post(path: "/music/tracks/\(trackId)/claim", body: nil as String?)
     }
 
     func getRoyaltySplits(trackId: String) async throws -> [RoyaltySplit] {
-        try await api.get("/music/tracks/\(trackId)/splits")
+        try await api.get(path: "/music/tracks/\(trackId)/splits")
     }
 }
