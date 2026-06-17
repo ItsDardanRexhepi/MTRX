@@ -6,6 +6,7 @@
 
 import SwiftUI
 import LocalAuthentication
+import WebKit
 
 // MARK: - Settings View
 
@@ -444,7 +445,7 @@ struct SettingsView: View {
 
             // Terms of Service
             NavigationLink {
-                PlaceholderLegalView(title: "Terms of Service")
+                LegalDocumentView(document: .terms)
             } label: {
                 Label {
                     Text("Terms of Service")
@@ -457,7 +458,7 @@ struct SettingsView: View {
 
             // Privacy Policy
             NavigationLink {
-                PlaceholderLegalView(title: "Privacy Policy")
+                LegalDocumentView(document: .privacy)
             } label: {
                 Label {
                     Text("Privacy Policy")
@@ -470,7 +471,7 @@ struct SettingsView: View {
 
             // Open Source Licenses
             NavigationLink {
-                PlaceholderLegalView(title: "Open Source Licenses")
+                LegalDocumentView(document: .licenses)
             } label: {
                 Label {
                     Text("Open Source Licenses")
@@ -765,103 +766,147 @@ private struct AutoLockPickerView: View {
     }
 }
 
-// MARK: - Placeholder Legal View
+// MARK: - Legal Documents
 
-private struct PlaceholderLegalView: View {
-    let title: String
+/// The three legal screens. Each resolves its content in priority order:
+/// 1. a hosted URL from PendingCredentials.Legal (loaded in a web view),
+/// 2. a bundled markdown resource (Terms.md / Privacy.md / Licenses.md),
+/// 3. an inline fallback, so the screen is never blank.
+enum LegalDocument {
+    case terms, privacy, licenses
 
-    private var content: String {
-        switch title {
-        case "Terms of Service":
-            return """
-            Effective June 2026
-
-            1. The Service. MTRX provides a consumer interface to the \
-            0pnMatrx platform: AI-assisted finance, smart-contract \
-            tooling, and on-chain social features. Demo environments \
-            simulate execution and move no real funds.
-
-            2. Eligibility. You must be at least 18 and legally able to \
-            enter contracts in your jurisdiction.
-
-            3. Your Account. Sign in with Apple secures your identity; \
-            wallet keys are generated on-device in the Secure Enclave \
-            and never leave your hardware. You are responsible for the \
-            security of your device.
-
-            4. Acceptable Use. No unlawful activity, market abuse, or \
-            attempts to access other users' data or restricted system \
-            layers. Guardian-agent interventions enforce these rules.
-
-            5. No Financial Advice. Information in the app — including \
-            agent responses — is not investment advice. Digital assets \
-            are volatile; you may lose value.
-
-            6. Liability. The service is provided "as is" to the extent \
-            permitted by law. OPN MATRX disclaims indirect and \
-            consequential damages.
-
-            7. Changes. We may update these terms; continued use after \
-            notice constitutes acceptance.
-            """
-        case "Privacy Policy":
-            return """
-            Effective June 2026
-
-            What we collect. Account identifiers from Sign in with \
-            Apple, app settings, and the content you create. Wallet \
-            addresses are public by nature of blockchains.
-
-            What stays on your device. Agent conversations run on-device \
-            with Apple Intelligence; chat history, wallet keys, and \
-            location never leave your iPhone. Weather and price lookups \
-            query public APIs without your identity attached.
-
-            What we don't do. No ad tracking, no selling of personal \
-            data, no off-device profiling. Anonymous analytics and crash \
-            reports are optional and controlled in Privacy settings.
-
-            Your controls. Export your data, adjust privacy levels, or \
-            delete your account at any time from Account → Privacy.
-
-            Contact: privacy@openmatrix-ai.com
-            """
-        default:
-            return """
-            MTRX is built with the Swift open-source ecosystem and \
-            gratefully acknowledges:
-
-            • Swift & SwiftUI — Apache License 2.0, Apple Inc.
-            • Swift Collections — Apache License 2.0
-            • Swift Crypto — Apache License 2.0
-
-            Market data is provided by the CoinGecko public API; weather \
-            by Open-Meteo (CC BY 4.0); knowledge lookups by Wikipedia \
-            (CC BY-SA). Full license texts are available from their \
-            respective projects.
-            """
+    var title: String {
+        switch self {
+        case .terms: return "Terms of Service"
+        case .privacy: return "Privacy Policy"
+        case .licenses: return "Open Source Licenses"
         }
     }
+
+    /// Hosted URL when configured (otherwise nil → bundled/inline fallback).
+    var configuredURL: URL? {
+        let raw: String
+        switch self {
+        case .terms: raw = PendingCredentials.Legal.termsURL
+        case .privacy: raw = PendingCredentials.Legal.privacyURL
+        case .licenses: raw = PendingCredentials.Legal.licensesURL
+        }
+        return PendingCredentials.filled(raw).flatMap { URL(string: $0) }
+    }
+
+    /// Bundled markdown resource base name.
+    var bundledResource: String {
+        switch self {
+        case .terms: return "Terms"
+        case .privacy: return "Privacy"
+        case .licenses: return "Licenses"
+        }
+    }
+
+    /// Last-resort inline content so the screen is never empty even if the
+    /// bundled resource is missing and no URL is configured.
+    var inlineFallback: String {
+        switch self {
+        case .terms:
+            return "# Terms of Service\n\nThis device is missing the bundled Terms resource. The full terms are available at your hosted Terms URL once configured."
+        case .privacy:
+            return "# Privacy Policy\n\nThis device is missing the bundled Privacy resource. The full policy is available at your hosted Privacy URL once configured."
+        case .licenses:
+            return "# Open Source Licenses\n\nMTRX is built with the Swift open-source ecosystem (Apache 2.0)."
+        }
+    }
+}
+
+struct LegalDocumentView: View {
+    let document: LegalDocument
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.lg) {
-                Text(title)
-                    .font(.mtrxTitle2)
-                    .foregroundStyle(Color.labelPrimary)
-
-                Text(content)
-                    .font(.mtrxCallout)
-                    .foregroundStyle(Color.labelSecondary)
-                    .lineSpacing(4)
+        Group {
+            if let url = document.configuredURL {
+                LegalWebView(url: url)
+                    .ignoresSafeArea(edges: .bottom)
+            } else {
+                ScrollView {
+                    SimpleMarkdownView(markdown: resolvedMarkdown)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(Spacing.contentPadding)
+                }
+                .background(Color.backgroundGrouped.ignoresSafeArea())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Spacing.contentPadding)
         }
-        .background(Color.backgroundGrouped.ignoresSafeArea())
-        .navigationTitle(title)
+        .navigationTitle(document.title)
         .navigationBarTitleDisplayMode(.inline)
     }
+
+    /// Bundled markdown if present, else the inline fallback.
+    private var resolvedMarkdown: String {
+        if let url = Bundle.main.url(forResource: document.bundledResource, withExtension: "md"),
+           let text = try? String(contentsOf: url, encoding: .utf8) {
+            return text
+        }
+        return document.inlineFallback
+    }
+}
+
+/// A minimal markdown renderer for bundled legal text: handles `#`/`##`
+/// headings and `-` bullets line-by-line, with inline emphasis/links rendered
+/// via AttributedString.
+private struct SimpleMarkdownView: View {
+    let markdown: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            ForEach(Array(markdown.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in
+                lineView(line)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func lineView(_ line: String) -> some View {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            Color.clear.frame(height: Spacing.xs)
+        } else if trimmed.hasPrefix("## ") {
+            Text(String(trimmed.dropFirst(3)))
+                .font(.mtrxHeadline)
+                .foregroundStyle(Color.labelPrimary)
+                .padding(.top, Spacing.xs)
+        } else if trimmed.hasPrefix("# ") {
+            Text(String(trimmed.dropFirst(2)))
+                .font(.mtrxTitle2)
+                .foregroundStyle(Color.labelPrimary)
+        } else if trimmed.hasPrefix("- ") {
+            HStack(alignment: .top, spacing: Spacing.xs) {
+                Text("•").foregroundStyle(Color.labelSecondary)
+                Text(inline(String(trimmed.dropFirst(2))))
+                    .font(.mtrxCallout)
+                    .foregroundStyle(Color.labelSecondary)
+            }
+        } else {
+            Text(inline(trimmed))
+                .font(.mtrxCallout)
+                .foregroundStyle(Color.labelSecondary)
+                .lineSpacing(4)
+        }
+    }
+
+    private func inline(_ string: String) -> AttributedString {
+        (try? AttributedString(markdown: string)) ?? AttributedString(string)
+    }
+}
+
+/// Embedded web view for a hosted legal page (config URL path).
+private struct LegalWebView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.load(URLRequest(url: url))
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {}
 }
 
 // MARK: - Theme Settings (its own window)

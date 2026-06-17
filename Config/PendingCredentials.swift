@@ -143,6 +143,25 @@ enum PendingCredentials {
         static let ethUsdSource = ""
     }
 
+    // MARK: - Legal
+
+    enum Legal {
+
+        /// HTTPS URL to the hosted Terms of Service. When set, the in-app legal
+        /// screen loads it in a web view; when empty, the app falls back to the
+        /// bundled Terms.md (and finally to inline text), so the screen is never
+        /// blank. Format: `https://...`
+        static let termsURL = ""
+
+        /// HTTPS URL to the hosted Privacy Policy (same fallback behaviour).
+        /// Format: `https://...`
+        static let privacyURL = ""
+
+        /// HTTPS URL to the hosted Open-Source Licenses page (same fallback).
+        /// Format: `https://...`
+        static let licensesURL = ""
+    }
+
     // MARK: - Deployed component contracts
     //
     // One address per on-chain component. Empty → that component runs in
