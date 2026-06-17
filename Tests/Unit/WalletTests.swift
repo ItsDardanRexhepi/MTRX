@@ -473,6 +473,23 @@ final class WalletTests: XCTestCase {
         }
     }
 
+    // MARK: - Component: AgenticPayments (Component 10)
+
+    @MainActor
+    func testAgenticPaymentsExecute_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await AgenticPayments.executePaymentOnChain(
+                recipient: "0x2222222222222222222222222222222222222222",
+                token: "0x4444444444444444444444444444444444444444",
+                amount: 5_000,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag,
+                service: service,
+                contract: contract
+            )
+        }
+    }
+
     // MARK: - Component: AgentIdentity (Component 09)
 
     @MainActor

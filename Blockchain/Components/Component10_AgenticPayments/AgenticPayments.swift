@@ -80,6 +80,7 @@ enum AgenticPaymentError: Error, LocalizedError {
     case channelInactive
     case authorizationFailed
     case auditRequired
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -93,6 +94,7 @@ enum AgenticPaymentError: Error, LocalizedError {
         case .channelInactive: return "Payment channel is inactive."
         case .authorizationFailed: return "Payment authorization failed."
         case .auditRequired: return "Audit review required before proceeding."
+        case .notConfigured: return "Agentic-payments contract not configured (PendingCredentials.Components.agenticPayments)."
         }
     }
 }
@@ -201,6 +203,46 @@ final class AgenticPayments {
         dailySpending[payment.agentDID, default: 0] += payment.amount
         logAuditEntry(paymentId: paymentId, agentDID: payment.agentDID, action: "executed", amount: payment.amount)
         completion(.success(payment))
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+    //
+    // The Morpheus / Face ID approval gate for high-value transfers lives in the
+    // UI/authorization layer (authorizePayment + the chat Morpheus gate) and is
+    // NOT weakened here — this method only encodes and submits an
+    // already-authorized payment with the user's own enclave key (self-custody).
+
+    /// ABI-encode `executePayment(address recipient, address token, uint256 amount)`.
+    static func encodeExecutePayment(recipient: String, token: String, amount: UInt64) -> Data {
+        var data = ABIEncoder.functionSelector("executePayment(address,address,uint256)")
+        data.append(ABIEncoder.encodeAddress(recipient))
+        data.append(ABIEncoder.encodeAddress(token))
+        data.append(ABIEncoder.encodeUInt256(amount))
+        return data
+    }
+
+    /// Execute an already-authorized agent payment on-chain through the real
+    /// submit pipeline: enclave-signed UserOp → server paymaster → bundler.
+    /// Contract address deferred to PendingCredentials (nil until set → throws,
+    /// never a fake payment). Static: needs no instance state.
+    @MainActor
+    static func executePaymentOnChain(
+        recipient: String,
+        token: String,
+        amount: UInt64,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.agenticPayments)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let payments = contract else { throw AgenticPaymentError.notConfigured }
+        return try await service.submitCall(
+            to: payments,
+            value: 0,
+            data: encodeExecutePayment(recipient: recipient, token: token, amount: amount),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     // MARK: - Audit
