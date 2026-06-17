@@ -281,6 +281,11 @@
 		CF6505A67436A73292D272AA /* WalletCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F90F7DC46C3D286B5024A8F /* WalletCore.swift */; };
 		D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */; };
 		7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */; };
+		12577404F756932237BF8A47 /* KYCService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F4B07BF7CF022D801A9856 /* KYCService.swift */; };
+		C74DC32D33792A25C6A5CAD7 /* LaunchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06E158D8DA74545AD2172E87 /* LaunchService.swift */; };
+		C7C806AD09146C666E82A9EF /* LendingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D02385B6C33DCEECE03A072 /* LendingService.swift */; };
+		DCB05C24A0066ECB0669CA81 /* LicensingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8390C203554A67725E45C2E0 /* LicensingService.swift */; };
+		7BA557240BCB3A4EE7ACCCC0 /* LiquidityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C21BFF1EC921C56F89AF95B /* LiquidityService.swift */; };
 		8AB6D367B8C7A38548718D7A /* GamingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D7C209BADB4C94B87CE696 /* GamingService.swift */; };
 		68E3C80B0B92C3D8F64EA621 /* GovernanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F900436F3D551449FDF6C96 /* GovernanceService.swift */; };
 		232308F5CA659D06DA2D74CB /* GroupsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A13E9BC5CB7CEBE3972C68A /* GroupsService.swift */; };
@@ -610,6 +615,11 @@
 		6F90F7DC46C3D286B5024A8F /* WalletCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WalletCore.swift"; path = "Core/Wallet/WalletCore.swift"; sourceTree = SOURCE_ROOT; };
 		1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SecureEnclaveManager.swift"; path = "Core/Wallet/SecureEnclaveManager.swift"; sourceTree = SOURCE_ROOT; };
 		7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DemoArtifacts.swift"; path = "Core/Utilities/DemoArtifacts.swift"; sourceTree = SOURCE_ROOT; };
+		20F4B07BF7CF022D801A9856 /* KYCService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "KYCService.swift"; path = "Services/KYCService.swift"; sourceTree = SOURCE_ROOT; };
+		06E158D8DA74545AD2172E87 /* LaunchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LaunchService.swift"; path = "Services/LaunchService.swift"; sourceTree = SOURCE_ROOT; };
+		6D02385B6C33DCEECE03A072 /* LendingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LendingService.swift"; path = "Services/LendingService.swift"; sourceTree = SOURCE_ROOT; };
+		8390C203554A67725E45C2E0 /* LicensingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LicensingService.swift"; path = "Services/LicensingService.swift"; sourceTree = SOURCE_ROOT; };
+		4C21BFF1EC921C56F89AF95B /* LiquidityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LiquidityService.swift"; path = "Services/LiquidityService.swift"; sourceTree = SOURCE_ROOT; };
 		49D7C209BADB4C94B87CE696 /* GamingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GamingService.swift"; path = "Services/GamingService.swift"; sourceTree = SOURCE_ROOT; };
 		6F900436F3D551449FDF6C96 /* GovernanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GovernanceService.swift"; path = "Services/GovernanceService.swift"; sourceTree = SOURCE_ROOT; };
 		6A13E9BC5CB7CEBE3972C68A /* GroupsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GroupsService.swift"; path = "Services/GroupsService.swift"; sourceTree = SOURCE_ROOT; };
@@ -1752,6 +1762,11 @@
 				CF6505A67436A73292D272AA /* WalletCore.swift in Sources */,
 				D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */,
 				7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */,
+				12577404F756932237BF8A47 /* KYCService.swift in Sources */,
+				C74DC32D33792A25C6A5CAD7 /* LaunchService.swift in Sources */,
+				C7C806AD09146C666E82A9EF /* LendingService.swift in Sources */,
+				DCB05C24A0066ECB0669CA81 /* LicensingService.swift in Sources */,
+				7BA557240BCB3A4EE7ACCCC0 /* LiquidityService.swift in Sources */,
 				8AB6D367B8C7A38548718D7A /* GamingService.swift in Sources */,
 				68E3C80B0B92C3D8F64EA621 /* GovernanceService.swift in Sources */,
 				232308F5CA659D06DA2D74CB /* GroupsService.swift in Sources */,

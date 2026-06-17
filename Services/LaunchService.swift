@@ -23,7 +23,7 @@ struct TokenLaunchParams: Codable {
     let duration: Int
 }
 
-struct VestingSchedule: Codable, Identifiable {
+struct SvcVestingSchedule: Codable, Identifiable {
     var id: String { scheduleId }
     let scheduleId: String
     let token: String
@@ -74,7 +74,7 @@ final class LaunchService {
         ])
     }
 
-    func getVestingSchedule(address: String) async throws -> [VestingSchedule] {
+    func getVestingSchedule(address: String) async throws -> [SvcVestingSchedule] {
         try await api.get(path: "/launch/vesting", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])

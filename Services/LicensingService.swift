@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Models
 
-struct IPAsset: Codable, Identifiable {
+struct SvcIPAsset: Codable, Identifiable {
     var id: String { ipId }
     let ipId: String
     let name: String
@@ -51,13 +51,13 @@ final class LicensingService {
 
     private init() {}
 
-    func getUserIP(address: String) async throws -> [IPAsset] {
+    func getUserIP(address: String) async throws -> [SvcIPAsset] {
         try await api.get(path: "/licensing/ip", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func registerIP(params: IPRegistrationParams) async throws -> IPAsset {
+    func registerIP(params: IPRegistrationParams) async throws -> SvcIPAsset {
         try await api.post(path: "/licensing/ip", body: params)
     }
 
@@ -86,7 +86,7 @@ final class LicensingService {
         return try await api.post(path: "/licensing/licenses/purchase", body: body)
     }
 
-    func getIPMarketplace() async throws -> [IPAsset] {
+    func getIPMarketplace() async throws -> [SvcIPAsset] {
         try await api.get(path: "/licensing/marketplace")
     }
 }
