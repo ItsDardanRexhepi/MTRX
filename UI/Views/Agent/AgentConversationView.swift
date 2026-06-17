@@ -587,6 +587,7 @@ struct AgentConversationView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(Color.labelSecondary)
                         .frame(width: 30, height: 30)
+                        .accessibilityLabel("Close")
                 }
                 .buttonStyle(.plain)
             }

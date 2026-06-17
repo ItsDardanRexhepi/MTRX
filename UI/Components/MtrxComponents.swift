@@ -350,6 +350,7 @@ struct MtrxTextField: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 16))
                         .foregroundStyle(Color.labelTertiary)
+                        .accessibilityLabel("Clear text")
                 }
             }
         }
@@ -372,6 +373,7 @@ struct MtrxSearchBar: View {
             Image(systemName: Symbols.search)
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(Color.labelTertiary)
+                .accessibilityHidden(true)
 
             TextField(placeholder, text: $text)
                 .font(.mtrxBody)
@@ -384,6 +386,7 @@ struct MtrxSearchBar: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 16))
                         .foregroundStyle(Color.labelTertiary)
+                        .accessibilityLabel("Clear search")
                 }
             }
         }
@@ -855,6 +858,7 @@ struct MtrxSheetHeader: View {
                             .frame(width: 30, height: 30)
                             .background(Color.surfaceOverlay)
                             .clipShape(Circle())
+                            .accessibilityLabel("Dismiss")
                     }
                 }
             }

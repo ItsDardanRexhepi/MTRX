@@ -2391,6 +2391,7 @@ struct PostCardView: View {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 15))
                         .foregroundStyle(Color.labelTertiary)
+                        .accessibilityLabel("Share post")
                 }
             }
         }
@@ -2757,6 +2758,7 @@ struct CommentComposerSheet: View {
                     } label: {
                         Image(systemName: "paperplane.fill")
                             .font(.system(size: 16, weight: .semibold))
+                            .accessibilityLabel("Send comment")
                     }
                     .buttonStyle(MtrxButtonStyle(variant: .primary, size: .compact))
                     .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -2949,6 +2951,7 @@ struct PostDetailSheet: View {
                             .font(.system(size: 15, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 34, height: 34)
+                            .accessibilityLabel("Send comment")
                             .background(draft.trimmingCharacters(in: .whitespaces).isEmpty ? Color.labelQuaternary : Color.accentPrimary)
                             .clipShape(Circle())
                     }
