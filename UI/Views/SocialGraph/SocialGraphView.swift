@@ -33,6 +33,11 @@ class SocialGraphViewModel: ObservableObject {
     @Published var selectedTab: String = "Following"
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var isDemo: Bool = false
+
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter(); f.unitsStyle = .short; return f
+    }()
 
     let tabs = ["Following", "Followers", "Feed"]
 
@@ -40,11 +45,36 @@ class SocialGraphViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live social graph from SocialGraphService (per-wallet) when configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                async let followingReq = SocialGraphService.shared.getFollowing(address: address)
+                async let followersReq = SocialGraphService.shared.getFollowers(address: address)
+                async let feedReq = SocialGraphService.shared.getActivityFeed(address: address)
+                following = try await followingReq.map { p in
+                    ProfileItem(address: p.address, ens: p.ens, followerCount: p.followerCount, isFollowing: p.isFollowing)
+                }
+                followers = try await followersReq.map { p in
+                    ProfileItem(address: p.address, ens: p.ens, followerCount: p.followerCount, isFollowing: p.isFollowing)
+                }
+                feed = try await feedReq.map { a in
+                    ActivityItem(actor: a.actor, type: a.type, description: a.description,
+                                 timestamp: Self.relativeFormatter.localizedString(for: a.timestamp, relativeTo: Date()))
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live social graph unavailable — showing demo."
+            }
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             following = SocialGraphViewModel.sampleFollowing
             followers = SocialGraphViewModel.sampleFollowers
             feed = SocialGraphViewModel.sampleFeed
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load social graph."
@@ -120,6 +150,11 @@ struct SocialGraphView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Social Graph")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
         }
     }

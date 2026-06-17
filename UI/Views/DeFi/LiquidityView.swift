@@ -47,6 +47,7 @@ class LiquidityViewModel: ObservableObject {
     @Published var pools: [LiquidityPool] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var isDemo: Bool = false
     @Published var showAddLiquidity: Bool = false
     @Published var showRemoveLiquidity: Bool = false
     @Published var selectedPool: LiquidityPool?
@@ -74,20 +75,30 @@ class LiquidityViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        // Live pools from the gateway; fall back to samples if it isn't up.
-        if let live = try? await MTRXAPIClient.shared.liquidityPools(), !live.pools.isEmpty {
-            pools = live.pools.map {
-                LiquidityPool(tokenA: $0.tokenA, tokenB: $0.tokenB, apr: $0.apr,
-                              tvl: $0.tvl, volume24h: $0.volume24h,
-                              userShare: $0.userShare, earnedFees: $0.earnedFees)
+        // Live pools from LiquidityService when configured; else demo. Per-position
+        // userShare/earnedFees come from a separate positions endpoint and stay nil here.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let live = try await LiquidityService.shared.getPools()
+                pools = live.map { p in
+                    LiquidityPool(
+                        id: p.poolId, tokenA: p.token0, tokenB: p.token1,
+                        apr: p.apr, tvl: p.tvl, volume24h: p.volume24h,
+                        userShare: nil, earnedFees: nil
+                    )
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live pools unavailable — showing demo."
             }
-            isLoading = false
-            return
         }
 
         do {
             try await Task.sleep(for: .milliseconds(700))
             pools = LiquidityViewModel.samplePools
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load pools."
@@ -151,6 +162,11 @@ struct LiquidityView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Liquidity")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
             .sheet(isPresented: $viewModel.showAddLiquidity) {
                 addLiquiditySheet

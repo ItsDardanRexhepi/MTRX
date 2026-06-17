@@ -35,15 +35,45 @@ class AgentIdentityViewModel: ObservableObject {
     @Published var showRevokeConfirmation: Bool = false
     @Published var isRegistering: Bool = false
     @Published var isRevoking: Bool = false
+    @Published var isDemo: Bool = false
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short; return f
+    }()
 
     func load() async {
         isLoading = true
         errorMessage = nil
 
+        // Live agent identity from AgentIdentityService (per-wallet) when configured; else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let profile = try await AgentIdentityService.shared.getAgentIdentity(address: address)
+                agent = AgentProfileItem(
+                    name: profile.name, capabilities: profile.capabilities,
+                    trustLevel: profile.trustLevel, interactionCount: profile.interactionCount
+                )
+                let history = try await AgentIdentityService.shared.getInteractionHistory(agentId: profile.agentId)
+                interactions = history.map { i in
+                    InteractionItem(
+                        action: i.action, target: i.target,
+                        timestamp: Self.dateFormatter.string(from: i.timestamp),
+                        outcome: i.outcome
+                    )
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live agent identity unavailable — showing demo."
+            }
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             agent = AgentIdentityViewModel.sampleAgent
             interactions = AgentIdentityViewModel.sampleInteractions
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load agent identity."
@@ -121,6 +151,11 @@ struct AgentIdentityView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Agent Identity")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
             .alert("Revoke Agent Identity", isPresented: $viewModel.showRevokeConfirmation) {
                 Button("Cancel", role: .cancel) { }
