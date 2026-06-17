@@ -473,6 +473,22 @@ final class WalletTests: XCTestCase {
         }
     }
 
+    // MARK: - Component: SupplyChain (Component 12)
+
+    @MainActor
+    func testSupplyChainCheckpoint_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await SupplyChainManager.shared.recordCheckpointOnChain(
+                shipmentHash: Data(repeating: 0x1A, count: 32),
+                dataHash: Data(repeating: 0x2B, count: 32),
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag,
+                service: service,
+                contract: contract
+            )
+        }
+    }
+
     // MARK: - Component: AgenticPayments (Component 10)
 
     @MainActor

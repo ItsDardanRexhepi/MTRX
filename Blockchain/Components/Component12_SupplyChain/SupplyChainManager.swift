@@ -199,6 +199,46 @@ final class SupplyChainManager: ObservableObject {
             .sorted { $0.timestamp < $1.timestamp }
     }
 
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `recordCheckpoint(bytes32 shipmentHash, bytes32 dataHash)`.
+    static func encodeRecordCheckpoint(shipmentHash: Data, dataHash: Data) -> Data {
+        func word(_ d: Data) -> Data {
+            var w = Data(repeating: 0, count: 32)
+            let head = d.prefix(32)
+            w.replaceSubrange(0..<head.count, with: head)
+            return w
+        }
+        var out = ABIEncoder.functionSelector("recordCheckpoint(bytes32,bytes32)")
+        out.append(word(shipmentHash))
+        out.append(word(dataHash))
+        return out
+    }
+
+    /// Record a provenance checkpoint on-chain through the real submit pipeline:
+    /// enclave-signed UserOp → server paymaster → bundler. Contract address
+    /// deferred to PendingCredentials (nil until set → throws, never a fake write).
+    @MainActor
+    func recordCheckpointOnChain(
+        shipmentHash: Data,
+        dataHash: Data,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.supplyChain)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let registry = contract else {
+            throw SupplyChainError.contractCallFailed("SupplyChain contract not configured (PendingCredentials.Components.supplyChain)")
+        }
+        return try await service.submitCall(
+            to: registry,
+            value: 0,
+            data: Self.encodeRecordCheckpoint(shipmentHash: shipmentHash, dataHash: dataHash),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
+    }
+
     // MARK: - Private
 
     private func generateAttestationHash(shipmentId: String, lat: Double, lon: Double, timestamp: Date) -> String {
