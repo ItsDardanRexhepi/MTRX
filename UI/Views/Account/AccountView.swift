@@ -227,6 +227,8 @@ struct AccountView: View {
                                 .foregroundStyle(copiedDID ? Color.statusSuccess : Color.accentPrimary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Copy decentralized identifier")
+                        .accessibilityValue(copiedDID ? "Copied" : "")
                     }
 
                     Text("Member since \(memberSinceString)")
@@ -239,6 +241,7 @@ struct AccountView: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.labelTertiary)
+                    .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
@@ -246,6 +249,8 @@ struct AccountView: View {
                 MtrxHaptics.impact(.light)
                 showEditProfile = true
             }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Opens edit profile")
         }
         .mtrxFadeInFromBottom(isVisible: appeared, delay: 0)
     }
@@ -292,6 +297,8 @@ struct AccountView: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Profile photo")
+        .accessibilityHint("Change photo")
         .confirmationDialog("Profile Photo", isPresented: $showAvatarOptions, titleVisibility: .visible) {
             if SocialIdentity.shared.avatarImage != nil {
                 Button("Use my Social photo") {
@@ -391,6 +398,12 @@ struct AccountView: View {
                             .foregroundStyle(Color.labelTertiary)
                     }
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(VoiceOverSupport.portfolioLabel(
+                    value: walletManager.totalPortfolioValue.formatted(.currency(code: "USD")),
+                    change: String(format: "%.2f%%", walletManager.portfolioChange24h),
+                    isPositive: walletManager.portfolioChange24h >= 0
+                ))
 
                 Button { presentedDestination = AccountNavDestination.wallet } label: {
                     HStack {
