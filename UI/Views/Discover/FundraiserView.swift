@@ -415,6 +415,7 @@ struct CampaignCardView: View {
                         .font(.mtrxBodyBold)
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
 
                     // Creator row
                     HStack(spacing: Spacing.sm) {

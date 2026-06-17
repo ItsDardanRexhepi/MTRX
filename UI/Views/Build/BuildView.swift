@@ -693,11 +693,13 @@ struct ContractCardRow: View {
                             .font(.mtrxHeadline)
                             .foregroundStyle(Color.labelPrimary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
 
                         Text(contract.counterparty)
                             .font(.mtrxMonoSmall)
                             .foregroundStyle(Color.labelSecondary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
 
                     Spacer()
@@ -981,6 +983,7 @@ struct TemplateCardView: View {
                     .font(.mtrxHeadline)
                     .foregroundStyle(Color.labelPrimary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 // Description
                 Text(template.description_)

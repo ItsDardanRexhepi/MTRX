@@ -330,6 +330,7 @@ struct DomainView: View {
                             .font(.mtrxMonoSmall)
                             .foregroundStyle(Color.labelSecondary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                             .truncationMode(.middle)
                     }
                     Spacer()

@@ -538,6 +538,7 @@ struct MarketplaceGridCard: View {
                         .font(.mtrxCaption2)
                         .foregroundStyle(Color.labelSecondary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
 
                 // View button

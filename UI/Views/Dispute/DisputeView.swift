@@ -330,6 +330,7 @@ struct DisputeView: View {
                         .font(.mtrxMonoSmall)
                         .foregroundStyle(Color.labelSecondary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                         .truncationMode(.middle)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -416,6 +417,7 @@ struct DisputeView: View {
                         .font(.mtrxMonoSmall)
                         .foregroundStyle(Color.labelSecondary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                         .truncationMode(.middle)
                     Spacer()
                 }

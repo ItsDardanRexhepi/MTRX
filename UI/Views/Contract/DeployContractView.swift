@@ -271,6 +271,7 @@ struct DeployContractView: View {
                         .font(.mtrxHeadline)
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
 
                     Text(template.subtitle)
                         .font(.mtrxCaption1)
@@ -579,6 +580,7 @@ struct DeployContractView: View {
                 .font(.mtrxMonoSmall)
                 .foregroundStyle(Color.labelPrimary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
 
@@ -615,6 +617,7 @@ struct DeployContractView: View {
                             .font(.mtrxMonoSmall)
                             .foregroundStyle(accent)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                             .truncationMode(.middle)
 
                         HStack(spacing: Spacing.md) {

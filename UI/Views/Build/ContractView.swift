@@ -623,6 +623,7 @@ struct ContractView: View {
                 .font(isMono ? .mtrxMonoSmall : .mtrxCalloutBold)
                 .foregroundStyle(Color.labelPrimary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
 

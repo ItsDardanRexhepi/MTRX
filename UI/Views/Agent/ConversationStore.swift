@@ -230,6 +230,7 @@ struct ChatHistorySheet: View {
                     .font(.mtrxBody)
                     .foregroundStyle(Color.labelPrimary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text("\(convo.agentDisplayName) · \(convo.updatedAt.formatted(.relative(presentation: .named)))")
                     .font(.mtrxCaption1)
                     .foregroundStyle(Color.labelSecondary)

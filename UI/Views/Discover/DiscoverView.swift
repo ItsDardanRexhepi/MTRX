@@ -862,6 +862,7 @@ struct TrendingListingRow: View {
                         .font(.mtrxHeadline)
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
 
                     MtrxBadge(text: listing.category, style: .neutral)
                 }
@@ -900,6 +901,7 @@ struct TrendingMiniCard: View {
                     .font(.mtrxCalloutBold)
                     .foregroundStyle(Color.labelPrimary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 MtrxBadge(text: listing.category, style: .neutral)
                 HStack(spacing: Spacing.sm) {
                     Text(listing.price)
@@ -972,6 +974,7 @@ struct FundraiserCardView: View {
                             .font(.mtrxHeadline)
                             .foregroundStyle(Color.labelPrimary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
 
                         Text(fundraiser.description_)
                             .font(.mtrxCaption1)

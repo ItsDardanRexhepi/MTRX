@@ -736,6 +736,7 @@ struct PastProposalRow: View {
                             .font(.mtrxCallout)
                             .foregroundStyle(Color.labelPrimary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
 
                     Text("by \(proposal.proposer)")

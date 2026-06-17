@@ -471,6 +471,7 @@ struct ContentPublishingView: View {
                                         .font(.mtrxMonoTiny)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
+                                        .minimumScaleFactor(0.75)
                                         .truncationMode(.middle)
 
                                     Spacer()
