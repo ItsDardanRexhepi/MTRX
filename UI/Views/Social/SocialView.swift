@@ -1844,6 +1844,7 @@ struct SocialView: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.labelTertiary)
+                    .accessibilityHidden(true)
             }
         }
     }

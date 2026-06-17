@@ -641,6 +641,7 @@ struct StoryViewer: View {
                             Image(systemName: "star.fill")
                                 .font(.system(size: 11))
                                 .foregroundStyle(Color.statusSuccess)
+                                .accessibilityLabel("Close friends only")
                         }
 
                         Spacer()

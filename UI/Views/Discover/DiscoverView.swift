@@ -453,6 +453,7 @@ struct DiscoverView: View {
                     Image(systemName: "chevron.right.circle")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(Color.accentPrimary)
+                        .accessibilityHidden(true)
                     Spacer()
                 }
             }
