@@ -139,6 +139,47 @@ final class PaymentsManager: ObservableObject {
         return payment
     }
 
+    // MARK: - On-chain execution (via the submit pipeline)
+    //
+    // Only the ON-CHAIN crypto leg is wired here, and it is USER-SIGNED
+    // SELF-CUSTODY (the user signs the transfer of their own token with their own
+    // enclave key). Any fiat ↔ crypto conversion / cross-border settlement is
+    // off-chain and must be performed by a licensed money-services provider — it
+    // is intentionally NOT executed in-app.
+
+    /// ABI-encode the ERC-20 `transfer(address recipient, uint256 amount)`.
+    static func encodeTransfer(recipient: String, amount: UInt64) -> Data {
+        var data = ABIEncoder.functionSelector("transfer(address,uint256)")
+        data.append(ABIEncoder.encodeAddress(recipient))
+        data.append(ABIEncoder.encodeUInt256(amount))
+        return data
+    }
+
+    /// Send the on-chain (crypto) leg of a payment through the real submit
+    /// pipeline: enclave-signed UserOp → server paymaster → bundler. `token` is
+    /// the settlement token contract (deferred to PendingCredentials.Components.payments
+    /// or pass an explicit token); nil → throws, never a fake transfer.
+    @MainActor
+    func sendPaymentOnChain(
+        token: String? = PendingCredentials.filled(PendingCredentials.Components.payments),
+        recipient: String,
+        amount: UInt64,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService
+    ) async throws -> WalletTransactionService.Submission {
+        guard let tokenAddress = token else {
+            throw PaymentsError.paymentFailed("Payments token not configured (PendingCredentials.Components.payments)")
+        }
+        return try await service.submitCall(
+            to: tokenAddress,
+            value: 0,
+            data: Self.encodeTransfer(recipient: recipient, amount: amount),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
+    }
+
     // MARK: - Fee Calculation
 
     /// Calculate the fee for a payment.
