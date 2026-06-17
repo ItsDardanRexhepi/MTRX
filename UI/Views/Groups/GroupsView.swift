@@ -308,6 +308,7 @@ struct GroupsView: View {
                 .background(accentColor.opacity(0.12))
                 .clipShape(Capsule())
         }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Discover
@@ -482,6 +483,7 @@ struct GroupsView: View {
                                 viewModel.postToGroup()
                             } label: {
                                 Image(systemName: "paperplane.fill")
+                                    .accessibilityLabel("Send post")
                                     .foregroundStyle(viewModel.newPostText.isEmpty ? .gray : accentColor)
                             }
                             .disabled(viewModel.newPostText.isEmpty || viewModel.isPosting)

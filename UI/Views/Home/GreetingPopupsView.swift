@@ -65,6 +65,7 @@ struct CalendarPopup: View {
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark.circle.fill")
+                        .accessibilityLabel("Close")
                         .font(.system(size: 22))
                         .foregroundStyle(Color.labelSecondary)
                 }
@@ -214,6 +215,7 @@ struct WeatherPopup: View {
         .overlay(alignment: .topTrailing) {
             Button { dismiss() } label: {
                 Image(systemName: "xmark.circle.fill")
+                    .accessibilityLabel("Close")
                     .font(.system(size: 22))
                     .foregroundStyle(Color.labelSecondary)
             }

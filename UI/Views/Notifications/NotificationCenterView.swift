@@ -338,6 +338,7 @@ struct NotificationCenterView: View {
         .padding(Spacing.ms)
         .background(notification.isRead ? Color.surfaceCard.opacity(0.6) : Color.surfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Helpers

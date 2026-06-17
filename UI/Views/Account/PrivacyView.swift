@@ -169,6 +169,7 @@ struct PrivacyView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Profile Visibility Section

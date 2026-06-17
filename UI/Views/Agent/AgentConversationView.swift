@@ -633,6 +633,7 @@ struct AgentConversationView: View {
                 showChats = true
             } label: {
                 Image(systemName: "square.and.pencil")
+                    .accessibilityLabel("Chat history")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Color.labelSecondary)
                     .frame(width: 32, height: 32)
@@ -645,6 +646,7 @@ struct AgentConversationView: View {
                 showSearch = true
             } label: {
                 Image(systemName: Symbols.search)
+                    .accessibilityLabel("Search")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Color.labelSecondary)
                     .frame(width: 32, height: 32)
@@ -830,6 +832,7 @@ struct AgentConversationView: View {
                 isListening.toggle()
             } label: {
                 Image(systemName: isListening ? Symbols.microphoneSlash : Symbols.microphone)
+                    .accessibilityLabel("Microphone")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(isListening ? Color.statusError : Color.labelTertiary)
                     .frame(width: 36, height: 36)
@@ -861,6 +864,7 @@ struct AgentConversationView: View {
                 viewModel.sendMessage()
             } label: {
                 Image(systemName: Symbols.send)
+                    .accessibilityLabel("Send message")
                     .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(
                         viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

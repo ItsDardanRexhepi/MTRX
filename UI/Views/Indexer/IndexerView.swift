@@ -291,6 +291,7 @@ struct IndexerView: View {
                         } label: {
                             HStack(spacing: Spacing.xs) {
                                 Image(systemName: Symbols.wand)
+                                    .accessibilityLabel("Translate to GraphQL")
                                     .font(.system(size: 14))
                                 Text(viewModel.isTranslating ? "Translating..." : "Translate to GraphQL")
                             }
@@ -310,6 +311,7 @@ struct IndexerView: View {
                             } label: {
                                 HStack(spacing: Spacing.xs) {
                                     Image(systemName: "play.fill")
+                                        .accessibilityLabel("Run query")
                                         .font(.system(size: 12))
                                     Text(viewModel.isRunning ? "Running..." : "Run")
                                 }

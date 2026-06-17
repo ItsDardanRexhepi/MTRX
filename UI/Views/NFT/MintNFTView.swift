@@ -269,6 +269,7 @@ struct MintNFTView: View {
                             }
                         } label: {
                             Image(systemName: Symbols.remove)
+                                .accessibilityLabel("Remove attribute")
                                 .font(.system(size: 18))
                                 .foregroundStyle(Color.statusError.opacity(0.7))
                         }

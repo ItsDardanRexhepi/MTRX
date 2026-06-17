@@ -306,6 +306,7 @@ struct InsuranceView: View {
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Calculator Section
