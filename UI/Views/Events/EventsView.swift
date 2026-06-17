@@ -32,6 +32,9 @@ class EventsViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var showCreate: Bool = false
+    /// True while showing bundled demo data (backend gateway not configured, or a
+    /// live fetch failed). Drives the demo badge; flips to false on live data.
+    @Published var isDemo: Bool = false
 
     // Create event form
     @Published var newTitle: String = ""
@@ -39,19 +42,42 @@ class EventsViewModel: ObservableObject {
     @Published var newLocation: String = ""
     @Published var newPrice: String = ""
 
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "MMM dd, yyyy"; return f
+    }()
+
     func load() async {
         isLoading = true
         errorMessage = nil
 
-        do {
-            try await Task.sleep(for: .milliseconds(700))
-            events = EventsViewModel.sampleEvents
-            tickets = EventsViewModel.sampleTickets
-            isLoading = false
-        } catch {
-            errorMessage = "Unable to load events."
-            isLoading = false
+        // Live when the backend gateway is configured (PendingCredentials); else
+        // honest, clearly-labelled demo data. The flip needs no code change.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let live = try await EventsService.shared.getEvents()
+                events = live.map { event in
+                    EventItem(
+                        title: event.title,
+                        date: Self.dateFormatter.string(from: event.date),
+                        location: event.location,
+                        ticketPrice: event.ticketPrice == 0 ? "Free" : String(format: "%.2f ETH", event.ticketPrice),
+                        remaining: event.remaining
+                    )
+                }
+                tickets = [] // user tickets require a wallet address — wired separately
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                // Live fetch failed — fall back to labelled demo, never a blank screen.
+                errorMessage = "Live events unavailable — showing demo."
+            }
         }
+
+        events = EventsViewModel.sampleEvents
+        tickets = EventsViewModel.sampleTickets
+        isDemo = true
+        isLoading = false
     }
 
     func buyTicket(for event: EventItem) async {
@@ -141,6 +167,9 @@ struct EventsView: View {
             .navigationTitle("Events")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         showTicketScanner = true
