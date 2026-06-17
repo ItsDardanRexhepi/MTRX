@@ -13,10 +13,10 @@ struct SvcCampaign: Codable, Identifiable {
     let deadline: Date
     let status: String
     let creator: String
-    let tiers: [RewardTier]
+    let tiers: [SvcRewardTier]
 }
 
-struct RewardTier: Codable, Identifiable {
+struct SvcRewardTier: Codable, Identifiable {
     let id: UUID
     let name: String
     let description: String
@@ -31,7 +31,7 @@ struct CampaignParams: Codable {
     let goal: Double
     let token: String
     let deadline: Date
-    let tiers: [RewardTier]
+    let tiers: [SvcRewardTier]
 }
 
 // MARK: - Service

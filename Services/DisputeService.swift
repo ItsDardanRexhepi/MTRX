@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Models
 
-struct DisputeCase: Codable, Identifiable {
+struct SvcDisputeCase: Codable, Identifiable {
     var id: String { disputeId }
     let disputeId: String
     let creator: String
@@ -31,17 +31,17 @@ final class DisputeService {
 
     private init() {}
 
-    func createDispute(params: DisputeParams) async throws -> DisputeCase {
+    func createDispute(params: DisputeParams) async throws -> SvcDisputeCase {
         try await api.post(path: "/disputes", body: params)
     }
 
-    func getDisputes(address: String) async throws -> [DisputeCase] {
+    func getDisputes(address: String) async throws -> [SvcDisputeCase] {
         try await api.get(path: "/disputes", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func getOpenJuryCases() async throws -> [DisputeCase] {
+    func getOpenJuryCases() async throws -> [SvcDisputeCase] {
         try await api.get(path: "/disputes/jury", queryItems: nil)
     }
 

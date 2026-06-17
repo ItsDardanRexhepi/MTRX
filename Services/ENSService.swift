@@ -9,7 +9,7 @@ struct ENSSearchResult: Codable {
     let price5Year: Double
 }
 
-struct ENSDomain: Codable, Identifiable {
+struct SvcENSDomain: Codable, Identifiable {
     var id: String { name }
     let name: String
     let owner: String
@@ -42,7 +42,7 @@ final class ENSService {
         return try await api.post(path: "/ens/register", body: body)
     }
 
-    func getUserDomains(address: String) async throws -> [ENSDomain] {
+    func getUserDomains(address: String) async throws -> [SvcENSDomain] {
         try await api.get(path: "/ens/domains", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
