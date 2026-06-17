@@ -242,17 +242,23 @@ final class ERC4337Manager {
         entryPointAddress: String = PendingCredentials.filled(PendingCredentials.AccountAbstraction.entryPointAddress) ?? "",
         paymasterAddress: String? = PendingCredentials.filled(PendingCredentials.AccountAbstraction.paymasterAddress),
         bundlerURL: URL,
-        networkConfig: BaseNetworkConfig
+        networkConfig: BaseNetworkConfig,
+        session: URLSession? = nil
     ) {
         self.entryPointAddress = entryPointAddress
         self.paymasterAddress = paymasterAddress
         self.bundlerURL = bundlerURL
         self.networkConfig = networkConfig
 
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
-        self.session = URLSession(configuration: config)
+        if let session = session {
+            // Injected (e.g. a MockURLProtocol session in tests).
+            self.session = session
+        } else {
+            let config = URLSessionConfiguration.default
+            config.timeoutIntervalForRequest = 30
+            config.timeoutIntervalForResource = 60
+            self.session = URLSession(configuration: config)
+        }
     }
 
     // MARK: - Account Management
@@ -394,6 +400,28 @@ final class ERC4337Manager {
             signature: Data()
         )
 
+        return .success(operation)
+    }
+
+    /// Build an unsigned UserOperation that calls `execute(target, value, data)`
+    /// on the smart account. Paymaster data + signature are attached later by the
+    /// sponsorship and enclave-signing steps of the submit pipeline.
+    func buildUserOperation(to target: String, value: UInt64, data: Data) -> Result<UserOperation, ERC4337Error> {
+        guard let sender = accountAddress else { return .failure(.accountNotDeployed) }
+        let callData = encodeExecuteCalldata(to: target, value: value, data: data)
+        let operation = UserOperation(
+            sender: sender,
+            nonce: currentNonce,
+            initCode: isAccountDeployed ? Data() : buildInitCode(),
+            callData: callData,
+            callGasLimit: 200_000,
+            verificationGasLimit: 150_000,
+            preVerificationGas: 50_000,
+            maxFeePerGas: 1_000_000,
+            maxPriorityFeePerGas: 1_000_000,
+            paymasterAndData: Data(),
+            signature: Data()
+        )
         return .success(operation)
     }
 

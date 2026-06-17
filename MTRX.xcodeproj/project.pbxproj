@@ -98,6 +98,7 @@
 		9B72E0300E15BCBFE1EEC6C8 /* DisputeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8DDB568E896A40713EA170A /* DisputeManager.swift */; };
 		F00EF8E1EC28EF842DEC2091 /* BaseNetwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B76EC5669E7D61C6EC2C4C6 /* BaseNetwork.swift */; };
 		AAE5E5A7ED8EB3B07971414E /* ERC4337Manager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2F426DDE071841A57B5A86 /* ERC4337Manager.swift */; };
+		DABE57F1CE0000000000000002 /* WalletTransactionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DABE57F1CE0000000000000001 /* WalletTransactionService.swift */; };
 		E683C5129F73E4089A84BFE4 /* GasSponsorship.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A03FF1A23C5177709153EB /* GasSponsorship.swift */; };
 		2C176F45450E56DE323F782F /* WalletCreation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A545017C5C5093567AD948E /* WalletCreation.swift */; };
 		3901B8377FB62A46C064A01F /* Morpheus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33D6EE77613E7B2F1F141168 /* Morpheus.swift */; };
@@ -206,6 +207,7 @@
 		FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA7F1A65C0DE00000000001 /* FeatureFlags.swift */; };
 		C0DEF11E00000000000A0002 /* PendingCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEF11E00000000000A0001 /* PendingCredentials.swift */; };
 		FE57FACE0000000000000A0B /* WalletTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79115443B6ADCE2298D66886 /* WalletTests.swift */; };
+		F0CC0DE5000000000000A002 /* MockURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CC0DE5000000000000A001 /* MockURLProtocol.swift */; };
 		008BCDADF7A3991CD709F8D4 /* BlockchainBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 096376876B5B90D0574F0CC5 /* BlockchainBridge.swift */; };
 		F4D3914114442BA6B4DEFC50 /* MTRXAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C08BF836C56955D9603329 /* MTRXAPIClient.swift */; };
 		304899E5C51643F27A3F6B3E /* MTRXPackager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA04AE50584879537DC82F8 /* MTRXPackager.swift */; };
@@ -395,6 +397,7 @@
 		F8DDB568E896A40713EA170A /* DisputeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DisputeManager.swift"; sourceTree = "<group>"; };
 		8B76EC5669E7D61C6EC2C4C6 /* BaseNetwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BaseNetwork.swift"; sourceTree = "<group>"; };
 		CC2F426DDE071841A57B5A86 /* ERC4337Manager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ERC4337Manager.swift"; sourceTree = "<group>"; };
+		DABE57F1CE0000000000000001 /* WalletTransactionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WalletTransactionService.swift"; sourceTree = "<group>"; };
 		F1A03FF1A23C5177709153EB /* GasSponsorship.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GasSponsorship.swift"; sourceTree = "<group>"; };
 		1A545017C5C5093567AD948E /* WalletCreation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WalletCreation.swift"; sourceTree = "<group>"; };
 		33D6EE77613E7B2F1F141168 /* Morpheus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Morpheus.swift"; sourceTree = "<group>"; };
@@ -447,6 +450,7 @@
 		43BC5281F0A7293A664FBF73 /* ComponentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ComponentTests.swift"; sourceTree = "<group>"; };
 		5FCAACB696FF6B12A817D3C1 /* RexhepiFWTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RexhepiFWTests.swift"; sourceTree = "<group>"; };
 		79115443B6ADCE2298D66886 /* WalletTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WalletTests.swift"; sourceTree = "<group>"; };
+		F0CC0DE5000000000000A001 /* MockURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MockURLProtocol.swift"; path = "Tests/Support/MockURLProtocol.swift"; sourceTree = SOURCE_ROOT; };
 		F40FBDFDDEFF29D9241A61F0 /* DynamicTypeSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DynamicTypeSupport.swift"; sourceTree = "<group>"; };
 		76C71564885ABA3FD7C85F0E /* SwitchControlSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwitchControlSupport.swift"; sourceTree = "<group>"; };
 		6EE56923C0CAB506A02FD305 /* VoiceOverSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceOverSupport.swift"; sourceTree = "<group>"; };
@@ -1188,6 +1192,7 @@
 				CC2F426DDE071841A57B5A86,
 				F1A03FF1A23C5177709153EB,
 				1A545017C5C5093567AD948E,
+				DABE57F1CE0000000000000001,
 			);
 			path = "Wallet";
 			name = "Wallet";
@@ -1839,6 +1844,7 @@
 				9B72E0300E15BCBFE1EEC6C8 /* DisputeManager.swift */,
 				F00EF8E1EC28EF842DEC2091 /* BaseNetwork.swift */,
 				AAE5E5A7ED8EB3B07971414E /* ERC4337Manager.swift */,
+				DABE57F1CE0000000000000002 /* WalletTransactionService.swift in Sources */,
 				E683C5129F73E4089A84BFE4 /* GasSponsorship.swift */,
 				2C176F45450E56DE323F782F /* WalletCreation.swift */,
 				3901B8377FB62A46C064A01F /* Morpheus.swift */,
@@ -1932,6 +1938,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FE57FACE0000000000000A0B /* WalletTests.swift in Sources */,
+				F0CC0DE5000000000000A002 /* MockURLProtocol.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

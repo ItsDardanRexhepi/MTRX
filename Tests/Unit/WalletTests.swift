@@ -209,6 +209,97 @@ final class WalletTests: XCTestCase {
         return d
     }
 
+    // MARK: - Submit pipeline (end-to-end via MockURLProtocol)
+
+    /// Drives the whole WalletTransactionService pipeline against a mocked
+    /// transport: it must build the op, fetch sponsorship from the (mock)
+    /// paymaster SERVER, sign with the user's ENCLAVE key, and submit to the
+    /// (mock) bundler. The signature is verified against the enclave key's
+    /// public key — so the test FAILS if signing were bypassed, faked
+    /// (zero bytes), or done with a throwaway key, and FAILS if it didn't submit.
+    @MainActor
+    func testSubmitPipeline_buildsSignsWithEnclave_andSubmits() async throws {
+        let mockConfig = URLSessionConfiguration.ephemeral
+        mockConfig.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: mockConfig)
+        MockURLProtocol.reset()
+        defer { MockURLProtocol.reset() }
+
+        let entryPoint = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
+        let pmData = "0x" + String(repeating: "ab", count: 97) // addr(20)+window(12)+sig(65)
+        let expectedHash = "0x1234567890abcdef00000000000000000000000000000000000000000000abcd"
+
+        MockURLProtocol.handler = { request in
+            let url = request.url?.absoluteString ?? ""
+            let json = request.httpBody.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+            if url.contains("paymaster.test") {
+                return try MockURLProtocol.json(["paymasterAndData": pmData])
+            }
+            if (json?["method"] as? String) == "eth_sendUserOperation" {
+                return try MockURLProtocol.json(["jsonrpc": "2.0", "id": 1, "result": expectedHash])
+            }
+            return try MockURLProtocol.json(["jsonrpc": "2.0", "id": 1, "result": [:]])
+        }
+
+        // Real enclave key the pipeline must sign with.
+        let tag = "test.pipeline.\(UUID().uuidString)"
+        let enclave = SecureEnclaveManager.shared
+        defer { enclave.deleteKey(tag: tag) }
+        let pubRaw = try enclave.publicKeyData(tag: tag)
+
+        let cfg = WalletTransactionService.Config(
+            rpcURL: URL(string: "https://rpc.test")!,
+            bundlerURL: URL(string: "https://bundler.test")!,
+            chainID: 8453,
+            entryPoint: entryPoint,
+            paymasterAddress: "0x1111111111111111111111111111111111111111",
+            paymasterSignatureEndpoint: "https://paymaster.test/sign",
+            platformBudgetWei: 1_000_000_000_000_000_000
+        )
+        let service = try XCTUnwrap(WalletTransactionService(config: cfg, session: session))
+
+        let submission = try await service.submitCall(
+            to: "0x2222222222222222222222222222222222222222",
+            value: 0,
+            data: Data([0xde, 0xad, 0xbe, 0xef]),
+            sender: "0x3333333333333333333333333333333333333333",
+            signingKeyTag: tag
+        )
+
+        // Submitted and returned the BUNDLER's hash (not a hardcoded success).
+        XCTAssertEqual(submission.userOpHash, expectedHash)
+
+        // The bundler actually received eth_sendUserOperation.
+        let sawBundler = MockURLProtocol.seenRequests.contains { req in
+            guard req.url?.absoluteString.contains("bundler.test") == true,
+                  let b = req.httpBody,
+                  let j = (try? JSONSerialization.jsonObject(with: b)) as? [String: Any] else { return false }
+            return (j["method"] as? String) == "eth_sendUserOperation"
+        }
+        XCTAssertTrue(sawBundler, "Pipeline must submit via the bundler (eth_sendUserOperation)")
+
+        // The paymaster SERVER was actually called for sponsorship.
+        XCTAssertTrue(MockURLProtocol.seenRequests.contains { $0.url?.absoluteString.contains("paymaster.test") == true },
+                      "Pipeline must fetch sponsorship from the paymaster server")
+        XCTAssertFalse(submission.signedOperation.paymasterAndData.isEmpty,
+                       "paymasterAndData must be set from the server response")
+
+        // CRITICAL: the op is signed by the ENCLAVE key — verify the signature
+        // against the tag's public key. Fails if bypassed / faked / throwaway.
+        let sig = submission.signedOperation.signature
+        XCTAssertGreaterThan(sig.count, 0)
+        XCTAssertFalse(sig.allSatisfy { $0 == 0 })
+        var message = Data()
+        message.append(Self.hexToData(submission.signedOperation.hash))
+        message.append(ABIEncoder.encodeAddress(entryPoint))
+        message.append(ABIEncoder.encodeUInt256(UInt64(8453)))
+        let messageHash = Keccak256.hash(data: message)
+        let pub = try P256.Signing.PublicKey(rawRepresentation: pubRaw)
+        let ecdsa = try P256.Signing.ECDSASignature(derRepresentation: sig)
+        XCTAssertTrue(pub.isValidSignature(ecdsa, for: messageHash),
+                      "UserOp must be signed by the configured ENCLAVE key — not faked, not a throwaway")
+    }
+
     // MARK: - Config keystone
 
     func testPendingCredentials_blankReturnsNil() {

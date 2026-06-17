@@ -146,6 +146,15 @@ final class GasSponsorship {
     /// Paymaster provider for on-chain interactions
     private let paymasterProvider: PaymasterProvider?
 
+    /// Server endpoint that signs the verifying-paymaster data. The signing key
+    /// lives ONLY on this server — never in the app. Injectable for tests.
+    private let paymasterSignatureEndpoint: String
+    private let entryPoint: String
+    private let chainID: Int
+    /// URLSession for the paymaster server call (injectable: a MockURLProtocol
+    /// session in tests).
+    private let paymasterSession: URLSession
+
     /// Cached ETH/USD spot price. 0 = unknown — we never substitute a fake/stale
     /// price. Refreshed from PendingCredentials.Pricing.ethUsdSource.
     private var cachedEthUsdPrice: Double = 0
@@ -161,10 +170,18 @@ final class GasSponsorship {
     init(
         paymasterAddress: String,
         platformBudgetWei: UInt64,
-        paymasterProvider: PaymasterProvider? = nil
+        paymasterProvider: PaymasterProvider? = nil,
+        paymasterSignatureEndpoint: String = PendingCredentials.AccountAbstraction.paymasterSignatureEndpoint,
+        entryPoint: String = PendingCredentials.AccountAbstraction.entryPointAddress,
+        chainID: Int = PendingCredentials.Network.chainID,
+        session: URLSession = .shared
     ) {
         self.paymasterAddress = paymasterAddress
         self.paymasterProvider = paymasterProvider
+        self.paymasterSignatureEndpoint = paymasterSignatureEndpoint
+        self.entryPoint = entryPoint
+        self.chainID = chainID
+        self.paymasterSession = session
         self.platformBudget = SponsorshipBudget(
             totalBudgetWei: platformBudgetWei,
             spentWei: 0,
@@ -258,6 +275,19 @@ final class GasSponsorship {
                         self.recordSponsorship(userAddress: userAddress, operation: sponsoredOp)
                         completion(.success(sponsoredOp))
                     }
+                }
+            }
+        }
+    }
+
+    /// async wrapper around `sponsorOperation` — attaches the server-signed
+    /// paymaster data (or throws if the policy/budget declines).
+    func sponsoredOperation(_ operation: UserOperation, userAddress: String, userTier: UserTier) async throws -> UserOperation {
+        try await withCheckedThrowingContinuation { continuation in
+            sponsorOperation(operation: operation, userAddress: userAddress, userTier: userTier) { result in
+                switch result {
+                case .success(let op): continuation.resume(returning: op)
+                case .failure(let error): continuation.resume(throwing: error)
                 }
             }
         }
@@ -404,9 +434,9 @@ final class GasSponsorship {
     /// endpoint/paymaster isn't configured or the server is unreachable — never
     /// a fabricated signature.
     private func fetchPaymasterAndData(for op: UserOperation) async -> Data {
-        guard let endpoint = PendingCredentials.filled(PendingCredentials.AccountAbstraction.paymasterSignatureEndpoint),
+        guard let endpoint = PendingCredentials.filled(paymasterSignatureEndpoint),
               let url = URL(string: endpoint),
-              PendingCredentials.filled(PendingCredentials.AccountAbstraction.paymasterAddress) != nil else {
+              PendingCredentials.filled(paymasterAddress) != nil else {
             return Data()
         }
 
@@ -423,8 +453,8 @@ final class GasSponsorship {
             preVerificationGas: hexU(op.preVerificationGas),
             maxFeePerGas: hexU(op.maxFeePerGas),
             maxPriorityFeePerGas: hexU(op.maxPriorityFeePerGas),
-            entryPoint: PendingCredentials.AccountAbstraction.entryPointAddress,
-            chainId: PendingCredentials.Network.chainID
+            entryPoint: entryPoint,
+            chainId: chainID
         )
 
         var urlReq = URLRequest(url: url)
@@ -433,7 +463,7 @@ final class GasSponsorship {
         urlReq.timeoutInterval = 20
         do {
             urlReq.httpBody = try JSONEncoder().encode(request)
-            let (data, response) = try await URLSession.shared.data(for: urlReq)
+            let (data, response) = try await paymasterSession.data(for: urlReq)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return Data() }
             let reply = try JSONDecoder().decode(PaymasterReply.self, from: data)
             return Self.hexToData(reply.paymasterAndData)
