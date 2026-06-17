@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import MTRX
 
@@ -137,6 +138,75 @@ final class WalletTests: XCTestCase {
         if PendingCredentials.filled(PendingCredentials.Pricing.ethUsdSource) == nil {
             XCTAssertEqual(estimate.estimatedCostUSD, 0, "USD cost is 0 when no price source is set")
         }
+    }
+
+    // MARK: - ERC-4337 signs with the enclave key (not a throwaway)
+
+    /// Proves signOperation signs with the user's Secure Enclave key: the
+    /// returned signature verifies against THAT tag's public key. A throwaway
+    /// key (the old behavior) would not verify against this public key.
+    func testSignOperation_usesEnclaveKey_notThrowaway() throws {
+        let tag = "test.erc4337.\(UUID().uuidString)"
+        let mgr = SecureEnclaveManager.shared
+        defer { mgr.deleteKey(tag: tag) }
+        let pubRaw = try mgr.publicKeyData(tag: tag)
+
+        let url = URL(string: "https://unused.invalid")!
+        let cfg = BaseNetworkConfig(rpcURL: url, chainId: 8453, bundlerURL: url)
+        let manager = ERC4337Manager(entryPointAddress: "", paymasterAddress: nil, bundlerURL: url, networkConfig: cfg)
+        manager.configureSigningKey(tag: tag)
+
+        let op = sampleOperation()
+        let exp = expectation(description: "sign")
+        var signed: UserOperation?
+        manager.signOperation(op) { result in
+            if case .success(let s) = result { signed = s }
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 5)
+        let sig = try XCTUnwrap(signed?.signature, "signOperation must succeed with a configured enclave key")
+        XCTAssertGreaterThan(sig.count, 0)
+
+        // Reconstruct the exact message the manager signs (opHash ++ entryPoint ++
+        // chainId, keccak256'd) and verify the signature against the enclave key.
+        var message = Data()
+        message.append(Self.hexToData(op.hash))
+        message.append(ABIEncoder.encodeAddress(""))
+        message.append(ABIEncoder.encodeUInt256(UInt64(8453)))
+        let messageHash = Keccak256.hash(data: message)
+
+        let pub = try P256.Signing.PublicKey(rawRepresentation: pubRaw)
+        let ecdsa = try P256.Signing.ECDSASignature(derRepresentation: sig)
+        XCTAssertTrue(pub.isValidSignature(ecdsa, for: messageHash),
+                      "Signature must verify against the configured ENCLAVE key, not a throwaway")
+    }
+
+    /// Without a configured enclave key, signing must FAIL — never a throwaway.
+    func testSignOperation_refusesWithoutConfiguredKey() {
+        let url = URL(string: "https://unused.invalid")!
+        let cfg = BaseNetworkConfig(rpcURL: url, chainId: 8453, bundlerURL: url)
+        let manager = ERC4337Manager(entryPointAddress: "", paymasterAddress: nil, bundlerURL: url, networkConfig: cfg)
+        let exp = expectation(description: "refuse")
+        var didFail = false
+        manager.signOperation(sampleOperation()) { result in
+            if case .failure = result { didFail = true }
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 5)
+        XCTAssertTrue(didFail, "No enclave key configured → must refuse to sign (no throwaway key)")
+    }
+
+    static func hexToData(_ hex: String) -> Data {
+        var s = hex.hasPrefix("0x") ? String(hex.dropFirst(2)) : hex
+        if s.count % 2 != 0 { s = "0" + s }
+        var d = Data()
+        var i = s.startIndex
+        while i < s.endIndex {
+            let n = s.index(i, offsetBy: 2)
+            if let b = UInt8(s[i..<n], radix: 16) { d.append(b) }
+            i = n
+        }
+        return d
     }
 
     // MARK: - Config keystone

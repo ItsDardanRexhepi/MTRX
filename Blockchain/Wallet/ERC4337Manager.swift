@@ -202,6 +202,13 @@ final class ERC4337Manager {
     /// The smart account address managed by this instance
     private(set) var accountAddress: String?
 
+    /// The user's Secure Enclave key tag used to sign UserOperations (set when
+    /// the wallet connects). Signing NEVER falls back to a throwaway key — if
+    /// this is nil, `signOperation` fails. P-256/RIP-7212 CONSTRAINT: the on-chain
+    /// account factory + validation MUST verify P-256 (secp256r1) signatures,
+    /// because the Secure Enclave signs P-256 and cannot produce secp256k1.
+    private(set) var signingKeyTag: String?
+
     /// ERC-4337 EntryPoint contract address on Base
     let entryPointAddress: String
 
@@ -253,6 +260,12 @@ final class ERC4337Manager {
     /// Set the account address externally (used by BlockchainBridge for connecting existing wallets).
     func setAccountAddress(_ address: String) {
         self.accountAddress = address
+    }
+
+    /// Configure the Secure Enclave key tag this manager signs UserOperations
+    /// with (e.g. WalletCore's "wallet.<appleUserId>"). Required before signing.
+    func configureSigningKey(tag: String) {
+        self.signingKeyTag = tag
     }
 
     /// Compute the counterfactual address for a smart account using CREATE2.
@@ -590,48 +603,25 @@ final class ERC4337Manager {
 
     // MARK: - Signature
 
-    /// Sign a UserOperation with the account owner's key using CryptoKit P256 (Secure Enclave compatible).
+    /// Sign a UserOperation with the account owner's **Secure Enclave** key.
+    ///
+    /// This NEVER signs with a throwaway/ephemeral key. If no enclave key tag has
+    /// been configured (`configureSigningKey(tag:)`), it fails — a signature from
+    /// a random key would never validate against the on-chain account owner, so
+    /// refusing is correct. The actual signing goes through the enclave provider
+    /// (CryptoKit SecureEnclave.P256 / software-P256 fallback), keyed to the
+    /// user's tag.
+    ///
+    /// P-256/RIP-7212 CONSTRAINT: the on-chain account validation MUST verify
+    /// P-256 (secp256r1) — the Secure Enclave cannot produce secp256k1 sigs.
     func signOperation(_ operation: UserOperation, completion: @escaping (Result<UserOperation, ERC4337Error>) -> Void) {
-        // Compute the hash that needs signing
-        let opHash = operation.hash
-        guard let hashData = Data(hexString: opHash) else {
+        guard let keyTag = signingKeyTag else {
+            // No enclave signing key configured — refuse rather than sign with a
+            // throwaway key (which would fail on-chain validation anyway).
             completion(.failure(.invalidSignature))
             return
         }
-
-        // Build the EIP-191 prefixed message: keccak256(opHash ++ entryPoint ++ chainId)
-        var message = Data()
-        message.append(hashData)
-        message.append(ABIEncoder.encodeAddress(entryPointAddress))
-        message.append(ABIEncoder.encodeUInt256(networkConfig.chainId))
-        let messageHash = Keccak256.hash(data: message)
-
-        do {
-            // Generate an ephemeral signing key. In production this would use the
-            // Secure Enclave key retrieved via the WalletCreation's SecureEnclaveProvider.
-            // Here we sign with a CryptoKit P256 key for correctness.
-            let privateKey = P256.Signing.PrivateKey()
-            let signature = try privateKey.signature(for: messageHash)
-            let sigData = signature.derRepresentation
-
-            let signedOp = UserOperation(
-                sender: operation.sender,
-                nonce: operation.nonce,
-                initCode: operation.initCode,
-                callData: operation.callData,
-                callGasLimit: operation.callGasLimit,
-                verificationGasLimit: operation.verificationGasLimit,
-                preVerificationGas: operation.preVerificationGas,
-                maxFeePerGas: operation.maxFeePerGas,
-                maxPriorityFeePerGas: operation.maxPriorityFeePerGas,
-                paymasterAndData: operation.paymasterAndData,
-                signature: sigData
-            )
-            completion(.success(signedOp))
-
-        } catch {
-            completion(.failure(.invalidSignature))
-        }
+        signOperation(operation, with: DefaultSecureEnclaveProvider(), keyTag: keyTag, completion: completion)
     }
 
     /// Sign a UserOperation using an externally provided Secure Enclave provider.
