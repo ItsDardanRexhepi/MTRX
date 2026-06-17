@@ -15,6 +15,18 @@
 //
 import Foundation
 
+/// The signed-in user's wallet address, as persisted by AppState.signIn under
+/// `com.mtrx.walletAddress`. `nil` until a real sign-in writes one — so live
+/// service calls that need an address fall back to demo data rather than
+/// querying a placeholder.
+enum MtrxSession {
+    static var walletAddress: String? {
+        let value = UserDefaults.standard.string(forKey: "com.mtrx.walletAddress")?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (value?.isEmpty == false) ? value : nil
+    }
+}
+
 enum DemoArtifacts {
 
     /// A deterministic, content-derived 20-byte address for a demo/preview screen.

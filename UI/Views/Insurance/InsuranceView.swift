@@ -36,6 +36,11 @@ class InsuranceViewModel: ObservableObject {
     @Published var calculatorAmount: String = ""
     @Published var selectedCoverage: CoverageItem?
     @Published var showFileClaim: Bool = false
+    @Published var isDemo: Bool = false
+
+    private static let policyDateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "MMM dd, yyyy"; return f
+    }()
 
     var estimatedPremium: String {
         guard let amount = Double(calculatorAmount), amount > 0, let coverage = selectedCoverage else {
@@ -51,26 +56,46 @@ class InsuranceViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        // Live policies from the gateway; fall back to samples if it isn't up.
-        if let live = try? await MTRXAPIClient.shared.insurancePolicies(), !live.policies.isEmpty {
-            policies = live.policies.map {
-                PolicyItem(coverageName: $0.coverageName, amount: $0.amount,
-                           premium: $0.premium, endDate: $0.endDate, status: $0.status)
+        // Live from InsuranceService when the gateway is configured; else demo.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let liveCoverages = try await InsuranceService.shared.getCoverageOptions()
+                coverages = liveCoverages.map { c in
+                    CoverageItem(
+                        name: c.name,
+                        description: c.description,
+                        maxCoverage: "$\(Int(c.maxCoverage).formatted())",
+                        premiumRate: String(format: "%.1f%%", c.premiumRate),
+                        riskType: c.riskType
+                    )
+                }
+                // Policies are per-wallet — only when a signed-in address exists.
+                if let address = MtrxSession.walletAddress {
+                    let livePolicies = try await InsuranceService.shared.getUserPolicies(address: address)
+                    policies = livePolicies.map { p in
+                        PolicyItem(
+                            coverageName: p.coverageName,
+                            amount: "$\(Int(p.amount).formatted())",
+                            premium: String(format: "$%.2f", p.premium),
+                            endDate: Self.policyDateFormatter.string(from: p.endDate),
+                            status: p.status
+                        )
+                    }
+                } else {
+                    policies = []
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live insurance data unavailable — showing demo."
             }
-            coverages = InsuranceViewModel.sampleCoverages
-            isLoading = false
-            return
         }
 
-        do {
-            try await Task.sleep(for: .milliseconds(600))
-            coverages = InsuranceViewModel.sampleCoverages
-            policies = InsuranceViewModel.samplePolicies
-            isLoading = false
-        } catch {
-            errorMessage = "Unable to load insurance data."
-            isLoading = false
-        }
+        coverages = InsuranceViewModel.sampleCoverages
+        policies = InsuranceViewModel.samplePolicies
+        isDemo = true
+        isLoading = false
     }
 
     static let sampleCoverages: [CoverageItem] = [
@@ -111,6 +136,7 @@ struct InsuranceView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Insurance")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar { ToolbarItem(placement: .principal) { if viewModel.isDemo { DemoBadge() } } }
             .task { await viewModel.load() }
         }
     }

@@ -19,6 +19,7 @@ final class DisputeViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showCreateForm: Bool = false
     @Published var contentAppeared: Bool = false
+    @Published var isDemo: Bool = false
 
     // Create form
     @Published var counterpartyAddress: String = ""
@@ -49,37 +50,47 @@ final class DisputeViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        // Live disputes from the gateway; fall back to samples if it isn't up.
-        if let live = try? await MTRXAPIClient.shared.disputes(), !live.disputes.isEmpty {
-            let mapped = live.disputes.map { d -> DisputeCase in
-                let st: DisputeUIStatus = d.status.lowercased() == "pending" ? .pending
-                    : d.status.lowercased() == "resolved" ? .resolved
-                    : d.status.lowercased() == "rejected" ? .rejected : .active
-                return DisputeCase(
-                    counterparty: d.counterparty,
-                    description_: d.description ?? "",
-                    stakeAmount: d.stakeAmount,
-                    status: st,
-                    votesFor: d.votesFor ?? 0,
-                    votesAgainst: d.votesAgainst ?? 0,
-                    deadline: d.deadline ?? Date(),
-                    wonByUser: d.wonByUser ?? false,
-                    isJuryCase: d.isJuryCase ?? false,
-                    hasVoted: d.hasVoted ?? false,
-                    claimed: d.claimed ?? false
-                )
+        // Live from DisputeService when the gateway is configured; else demo.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                func toCase(_ d: SvcDisputeCase, isJury: Bool) -> DisputeCase {
+                    let st: DisputeUIStatus = d.status.lowercased() == "pending" ? .pending
+                        : d.status.lowercased() == "resolved" ? .resolved
+                        : d.status.lowercased() == "rejected" ? .rejected : .active
+                    return DisputeCase(
+                        counterparty: d.respondent,
+                        description_: d.description,
+                        stakeAmount: d.stake,
+                        status: st,
+                        votesFor: d.votesFor,
+                        votesAgainst: d.votesAgainst,
+                        deadline: d.deadline,
+                        wonByUser: false,
+                        isJuryCase: isJury
+                    )
+                }
+                // "My disputes" are per-wallet; open jury cases are global.
+                var mine: [SvcDisputeCase] = []
+                if let address = MtrxSession.walletAddress {
+                    mine = (try? await DisputeService.shared.getDisputes(address: address)) ?? []
+                }
+                let jury = try await DisputeService.shared.getOpenJuryCases()
+                activeDisputes = mine.map { toCase($0, isJury: false) }
+                juryCases = jury.map { toCase($0, isJury: true) }
+                isDemo = false
+                isLoading = false
+                withAnimation(Motion.springDefault) { contentAppeared = true }
+                return
+            } catch {
+                errorMessage = "Live disputes unavailable — showing demo."
             }
-            activeDisputes = mapped.filter { !$0.isJuryCase }
-            juryCases = mapped.filter { $0.isJuryCase }
-            isLoading = false
-            withAnimation(Motion.springDefault) { contentAppeared = true }
-            return
         }
 
         try? await Task.sleep(nanoseconds: 800_000_000)
 
         activeDisputes = DisputeCase.sampleMyDisputes
         juryCases = DisputeCase.sampleJuryCases
+        isDemo = true
         isLoading = false
 
         withAnimation(Motion.springDefault) {
@@ -199,6 +210,7 @@ struct DisputeView: View {
             }
             .navigationTitle("Disputes")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .principal) { if viewModel.isDemo { DemoBadge() } } }
             .sheet(isPresented: $viewModel.showCreateForm) {
                 createDisputeSheet
             }
