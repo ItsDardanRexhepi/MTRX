@@ -764,6 +764,29 @@ class AppState: ObservableObject {
         AppState.wipeLocalData()
     }
 
+    /// Permanently delete the account — required by App Store Guideline
+    /// 5.1.1(v) for apps that support account creation. Unlike `signOut()`,
+    /// this destroys the account, not just the local session: it requests
+    /// server-side deletion + Sign in with Apple token revocation (handled
+    /// by the backend), wipes every local trace, and returns to onboarding.
+    func deleteAccount() {
+        // Best-effort server-side deletion — fire-and-forget so the UI never
+        // blocks on the network (the gateway may not be reachable yet).
+        Task.detached {
+            try? await MTRXAPIClient.shared.deleteAccount()
+        }
+
+        isAuthenticated = false
+        currentUserID = ""
+        displayName = ""
+        walletAddress = ""
+
+        // Mark onboarding incomplete so the app returns to the welcome screen,
+        // then wipe every local trace (defaults, token, files).
+        UserDefaults.standard.set(false, forKey: Keys.onboardingComplete)
+        AppState.wipeLocalData()
+    }
+
     /// Remove every trace of the session from this device: all app
     /// preferences, the backend session token, and locally stored files
     /// (agent conversations, social media, avatars). The account itself lives

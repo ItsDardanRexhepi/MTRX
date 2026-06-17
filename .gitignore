@@ -61,3 +61,5 @@ Config/Secrets.swift
 .claude/
 /build/
 BACKEND_ACTIVATION.md
+APP_STORE_REVIEW.md
+SHIP_PLAN.md

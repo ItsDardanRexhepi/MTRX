@@ -125,7 +125,7 @@ struct HomeView: View {
             // One-time: adopt the new quick-action order (Pay, Shop, Invest,
             // Play, Earn, Events) even for existing installs.
             if !quickActionsMigratedV2 {
-                quickActionsRaw = "pay,shop,invest,play,earn,events"
+                quickActionsRaw = "shop,play,events,identity,storage"
                 quickActionsMigratedV2 = true
             }
             // No auto-prompt on launch — Face ID goes straight to Home. The
@@ -178,7 +178,7 @@ struct HomeView: View {
                     showDailyFlow = false
                 }
             )
-            .presentationDetents([.height(580)])
+            .presentationDetents([.height(522)])
             .presentationDragIndicator(.visible)
         }
         .sheet(item: $presentedService) { service in
@@ -777,7 +777,8 @@ struct HomeView: View {
     static let maxQuickActions = 6
 
     private var chosenActions: [HomeAction] {
-        Array(quickActionsRaw.split(separator: ",").compactMap { HomeAction(rawValue: String($0)) }.prefix(Self.maxQuickActions))
+        Array(quickActionsRaw.split(separator: ",").compactMap { HomeAction(rawValue: String($0)) }
+            .prefix(Self.maxQuickActions))
     }
     private func setActions(_ list: [HomeAction]) {
         quickActionsRaw = list.prefix(Self.maxQuickActions).map(\.rawValue).joined(separator: ",")
@@ -949,7 +950,9 @@ struct HomeView: View {
     }
 
     private func open(_ action: HomeAction) {
-        if let prompt = action.prompt {
+        if let agent = action.agent {
+            presentedChat = ChatLaunch(agent: agent, prompt: action.prompt)
+        } else if let prompt = action.prompt {
             presentedChat = ChatLaunch(agent: .trinity, prompt: prompt)
         } else if let service = action.service {
             presentedService = service
@@ -1243,13 +1246,14 @@ struct HomeView: View {
 enum HomeAction: String, CaseIterable, Identifiable {
     case deploy
     case pay, invest, earn, shop, insure, play, events, identity, storage, bridge
+    case messages, nfts, trinity, morpheus, neo
 
     var id: String { rawValue }
 
-    /// The underlying service, or nil for the special Deploy action.
+    /// The underlying service, or nil for the special Deploy / agent actions.
     var service: HomeService? {
         switch self {
-        case .deploy:   return nil
+        case .deploy, .trinity, .morpheus, .neo: return nil
         case .pay:      return .pay
         case .invest:   return .invest
         case .earn:     return .defi
@@ -1260,8 +1264,23 @@ enum HomeAction: String, CaseIterable, Identifiable {
         case .identity: return .domains
         case .storage:  return .storage
         case .bridge:   return .bridge
+        case .messages: return .messages
+        case .nfts:     return .nfts
         }
     }
+
+    /// For agent tiles — opens that agent's chat instead of a service sheet.
+    var agent: AgentAccessControl.ActiveAgent? {
+        switch self {
+        case .trinity:  return .trinity
+        case .morpheus: return .morpheus
+        case .neo:      return .neo
+        default:        return nil
+        }
+    }
+
+    /// Hidden in MVP mode if its underlying service is regulated.
+    var isRegulated: Bool { service?.isRegulated ?? false }
 
     /// Prompt for Trinity (Deploy only).
     var prompt: String? {
@@ -1272,10 +1291,22 @@ enum HomeAction: String, CaseIterable, Identifiable {
         self == .deploy ? "Deploy Contract" : (service?.title ?? rawValue.capitalized)
     }
     var icon: String {
-        self == .deploy ? "doc.badge.gearshape.fill" : (service?.icon ?? "square.grid.2x2")
+        switch self {
+        case .deploy:   return "doc.badge.gearshape.fill"
+        case .trinity:  return "sparkles"
+        case .morpheus: return "brain.head.profile"
+        case .neo:      return "bolt.fill"
+        default:        return service?.icon ?? "square.grid.2x2"
+        }
     }
     var color: Color {
-        self == .deploy ? .accentTertiary : (service?.color ?? .trinityPrimary)
+        switch self {
+        case .deploy:   return .accentTertiary
+        case .trinity:  return .trinityPrimary
+        case .morpheus: return .pink
+        case .neo:      return .green
+        default:        return service?.color ?? .trinityPrimary
+        }
     }
 }
 
@@ -1350,8 +1381,17 @@ struct QuickActionPicker: View {
 
 enum HomeService: String, CaseIterable, Identifiable {
     case pay, invest, defi, shop, insure, game, events, domains, storage, bridge
+    case messages, nfts
 
     var id: String { rawValue }
+
+    /// Hidden in MVP mode — regulated financial surface.
+    var isRegulated: Bool {
+        switch self {
+        case .pay, .invest, .defi, .insure, .bridge: return true
+        case .shop, .game, .events, .domains, .storage, .messages, .nfts: return false
+        }
+    }
 
     var title: String {
         switch self {
@@ -1365,6 +1405,8 @@ enum HomeService: String, CaseIterable, Identifiable {
         case .domains: return "Identity"
         case .storage: return "Storage"
         case .bridge: return "Bridge"
+        case .messages: return "Messages"
+        case .nfts: return "NFTs"
         }
     }
 
@@ -1380,6 +1422,8 @@ enum HomeService: String, CaseIterable, Identifiable {
         case .domains: return "person.crop.circle.badge.checkmark"
         case .storage: return "externaldrive.fill"
         case .bridge: return "arrow.left.arrow.right.circle.fill"
+        case .messages: return "message.fill"
+        case .nfts: return "photo.artframe"
         }
     }
 
@@ -1395,6 +1439,8 @@ enum HomeService: String, CaseIterable, Identifiable {
         case .domains: return .accentPrimary
         case .storage: return .green
         case .bridge: return .blue
+        case .messages: return .accentPrimary
+        case .nfts: return .pink
         }
     }
 
@@ -1411,6 +1457,8 @@ enum HomeService: String, CaseIterable, Identifiable {
         case .domains: DomainView()
         case .storage: StorageView()
         case .bridge: BridgeView()
+        case .messages: MessagingView()
+        case .nfts: NFTGalleryView()
         }
     }
 }
@@ -1510,7 +1558,11 @@ struct PortfolioSheet: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: Spacing.lg) {
                         balanceHeader
-                        moveRow
+                        // Pay / Swap / Stake / Earn / Invest are all regulated —
+                        // hidden until those features are licensed.
+                        if !FeatureFlags.mvpMode {
+                            moveRow
+                        }
                         holdingsSection
                         activitySection
                     }
@@ -2025,6 +2077,10 @@ struct DailyFlowSheet: View {
             .ignoresSafeArea()
 
             VStack(spacing: Spacing.md) {
+                    // Balances the bottom Spacer so the whole block sits
+                    // vertically centered within the window.
+                    Spacer(minLength: 0)
+
                     // Hero ring — large, with a gradient stroke that glows.
                     VStack(spacing: Spacing.sm) {
                         ZStack {
@@ -2068,10 +2124,11 @@ struct DailyFlowSheet: View {
 
                         Text(dailyFlow.isComplete
                              ? "All three done — beautifully done."
-                             : "Three small moves a day keep everything in motion.")
+                             : "Three small steps per day keep life in motion.")
                             .font(.mtrxBody)
                             .foregroundStyle(Color.labelSecondary)
                             .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                             .padding(.horizontal, Spacing.xl)
                     }
 
@@ -2095,6 +2152,9 @@ struct DailyFlowSheet: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.top, Spacing.sm)
+                // 10% smaller overall, kept vertically centered within the
+                // window by the balancing Spacers above and below the content.
+                .scaleEffect(0.9)
         }
     }
 

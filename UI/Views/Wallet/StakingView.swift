@@ -7,7 +7,9 @@ struct StakingView: View {
     @EnvironmentObject var walletManager: WalletManager
     @State private var appeared = false
 
-    var body: some View {
+    var body: some View { _regulatedBody.mvpGated() }
+
+    @ViewBuilder private var _regulatedBody: some View {
         ZStack {
             MtrxGradientBackground(style: .primary)
 

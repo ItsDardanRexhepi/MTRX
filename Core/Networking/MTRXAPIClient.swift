@@ -941,6 +941,22 @@ final class MTRXAPIClient: @unchecked Sendable {
         return response
     }
 
+    struct DeleteAccountResponse: Decodable {
+        let success: Bool?
+        let deletedAt: String?
+    }
+
+    /// Permanently delete the signed-in user's account and server-side data,
+    /// and revoke the Sign in with Apple token. The backend should revoke the
+    /// Apple authorization on its side as part of this call. Local data is
+    /// wiped separately by `AppState.deleteAccount()`.
+    @discardableResult
+    func deleteAccount() async throws -> DeleteAccountResponse {
+        let response: DeleteAccountResponse = try await delete(path: "/api/v1/auth/account")
+        clearToken()
+        return response
+    }
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // MARK: - Health & Status
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

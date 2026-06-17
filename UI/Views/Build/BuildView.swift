@@ -184,6 +184,30 @@ struct BuildView: View {
                         }
                     }
                 }
+                // Swipe between Templates / Create / My Contracts, the same way
+                // the Social tab moves between its top tabs.
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 24)
+                        .onEnded { value in
+                            let w = value.translation.width
+                            let h = value.translation.height
+                            // Only act on a clearly horizontal swipe so vertical
+                            // scrolling is never hijacked.
+                            guard abs(w) > 70, abs(w) > abs(h) * 1.6 else { return }
+
+                            let segments = BuildSegment.allCases
+                            guard let idx = segments.firstIndex(of: viewModel.selectedSegment) else { return }
+                            if w < 0, idx < segments.count - 1 {
+                                // Next segment.
+                                withAnimation(Motion.springSnappy) { viewModel.selectedSegment = segments[idx + 1] }
+                                MtrxHaptics.selection()
+                            } else if w > 0, idx > 0 {
+                                // Previous segment.
+                                withAnimation(Motion.springSnappy) { viewModel.selectedSegment = segments[idx - 1] }
+                                MtrxHaptics.selection()
+                            }
+                        }
+                )
 
                 // FAB
                 if viewModel.selectedSegment == .contracts && !viewModel.contracts.isEmpty {

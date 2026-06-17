@@ -190,9 +190,11 @@ struct TokenDetailView: View {
                 alertMessage = "Receive \(token.symbol) - share your wallet address"
                 showAlert = true
             }
-            quickActionButton(icon: Symbols.swap, label: "Swap") {
-                MtrxHaptics.impact(.medium)
-                showSwapSheet = true
+            if !FeatureFlags.mvpMode {
+                quickActionButton(icon: Symbols.swap, label: "Swap") {
+                    MtrxHaptics.impact(.medium)
+                    showSwapSheet = true
+                }
             }
         }
         .frame(maxWidth: .infinity)

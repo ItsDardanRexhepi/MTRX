@@ -269,7 +269,9 @@ struct FundraiserView: View {
     @StateObject private var viewModel = FundraiserViewModel()
     @State private var appeared = false
 
-    var body: some View {
+    var body: some View { _regulatedBody.mvpGated() }
+
+    @ViewBuilder private var _regulatedBody: some View {
         NavigationStack {
             ZStack {
                 MtrxGradientBackground(style: .primary)

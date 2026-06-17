@@ -355,7 +355,7 @@ struct DiscoverView: View {
     private var categoryChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Spacing.sm) {
-                ForEach(DiscoverCategory.allCases, id: \.self) { category in
+                ForEach(DiscoverCategory.allCases.filter { FeatureFlags.isVisible($0) }, id: \.self) { category in
                     MtrxChip(
                         label: category.rawValue,
                         icon: category.icon,
@@ -1694,7 +1694,7 @@ struct DiscoverMenuSheet: View {
                         LazyVGrid(columns: columns, spacing: Spacing.sm) {
                             // Advanced variants are folded into their parents
                             // (DeFi Advanced → DeFi, NFT Finance → NFTs).
-                            ForEach(DiscoverCategory.allCases.filter { $0 != .defiAdvanced && $0 != .nftFinance }) { category in
+                            ForEach(DiscoverCategory.allCases.filter { $0 != .defiAdvanced && $0 != .nftFinance && FeatureFlags.isVisible($0) }) { category in
                                 Button {
                                     MtrxHaptics.selection()
                                     onCategory(category)
@@ -1793,7 +1793,7 @@ struct ExploreMoreSheet: View {
     ]
 
     private var categories: [DiscoverCategory] {
-        DiscoverCategory.allCases.filter { $0 != .all && $0.hasHubView }
+        DiscoverCategory.allCases.filter { $0 != .all && $0.hasHubView && FeatureFlags.isVisible($0) }
     }
 
     var body: some View {
@@ -1808,7 +1808,7 @@ struct ExploreMoreSheet: View {
                     MtrxSectionHeader(title: "DeFi")
                         .padding(.horizontal, Spacing.contentPadding)
                     LazyVGrid(columns: columns, spacing: Spacing.sm) {
-                        ForEach(defi, id: \.0) { item in
+                        ForEach(defi.filter { FeatureFlags.isVisible($0.0) }, id: \.0) { item in
                             tile(icon: item.2, title: item.1) { onDeFi(item.0) }
                         }
                     }

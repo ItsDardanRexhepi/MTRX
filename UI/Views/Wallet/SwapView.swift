@@ -75,7 +75,9 @@ struct SwapView: View {
         fromAmount > 0 && fromAmount <= fromToken.balance && fromTokenIndex != toTokenIndex
     }
 
-    var body: some View {
+    var body: some View { _regulatedBody.mvpGated() }
+
+    @ViewBuilder private var _regulatedBody: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: Spacing.lg) {

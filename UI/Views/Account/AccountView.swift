@@ -88,7 +88,8 @@ struct AccountView: View {
 
     private var workspaceOptions: [WorkspaceOption] {
         let chosen = workspaceRaw.split(separator: ",").compactMap { WorkspaceOption(rawValue: String($0)) }
-        return chosen.isEmpty ? [.governance, .messaging, .rewards, .settings] : chosen
+        let base = chosen.isEmpty ? [.governance, .messaging, .rewards, .settings] : chosen
+        return base.filter { !FeatureFlags.mvpMode || !$0.isRegulated }
     }
 
     var body: some View {
@@ -662,6 +663,9 @@ enum WorkspaceOption: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Hidden in MVP mode — regulated financial surface.
+    var isRegulated: Bool { self == .staking }
+
     var title: String {
         switch self {
         case .governance: return "Governance"
@@ -755,7 +759,7 @@ struct WorkspaceEditSheet: View {
                         .padding(.horizontal, Spacing.contentPadding)
 
                     LazyVGrid(columns: columns, spacing: Spacing.sm) {
-                        ForEach(WorkspaceOption.allCases) { option in
+                        ForEach(WorkspaceOption.allCases.filter { !FeatureFlags.mvpMode || !$0.isRegulated }) { option in
                             let isOn = chosen.contains(option)
                             let rank = chosen.firstIndex(of: option).map { $0 + 1 }
                             Button { toggle(option) } label: {

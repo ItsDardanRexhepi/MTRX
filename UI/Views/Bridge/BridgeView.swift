@@ -137,7 +137,9 @@ struct BridgeView: View {
 
     // MARK: - Body
 
-    var body: some View {
+    var body: some View { _regulatedBody.mvpGated() }
+
+    @ViewBuilder private var _regulatedBody: some View {
         NavigationStack {
             Group {
                 if viewModel.isLoading {

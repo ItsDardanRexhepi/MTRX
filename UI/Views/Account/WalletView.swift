@@ -339,7 +339,9 @@ struct AccountWalletView: View {
 
     private var moneyShortcuts: some View {
         HStack(spacing: Spacing.sm) {
-            moneyShortcut("lock.fill", "Staking & DeFi", .accentPrimary) { showStaking = true }
+            if !FeatureFlags.mvpMode {
+                moneyShortcut("lock.fill", "Staking & DeFi", .accentPrimary) { showStaking = true }
+            }
             moneyShortcut("bell.fill", "Alerts", .statusError) { showAlerts = true }
             moneyShortcut("lock.shield", "Multi-Sig", .statusWarning) { showMultiSig = true }
         }
@@ -533,14 +535,16 @@ struct AccountWalletView: View {
                 }
             }
 
-            Button {
-                showSwapSheet = true
-            } label: {
-                VStack(spacing: 6) {
-                    Image(systemName: Symbols.swap)
-                        .font(.title2)
-                    Text("Swap")
-                        .font(.caption.weight(.medium))
+            if !FeatureFlags.mvpMode {
+                Button {
+                    showSwapSheet = true
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: Symbols.swap)
+                            .font(.title2)
+                        Text("Swap")
+                            .font(.caption.weight(.medium))
+                    }
                 }
             }
 

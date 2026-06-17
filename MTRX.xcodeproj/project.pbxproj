@@ -203,6 +203,7 @@
 		17CCFA7AE30F112B7DC0DCC0 /* PortfolioWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8205FBB87B74C328432EBDEB /* PortfolioWidget.swift */; };
 		7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5908575B08029A598F60B914 /* PositionsWidget.swift */; };
 		E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8421C44BD0C6A17F16769739 /* Secrets.swift */; };
+		FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA7F1A65C0DE00000000001 /* FeatureFlags.swift */; };
 		008BCDADF7A3991CD709F8D4 /* BlockchainBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 096376876B5B90D0574F0CC5 /* BlockchainBridge.swift */; };
 		F4D3914114442BA6B4DEFC50 /* MTRXAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C08BF836C56955D9603329 /* MTRXAPIClient.swift */; };
 		304899E5C51643F27A3F6B3E /* MTRXPackager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA04AE50584879537DC82F8 /* MTRXPackager.swift */; };
@@ -496,6 +497,7 @@
 		D4E5F6A7B8C9D0E1F2A3B4C5 /* UpgradeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UpgradeView.swift"; sourceTree = "<group>"; };
 		E5F6A7B8C9D0E1F2A3B4C5D6 /* StakingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StakingView.swift"; sourceTree = "<group>"; };
 		8421C44BD0C6A17F16769739 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Secrets.swift"; path = "Config/Secrets.swift"; sourceTree = SOURCE_ROOT; };
+		FEA7F1A65C0DE00000000001 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FeatureFlags.swift"; path = "Config/FeatureFlags.swift"; sourceTree = SOURCE_ROOT; };
 		096376876B5B90D0574F0CC5 /* BlockchainBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "BlockchainBridge.swift"; path = "Core/Blockchain/BlockchainBridge.swift"; sourceTree = SOURCE_ROOT; };
 		B2C08BF836C56955D9603329 /* MTRXAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MTRXAPIClient.swift"; path = "Core/Networking/MTRXAPIClient.swift"; sourceTree = SOURCE_ROOT; };
 		5BA04AE50584879537DC82F8 /* MTRXPackager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MTRXPackager.swift"; path = "Core/Packager/MTRXPackager.swift"; sourceTree = SOURCE_ROOT; };
@@ -1696,6 +1698,7 @@
 				17CCFA7AE30F112B7DC0DCC0 /* PortfolioWidget.swift in Sources */,
 				7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */,
 				E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */,
+				FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */,
 				008BCDADF7A3991CD709F8D4 /* BlockchainBridge.swift in Sources */,
 				F4D3914114442BA6B4DEFC50 /* MTRXAPIClient.swift in Sources */,
 				304899E5C51643F27A3F6B3E /* MTRXPackager.swift in Sources */,

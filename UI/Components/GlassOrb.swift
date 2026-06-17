@@ -41,9 +41,19 @@ struct GlassOrb: View {
             // No ambient halo — just the orb itself, nothing radiating from it.
 
             // Clear glass body — barely there, so the page shows through.
+            // Feathered at the rim with a radial mask so it dissolves into the
+            // page instead of drawing a hard circular edge.
             Circle()
                 .fill(.ultraThinMaterial)
                 .opacity(0.22)
+                .mask(
+                    RadialGradient(
+                        colors: [.white, .white, .white.opacity(0)],
+                        center: .center,
+                        startRadius: size * 0.16,
+                        endRadius: size * 0.50
+                    )
+                )
 
             // Smooth iridescent refraction filling the whole sphere and
             // dissolving softly toward the edge. No bright blobs, no rim.

@@ -105,15 +105,15 @@ struct PrivacyView: View {
             ) {
                 Button("Delete my account permanently", role: .destructive) {
                     MtrxHaptics.error()
-                    // Real consequence: the demo account, session, and
-                    // persisted state are wiped; the app returns to
-                    // onboarding for a fresh start.
-                    appState.signOut()
+                    // Genuine account deletion (distinct from Sign Out):
+                    // requests server-side deletion + Apple token revocation,
+                    // wipes all local data, and returns to onboarding.
+                    appState.deleteAccount()
                     dismiss()
                 }
                 Button("Cancel", role: .cancel) { }
             } message: {
-                Text("This action is irreversible. All data, tokens, and history associated with your account will be permanently deleted.")
+                Text("This permanently deletes your account, wallet profile, and all associated data, and signs you out of Sign in with Apple. This can't be undone.")
             }
         }
     }

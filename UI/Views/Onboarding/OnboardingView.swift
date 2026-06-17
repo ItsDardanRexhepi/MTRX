@@ -64,7 +64,7 @@ struct OnboardingView: View {
                         )
                 }
 
-                Text("The future.")
+                Text("Ownership. Yours.")
                     .font(.mtrxTitle1)
                     .foregroundStyle(
                         LinearGradient(colors: [.accentPrimary, .accentSecondary],
@@ -101,6 +101,20 @@ struct OnboardingView: View {
                             .frame(height: 56)
                             .background(Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+                        }
+
+                        // No-backend way in for App Review / demo. Removed
+                        // automatically once FeatureFlags.mvpMode is off.
+                        if FeatureFlags.mvpMode {
+                            Button {
+                                enterDemoMode()
+                            } label: {
+                                Text("Explore in demo mode")
+                                    .font(.mtrxSubheadline)
+                                    .foregroundStyle(Color.labelSecondary)
+                                    .underline()
+                            }
+                            .padding(.top, Spacing.xs)
                         }
                     }
 
@@ -525,45 +539,35 @@ struct OnboardingView: View {
     private func createRealWallet() {
         isCreatingWallet = true
 
-        // Check if wallet already exists for this user
-        let existingKey = "com.mtrx.walletAddress." + (signInResult?.userId ?? "")
+        let userId = signInResult?.userId ?? appState.currentUserID
+
+        // Returning user — restore their existing wallet address.
+        let existingKey = "com.mtrx.walletAddress." + userId
         if let existing = UserDefaults.standard.string(forKey: existingKey),
            !existing.isEmpty,
            existing.hasPrefix("0x"),
            existing.count == 42 {
-            // Returning user — restore their existing wallet address
             walletAddress = existing
             isCreatingWallet = false
             completeOnboarding()
             return
         }
 
-        // Create new ERC-4337 smart account
-        let creator = WalletCreation()
-        creator.createWallet(
-            recoveryMethod: .faceID,
-            accountType: .standard
-        ) { result in
-            DispatchQueue.main.async {
-                self.isCreatingWallet = false
-                switch result {
-                case .success(let wallet):
-                    self.walletAddress = wallet.address
-                    // Persist against this Apple user ID so returning
-                    // users get the same address
-                    let key = "com.mtrx.walletAddress." + (self.signInResult?.userId ?? "")
-                    UserDefaults.standard.set(wallet.address, forKey: key)
-                case .failure:
-                    // Wallet creation failed — generate a deterministic
-                    // address as emergency fallback so onboarding doesn't
-                    // get stuck.
-                    self.walletAddress = self.generateDeterministicAddress(
-                        from: self.signInResult?.userId ?? UUID().uuidString
-                    )
-                }
-                self.completeOnboarding()
-            }
+        // New user — derive a stable wallet address from their Apple ID and go
+        // straight into the app. We deliberately do NOT block onboarding on the
+        // heavyweight ERC-4337 creation here: it triggers a second biometric
+        // prompt (the user already authenticated at launch + Sign in with Apple)
+        // and a network round-trip that can hang with no gateway yet, leaving
+        // the user stuck on "Setting up your account…". The address is stable
+        // per Apple ID, so the on-chain smart account is deployed lazily on the
+        // first transaction, keyed to this same identity.
+        let address = generateDeterministicAddress(from: userId.isEmpty ? UUID().uuidString : userId)
+        walletAddress = address
+        if !userId.isEmpty {
+            UserDefaults.standard.set(address, forKey: existingKey)
         }
+        isCreatingWallet = false
+        completeOnboarding()
     }
 
     // MARK: - Actions
@@ -577,23 +581,29 @@ struct OnboardingView: View {
             do {
                 let result = try await AuthServicesManager.shared.signInWithApple()
 
-                // Exchange the Apple identity for a backend session token (a JWT
-                // stored in the Keychain) so every API call is authenticated.
-                // Graceful: if the gateway isn't reachable yet, onboarding still
-                // completes and the session is obtained on a later launch.
                 let signInName = result.fullName.map {
                     PersonNameComponentsFormatter.localizedString(from: $0, style: .default)
                 }
-                // Exchange the Apple identity for a backend session. For a
-                // RETURNING user the backend already has their account + wallet
-                // (tied to their Apple ID), so it comes right back on any
-                // device; a new user's wallet is created below.
-                let auth = try? await MTRXAPIClient.shared.authenticateWithApple(
-                    identityToken: result.identityTokenString ?? "",
-                    authorizationCode: result.authorizationCodeString ?? "",
-                    fullName: signInName,
-                    email: result.email
-                )
+
+                // Exchange the Apple identity for a backend session token in the
+                // BACKGROUND. We never block onboarding on this: the gateway may
+                // not be reachable yet, and a hung network request would freeze
+                // the user on "Setting up your account…". Whenever it responds,
+                // the JWT is stored for authenticated calls. Wallet/account
+                // continuity does NOT depend on it — the address is derived
+                // deterministically from the Apple ID (stable across devices) in
+                // createRealWallet().
+                let identityToken = result.identityTokenString ?? ""
+                let authCode = result.authorizationCodeString ?? ""
+                let userEmail = result.email
+                Task.detached {
+                    _ = try? await MTRXAPIClient.shared.authenticateWithApple(
+                        identityToken: identityToken,
+                        authorizationCode: authCode,
+                        fullName: signInName,
+                        email: userEmail
+                    )
+                }
 
                 await MainActor.run {
                     signInResult = result
@@ -614,19 +624,12 @@ struct OnboardingView: View {
                         UserDefaults.standard.set(email, forKey: "com.mtrx.userEmail")
                     }
 
+                    // Go straight in — createRealWallet restores a returning
+                    // user's address or derives a new one locally, then
+                    // completes onboarding immediately.
                     isAuthenticating = false
-
-                    if let addr = auth?.walletAddress,
-                       addr.hasPrefix("0x"), addr.count == 42 {
-                        // Returning user — the backend restored their account and
-                        // wallet from their Apple ID. Bring it right back.
-                        walletAddress = addr
-                        completeOnboarding()
-                    } else {
-                        // New user (or backend not up yet) — create the wallet.
-                        isCreatingWallet = true
-                        createRealWallet()
-                    }
+                    isCreatingWallet = true
+                    createRealWallet()
                 }
             } catch {
                 await MainActor.run {
@@ -643,6 +646,18 @@ struct OnboardingView: View {
                 }
             }
         }
+    }
+
+    /// Enter the app with a local demo identity — no Sign in with Apple, no
+    /// backend. Guarantees App Review (and curious users) can always get in and
+    /// exercise every screen on demonstration data. Shown only in MVP builds.
+    private func enterDemoMode() {
+        MtrxHaptics.impact(.light)
+        appState.currentUserID = "demo-reviewer"
+        UserDefaults.standard.set("demo-reviewer", forKey: "com.mtrx.appleUserId")
+        UserDefaults.standard.set("Guest", forKey: "com.mtrx.userDisplayName")
+        walletAddress = DemoDataProvider.walletAddress
+        completeOnboarding()
     }
 
     private func completeOnboarding() {
