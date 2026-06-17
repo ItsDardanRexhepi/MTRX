@@ -208,6 +208,7 @@
 		4D1875846DCD1599B1D2EB05 /* PaymentsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82104B947B91EE438CAD3D70 /* PaymentsWidget.swift */; };
 		17CCFA7AE30F112B7DC0DCC0 /* PortfolioWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8205FBB87B74C328432EBDEB /* PortfolioWidget.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A101 /* WidgetSharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A102 /* WidgetSharedStore.swift */; };
+		A1A1A1A1A1A1A1A1A1A1A201 /* CryptoPaymentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A202 /* CryptoPaymentSheet.swift */; };
 		7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5908575B08029A598F60B914 /* PositionsWidget.swift */; };
 		E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8421C44BD0C6A17F16769739 /* Secrets.swift */; };
 		FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA7F1A65C0DE00000000001 /* FeatureFlags.swift */; };
@@ -557,6 +558,7 @@
 		82104B947B91EE438CAD3D70 /* PaymentsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PaymentsWidget.swift"; sourceTree = "<group>"; };
 		8205FBB87B74C328432EBDEB /* PortfolioWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PortfolioWidget.swift"; sourceTree = "<group>"; };
 		A1A1A1A1A1A1A1A1A1A1A102 /* WidgetSharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WidgetSharedStore.swift"; path = "UI/Widgets/WidgetSharedStore.swift"; sourceTree = SOURCE_ROOT; };
+		A1A1A1A1A1A1A1A1A1A1A202 /* CryptoPaymentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CryptoPaymentSheet.swift"; path = "UI/Views/Wallet/CryptoPaymentSheet.swift"; sourceTree = SOURCE_ROOT; };
 		5908575B08029A598F60B914 /* PositionsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PositionsWidget.swift"; sourceTree = "<group>"; };
 		A97C29AD63741CF438998CE6 /* MTRX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MTRX.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE57FACE0000000000000A02 /* MTRXTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MTRXTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1901,6 +1903,7 @@
 				4D1875846DCD1599B1D2EB05 /* PaymentsWidget.swift in Sources */,
 				17CCFA7AE30F112B7DC0DCC0 /* PortfolioWidget.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A101 /* WidgetSharedStore.swift in Sources */,
+				A1A1A1A1A1A1A1A1A1A1A201 /* CryptoPaymentSheet.swift in Sources */,
 				7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */,
 				E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */,
 				FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */,
