@@ -52,6 +52,13 @@ enum PendingCredentials {
             && filled(AccountAbstraction.paymasterSignatureEndpoint) != nil
     }
 
+    /// True once the off-chain backend gateway is configured. Feature screens
+    /// show honest, clearly-labelled DEMO data until this is true; the moment it
+    /// is filled they flip to live service data automatically — no code change.
+    static var isBackendConfigured: Bool {
+        filled(Backend.gatewayURL) != nil
+    }
+
     // MARK: - Network (JSON-RPC + realtime)
 
     enum Network {
@@ -141,6 +148,19 @@ enum PendingCredentials {
         /// Where: Chainlink data feeds (Base) for the on-chain option, or a
         /// price API (CoinGecko/your gateway) for the HTTP option.
         static let ethUsdSource = ""
+    }
+
+    // MARK: - Backend gateway (off-chain feature APIs)
+
+    enum Backend {
+
+        /// HTTPS base URL of the 0pnMatrx runtime gateway that backs the feature
+        /// services (events, social, storage, lending data, etc.). When empty,
+        /// every feature view runs on its bundled DEMO data (clearly labelled);
+        /// when filled, the views flip to live service data automatically.
+        /// Format: `https://...` (e.g. https://api.openmatrix-ai.com). Also
+        /// overridable at runtime via the MTRX_RUNTIME_URL environment variable.
+        static let gatewayURL = ""
     }
 
     // MARK: - Legal

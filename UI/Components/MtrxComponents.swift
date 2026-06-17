@@ -948,3 +948,38 @@ enum MtrxHaptics {
         UISelectionFeedbackGenerator().selectionChanged()
     }
 }
+
+// MARK: - Demo data badge (Phase 2: honest demo↔live flip)
+
+/// A small "Demo data" pill for screens running on bundled DEMO data — i.e.
+/// when `PendingCredentials.isBackendConfigured == false`. It marks demo content
+/// so it is never passed off as real, and disappears automatically once the
+/// backend gateway is configured and the view flips to live service data.
+struct DemoBadge: View {
+    var label: String = "Demo data"
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "testtube.2")
+                .font(.system(size: 10, weight: .semibold))
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(.orange)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(Color.orange.opacity(0.15)))
+        .accessibilityLabel("\(label) — not live")
+    }
+}
+
+extension View {
+    /// Overlays a demo badge (top-trailing) when `isDemo` is true.
+    @ViewBuilder
+    func demoBadge(_ isDemo: Bool, label: String = "Demo data") -> some View {
+        if isDemo {
+            overlay(alignment: .topTrailing) { DemoBadge(label: label).padding(8) }
+        } else {
+            self
+        }
+    }
+}

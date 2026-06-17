@@ -627,6 +627,7 @@ final class MTRXAPIClient: @unchecked Sendable {
 
     init(baseURL: String? = nil, session: URLSession? = nil) {
         self.baseURL = baseURL
+            ?? PendingCredentials.filled(PendingCredentials.Backend.gatewayURL)
             ?? ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"]
             ?? "https://api.openmatrix-ai.com"
 
