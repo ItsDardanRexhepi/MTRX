@@ -321,6 +321,42 @@ final class GamingManager: ObservableObject {
         // On-chain transfer would happen here via ERC-1155 safeTransferFrom
     }
 
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `mintAsset(address to, uint256 tokenId, uint256 amount)` (ERC-1155 mint).
+    static func encodeMintAsset(to: String, tokenId: UInt64, amount: UInt64) -> Data {
+        var data = ABIEncoder.functionSelector("mintAsset(address,uint256,uint256)")
+        data.append(ABIEncoder.encodeAddress(to))
+        data.append(ABIEncoder.encodeUInt256(tokenId))
+        data.append(ABIEncoder.encodeUInt256(amount))
+        return data
+    }
+
+    /// Mint a game asset on-chain through the real submit pipeline: enclave-signed
+    /// UserOp → server paymaster → bundler. Contract address deferred to
+    /// PendingCredentials (nil until set → throws, never a fake mint).
+    @MainActor
+    func mintAssetOnChain(
+        to: String,
+        tokenId: UInt64,
+        amount: UInt64,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.gaming)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let gaming = contract else {
+            throw GamingError.contractCallFailed("Gaming contract not configured (PendingCredentials.Components.gaming)")
+        }
+        return try await service.submitCall(
+            to: gaming,
+            value: 0,
+            data: Self.encodeMintAsset(to: to, tokenId: tokenId, amount: amount),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
+    }
+
     func burnAsset(assetId: String, amount: UInt64) async throws {
         guard var asset = assetStore[assetId] else {
             throw GamingError.assetMintFailed("Asset not found: \(assetId)")
