@@ -43,6 +43,8 @@
 	<true/>
 	<key>NFCReaderUsageDescription</key>
 	<string>MTRX uses NFC to scan asset tags for supply chain verification and property identification.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>MTRX connects to Apple Music so you can browse and play songs in the in-app player. This is separate from signing in.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>MTRX uses Bluetooth to connect to hardware wallets and IoT sensors for property monitoring.</string>
 	<key>NSBonjourServices</key>

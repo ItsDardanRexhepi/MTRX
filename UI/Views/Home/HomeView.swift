@@ -30,6 +30,7 @@ struct HomeView: View {
     @State private var showDailyFlow = false
     @State private var flowDestination: DailyFlow.Goal?
     @State private var showPortfolio = false
+    @State private var showMusicPlayer = false
 
     /// What to open the chat with: an agent and an optional prefill.
     struct ChatLaunch: Identifiable {
@@ -56,11 +57,14 @@ struct HomeView: View {
                         portfolioSnapshot
                             .mtrxStaggeredAppearance(index: 1, isVisible: appeared)
 
-                        quickActionsSection
+                        HomeMusicWidget { showMusicPlayer = true }
                             .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
 
-                        homeFeedSection
+                        quickActionsSection
                             .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
+
+                        homeFeedSection
+                            .mtrxStaggeredAppearance(index: 4, isVisible: appeared)
                     }
                     .opacity(askFocused ? 0.42 : 1)
                     .blur(radius: askFocused ? 1.5 : 0)
@@ -196,6 +200,9 @@ struct HomeView: View {
             // holdings, and activity — everything happens in here.
             PortfolioSheet()
                 .environmentObject(walletManager)
+        }
+        .sheet(isPresented: $showMusicPlayer) {
+            MusicPlayerView()
         }
     }
 
