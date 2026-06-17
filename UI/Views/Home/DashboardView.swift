@@ -78,6 +78,12 @@ struct DashboardView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Spacing.lg)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(VoiceOverSupport.portfolioLabel(
+            value: walletManager.totalPortfolioValue.formatted(.currency(code: "USD")),
+            change: String(format: "%@%.2f%%", walletManager.portfolioChange24h >= 0 ? "+" : "", walletManager.portfolioChange24h),
+            isPositive: walletManager.portfolioChange24h >= 0
+        ))
     }
 
     private var portfolioChangeRow: some View {
@@ -172,7 +178,7 @@ struct DashboardView: View {
                     title: "No Positions",
                     message: "Your active DeFi positions will appear here."
                 )
-                .frame(height: 120)
+                .frame(minHeight: 120)
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(walletManager.defiPositions.enumerated()), id: \.element.id) { index, position in
@@ -201,7 +207,7 @@ struct DashboardView: View {
                     title: "No Activity",
                     message: "Your recent transactions will appear here."
                 )
-                .frame(height: 120)
+                .frame(minHeight: 120)
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(walletManager.transactions.prefix(4).enumerated()), id: \.element.id) { index, tx in
@@ -394,6 +400,8 @@ private struct AllocationItem: View {
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label) allocation, \(Int((progress * 100).rounded())) percent")
     }
 }
 
@@ -440,6 +448,11 @@ private struct DeFiPositionRow: View {
             }
         }
         .padding(.vertical, Spacing.sm)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(position.protocol_) \(position.type), value \(formatCurrency(position.value)), \(String(format: "%.1f", position.apy)) percent APY"
+            + (position.healthFactor.map { ", health factor \(String(format: "%.1f", $0))" } ?? "")
+        )
     }
 
     private func healthColor(for factor: Double) -> Color {
@@ -499,6 +512,8 @@ private struct TransactionActivityRow: View {
             }
         }
         .padding(.vertical, Spacing.sm)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(transaction.title), \(transaction.subtitle), \(transaction.amount), \(relativeTimestamp(transaction.timestamp))")
     }
 
     private func amountColor(for tx: TransactionItem) -> Color {

@@ -195,6 +195,14 @@ struct PortfolioView: View {
             .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, Spacing.contentPadding)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            VoiceOverSupport.portfolioLabel(
+                value: viewModel.totalValue,
+                change: viewModel.change24h,
+                isPositive: !viewModel.change24h.hasPrefix("-")
+            ) + Text(viewModel.isDemo ? " Showing demo data." : "")
+        )
     }
 
     // MARK: - Tokens Section
@@ -205,6 +213,7 @@ struct PortfolioView: View {
                 .font(.mtrxTitle3)
                 .foregroundStyle(Color.labelPrimary)
                 .padding(.horizontal, Spacing.contentPadding)
+                .accessibilityAddTraits(.isHeader)
 
             if viewModel.tokens.isEmpty {
                 emptyTokensState
@@ -250,6 +259,8 @@ struct PortfolioView: View {
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(token.name), \(token.balance) \(token.symbol), value \(token.usdValue), 24-hour change \(token.changePercent)")
     }
 
     private var emptyTokensState: some View {
@@ -267,6 +278,7 @@ struct PortfolioView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(Spacing.xl)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Transactions Section
@@ -277,6 +289,7 @@ struct PortfolioView: View {
                 .font(.mtrxTitle3)
                 .foregroundStyle(Color.labelPrimary)
                 .padding(.horizontal, Spacing.contentPadding)
+                .accessibilityAddTraits(.isHeader)
 
             if viewModel.transactions.isEmpty {
                 emptyTransactionsState
@@ -322,6 +335,8 @@ struct PortfolioView: View {
             }
         }
         .padding(.horizontal, Spacing.contentPadding)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(tx.type), \(tx.amount), \(tx.date). Status: \(tx.status).")
     }
 
     private var emptyTransactionsState: some View {
@@ -339,6 +354,7 @@ struct PortfolioView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(Spacing.xl)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Error State
@@ -348,6 +364,7 @@ struct PortfolioView: View {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 44))
                 .foregroundStyle(Color.statusWarning)
+                .accessibilityHidden(true)
             Text(message)
                 .font(.mtrxBody)
                 .foregroundStyle(Color.labelSecondary)
