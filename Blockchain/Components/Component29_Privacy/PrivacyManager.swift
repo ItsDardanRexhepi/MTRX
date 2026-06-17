@@ -69,6 +69,7 @@ enum PrivacyError: Error, LocalizedError {
     case proofVerificationFailed
     case disclosureRevoked
     case invalidProof
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -78,6 +79,7 @@ enum PrivacyError: Error, LocalizedError {
         case .proofVerificationFailed: return "ZK proof verification failed."
         case .disclosureRevoked: return "Selective disclosure has been revoked."
         case .invalidProof: return "Invalid proof data."
+        case .notConfigured: return "Privacy/shielded-pool contract not configured (PendingCredentials.Components.privacy)."
         }
     }
 }
@@ -167,6 +169,46 @@ final class PrivacyManager: ObservableObject {
 
         transactionStore[tx.id] = tx
         return tx
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+    //
+    // The shielded-transfer ZK proof itself must be produced by a real prover
+    // (out of scope for the app — generateZKProof above is a placeholder). The
+    // caller supplies the `proof` bytes; this method ABI-encodes and submits the
+    // shielded transfer with the user's own enclave key (self-custody).
+
+    /// ABI-encode `shieldedTransfer(address recipient, uint256 amount, bytes proof)`.
+    static func encodeShieldedTransfer(recipient: String, amount: UInt64, proof: Data) -> Data {
+        var out = ABIEncoder.functionSelector("shieldedTransfer(address,uint256,bytes)")
+        out.append(ABIEncoder.encodeAddress(recipient))
+        out.append(ABIEncoder.encodeUInt256(amount))
+        out.append(ABIEncoder.encodeOffset(96)) // bytes arg follows 3 head words
+        out.append(ABIEncoder.encodeBytes(proof))
+        return out
+    }
+
+    /// Submit a shielded transfer on-chain through the real submit pipeline:
+    /// enclave-signed UserOp → server paymaster → bundler. Pool contract deferred
+    /// to PendingCredentials (nil until set → throws, never a fake transfer).
+    @MainActor
+    func sendShieldedOnChain(
+        recipient: String,
+        amount: UInt64,
+        proof: Data,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.privacy)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let pool = contract else { throw PrivacyError.notConfigured }
+        return try await service.submitCall(
+            to: pool,
+            value: 0,
+            data: Self.encodeShieldedTransfer(recipient: recipient, amount: amount, proof: proof),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     // MARK: - Selective Disclosure
