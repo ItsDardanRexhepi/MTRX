@@ -5,7 +5,7 @@ import Foundation
 
 // MARK: - Models
 
-struct StakingOption: Codable, Identifiable {
+struct SvcStakingOption: Codable, Identifiable {
     var id: String { poolId }
     let poolId: String
     let name: String
@@ -66,8 +66,8 @@ final class StakingService {
 
     // MARK: - Staking Options
 
-    func getStakingOptions() async throws -> [StakingOption] {
-        let options: [StakingOption] = try await client.get(
+    func getStakingOptions() async throws -> [SvcStakingOption] {
+        let options: [SvcStakingOption] = try await client.get(
             path: "/api/v1/defi/staking/options"
         )
         return options

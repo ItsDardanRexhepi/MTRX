@@ -281,6 +281,11 @@
 		CF6505A67436A73292D272AA /* WalletCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F90F7DC46C3D286B5024A8F /* WalletCore.swift */; };
 		D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */; };
 		7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */; };
+		BD0A7AA9640206F9628623C1 /* SocialGraphService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E4F9A3A81C550ABC04AD06 /* SocialGraphService.swift */; };
+		7EC6E552873DEF26C74895E7 /* StablecoinService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE7F71EE449F77DA7DD19ED /* StablecoinService.swift */; };
+		E02C06C76968DDF46D089B9A /* StakingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4391AAFECD836108F7B0CBE4 /* StakingService.swift */; };
+		A19BA69AC7E53EBBAD0111E4 /* StorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F859E54955AF924F2E911E2 /* StorageService.swift */; };
+		25D1326536F53E91657EB5FC /* StreamingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC6D719C9AC0355F7A02FE64 /* StreamingService.swift */; };
 		E34C7C1D81161CACE7FA4519 /* OnChainSubscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1B7B67532CF594DB3F0FAB /* OnChainSubscriptionService.swift */; };
 		C3D8CEFE0F0BEFAE62F48D5B /* OracleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E7DDC7CD7D41281624E244 /* OracleService.swift */; };
 		4A6E6FE80216B1E32A07A6C0 /* PortfolioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73C47EE557C213A0BB1011E /* PortfolioService.swift */; };
@@ -625,6 +630,11 @@
 		6F90F7DC46C3D286B5024A8F /* WalletCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WalletCore.swift"; path = "Core/Wallet/WalletCore.swift"; sourceTree = SOURCE_ROOT; };
 		1882A1F626376B82DD3BF0DF /* SecureEnclaveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SecureEnclaveManager.swift"; path = "Core/Wallet/SecureEnclaveManager.swift"; sourceTree = SOURCE_ROOT; };
 		7A1B0C0D0E0F102030405092 /* DemoArtifacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DemoArtifacts.swift"; path = "Core/Utilities/DemoArtifacts.swift"; sourceTree = SOURCE_ROOT; };
+		94E4F9A3A81C550ABC04AD06 /* SocialGraphService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SocialGraphService.swift"; path = "Services/SocialGraphService.swift"; sourceTree = SOURCE_ROOT; };
+		7BE7F71EE449F77DA7DD19ED /* StablecoinService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "StablecoinService.swift"; path = "Services/StablecoinService.swift"; sourceTree = SOURCE_ROOT; };
+		4391AAFECD836108F7B0CBE4 /* StakingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "StakingService.swift"; path = "Services/StakingService.swift"; sourceTree = SOURCE_ROOT; };
+		7F859E54955AF924F2E911E2 /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "StorageService.swift"; path = "Services/StorageService.swift"; sourceTree = SOURCE_ROOT; };
+		EC6D719C9AC0355F7A02FE64 /* StreamingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "StreamingService.swift"; path = "Services/StreamingService.swift"; sourceTree = SOURCE_ROOT; };
 		BE1B7B67532CF594DB3F0FAB /* OnChainSubscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OnChainSubscriptionService.swift"; path = "Services/OnChainSubscriptionService.swift"; sourceTree = SOURCE_ROOT; };
 		59E7DDC7CD7D41281624E244 /* OracleService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OracleService.swift"; path = "Services/OracleService.swift"; sourceTree = SOURCE_ROOT; };
 		B73C47EE557C213A0BB1011E /* PortfolioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PortfolioService.swift"; path = "Services/PortfolioService.swift"; sourceTree = SOURCE_ROOT; };
@@ -1782,6 +1792,11 @@
 				CF6505A67436A73292D272AA /* WalletCore.swift in Sources */,
 				D4779E9C7E2168D5B2A4595D /* SecureEnclaveManager.swift in Sources */,
 				7A1B0C0D0E0F102030405091 /* DemoArtifacts.swift in Sources */,
+				BD0A7AA9640206F9628623C1 /* SocialGraphService.swift in Sources */,
+				7EC6E552873DEF26C74895E7 /* StablecoinService.swift in Sources */,
+				E02C06C76968DDF46D089B9A /* StakingService.swift in Sources */,
+				A19BA69AC7E53EBBAD0111E4 /* StorageService.swift in Sources */,
+				25D1326536F53E91657EB5FC /* StreamingService.swift in Sources */,
 				E34C7C1D81161CACE7FA4519 /* OnChainSubscriptionService.swift in Sources */,
 				C3D8CEFE0F0BEFAE62F48D5B /* OracleService.swift in Sources */,
 				4A6E6FE80216B1E32A07A6C0 /* PortfolioService.swift in Sources */,

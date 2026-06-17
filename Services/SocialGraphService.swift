@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Models
 
-struct SocialProfile: Codable, Identifiable {
+struct SvcSocialProfile: Codable, Identifiable {
     var id: String { address }
     let address: String
     let ens: String?
@@ -33,11 +33,11 @@ final class SocialGraphService {
 
     private init() {}
 
-    func getFollowing(address: String) async throws -> [SocialProfile] {
+    func getFollowing(address: String) async throws -> [SvcSocialProfile] {
         try await api.get(path: "/social/\(address)/following")
     }
 
-    func getFollowers(address: String) async throws -> [SocialProfile] {
+    func getFollowers(address: String) async throws -> [SvcSocialProfile] {
         try await api.get(path: "/social/\(address)/followers")
     }
 
@@ -53,7 +53,7 @@ final class SocialGraphService {
         try await api.post(path: "/social/unfollow", body: ["address": address])
     }
 
-    func getSuggestions(address: String) async throws -> [SocialProfile] {
+    func getSuggestions(address: String) async throws -> [SvcSocialProfile] {
         try await api.get(path: "/social/\(address)/suggestions")
     }
 }

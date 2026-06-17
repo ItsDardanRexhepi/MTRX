@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Models
 
-struct PaymentStream: Codable, Identifiable {
+struct SvcPaymentStream: Codable, Identifiable {
     var id: String { streamId }
     let streamId: String
     let sender: String
@@ -34,13 +34,13 @@ final class StreamingService {
         ])
     }
 
-    func getOutgoingStreams(address: String) async throws -> [PaymentStream] {
+    func getOutgoingStreams(address: String) async throws -> [SvcPaymentStream] {
         try await api.get(path: "/streaming/streams/outgoing", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
-    func getIncomingStreams(address: String) async throws -> [PaymentStream] {
+    func getIncomingStreams(address: String) async throws -> [SvcPaymentStream] {
         try await api.get(path: "/streaming/streams/incoming", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])

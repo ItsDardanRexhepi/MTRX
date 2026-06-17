@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Models
 
-struct StablecoinBalance: Codable, Identifiable {
+struct SvcStablecoinBalance: Codable, Identifiable {
     let id: UUID
     let symbol: String
     let balance: Double
@@ -29,7 +29,7 @@ final class StablecoinService {
 
     private init() {}
 
-    func getStablecoinBalances(address: String) async throws -> [StablecoinBalance] {
+    func getStablecoinBalances(address: String) async throws -> [SvcStablecoinBalance] {
         try await api.get(path: "/stablecoins/balances", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
