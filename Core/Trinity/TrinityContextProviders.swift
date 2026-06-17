@@ -20,6 +20,7 @@
 import Foundation
 import CoreLocation
 import Network
+import SwiftData
 #if canImport(HealthKit)
 import HealthKit
 #endif
@@ -276,6 +277,113 @@ final class WeatherKitProvider: WeatherDataProvider {
 }
 #endif
 
+// MARK: - Portfolio (real adapter onto WalletManager)
+
+/// Maps the app's live `WalletManager` holdings into a Trinity PortfolioSnapshot.
+/// Values come from the same WalletManager the UI shows (API-backed via
+/// MTRXAPIClient.getPortfolio(), with the app's own demo fallback when the
+/// backend is unreachable — that fallback is the app's behaviour, not ours).
+///
+/// The daily change is MEASURED against the last observation this provider made
+/// (0 on the first call) — it deliberately does NOT surface WalletManager's
+/// hardcoded `portfolioChange24h` placeholder, so nothing here is fabricated.
+@MainActor
+final class WalletPortfolioProvider: PortfolioDataProvider {
+
+    private weak var wallet: WalletManager?
+    private var priorValue: Double?
+    private var priorAt: Date?
+
+    init(wallet: WalletManager) {
+        self.wallet = wallet
+    }
+
+    func fetchSnapshot() async -> PortfolioSnapshot? {
+        guard let wallet = wallet else { return nil }
+        let tokens = wallet.tokens
+        guard !tokens.isEmpty else { return nil }
+        let total = wallet.totalPortfolioValue
+
+        let now = Date()
+        var dailyChange = 0.0
+        var dailyChangePercent = 0.0
+        if let priorValue, let priorAt,
+           now.timeIntervalSince(priorAt) < 48 * 3600, priorValue > 0 {
+            dailyChange = total - priorValue
+            dailyChangePercent = (dailyChange / priorValue) * 100.0
+        }
+        priorValue = total
+        priorAt = now
+
+        let holdings = tokens
+            .sorted { $0.valueUSD > $1.valueUSD }
+            .prefix(5)
+            .map { token in
+                HoldingSnapshot(
+                    symbol: token.symbol,
+                    name: token.name,
+                    value: token.valueUSD,
+                    changePercent: token.change24h,
+                    allocation: total > 0 ? token.valueUSD / total : 0
+                )
+            }
+
+        return PortfolioSnapshot(
+            totalValue: total,
+            dailyChange: dailyChange,
+            dailyChangePercent: dailyChangePercent,
+            topHoldings: Array(holdings),
+            alerts: [], // no alert source yet — empty, never fabricated
+            lastUpdated: now
+        )
+    }
+}
+
+// MARK: - Transactions (real adapter onto the SwiftData record store)
+
+/// Reads recent transactions from the app's real `TransactionRecord` persistence
+/// store. This is a genuine adapter, not a stub — it returns exactly what has
+/// been persisted. NOTE: nothing populates on-chain history into this store yet
+/// (BaseNetwork has no eth_getLogs, and no indexer writes records), so it
+/// currently returns an EMPTY list. It starts surfacing real transactions the
+/// moment a producer writes TransactionRecords — no fabricated data in between.
+@MainActor
+final class SwiftDataTransactionProvider: TransactionDataProvider {
+
+    private let store: SwiftDataStore
+
+    init(store: SwiftDataStore) {
+        self.store = store
+    }
+
+    func fetchRecent(limit: Int) async -> [TransactionSnapshot] {
+        var descriptor = FetchDescriptor<TransactionRecord>(
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        descriptor.fetchLimit = limit
+        let records = (try? store.fetch(descriptor)) ?? []
+
+        return records.map { record in
+            let asset = record.tokenSymbol ?? "ETH"
+            let amount: Double
+            if let tokenAmount = record.tokenAmount, let value = Double(tokenAmount) {
+                amount = value
+            } else {
+                // Wei → ETH (1e18) from the stored decimal string.
+                amount = NSDecimalNumber(decimal: record.decimalValue / Decimal(1_000_000_000_000_000_000)).doubleValue
+            }
+            return TransactionSnapshot(
+                id: record.id,
+                type: record.direction,
+                amount: amount,
+                asset: asset,
+                timestamp: record.timestamp,
+                status: record.status
+            )
+        }
+    }
+}
+
 // MARK: - System provider factory
 
 extension TrinityContext {
@@ -303,6 +411,19 @@ extension TrinityContext {
             weatherProvider: weather,
             portfolioProvider: portfolioProvider,
             transactionProvider: transactionProvider
+        )
+    }
+
+    /// Full wiring: system sensor providers + the app-data adapters (live
+    /// WalletManager holdings + the real TransactionRecord store). Call this from
+    /// the Trinity construction site, passing the app's WalletManager, to give
+    /// Trinity real portfolio context (transactions stay empty until a producer
+    /// populates TransactionRecord — see SwiftDataTransactionProvider).
+    @MainActor
+    static func withAppProviders(wallet: WalletManager) -> TrinityContext {
+        withSystemProviders(
+            portfolioProvider: WalletPortfolioProvider(wallet: wallet),
+            transactionProvider: SwiftDataTransactionProvider(store: .shared)
         )
     }
 }
