@@ -72,18 +72,69 @@ final class GovernanceViewModel: ObservableObject {
     @Published var selectedVote: VoteOption?
     @Published var hasVoted = false
     @Published var showHistory = false
+    @Published var isDemo: Bool = true
+
+    // Voting-power + participation are header stats. votingPower is filled live from
+    // GovernanceService; participation has no service source, so it shows '—' when live.
+    @Published var votingPower: String = "12,450 MTRX"
+    @Published var participationRate: String = "67%"
 
     // MARK: Computed
 
     var activeProposals: [Proposal] { proposals.filter { $0.status == .active } }
     var historyProposals: [Proposal] { proposals.filter { $0.status != .active } }
 
-    var votingPower: String { "12,450 MTRX" }
-    var participationRate: String { "67%" }
-
     // MARK: Init
 
     init() { loadSampleData() }
+
+    // MARK: Live load
+
+    private static func timeRemaining(until date: Date) -> String {
+        let secs = Int(date.timeIntervalSinceNow)
+        if secs <= 0 { return "Ended" }
+        let days = secs / 86400, hours = (secs % 86400) / 3600, mins = (secs % 3600) / 60
+        if days > 0 { return "\(days)d \(hours)h left" }
+        return hours > 0 ? "\(hours)h \(mins)m left" : "\(mins)m left"
+    }
+
+    /// Live DAO governance from GovernanceService when configured. Proposals come from
+    /// the user's first DAO. The service's proposal model carries no author, so author
+    /// is left blank live. Else demo.
+    func load() async {
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let daos = try await GovernanceService.shared.getDAOs(address: address)
+                if let dao = daos.first {
+                    async let proposalsReq = GovernanceService.shared.getProposals(daoId: dao.daoId)
+                    async let powerReq = GovernanceService.shared.getVotingPower(daoId: dao.daoId, address: address)
+                    proposals = (try await proposalsReq).map { p in
+                        Proposal(
+                            id: p.proposalId, title: p.title, author: "",
+                            description: p.description,
+                            forVotes: Int(p.votesFor), againstVotes: Int(p.votesAgainst),
+                            quorumProgress: p.quorum > 0 ? min((p.votesFor + p.votesAgainst) / p.quorum, 1.0) : 0,
+                            timeRemaining: Self.timeRemaining(until: p.endTime),
+                            status: Proposal.Status(rawValue: p.status.capitalized) ?? .active,
+                            fullText: p.description
+                        )
+                    }
+                    let power = try await powerReq
+                    votingPower = "\(power.totalPower.formatted()) \(dao.tokenSymbol)"
+                    participationRate = "—"
+                    isDemo = false
+                    return
+                }
+            } catch {
+                // Falls through to labeled demo below.
+            }
+        }
+
+        loadSampleData()
+        votingPower = "12,450 MTRX"
+        participationRate = "67%"
+        isDemo = true
+    }
 
     // MARK: Actions
 
@@ -175,6 +226,12 @@ struct GovernanceView: View {
             }
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Governance")
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
+            .task { await viewModel.load() }
             .sheet(isPresented: $viewModel.showVoteSheet) {
                 voteSheet
                     .presentationDetents([.large])

@@ -34,6 +34,11 @@ class TreasuryViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var showProposal: Bool = false
+    @Published var isDemo: Bool = false
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .none; return f
+    }()
 
     // Proposal form
     @Published var proposalToken: String = ""
@@ -53,11 +58,46 @@ class TreasuryViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live treasury from GovernanceService when configured. Treasury is per-DAO;
+        // we use the user's first DAO. Else demo.
+        if PendingCredentials.isBackendConfigured, let address = MtrxSession.walletAddress {
+            do {
+                let daos = try await GovernanceService.shared.getDAOs(address: address)
+                if let dao = daos.first {
+                    async let balanceReq = GovernanceService.shared.getTreasuryBalance(daoId: dao.daoId)
+                    async let historyReq = GovernanceService.shared.getTreasuryHistory(daoId: dao.daoId)
+                    let balance = try await balanceReq
+                    totalUSD = balance.totalUSD.formatted(.currency(code: "USD"))
+                    assets = balance.assets.map { a in
+                        TreasuryAssetItem(
+                            token: a.token, symbol: a.symbol,
+                            balance: a.balance.formatted(.number.precision(.fractionLength(2))),
+                            usdValue: a.usdValue.formatted(.currency(code: "USD"))
+                        )
+                    }
+                    transactions = (try await historyReq).map { t in
+                        TreasuryTxItem(
+                            type: t.type, token: t.token,
+                            amount: "\(t.amount.formatted()) \(t.token)",
+                            recipient: t.recipient,
+                            timestamp: Self.dateFormatter.string(from: t.timestamp)
+                        )
+                    }
+                    isDemo = false
+                    isLoading = false
+                    return
+                }
+            } catch {
+                errorMessage = "Live treasury unavailable — showing demo."
+            }
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(600))
             totalUSD = "$1,284,530"
             assets = TreasuryViewModel.sampleAssets
             transactions = TreasuryViewModel.sampleTransactions
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load treasury data."
@@ -120,6 +160,11 @@ struct TreasuryView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Treasury")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
             .sheet(isPresented: $viewModel.showProposal) {
                 proposeSpendingSheet
