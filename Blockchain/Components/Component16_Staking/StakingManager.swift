@@ -57,6 +57,7 @@ enum StakingError: Error, LocalizedError {
     case alreadyUnstaking
     case insufficientRewards
     case calculationFailed(String)
+    case displayOnly
 
     var errorDescription: String? {
         switch self {
@@ -65,11 +66,19 @@ enum StakingError: Error, LocalizedError {
         case .alreadyUnstaking: return "Unstake already in progress."
         case .insufficientRewards: return "No rewards accrued yet."
         case .calculationFailed(let r): return "APY calculation failed: \(r)"
+        case .displayOnly: return "Staking is display-only in this build — stake/unstake/claim yourself in self-custody."
         }
     }
 }
 
 // MARK: - StakingManager
+//
+// REGULATED COMPONENT — DISPLAY-ONLY.
+// Staking (a yield-bearing financial product) displays APY, positions and
+// projected rewards but performs NO in-app execution. stake/unstake/
+// finaliseUnstake/claimRewards refuse with `.displayOnly` rather than
+// fabricating ETH movement. Reward PROJECTION (accrueRewards) stays for display.
+// Gated by FeatureFlags.mvpMode upstream.
 
 final class StakingManager: ObservableObject {
 
@@ -125,57 +134,19 @@ final class StakingManager: ObservableObject {
 
     // MARK: - Staking
 
-    /// Stake ETH. Minimum 1 ETH.
+    /// Stake — REGULATED display-only: refuses (no in-app execution).
     func stake(stakerAddress: String, amountETH: Double) async throws -> StakePosition {
-        guard amountETH >= Self.minimumStakeETH else {
-            throw StakingError.belowMinimumStake
-        }
-
-        let position = StakePosition(
-            id: UUID().uuidString,
-            stakerAddress: stakerAddress,
-            amountETH: amountETH,
-            stakedAt: Date(),
-            status: .active,
-            accruedRewards: 0,
-            lastRewardCalculation: Date()
-        )
-
-        stakeStore[position.id] = position
-        await MainActor.run { stakes.append(position) }
-        delegate?.staking(self, stakeCreated: position)
-        return position
+        throw StakingError.displayOnly
     }
 
-    /// Initiate unstake.
+    /// Unstake — REGULATED display-only: refuses (no in-app execution).
     func unstake(stakeId: String) async throws -> StakePosition {
-        guard var position = stakeStore[stakeId] else {
-            throw StakingError.stakeNotFound(stakeId)
-        }
-        guard position.status == .active else {
-            throw StakingError.alreadyUnstaking
-        }
-
-        position.status = .pendingUnstake
-        stakeStore[stakeId] = position
-        await updatePositionInPublished(position)
-        return position
+        throw StakingError.displayOnly
     }
 
-    /// Finalise unstake after cooldown.
+    /// Finalise unstake — REGULATED display-only: refuses (no in-app execution).
     func finaliseUnstake(stakeId: String) async throws -> StakePosition {
-        guard var position = stakeStore[stakeId] else {
-            throw StakingError.stakeNotFound(stakeId)
-        }
-        guard position.status == .pendingUnstake else {
-            throw StakingError.stakeNotFound(stakeId)
-        }
-
-        position.status = .unstaked
-        stakeStore[stakeId] = position
-        await updatePositionInPublished(position)
-        delegate?.staking(self, unstakeCompleted: position)
-        return position
+        throw StakingError.displayOnly
     }
 
     // MARK: - Rewards
@@ -200,38 +171,9 @@ final class StakingManager: ObservableObject {
         await updatePositionInPublished(position)
     }
 
-    /// Claim accrued rewards. 5% commission deducted.
+    /// Claim rewards — REGULATED display-only: refuses (no in-app execution).
     func claimRewards(stakeId: String) async throws -> StakingRewardEvent {
-        guard var position = stakeStore[stakeId] else {
-            throw StakingError.stakeNotFound(stakeId)
-        }
-        guard position.accruedRewards > 0 else {
-            throw StakingError.insufficientRewards
-        }
-
-        let gross = position.accruedRewards / (1.0 - Self.commissionRate)
-        let commission = gross * Self.commissionRate
-        let net = position.accruedRewards
-
-        let event = StakingRewardEvent(
-            id: UUID().uuidString,
-            stakeId: stakeId,
-            grossReward: gross,
-            commission: commission,
-            netReward: net,
-            claimedAt: Date(),
-            txHash: nil
-        )
-
-        position.accruedRewards = 0
-        stakeStore[stakeId] = position
-
-        await MainActor.run {
-            rewardEvents.append(event)
-        }
-        await updatePositionInPublished(position)
-        delegate?.staking(self, rewardsClaimed: event)
-        return event
+        throw StakingError.displayOnly
     }
 
     // MARK: - Queries
