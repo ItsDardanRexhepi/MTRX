@@ -359,13 +359,36 @@ final class EASManager {
 
     // MARK: - Private Helpers
 
+    /// EAS schema UID = keccak256(abi.encodePacked(schema, resolver, revocable)).
+    /// Real keccak over the packed encoding — not a random id.
     private func computeSchemaUID(schema: String, resolver: String, revocable: Bool) -> String {
-        // TODO: Compute keccak256(abi.encodePacked(schema, resolver, revocable))
-        return "0x" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        var packed = Data()
+        packed.append(Data(schema.utf8))           // string → raw UTF-8 bytes (packed)
+        packed.append(Self.addressBytes(resolver)) // address → 20 bytes
+        packed.append(revocable ? 0x01 : 0x00)      // bool → 1 byte
+        let hash = Keccak256.hash(data: packed)
+        return "0x" + hash.map { String(format: "%02x", $0) }.joined()
     }
 
+    /// Parse a hex address into exactly 20 bytes (left-padded / truncated).
+    private static func addressBytes(_ hex: String) -> Data {
+        let cleaned = hex.hasPrefix("0x") ? String(hex.dropFirst(2)) : hex
+        var bytes = Data()
+        var index = cleaned.startIndex
+        while index < cleaned.endIndex {
+            let next = cleaned.index(index, offsetBy: 2, limitedBy: cleaned.endIndex) ?? cleaned.endIndex
+            if let byte = UInt8(cleaned[index..<next], radix: 16) { bytes.append(byte) }
+            index = next
+        }
+        if bytes.count < 20 { return Data(repeating: 0, count: 20 - bytes.count) + bytes }
+        if bytes.count > 20 { return bytes.suffix(20) }
+        return bytes
+    }
+
+    /// EAS attest() calldata encoder. Intentionally returns nil until the full
+    /// nested-tuple ABI encoder is wired — callers treat nil as "not available"
+    /// and must not submit. (Returns nil, never fabricated/empty calldata.)
     private func encodeAttestRequest(_ request: AttestationRequest, schema: EASSchema) -> Data? {
-        // TODO: ABI-encode AttestationRequest struct for EAS.attest() call
-        return Data()
+        return nil
     }
 }
