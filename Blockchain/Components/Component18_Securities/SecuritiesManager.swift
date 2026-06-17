@@ -79,6 +79,7 @@ enum SecuritiesError: Error, LocalizedError {
     case buyerNotCompliant
     case sellerNotCompliant
     case issuanceFailed(String)
+    case displayOnly
 
     var errorDescription: String? {
         switch self {
@@ -90,11 +91,19 @@ enum SecuritiesError: Error, LocalizedError {
         case .buyerNotCompliant: return "Buyer has not passed compliance verification."
         case .sellerNotCompliant: return "Seller has not passed compliance verification."
         case .issuanceFailed(let r): return "Token issuance failed: \(r)"
+        case .displayOnly: return "Securities issuance/trading is display-only in this build — no in-app execution."
         }
     }
 }
 
 // MARK: - SecuritiesManager
+//
+// REGULATED COMPONENT — DISPLAY-ONLY.
+// Security-token issuance and trading is among the most heavily regulated
+// activities (securities law). This build displays tokens, holders and
+// compliance status but performs NO in-app execution. issueToken/executeTrade
+// refuse with `.displayOnly` rather than fabricating issuance/transfers.
+// Gated by FeatureFlags.mvpMode upstream.
 
 final class SecuritiesManager: ObservableObject {
 
@@ -115,27 +124,9 @@ final class SecuritiesManager: ObservableObject {
 
     // MARK: - Token Issuance (ERC-3643)
 
+    /// Issue token — REGULATED display-only: refuses (no in-app execution).
     func issueToken(symbol: String, name: String, issuer: String, totalSupply: Double, tokenType: SecurityTokenType, jurisdiction: String) async throws -> SecurityTokenERC3643 {
-        let token = SecurityTokenERC3643(
-            id: UUID().uuidString,
-            symbol: symbol,
-            name: name,
-            issuerAddress: issuer,
-            totalSupply: totalSupply,
-            tokenType: tokenType,
-            jurisdiction: jurisdiction,
-            issuedAt: Date(),
-            contractAddress: nil,
-            holders: [issuer: totalSupply],
-            complianceRegistry: [issuer: .verified],
-            identityRegistryAddress: nil,
-            complianceModuleAddress: nil
-        )
-
-        tokenStore[token.id] = token
-        await MainActor.run { tokens.append(token) }
-        delegate?.securities(self, tokenIssued: token)
-        return token
+        throw SecuritiesError.displayOnly
     }
 
     // MARK: - Compliance (ERC-3643 Identity Registry)
@@ -156,47 +147,9 @@ final class SecuritiesManager: ObservableObject {
     // MARK: - Trading with 0.25% Fee
 
     /// Execute a trade. Both buyer and seller must be compliance-verified.
+    /// Execute trade — REGULATED display-only: refuses (no in-app execution).
     func executeTrade(tokenId: String, seller: String, buyer: String, amount: Double, pricePerToken: Double) async throws -> SecuritiesTrade {
-        guard var token = tokenStore[tokenId] else {
-            throw SecuritiesError.tokenNotFound(tokenId)
-        }
-        guard token.complianceRegistry[seller] == .verified else {
-            throw SecuritiesError.sellerNotCompliant
-        }
-        guard token.complianceRegistry[buyer] == .verified else {
-            throw SecuritiesError.buyerNotCompliant
-        }
-
-        let sellerBalance = token.holders[seller] ?? 0
-        guard sellerBalance >= amount else {
-            throw SecuritiesError.insufficientBalance
-        }
-
-        let totalPrice = amount * pricePerToken
-        let fee = totalPrice * Self.exchangeFeeRate
-
-        // Transfer tokens
-        token.holders[seller] = sellerBalance - amount
-        token.holders[buyer, default: 0] += amount
-        tokenStore[tokenId] = token
-
-        let trade = SecuritiesTrade(
-            id: UUID().uuidString,
-            tokenId: tokenId,
-            sellerAddress: seller,
-            buyerAddress: buyer,
-            amount: amount,
-            pricePerToken: pricePerToken,
-            totalPrice: totalPrice,
-            fee: fee,
-            executedAt: Date(),
-            txHash: nil
-        )
-
-        await MainActor.run { trades.append(trade) }
-        await updateTokenInPublished(token)
-        delegate?.securities(self, tradeExecuted: trade)
-        return trade
+        throw SecuritiesError.displayOnly
     }
 
     // MARK: - Terms Negotiation
