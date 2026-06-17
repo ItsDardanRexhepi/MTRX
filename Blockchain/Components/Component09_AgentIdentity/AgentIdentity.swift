@@ -80,6 +80,7 @@ enum AgentIdentityError: Error, LocalizedError {
     case trustScoreTooLow(required: Double, current: Double)
     case dailyLimitExceeded
     case ownerAuthRequired
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -90,6 +91,7 @@ enum AgentIdentityError: Error, LocalizedError {
         case .trustScoreTooLow(let req, let cur): return "Trust score too low. Required: \(req), Current: \(cur)"
         case .dailyLimitExceeded: return "Daily action limit exceeded."
         case .ownerAuthRequired: return "Owner authorization required for this action."
+        case .notConfigured: return "Agent registry not configured (PendingCredentials.Components.agentIdentity)."
         }
     }
 }
@@ -140,6 +142,49 @@ final class AgentIdentity {
 
         delegate?.agentIdentity(self, didRegister: did)
         completion(.success(agent))
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// Stable on-chain code for an agent type (independent of source ordering).
+    static func code(for type: AgentType) -> UInt64 {
+        switch type {
+        case .autonomous: return 0
+        case .semiAutonomous: return 1
+        case .supervised: return 2
+        case .restricted: return 3
+        }
+    }
+
+    /// ABI-encode `registerAgent(address owner, uint8 agentType)`.
+    static func encodeRegisterAgent(owner: String, agentType: AgentType) -> Data {
+        var data = ABIEncoder.functionSelector("registerAgent(address,uint8)")
+        data.append(ABIEncoder.encodeAddress(owner))
+        data.append(ABIEncoder.encodeUInt256(code(for: agentType)))
+        return data
+    }
+
+    /// Register an agent on-chain through the real submit pipeline: enclave-signed
+    /// UserOp → server paymaster → bundler. Registry address deferred to
+    /// PendingCredentials (nil until set → throws, never a fake registration).
+    /// Static: needs no instance state (keeps it testable without the identity graph).
+    @MainActor
+    static func registerAgentOnChain(
+        owner: String,
+        agentType: AgentType,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.agentIdentity)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let registry = contract else { throw AgentIdentityError.notConfigured }
+        return try await service.submitCall(
+            to: registry,
+            value: 0,
+            data: encodeRegisterAgent(owner: owner, agentType: agentType),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     // MARK: - Capability Delegation

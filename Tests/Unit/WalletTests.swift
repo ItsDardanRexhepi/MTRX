@@ -473,6 +473,22 @@ final class WalletTests: XCTestCase {
         }
     }
 
+    // MARK: - Component: AgentIdentity (Component 09)
+
+    @MainActor
+    func testAgentIdentityRegister_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await AgentIdentity.registerAgentOnChain(
+                owner: "0x2222222222222222222222222222222222222222",
+                agentType: .semiAutonomous,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag,
+                service: service,
+                contract: contract
+            )
+        }
+    }
+
     // MARK: - Component: Stablecoin (Component 07)
 
     @MainActor
