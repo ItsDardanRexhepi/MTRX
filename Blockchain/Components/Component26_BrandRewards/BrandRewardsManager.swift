@@ -70,6 +70,7 @@ enum BrandRewardsError: Error, LocalizedError {
     case notEligible(String)
     case alreadyClaimed
     case budgetExhausted
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -79,6 +80,7 @@ enum BrandRewardsError: Error, LocalizedError {
         case .notEligible(let r): return "Not eligible: \(r)"
         case .alreadyClaimed: return "Reward already claimed."
         case .budgetExhausted: return "Campaign budget exhausted."
+        case .notConfigured: return "Brand-rewards contract not configured (PendingCredentials.Components.brandRewards)."
         }
     }
 }
@@ -139,6 +141,36 @@ final class BrandRewardsManager: ObservableObject {
         claimsByUser[user, default: []].insert(campaignId)
         await MainActor.run { userClaims.append(claim) }
         return claim
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `claimReward(uint256 campaignId)`.
+    static func encodeClaimReward(campaignId: UInt64) -> Data {
+        var data = ABIEncoder.functionSelector("claimReward(uint256)")
+        data.append(ABIEncoder.encodeUInt256(campaignId))
+        return data
+    }
+
+    /// Claim a brand-campaign reward on-chain through the real submit pipeline:
+    /// enclave-signed UserOp → server paymaster → bundler. Contract address
+    /// deferred to PendingCredentials (nil until set → throws, never a fake claim).
+    @MainActor
+    func claimRewardOnChain(
+        campaignId: UInt64,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.brandRewards)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let brand = contract else { throw BrandRewardsError.notConfigured }
+        return try await service.submitCall(
+            to: brand,
+            value: 0,
+            data: Self.encodeClaimReward(campaignId: campaignId),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     // MARK: - Partnerships
