@@ -70,6 +70,7 @@ enum SocialError: Error, LocalizedError {
     case notFollowing
     case contentTooLong
     case messagingDisabled
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -79,6 +80,7 @@ enum SocialError: Error, LocalizedError {
         case .notFollowing: return "Not following this user."
         case .contentTooLong: return "Content exceeds maximum length."
         case .messagingDisabled: return "Messaging is disabled for this user."
+        case .notConfigured: return "Social contract not configured (PendingCredentials.Components.social)."
         }
     }
 }
@@ -134,6 +136,37 @@ final class SocialManager: ObservableObject {
         if var profile = profileStore[author] { profile.postCount += 1; profileStore[author] = profile }
         await MainActor.run { feed.insert(post, at: 0) }
         return post
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `createPost(string content)`.
+    static func encodeCreatePost(content: String) -> Data {
+        var out = ABIEncoder.functionSelector("createPost(string)")
+        out.append(ABIEncoder.encodeOffset(32))
+        out.append(ABIEncoder.encodeBytes(Data(content.utf8)))
+        return out
+    }
+
+    /// Publish a post on-chain through the real submit pipeline: enclave-signed
+    /// UserOp → server paymaster → bundler. Contract address deferred to
+    /// PendingCredentials (nil until set → throws, never a fake post).
+    @MainActor
+    func createPostOnChain(
+        content: String,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.social)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let social = contract else { throw SocialError.notConfigured }
+        return try await service.submitCall(
+            to: social,
+            value: 0,
+            data: Self.encodeCreatePost(content: content),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     func likePost(postId: String) async throws {
