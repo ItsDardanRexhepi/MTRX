@@ -48,6 +48,11 @@ final class AgentConversationViewModel: ObservableObject {
     /// so results are immediately visible in the Account → Wallet tab.
     private weak var walletManager: WalletManager?
 
+    /// Real portfolio adapter over the same WalletManager. Supplies the MEASURED
+    /// daily change + per-holding allocation used to ground money answers — so the
+    /// live chat no longer relies on WalletManager's hardcoded portfolioChange24h.
+    private var portfolioProvider: WalletPortfolioProvider?
+
     /// Action parsed from the user's message, awaiting their confirmation.
     private var pendingAction: TrinityDemoAction?
 
@@ -72,9 +77,13 @@ final class AgentConversationViewModel: ObservableObject {
     /// Maximum number of recent messages to include as conversation context for API calls.
     private let maxContextMessages = 10
 
+    @MainActor
     func setup(userID: String, walletManager: WalletManager? = nil) {
         self.userID = userID
-        if let walletManager { self.walletManager = walletManager }
+        if let walletManager {
+            self.walletManager = walletManager
+            self.portfolioProvider = WalletPortfolioProvider(wallet: walletManager)
+        }
         self.userType = accessControl.userType(for: userID)
 
         // Preload Apple Intelligence model assets so Trinity's first
@@ -629,11 +638,14 @@ final class AgentConversationViewModel: ObservableObject {
             // attached ONLY when the message is about money, so the model
             // never drifts into reciting the portfolio.
             var contextLine = Self.dateTimeLine()
+            // Real portfolio snapshot (measured change + allocation) from the
+            // WalletPortfolioProvider, fetched once per turn on the main actor.
+            let portfolioSnapshot = await portfolioProvider?.fetchSnapshot()
             // Every agent sees the same live picture of the user's app
             // world on every turn — portfolio, plan, and daily rhythm.
-            contextLine += " " + appAwarenessLine()
+            contextLine += " " + appAwarenessLine(snapshot: portfolioSnapshot)
             if Self.isFinanceRelated(text) {
-                contextLine += " " + liveContextLine()
+                contextLine += " " + liveContextLine(snapshot: portfolioSnapshot)
             }
             // The conversation's own memory rides along on every turn:
             // restored chats keep their context across app relaunches,
@@ -721,10 +733,14 @@ final class AgentConversationViewModel: ObservableObject {
 
     /// What every agent knows about the app on every turn: portfolio
     /// value, plan, and how the user's day in the app is going.
-    private func appAwarenessLine() -> String {
+    private func appAwarenessLine(snapshot: PortfolioSnapshot?) -> String {
         var bits: [String] = []
-        if let wm = walletManager {
-            bits.append(String(format: "Portfolio $%.2f (%+.2f%% 24h)", wm.totalPortfolioValue, wm.portfolioChange24h))
+        if let snapshot {
+            // Measured change since the provider's last observation (0 on the first
+            // turn) — honest, not the hardcoded portfolioChange24h placeholder.
+            bits.append(String(format: "Portfolio $%.2f (%+.2f%% since last check)", snapshot.totalValue, snapshot.dailyChangePercent))
+        } else if let wm = walletManager {
+            bits.append(String(format: "Portfolio $%.2f", wm.totalPortfolioValue))
         }
         if let tier = UserDefaults.standard.string(forKey: "com.mtrx.subscriptionTier"), !tier.isEmpty {
             bits.append("Plan: \(tier)")
@@ -741,9 +757,19 @@ final class AgentConversationViewModel: ObservableObject {
 
     /// One-line live snapshot of the user's wallet for grounding
     /// on-device responses. Plain English, no addresses.
-    private func liveContextLine() -> String {
+    private func liveContextLine(snapshot: PortfolioSnapshot?) -> String {
         guard let wm = walletManager else { return "" }
         let total = Self.usdFormatter.string(from: NSNumber(value: wm.totalPortfolioValue)) ?? "$0"
+        // Prefer the provider's top holdings with allocation; fall back to a plain list.
+        if let snapshot, !snapshot.topHoldings.isEmpty {
+            let holdings = snapshot.topHoldings
+                .map { h in
+                    let value = Self.usdFormatter.string(from: NSNumber(value: h.value)) ?? "$0"
+                    return String(format: "%@ %@ (%.0f%%)", value, h.symbol, h.allocation * 100)
+                }
+                .joined(separator: ", ")
+            return "User portfolio: \(total) total — top holdings: \(holdings)."
+        }
         let holdings = wm.tokens
             .filter { $0.balance > 0 }
             .map { "\(Self.trim($0.balance)) \($0.symbol)" }
