@@ -96,19 +96,51 @@ class YieldViewModel: ObservableObject {
     @Published var depositAmount: String = ""
     @Published var autoCompoundToggle: Bool = true
     @Published var isDepositing: Bool = false
+    @Published var isDemo: Bool = false
 
     var sortedStrategies: [YieldStrategy] {
         strategies.sorted { $0.apy > $1.apy }
+    }
+
+    private static func mapRisk(_ raw: String) -> YieldRisk {
+        switch raw.lowercased() {
+        case "low", "conservative": return .conservative
+        case "high", "aggressive": return .aggressive
+        default: return .moderate
+        }
     }
 
     func load() async {
         isLoading = true
         errorMessage = nil
 
+        // Live yield strategies from YieldService when configured; else demo.
+        // The service exposes opportunities only (no per-wallet positions endpoint),
+        // so positions stay empty when live until that's available.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let live = try await YieldService.shared.getYieldOpportunities()
+                strategies = live.map { o in
+                    YieldStrategy(
+                        id: o.strategyId, name: o.name, protocol_: o.protocolName,
+                        token: o.token, apy: o.apy, tvl: o.tvl,
+                        risk: Self.mapRisk(o.riskLevel), autoCompound: o.isAutoCompound
+                    )
+                }
+                positions = []
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live yield data unavailable — showing demo."
+            }
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             strategies = YieldViewModel.sampleStrategies
             positions = YieldViewModel.samplePositions
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load yield opportunities."
@@ -169,6 +201,11 @@ struct YieldView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Yield")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
             .sheet(isPresented: $viewModel.showDepositSheet) {
                 depositSheet

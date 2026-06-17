@@ -36,6 +36,7 @@ class TradingViewModel: ObservableObject {
     @Published var size: String = ""
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var isDemo: Bool = false
 
     let sides = ["Long", "Short"]
 
@@ -58,10 +59,46 @@ class TradingViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live perps from DerivativesService when configured; markets are global,
+        // positions are per-wallet. Else demo.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let liveMarkets = try await DerivativesService.shared.getMarkets()
+                markets = liveMarkets.map { m in
+                    PerpMarketItem(
+                        name: m.name,
+                        indexPrice: "$" + m.indexPrice.formatted(.number.precision(.fractionLength(2))),
+                        fundingRate: String(format: "%+.4f%%", m.fundingRate)
+                    )
+                }
+                if let address = MtrxSession.walletAddress {
+                    let livePositions = try await DerivativesService.shared.getUserPositions(address: address)
+                    positions = livePositions.map { p in
+                        PositionItem(
+                            market: p.market,
+                            side: p.side.rawValue.capitalized,
+                            size: p.size.formatted(.number.precision(.fractionLength(4))),
+                            entryPrice: "$" + p.entryPrice.formatted(.number.precision(.fractionLength(2))),
+                            pnl: (p.unrealizedPnl >= 0 ? "+$" : "-$") + abs(p.unrealizedPnl).formatted(.number.precision(.fractionLength(2))),
+                            liquidationPrice: "$" + p.liquidationPrice.formatted(.number.precision(.fractionLength(2)))
+                        )
+                    }
+                } else {
+                    positions = []
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live markets unavailable — showing demo."
+            }
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(600))
             markets = TradingViewModel.sampleMarkets
             positions = TradingViewModel.samplePositions
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load trading data."
@@ -105,6 +142,11 @@ struct TradingView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Trading")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
+            }
             .task { await viewModel.load() }
         }
     }

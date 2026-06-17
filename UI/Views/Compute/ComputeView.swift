@@ -39,6 +39,11 @@ class ComputeViewModel: ObservableObject {
     @Published var jobType: String = "Inference"
     @Published var selectedProvider: ProviderItem?
     @Published var isSubmitting: Bool = false
+    @Published var isDemo: Bool = false
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short; return f
+    }()
 
     let jobTypes = ["Inference", "Training", "Fine-tuning", "Rendering"]
 
@@ -46,10 +51,42 @@ class ComputeViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Live providers (global) + jobs (per-wallet) from ComputeService; else demo.
+        if PendingCredentials.isBackendConfigured {
+            do {
+                let liveProviders = try await ComputeService.shared.getComputeProviders()
+                providers = liveProviders.map { p in
+                    ProviderItem(
+                        name: p.name, gpuType: p.gpuType,
+                        pricePerHour: "$" + p.pricePerHour.formatted(.number.precision(.fractionLength(2))) + "/hr",
+                        availability: p.availability, rating: p.rating
+                    )
+                }
+                if let address = MtrxSession.walletAddress {
+                    let liveJobs = try await ComputeService.shared.getUserJobs(address: address)
+                    jobs = liveJobs.map { j in
+                        JobItem(
+                            type: j.type, status: j.status, provider: j.provider,
+                            cost: "$" + j.cost.formatted(.number.precision(.fractionLength(2))),
+                            submittedAt: Self.dateFormatter.string(from: j.submittedAt)
+                        )
+                    }
+                } else {
+                    jobs = []
+                }
+                isDemo = false
+                isLoading = false
+                return
+            } catch {
+                errorMessage = "Live compute data unavailable — showing demo."
+            }
+        }
+
         do {
             try await Task.sleep(for: .milliseconds(700))
             providers = ComputeViewModel.sampleProviders
             jobs = ComputeViewModel.sampleJobs
+            isDemo = true
             isLoading = false
         } catch {
             errorMessage = "Unable to load compute data."
@@ -114,6 +151,9 @@ struct ComputeView: View {
             .navigationTitle("Compute")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if viewModel.isDemo { DemoBadge() }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         viewModel.showSubmit = true
