@@ -124,6 +124,38 @@ final class CashbackManager: ObservableObject {
         return totalClaimed
     }
 
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `claim(address user)`.
+    static func encodeClaim(user: String) -> Data {
+        var data = ABIEncoder.functionSelector("claim(address)")
+        data.append(ABIEncoder.encodeAddress(user))
+        return data
+    }
+
+    /// Claim accrued cashback on-chain through the real submit pipeline:
+    /// enclave-signed UserOp → server paymaster → bundler. Contract address
+    /// deferred to PendingCredentials (nil until set → throws, never a fake claim).
+    @MainActor
+    func claimOnChain(
+        user: String,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.cashback)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let cashback = contract else {
+            throw CashbackError.claimFailed("Cashback contract not configured (PendingCredentials.Components.cashback)")
+        }
+        return try await service.submitCall(
+            to: cashback,
+            value: 0,
+            data: Self.encodeClaim(user: user),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
+    }
+
     func getPendingTotal(user: String) -> Double {
         rewardStore.values
             .filter { $0.userAddress == user && !$0.isClaimed }
