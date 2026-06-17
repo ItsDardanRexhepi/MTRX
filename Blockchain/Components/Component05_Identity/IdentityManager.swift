@@ -70,6 +70,7 @@ enum IdentityError: Error, LocalizedError {
     case credentialExpired
     case issuerNotTrusted
     case invalidProof
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -80,6 +81,7 @@ enum IdentityError: Error, LocalizedError {
         case .credentialExpired: return "Credential has expired."
         case .issuerNotTrusted: return "Credential issuer is not trusted."
         case .invalidProof: return "Credential proof is invalid."
+        case .notConfigured: return "Identity registry not configured (PendingCredentials.Components.identity)."
         }
     }
 }
@@ -127,6 +129,43 @@ final class IdentityManager {
         didDocuments[did] = doc
         delegate?.identity(self, didCreateDID: did)
         completion(.success(doc))
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `registerDID(address controller, bytes publicKey)`.
+    /// P-256/RIP-7212 CONSTRAINT: `publicKey` is the user's Secure Enclave key,
+    /// which is P-256 (secp256r1) — the on-chain registry/verifier must accept
+    /// P-256, NOT Ethereum's secp256k1.
+    static func encodeRegisterDID(controller: String, publicKey: Data) -> Data {
+        var out = ABIEncoder.functionSelector("registerDID(address,bytes)")
+        out.append(ABIEncoder.encodeAddress(controller))
+        out.append(ABIEncoder.encodeOffset(64)) // bytes arg follows 2 head words
+        out.append(ABIEncoder.encodeBytes(publicKey))
+        return out
+    }
+
+    /// Register a DID on-chain through the real submit pipeline: enclave-signed
+    /// UserOp → server paymaster → bundler. Registry address deferred to
+    /// PendingCredentials (nil until set → throws, never a fake registration).
+    /// Static: needs no instance state (keeps it testable without the EAS graph).
+    @MainActor
+    static func registerDIDOnChain(
+        controller: String,
+        publicKey: Data,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.identity)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let registry = contract else { throw IdentityError.notConfigured }
+        return try await service.submitCall(
+            to: registry,
+            value: 0,
+            data: Self.encodeRegisterDID(controller: controller, publicKey: publicKey),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     /// Resolve a DID to its document

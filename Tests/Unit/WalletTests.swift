@@ -473,6 +473,22 @@ final class WalletTests: XCTestCase {
         }
     }
 
+    // MARK: - Component: Identity (Component 05)
+
+    @MainActor
+    func testIdentityRegisterDID_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await IdentityManager.registerDIDOnChain(
+                controller: "0x2222222222222222222222222222222222222222",
+                publicKey: Data(repeating: 0x04, count: 64), // P-256 pubkey shape
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag,
+                service: service,
+                contract: contract
+            )
+        }
+    }
+
     // MARK: - Component: ContractConversion (Component 01)
 
     @MainActor
