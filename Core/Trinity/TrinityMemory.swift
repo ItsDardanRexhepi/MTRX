@@ -215,9 +215,10 @@ final class TrinityMemoryStore {
     func queryRelevant(for message: String) async -> [TrinityMemoryEntry] {
         guard let context = modelContext else { return [] }
 
-        // TODO: Implement semantic similarity search
-        // For now, use keyword-based matching and recency
-
+        // Real relevance ranking: lexical (bag-of-words cosine) similarity between
+        // the query and each entry, blended with recency and access frequency.
+        // (Lexical, not neural — named accurately. An embedding field could later
+        // upgrade this to vector similarity without changing the call site.)
         let descriptor = FetchDescriptor<TrinityMemoryEntry>(
             predicate: #Predicate { !$0.isArchived },
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
@@ -225,18 +226,61 @@ final class TrinityMemoryStore {
 
         do {
             let entries = try context.fetch(descriptor)
-            // Update access count for retrieved entries
-            let relevant = entries.prefix(20)
-            for entry in relevant {
+            guard !entries.isEmpty else { return [] }
+
+            let queryTokens = Self.tokenize(message)
+            let now = Date()
+            let maxAccess = Double(max(1, entries.map(\.accessCount).max() ?? 1))
+
+            let ranked = entries
+                .map { entry -> (entry: TrinityMemoryEntry, score: Double) in
+                    let entryTokens = Self.tokenize(entry.content + " " + entry.intent + " " + entry.tags.joined(separator: " "))
+                    let similarity = Self.cosineSimilarity(queryTokens, entryTokens)
+                    let ageDays = now.timeIntervalSince(entry.timestamp) / 86_400
+                    let recency = exp(-ageDays / 30.0)               // ~30-day decay
+                    let access = Double(entry.accessCount) / maxAccess
+                    let score = 0.60 * similarity + 0.25 * recency + 0.15 * access
+                    return (entry, score)
+                }
+                .sorted { $0.score > $1.score }
+                .prefix(20)
+                .map(\.entry)
+
+            for entry in ranked {
                 entry.accessCount += 1
                 entry.lastAccessed = Date()
             }
             try context.save()
-            return Array(relevant)
+            return Array(ranked)
         } catch {
             print("[TrinityMemory] Query failed: \(error)")
             return []
         }
+    }
+
+    // MARK: - Relevance scoring helpers (pure, unit-testable)
+
+    /// Lower-cased bag-of-words with short/stop words removed.
+    static func tokenize(_ text: String) -> [String: Int] {
+        let stop: Set<String> = ["the", "and", "for", "with", "this", "that",
+                                 "what", "how", "does", "you", "are", "was",
+                                 "have", "has", "will", "can", "should", "would"]
+        var counts: [String: Int] = [:]
+        for raw in text.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted) {
+            if raw.count > 2 && !stop.contains(raw) { counts[raw, default: 0] += 1 }
+        }
+        return counts
+    }
+
+    /// Cosine similarity of two bag-of-words vectors in [0, 1].
+    static func cosineSimilarity(_ a: [String: Int], _ b: [String: Int]) -> Double {
+        if a.isEmpty || b.isEmpty { return 0 }
+        var dot = 0.0
+        for (token, count) in a { if let other = b[token] { dot += Double(count * other) } }
+        let magA = sqrt(a.values.reduce(0.0) { $0 + Double($1 * $1) })
+        let magB = sqrt(b.values.reduce(0.0) { $0 + Double($1 * $1) })
+        guard magA > 0, magB > 0 else { return 0 }
+        return dot / (magA * magB)
     }
 
     /// Query memory by category.
@@ -265,11 +309,42 @@ final class TrinityMemoryStore {
     /// Detect and store patterns from a new memory entry.
     /// - Parameter entry: The entry to analyze for patterns.
     private func detectPatterns(from entry: TrinityMemoryEntry) async {
-        // TODO: Implement pattern detection algorithms
-        // - Time-of-day patterns (user checks portfolio every morning)
-        // - Behavioral sequences (user always asks X before doing Y)
-        // - Preference patterns (user prefers certain response styles)
-        // - Risk patterns (user's actual risk behavior vs stated tolerance)
+        guard let context = modelContext else { return }
+
+        // Time-of-day × category frequency pattern. Each matching entry reinforces
+        // the pattern; it only becomes ACTIVE after ≥3 occurrences, so a single
+        // event never masquerades as an established habit.
+        let hour = Calendar.current.component(.hour, from: entry.timestamp)
+        let bucket: String
+        switch hour {
+        case 5..<12: bucket = "morning"
+        case 12..<17: bucket = "afternoon"
+        case 17..<22: bucket = "evening"
+        default:      bucket = "night"
+        }
+        let key = "temporal:\(entry.category):\(bucket)"
+
+        do {
+            let descriptor = FetchDescriptor<UserPattern>(predicate: #Predicate { $0.patternType == key })
+            if let pattern = try context.fetch(descriptor).first {
+                pattern.occurrenceCount += 1
+                pattern.lastDetected = Date()
+                pattern.confidence = min(0.99, pattern.confidence + 0.05)
+                pattern.isActive = pattern.occurrenceCount >= 3
+            } else {
+                let pattern = UserPattern(
+                    patternType: key,
+                    description: "Tends to \(entry.category) in the \(bucket)",
+                    confidence: 0.3,
+                    metadata: ["category": entry.category, "timeOfDay": bucket]
+                )
+                pattern.isActive = false // activates once it recurs (≥3)
+                context.insert(pattern)
+            }
+            try context.save()
+        } catch {
+            print("[TrinityMemory] Pattern detection failed: \(error)")
+        }
     }
 
     /// Get all active user patterns.

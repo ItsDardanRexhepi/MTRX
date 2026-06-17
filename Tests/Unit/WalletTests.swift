@@ -361,6 +361,23 @@ final class WalletTests: XCTestCase {
         XCTAssertTrue(didSubmit, "Guardian rotation must actually submit through the bundler")
     }
 
+    // MARK: - Trinity memory relevance ranking (real, not a stub)
+
+    func testMemorySimilarity_ranksOverlapHigherThanUnrelated() {
+        let query = TrinityMemoryStore.tokenize("show my portfolio balance today")
+        let related = TrinityMemoryStore.tokenize("what is my current portfolio balance")
+        let unrelated = TrinityMemoryStore.tokenize("schedule a dentist appointment next week")
+
+        let simRelated = TrinityMemoryStore.cosineSimilarity(query, related)
+        let simUnrelated = TrinityMemoryStore.cosineSimilarity(query, unrelated)
+
+        XCTAssertGreaterThan(simRelated, simUnrelated, "Token-overlapping memory must rank higher")
+        XCTAssertEqual(TrinityMemoryStore.cosineSimilarity(query, query), 1.0, accuracy: 0.0001,
+                       "Identical token vectors must have cosine similarity 1")
+        XCTAssertEqual(TrinityMemoryStore.cosineSimilarity(query, [:]), 0.0,
+                       "Empty vector yields zero similarity (no fabricated relevance)")
+    }
+
     // MARK: - Config keystone
 
     func testPendingCredentials_blankReturnsNil() {
