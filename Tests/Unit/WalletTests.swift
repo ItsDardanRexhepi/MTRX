@@ -473,6 +473,22 @@ final class WalletTests: XCTestCase {
         }
     }
 
+    // MARK: - Component: DAO (Component 06)
+
+    @MainActor
+    func testDAOCastVote_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await DAOManager(erc4337Manager: Self.dummyERC4337()).castVoteOnChain(
+                proposalId: 42,
+                support: .forProposal,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag,
+                service: service,
+                contract: contract
+            )
+        }
+    }
+
     // MARK: - Component: Attestation (Component 08)
 
     @MainActor

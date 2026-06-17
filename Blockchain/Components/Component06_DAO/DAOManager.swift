@@ -75,6 +75,7 @@ enum DAOError: Error, LocalizedError {
     case alreadyVoted
     case executionFailed
     case proposalNotSucceeded
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -86,6 +87,7 @@ enum DAOError: Error, LocalizedError {
         case .alreadyVoted: return "Already voted on this proposal."
         case .executionFailed: return "Proposal execution failed."
         case .proposalNotSucceeded: return "Proposal did not succeed."
+        case .notConfigured: return "DAO/governor contract not configured (PendingCredentials.Components.dao)."
         }
     }
 }
@@ -201,6 +203,39 @@ final class DAOManager {
         // TODO: Execute proposal actions via ERC-4337 batch UserOperation
         delegate?.dao(self, didExecuteProposal: proposalId)
         completion(.failure(.executionFailed))
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `castVote(uint256 proposalId, uint8 support)` (OZ Governor).
+    static func encodeCastVote(proposalId: UInt64, support: VoteType) -> Data {
+        var data = ABIEncoder.functionSelector("castVote(uint256,uint8)")
+        data.append(ABIEncoder.encodeUInt256(proposalId))
+        data.append(ABIEncoder.encodeUInt256(UInt64(support.rawValue)))
+        return data
+    }
+
+    /// Cast an on-chain governance vote through the real submit pipeline:
+    /// enclave-signed UserOp → server paymaster → bundler. `proposalId` is the
+    /// on-chain numeric proposal id (distinct from the off-chain UUID). Contract
+    /// address deferred to PendingCredentials (nil until set → throws, never faked).
+    @MainActor
+    func castVoteOnChain(
+        proposalId: UInt64,
+        support: VoteType,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.dao)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let governor = contract else { throw DAOError.notConfigured }
+        return try await service.submitCall(
+            to: governor,
+            value: 0,
+            data: Self.encodeCastVote(proposalId: proposalId, support: support),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     // MARK: - Query
