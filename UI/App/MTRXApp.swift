@@ -216,11 +216,13 @@ struct MainTabView: View {
                let tier = SubscriptionTier(rawValue: raw) {
                 FeatureGate.shared.updateTier(tier)
             }
-            // …then verify against StoreKit. Real entitlements are
-            // authoritative: this confirms an active subscription/trial or
-            // downgrades to free if none is found.
-            await StoreKitManager.shared.loadProducts()
-            await StoreKitManager.shared.refreshEntitlements()
+            // …then verify against StoreKit out-of-band so launch never blocks
+            // on the store. Real entitlements are authoritative: this confirms
+            // an active subscription/trial or downgrades to free if none.
+            Task {
+                await StoreKitManager.shared.loadProducts()
+                await StoreKitManager.shared.refreshEntitlements()
+            }
             // Sync wallet prices to the live feed so every screen and
             // every agent quote agree.
             await walletManager.refreshLivePrices()
