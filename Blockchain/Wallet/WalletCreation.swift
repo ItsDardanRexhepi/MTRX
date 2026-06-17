@@ -109,9 +109,6 @@ final class WalletCreation {
     /// Cloud backup identifier
     private var cloudBackupID: String?
 
-    /// New device key tag awaiting an on-chain guardian owner-rotation.
-    private var pendingRecoveryKeyTag: String?
-
     private let creationQueue = DispatchQueue(label: "com.mtrx.wallet.creation", qos: .userInitiated)
 
     // MARK: - Initialization
@@ -374,22 +371,75 @@ final class WalletCreation {
             return
         }
 
-        // 2. The owner-rotation that authorises the new P-256 key must be
-        //    submitted as a UserOperation to the recovery module through the
-        //    ERC-4337 bundler. That requires the configured chain/bundler. With
-        //    the config blank we cannot complete recovery — and we never fake a
-        //    successful on-chain rotation. The rotation submission is performed
-        //    by the same UserOperation submit pipeline used for component
-        //    execution (Phase 5), keyed to socialRecoveryModuleAddress.
-        guard PendingCredentials.isChainConfigured else {
-            try? secureEnclaveProvider.deleteKey(tag: newKeyTag)
-            completion(.failure(.guardianSetupFailed))
-            return
+        // 2. Submit the guardian-approved owner-rotation as a UserOperation to
+        //    the recovery module through the real submit pipeline. With the chain
+        //    unconfigured the pipeline is nil and we fail (never fake a rotation).
+        let newAddress = deriveAccountAddress(from: newKeyPair.publicKey)
+        Task { @MainActor in
+            guard let service = WalletTransactionService() else {
+                try? self.secureEnclaveProvider.deleteKey(tag: newKeyTag)
+                completion(.failure(.guardianSetupFailed))
+                return
+            }
+            do {
+                _ = try await self.submitGuardianRotation(
+                    newOwnerPublicKey: newKeyPair.publicKey,
+                    moduleAddress: PendingCredentials.Recovery.socialRecoveryModuleAddress,
+                    accountAddress: newAddress,
+                    signingKeyTag: newKeyTag,
+                    service: service
+                )
+                let wallet = SmartWallet(
+                    address: newAddress,
+                    publicKey: newKeyPair.publicKey,
+                    createdAt: Date(),
+                    recoveryMethod: .socialRecovery,
+                    accountType: .socialRecovery,
+                    isDeployed: true
+                )
+                self.activeWallet = wallet
+                self.delegate?.walletCreation(self, didRecoverWallet: wallet)
+                completion(.success(wallet))
+            } catch {
+                try? self.secureEnclaveProvider.deleteKey(tag: newKeyTag)
+                completion(.failure(.guardianSetupFailed))
+            }
         }
-        // Hold the new device key; the rotation UserOperation (guardian-approved)
-        // is submitted via WalletTransactionService once the chain is live.
-        self.pendingRecoveryKeyTag = newKeyTag
-        completion(.failure(.guardianSetupFailed))
+    }
+
+    /// ABI-encode `rotateOwner(bytes newOwnerPublicKey)` for the recovery module.
+    /// The deployed social-recovery module's ABI must match this selector.
+    static func encodeRotateOwner(newOwnerPublicKey pub: Data) -> Data {
+        var data = ABIEncoder.functionSelector("rotateOwner(bytes)")
+        data.append(ABIEncoder.encodeUInt256(32))                 // offset to the bytes arg
+        data.append(ABIEncoder.encodeUInt256(UInt64(pub.count)))  // dynamic length
+        var padded = pub
+        let remainder = pub.count % 32
+        if remainder != 0 { padded.append(Data(repeating: 0, count: 32 - remainder)) }
+        data.append(padded)
+        return data
+    }
+
+    /// Submit the guardian-approved owner-rotation through the real submit
+    /// pipeline (enclave-signed UserOperation to the recovery module). Returns
+    /// the bundler userOp hash. The pipeline `service` is injectable for tests.
+    @MainActor
+    func submitGuardianRotation(
+        newOwnerPublicKey: Data,
+        moduleAddress: String,
+        accountAddress: String,
+        signingKeyTag: String,
+        service: WalletTransactionService
+    ) async throws -> String {
+        let calldata = Self.encodeRotateOwner(newOwnerPublicKey: newOwnerPublicKey)
+        let submission = try await service.submitCall(
+            to: moduleAddress,
+            value: 0,
+            data: calldata,
+            sender: accountAddress,
+            signingKeyTag: signingKeyTag
+        )
+        return submission.userOpHash
     }
 
     private func deriveAccountAddress(from publicKey: Data) -> String {

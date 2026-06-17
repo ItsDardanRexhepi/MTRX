@@ -300,6 +300,67 @@ final class WalletTests: XCTestCase {
                       "UserOp must be signed by the configured ENCLAVE key — not faked, not a throwaway")
     }
 
+    // MARK: - Guardian recovery rotation submits through the pipeline
+
+    /// Proves the Phase-4 guardian-recovery loop is closed onto the pipeline:
+    /// the owner-rotation actually SUBMITS through the bundler (proof-of-submit),
+    /// not a clean-failure stub.
+    @MainActor
+    func testGuardianRotation_submitsThroughPipeline() async throws {
+        let mockConfig = URLSessionConfiguration.ephemeral
+        mockConfig.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: mockConfig)
+        MockURLProtocol.reset()
+        defer { MockURLProtocol.reset() }
+
+        let expectedHash = "0xRECABC000000000000000000000000000000000000000000000000000000ce00"
+        MockURLProtocol.handler = { request in
+            let url = request.url?.absoluteString ?? ""
+            let json = request.httpBody.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+            if url.contains("paymaster.test") {
+                return try MockURLProtocol.json(["paymasterAndData": "0x" + String(repeating: "cd", count: 97)])
+            }
+            if (json?["method"] as? String) == "eth_sendUserOperation" {
+                return try MockURLProtocol.json(["jsonrpc": "2.0", "id": 1, "result": expectedHash])
+            }
+            return try MockURLProtocol.json(["jsonrpc": "2.0", "id": 1, "result": [:]])
+        }
+
+        let tag = "test.rotation.\(UUID().uuidString)"
+        let enclave = SecureEnclaveManager.shared
+        defer { enclave.deleteKey(tag: tag) }
+        let newPub = try enclave.publicKeyData(tag: tag)
+
+        let cfg = WalletTransactionService.Config(
+            rpcURL: URL(string: "https://rpc.test")!,
+            bundlerURL: URL(string: "https://bundler.test")!,
+            chainID: 8453,
+            entryPoint: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+            paymasterAddress: "0x1111111111111111111111111111111111111111",
+            paymasterSignatureEndpoint: "https://paymaster.test/sign",
+            platformBudgetWei: 1_000_000_000_000_000_000
+        )
+        let service = try XCTUnwrap(WalletTransactionService(config: cfg, session: session))
+
+        let wallet = WalletCreation()
+        let hash = try await wallet.submitGuardianRotation(
+            newOwnerPublicKey: newPub,
+            moduleAddress: "0x4444444444444444444444444444444444444444",
+            accountAddress: "0x5555555555555555555555555555555555555555",
+            signingKeyTag: tag,
+            service: service
+        )
+
+        XCTAssertEqual(hash, expectedHash, "Rotation must return the bundler's submit hash (not a stub)")
+        let didSubmit = MockURLProtocol.seenRequests.contains { req in
+            guard req.url?.absoluteString.contains("bundler.test") == true,
+                  let b = req.httpBody,
+                  let j = (try? JSONSerialization.jsonObject(with: b)) as? [String: Any] else { return false }
+            return (j["method"] as? String) == "eth_sendUserOperation"
+        }
+        XCTAssertTrue(didSubmit, "Guardian rotation must actually submit through the bundler")
+    }
+
     // MARK: - Config keystone
 
     func testPendingCredentials_blankReturnsNil() {
