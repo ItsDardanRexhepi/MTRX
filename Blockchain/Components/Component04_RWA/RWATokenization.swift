@@ -59,6 +59,7 @@ enum RWAError: Error, LocalizedError {
     case complianceFailed(reason: String)
     case documentMissing(docType: String)
     case tokenizationFailed
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -68,6 +69,7 @@ enum RWAError: Error, LocalizedError {
         case .complianceFailed(let r): return "Compliance check failed: \(r)"
         case .documentMissing(let t): return "Required document missing: \(t)"
         case .tokenizationFailed: return "Asset tokenization failed."
+        case .notConfigured: return "RWA contract not configured (PendingCredentials.Components.rwa)."
         }
     }
 }
@@ -146,6 +148,47 @@ final class RWATokenization {
     func transferShares(assetId: String, from: String, to: String, shares: UInt64, completion: @escaping (Result<Void, RWAError>) -> Void) {
         // TODO: Compliance check, execute transfer
         completion(.failure(.complianceFailed(reason: "Not implemented")))
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+    //
+    // SECURITIES NOTE: tokenized real-world-asset shares are securities-adjacent.
+    // This path is USER-SIGNED SELF-CUSTODY only — the user signs the share
+    // purchase with their own Secure Enclave key through the pipeline; the app
+    // never holds funds or executes custodially. (The 6 named regulated
+    // components stay display-only; RWA is wired self-custody and gated by
+    // FeatureFlags.mvpMode upstream.)
+
+    /// ABI-encode `purchaseShares(uint256 assetId, uint256 shares)`.
+    static func encodePurchaseShares(assetId: UInt64, shares: UInt64) -> Data {
+        var data = ABIEncoder.functionSelector("purchaseShares(uint256,uint256)")
+        data.append(ABIEncoder.encodeUInt256(assetId))
+        data.append(ABIEncoder.encodeUInt256(shares))
+        return data
+    }
+
+    /// Purchase shares on-chain through the real submit pipeline: enclave-signed
+    /// UserOp → server paymaster → bundler. `paymentWei` is the share price sent
+    /// with the call. Contract address deferred to PendingCredentials (nil until
+    /// set → throws, never a fake purchase). Static: needs no instance state.
+    @MainActor
+    static func purchaseSharesOnChain(
+        assetId: UInt64,
+        shares: UInt64,
+        paymentWei: UInt64 = 0,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.rwa)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let rwa = contract else { throw RWAError.notConfigured }
+        return try await service.submitCall(
+            to: rwa,
+            value: paymentWei,
+            data: encodePurchaseShares(assetId: assetId, shares: shares),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     // MARK: - Query

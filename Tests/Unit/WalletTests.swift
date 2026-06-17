@@ -473,6 +473,23 @@ final class WalletTests: XCTestCase {
         }
     }
 
+    // MARK: - Component: RWA (Component 04, securities-adjacent / self-custody)
+
+    @MainActor
+    func testRWAPurchaseShares_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await RWATokenization.purchaseSharesOnChain(
+                assetId: 7,
+                shares: 10,
+                paymentWei: 0,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag,
+                service: service,
+                contract: contract
+            )
+        }
+    }
+
     // MARK: - Component: Identity (Component 05)
 
     @MainActor
