@@ -218,6 +218,7 @@ struct SendView: View {
                     }
                 } label: {
                     Image(systemName: Symbols.paste)
+                        .accessibilityLabel("Paste from clipboard")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Color.accentPrimary)
                 }
@@ -227,6 +228,7 @@ struct SendView: View {
                     showQRAlert = true
                 } label: {
                     Image(systemName: Symbols.qrScanner)
+                        .accessibilityLabel("Scan QR code")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Color.accentPrimary)
                 }

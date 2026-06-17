@@ -433,6 +433,7 @@ struct ConversationDetailView: View {
                               ? "theatermasks.fill" : "theatermasks")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(viewModel.incognito ? Color.purple : Color.labelSecondary)
+                            .accessibilityLabel("Toggle incognito mode")
                     }
 
                     Image(systemName: Symbols.messageEncrypted)

@@ -322,6 +322,7 @@ struct MusicView: View {
                 viewModel.playTrack(track)
             } label: {
                 Image(systemName: viewModel.currentTrack?.id == track.id && viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    .accessibilityLabel("Play or pause track")
                     .font(.title)
                     .foregroundStyle(accentColor)
             }
@@ -614,6 +615,7 @@ struct MusicView: View {
                     viewModel.isPlaying.toggle()
                 } label: {
                     Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
+                        .accessibilityLabel("Play or pause")
                         .font(.title3)
                         .foregroundStyle(accentColor)
                 }

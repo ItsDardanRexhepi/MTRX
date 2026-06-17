@@ -238,6 +238,7 @@ struct SwapView: View {
                         )
 
                     Image(systemName: "arrow.up.arrow.down")
+                        .accessibilityLabel("Switch from and to tokens")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(Color.accentPrimary)
                         .rotationEffect(.degrees(swapRotation))

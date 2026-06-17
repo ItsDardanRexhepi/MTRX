@@ -182,6 +182,7 @@ struct MultiSigView: View {
                             }
                         } label: {
                             Image(systemName: Symbols.back)
+                                .accessibilityLabel("Back to wallets")
                                 .foregroundStyle(accent)
                         }
                     }
@@ -448,6 +449,7 @@ struct MultiSigView: View {
                             viewModel.rejectTransaction(tx, in: wallet)
                         } label: {
                             Image(systemName: Symbols.close)
+                                .accessibilityLabel("Reject transaction")
                                 .font(.system(size: 12, weight: .bold))
                         }
                         .buttonStyle(MtrxButtonStyle(variant: .destructive, size: .compact))

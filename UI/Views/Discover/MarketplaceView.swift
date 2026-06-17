@@ -326,6 +326,7 @@ struct MarketplaceView: View {
                 MtrxHaptics.impact(.light)
             } label: {
                 Image(systemName: Symbols.sort)
+                    .accessibilityLabel("Sort")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(Color.accentPrimary)
                     .frame(width: 40, height: 40)
@@ -741,6 +742,7 @@ struct MarketplaceDetailSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: Symbols.close)
+                            .accessibilityLabel("Close")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.labelPrimary)
                     }

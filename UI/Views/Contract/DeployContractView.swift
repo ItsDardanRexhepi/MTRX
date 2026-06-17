@@ -195,6 +195,7 @@ struct DeployContractView: View {
                             viewModel.reset()
                         } label: {
                             Image(systemName: Symbols.back)
+                                .accessibilityLabel("Go back")
                                 .foregroundStyle(accent)
                         }
                     }
@@ -204,6 +205,7 @@ struct DeployContractView: View {
                         dismiss()
                     } label: {
                         Image(systemName: Symbols.close)
+                            .accessibilityLabel("Close")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.labelPrimary)
                     }

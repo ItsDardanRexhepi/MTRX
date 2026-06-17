@@ -128,6 +128,7 @@ struct SearchView: View {
                                 }
                             } label: {
                                 Image(systemName: Symbols.close)
+                                    .accessibilityLabel("Remove recent search")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(Color.labelTertiary)
                                     .frame(width: 28, height: 28)

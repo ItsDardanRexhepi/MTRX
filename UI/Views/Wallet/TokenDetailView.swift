@@ -272,6 +272,7 @@ struct TokenDetailView: View {
                         }
                     } label: {
                         Image(systemName: Symbols.copy)
+                            .accessibilityLabel("Copy contract address")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(Color.accentPrimary)
                             .frame(width: 32, height: 32)

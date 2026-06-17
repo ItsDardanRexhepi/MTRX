@@ -743,6 +743,7 @@ struct ContractCardRow: View {
                         sharedToSocial = true
                     } label: {
                         Image(systemName: "square.and.arrow.up")
+                            .accessibilityLabel("Share to social")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(Color.accentPrimary)
                             .frame(width: 34, height: 34)

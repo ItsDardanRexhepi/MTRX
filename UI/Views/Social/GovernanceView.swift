@@ -483,6 +483,7 @@ struct GovernanceView: View {
                         .foregroundStyle(Color.labelPrimary)
                     Spacer()
                     Image(systemName: viewModel.showHistory ? "chevron.up" : "chevron.down")
+                        .accessibilityLabel("Toggle proposal history")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.labelTertiary)
                 }

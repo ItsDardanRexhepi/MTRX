@@ -949,6 +949,7 @@ struct TrendingAllSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark").font(.system(size: 14, weight: .semibold))
+                            .accessibilityLabel("Close")
                             .foregroundStyle(Color.labelPrimary)
                     }
                 }
@@ -1749,6 +1750,7 @@ struct DiscoverMenuSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark").font(.system(size: 14, weight: .semibold))
+                            .accessibilityLabel("Close")
                             .foregroundStyle(Color.labelPrimary)
                     }
                 }

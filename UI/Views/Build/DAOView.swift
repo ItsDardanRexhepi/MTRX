@@ -907,6 +907,7 @@ struct VoteSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: Symbols.close)
+                            .accessibilityLabel("Close")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.labelPrimary)
                     }

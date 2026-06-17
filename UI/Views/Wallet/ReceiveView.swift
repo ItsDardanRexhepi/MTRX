@@ -133,6 +133,7 @@ struct ReceiveView: View {
                         .truncationMode(.middle)
 
                     Image(systemName: Symbols.copy)
+                        .accessibilityLabel("Copy address")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Color.accentPrimary)
                 }

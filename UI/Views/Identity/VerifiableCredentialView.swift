@@ -423,6 +423,7 @@ struct VerifiableCredentialView: View {
                                 viewModel.removeClaim(at: index)
                             } label: {
                                 Image(systemName: "minus.circle.fill")
+                                    .accessibilityLabel("Remove claim")
                                     .foregroundStyle(.red)
                             }
                             .buttonStyle(.plain)
@@ -519,6 +520,7 @@ struct VerifiableCredentialView: View {
                             showQRScanner = true
                         } label: {
                             Image(systemName: "qrcode.viewfinder")
+                                .accessibilityLabel("Scan credential")
                                 .font(.title2)
                                 .foregroundStyle(accentColor)
                                 .frame(width: Spacing.Size.buttonHeight, height: Spacing.Size.buttonHeight)
