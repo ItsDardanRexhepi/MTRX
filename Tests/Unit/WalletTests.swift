@@ -473,6 +473,40 @@ final class WalletTests: XCTestCase {
         }
     }
 
+    // MARK: - Component: Social (28) / Privacy (29) / DisputeResolution (30)
+
+    @MainActor
+    func testSocialCreatePost_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await SocialManager.shared.createPostOnChain(
+                content: "gm from the enclave",
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service, contract: contract)
+        }
+    }
+
+    @MainActor
+    func testPrivacyShielded_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await PrivacyManager.shared.sendShieldedOnChain(
+                recipient: "0x2222222222222222222222222222222222222222",
+                amount: 1_000, proof: Data(repeating: 0xEE, count: 64),
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service, contract: contract)
+        }
+    }
+
+    @MainActor
+    func testDisputeFile_submitsThroughPipeline() async throws {
+        try await assertComponentMoneyPath { service, tag, contract in
+            try await DisputeManager.shared.fileDisputeOnChain(
+                respondent: "0x2222222222222222222222222222222222222222",
+                caseHash: Data(repeating: 0xD0, count: 32), stake: 100, stakeWei: 0,
+                sender: "0x3333333333333333333333333333333333333333",
+                signingKeyTag: tag, service: service, contract: contract)
+        }
+    }
+
     // MARK: - Component: Loyalty (23) / Marketplace (24) / Cashback (25) / BrandRewards (26) / Subscriptions (27)
 
     @MainActor

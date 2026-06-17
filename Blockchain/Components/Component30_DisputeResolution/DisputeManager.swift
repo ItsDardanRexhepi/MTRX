@@ -89,6 +89,7 @@ enum DisputeError: Error, LocalizedError {
     case alreadyResolved
     case deadlinePassed
     case insufficientStake
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -99,6 +100,7 @@ enum DisputeError: Error, LocalizedError {
         case .alreadyResolved: return "Dispute has already been resolved."
         case .deadlinePassed: return "Dispute resolution deadline has passed."
         case .insufficientStake: return "Insufficient stake to file dispute."
+        case .notConfigured: return "Dispute contract not configured (PendingCredentials.Components.disputeResolution)."
         }
     }
 }
@@ -132,6 +134,45 @@ final class DisputeManager: ObservableObject {
         disputeStore[dispute.id] = dispute
         await MainActor.run { activeDisputes.append(dispute) }
         return dispute
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `fileDispute(address respondent, bytes32 caseHash, uint256 stake)`.
+    static func encodeFileDispute(respondent: String, caseHash: Data, stake: UInt64) -> Data {
+        var hashWord = Data(repeating: 0, count: 32)
+        let head = caseHash.prefix(32)
+        hashWord.replaceSubrange(0..<head.count, with: head)
+        var out = ABIEncoder.functionSelector("fileDispute(address,bytes32,uint256)")
+        out.append(ABIEncoder.encodeAddress(respondent))
+        out.append(hashWord)
+        out.append(ABIEncoder.encodeUInt256(stake))
+        return out
+    }
+
+    /// File a dispute on-chain (with the user-staked bond) through the real submit
+    /// pipeline: enclave-signed UserOp → server paymaster → bundler. `stakeWei` is
+    /// the bond sent with the call (user-signed self-custody). Contract address
+    /// deferred to PendingCredentials (nil until set → throws, never a fake filing).
+    @MainActor
+    func fileDisputeOnChain(
+        respondent: String,
+        caseHash: Data,
+        stake: UInt64,
+        stakeWei: UInt64 = 0,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.disputeResolution)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let dispute = contract else { throw DisputeError.notConfigured }
+        return try await service.submitCall(
+            to: dispute,
+            value: stakeWei,
+            data: Self.encodeFileDispute(respondent: respondent, caseHash: caseHash, stake: stake),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     func getDispute(id: String) -> Dispute? { disputeStore[id] }
