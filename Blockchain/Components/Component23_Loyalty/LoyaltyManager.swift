@@ -105,6 +105,7 @@ enum LoyaltyError: Error, LocalizedError {
     case zkpVerificationFailed
     case businessProgramNotFound(String)
     case programInactive
+    case notConfigured
 
     var errorDescription: String? {
         switch self {
@@ -114,6 +115,7 @@ enum LoyaltyError: Error, LocalizedError {
         case .zkpVerificationFailed: return "ZKP eligibility verification failed."
         case .businessProgramNotFound(let id): return "Business program not found: \(id)"
         case .programInactive: return "Business reward program is inactive."
+        case .notConfigured: return "Loyalty contract not configured (PendingCredentials.Components.loyalty)."
         }
     }
 }
@@ -226,6 +228,38 @@ final class LoyaltyManager: ObservableObject {
         delegate?.loyalty(self, rewardEarned: event)
         await checkMilestones(account: account)
         return event
+    }
+
+    // MARK: - On-chain execution (via the submit pipeline)
+
+    /// ABI-encode `awardPoints(address user, uint256 points)`.
+    static func encodeAwardPoints(user: String, points: UInt64) -> Data {
+        var data = ABIEncoder.functionSelector("awardPoints(address,uint256)")
+        data.append(ABIEncoder.encodeAddress(user))
+        data.append(ABIEncoder.encodeUInt256(points))
+        return data
+    }
+
+    /// Record a loyalty points award on-chain through the real submit pipeline:
+    /// enclave-signed UserOp → server paymaster → bundler. Contract address
+    /// deferred to PendingCredentials (nil until set → throws, never a fake award).
+    @MainActor
+    func awardPointsOnChain(
+        user: String,
+        points: UInt64,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.loyalty)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let loyalty = contract else { throw LoyaltyError.notConfigured }
+        return try await service.submitCall(
+            to: loyalty,
+            value: 0,
+            data: Self.encodeAwardPoints(user: user, points: points),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
     }
 
     // MARK: - ZKP Eligibility Verification
