@@ -62,6 +62,17 @@ final class ContentPublishingViewModel: ObservableObject {
 
     // MARK: - Publish
 
+    /// Request/response shapes for the real `/storage/files` pin.
+    private struct PublishBody: Encodable {
+        let filename: String
+        let mimeType: String
+        let layer: String
+        let dataBase64: String
+    }
+    private struct PublishedFile: Decodable {
+        let cid: String
+    }
+
     func publishPost() {
         guard !postTitle.isEmpty, !postBody.isEmpty else {
             errorMessage = "Title and body are required."
@@ -70,25 +81,55 @@ final class ContentPublishingViewModel: ObservableObject {
         isPublishing = true
         errorMessage = nil
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self else { return }
-            let hash = "Qm\(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(32))"
-            let newPost = ContentPost(
-                author: "You",
-                authorAddress: "0xYour...Addr",
-                title: self.postTitle,
-                body: self.postBody,
-                contentHash: hash,
-                storageLayer: self.selectedStorageLayer.rawValue,
-                timestamp: Date(),
-                tips: 0,
-                hasImage: self.selectedImageData != nil
+        let title = postTitle
+        let body = postBody
+        let layer = selectedStorageLayer.rawValue
+        let imageData = selectedImageData
+
+        Task {
+            // Pin the real content bytes — the backend assigns the CID. We never
+            // fabricate one; on failure we surface the error.
+            let contentData: Data
+            let mimeType: String
+            if let imageData {
+                contentData = imageData
+                mimeType = "application/octet-stream"
+            } else {
+                contentData = Data("\(title)\n\n\(body)".utf8)
+                mimeType = "text/markdown"
+            }
+            let reqBody = PublishBody(
+                filename: title,
+                mimeType: mimeType,
+                layer: layer,
+                dataBase64: contentData.base64EncodedString()
             )
-            self.feedPosts.insert(newPost, at: 0)
-            self.myPosts.insert(newPost, at: 0)
-            self.publishedHash = hash
-            self.isPublishing = false
-            self.resetPostForm()
+            do {
+                let published: PublishedFile = try await MTRXAPIClient.shared.post(path: "/storage/files", body: reqBody)
+                await MainActor.run {
+                    let newPost = ContentPost(
+                        author: "You",
+                        authorAddress: "0xYour...Addr",
+                        title: title,
+                        body: body,
+                        contentHash: published.cid,
+                        storageLayer: layer,
+                        timestamp: Date(),
+                        tips: 0,
+                        hasImage: imageData != nil
+                    )
+                    self.feedPosts.insert(newPost, at: 0)
+                    self.myPosts.insert(newPost, at: 0)
+                    self.publishedHash = published.cid
+                    self.isPublishing = false
+                    self.resetPostForm()
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Publish failed: \(error.localizedDescription)"
+                    self.isPublishing = false
+                }
+            }
         }
     }
 
