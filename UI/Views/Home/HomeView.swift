@@ -1108,7 +1108,7 @@ struct HomeView: View {
                     }
                     .scrollTargetLayout()
                 }
-                .frame(height: 196)
+                .frame(height: 110)
                 .scrollTargetBehavior(.viewAligned)
                 .scrollPosition(id: $feedScrollIndex)
                 .onAppear {
@@ -1204,13 +1204,13 @@ struct HomeView: View {
             onOpen: { homeDetailPost = post },
             onAvatarTap: { homeProfileAuthor = post }
         )
-        .lineLimit(3)
+        .lineLimit(2)
         .padding(Spacing.ms)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         // A fixed height so the card can never balloon to its full content
         // height; the clip keeps any longer content (polls, media) from
         // bleeding out past the card's rounded edge.
-        .frame(height: 196, alignment: .topLeading)
+        .frame(height: 110, alignment: .topLeading)
         // Content taller than the card (polls, media) dissolves softly into
         // the card's bottom instead of being hard-cut mid-line at the edge.
         .mask(

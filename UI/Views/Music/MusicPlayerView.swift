@@ -47,11 +47,9 @@ struct HomeMusicWidget: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(Color.surfaceOverlay)
                         .frame(width: 48, height: 48)
-                    Image(systemName: music.isPlaying ? "waveform" : "music.note")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color.accentPrimary)
-                        .symbolEffect(.variableColor, isActive: music.isPlaying)
+                    artworkOrNote
                 }
+                .frame(width: 48, height: 48)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(primaryText)
@@ -87,6 +85,29 @@ struct HomeMusicWidget: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens the Apple Music player")
+    }
+
+    /// The real album artwork of the currently-playing track, or the music-note
+    /// icon when nothing is playing. Artwork comes straight from MusicKit, so it
+    /// always matches what's playing through Apple Music.
+    @ViewBuilder private var artworkOrNote: some View {
+#if canImport(MusicKit)
+        if music.nowPlayingTitle != nil, let art = music.currentSong?.artwork {
+            ArtworkImage(art, width: 48, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        } else {
+            noteIcon
+        }
+#else
+        noteIcon
+#endif
+    }
+
+    private var noteIcon: some View {
+        Image(systemName: music.isPlaying ? "waveform" : "music.note")
+            .font(.system(size: 20, weight: .semibold))
+            .foregroundStyle(Color.accentPrimary)
+            .symbolEffect(.variableColor, isActive: music.isPlaying)
     }
 
     private var primaryText: String {
