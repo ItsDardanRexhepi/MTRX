@@ -51,8 +51,12 @@
 	<array>
 		<string>_mtrx._tcp</string>
 	</array>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>MTRX shows and adds items in its own dedicated MTRX calendar — upcoming app activity like contract deadlines and payments. It doesn't read your personal calendars.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>MTRX adds contract deadlines and payment reminders to your calendar.</string>
+	<string>MTRX shows and adds items in its own dedicated MTRX calendar — upcoming app activity like contract deadlines and payments. It doesn't read your personal calendars.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>MTRX keeps a checklist of your MTRX activity in its own dedicated MTRX reminders list. It doesn't read your personal reminders.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>MTRX uses your camera to scan QR codes, documents, and contracts for blockchain verification.</string>
 	<key>NSContactsUsageDescription</key>

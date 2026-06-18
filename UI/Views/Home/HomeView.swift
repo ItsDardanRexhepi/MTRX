@@ -60,11 +60,14 @@ struct HomeView: View {
                         HomeMusicWidget { showMusicPlayer = true }
                             .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
 
-                        quickActionsSection
+                        HomeCalendarCard()
                             .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
 
-                        homeFeedSection
+                        quickActionsSection
                             .mtrxStaggeredAppearance(index: 4, isVisible: appeared)
+
+                        homeFeedSection
+                            .mtrxStaggeredAppearance(index: 5, isVisible: appeared)
                     }
                     .opacity(askFocused ? 0.42 : 1)
                     .blur(radius: askFocused ? 1.5 : 0)
