@@ -430,6 +430,60 @@ final class MusicKitManager {
         }
     }
 
+    // MARK: - Catalog search (find content to play or add to the library)
+    //
+    // Real Apple Music catalog search via MusicCatalogSearchRequest, gated by the
+    // SAME authorization this manager owns. Search needs authorization + the App
+    // ID's MusicKit capability but NOT a subscription (full playback of results
+    // still needs one; previews otherwise). Results are never fabricated.
+
+    struct CatalogSearchResults {
+        var songs: MusicItemCollection<Song> = []
+        var albums: MusicItemCollection<Album> = []
+        var artists: MusicItemCollection<Artist> = []
+        var playlists: MusicItemCollection<Playlist> = []
+        var isEmpty: Bool { songs.isEmpty && albums.isEmpty && artists.isEmpty && playlists.isEmpty }
+    }
+
+    func searchCatalog(_ term: String, limit: Int = 20) async throws -> CatalogSearchResults {
+        var request = MusicCatalogSearchRequest(
+            term: term,
+            types: [Song.self, Album.self, Artist.self, Playlist.self]
+        )
+        request.limit = limit
+        let response = try await request.response()
+        return CatalogSearchResults(
+            songs: response.songs,
+            albums: response.albums,
+            artists: response.artists,
+            playlists: response.playlists
+        )
+    }
+
+    // MARK: - Add to library (real MusicKit write — operate Apple Music)
+    //
+    // MusicLibrary.shared.add is a genuine write to the user's Apple Music
+    // library; it requires authorization (read+write). We only report "added"
+    // when the write actually succeeds, and surface a real failure otherwise —
+    // never a fake confirmation.
+
+    enum AddOutcome { case added, failed }
+
+    func addToLibrary(_ song: Song) async -> AddOutcome {
+        do { try await MusicLibrary.shared.add(song); return .added }
+        catch { return .failed }
+    }
+
+    func addToLibrary(album: Album) async -> AddOutcome {
+        do { try await MusicLibrary.shared.add(album); return .added }
+        catch { return .failed }
+    }
+
+    func addToLibrary(playlist: Playlist) async -> AddOutcome {
+        do { try await MusicLibrary.shared.add(playlist); return .added }
+        catch { return .failed }
+    }
+
 #else
     // MusicKit unavailable at compile time — keep the app honest & buildable.
     func refreshState() { state = .unavailable }

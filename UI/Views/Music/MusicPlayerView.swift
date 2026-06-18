@@ -264,12 +264,31 @@ struct MusicPlayerView: View {
     private var browseList: some View {
         ScrollView {
             LazyVStack(spacing: Spacing.xs) {
+                searchEntry
                 librarySection
                 Divider().padding(.vertical, Spacing.sm)
                 chartSection
             }
             .padding(.horizontal, Spacing.md).padding(.top, Spacing.sm).padding(.bottom, Spacing.lg)
         }
+    }
+
+    /// Search-bar-styled entry that pushes the Apple Music catalog search screen
+    /// (find → play, or add to library). Reuses the same MusicKitManager.
+    private var searchEntry: some View {
+        NavigationLink { MusicSearchView() } label: {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Color.labelSecondary)
+                Text("Search Apple Music").font(.mtrxCallout).foregroundStyle(Color.labelSecondary)
+                Spacer()
+            }
+            .padding(.horizontal, Spacing.md).padding(.vertical, Spacing.sm)
+            .background(Color.surfaceOverlay, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, Spacing.xs)
+        .accessibilityLabel("Search Apple Music")
+        .accessibilityHint("Find songs, albums, artists and playlists to play or add")
     }
 
     /// The user's saved Apple Music content, surfaced as categories that push
@@ -589,6 +608,7 @@ struct QueueListView: View {
             .navigationTitle("Up Next")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) { AppleMusicBadge() }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: Symbols.close).accessibilityLabel("Close")

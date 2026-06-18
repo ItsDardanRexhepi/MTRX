@@ -464,7 +464,7 @@ struct LibraryArtistDetailView: View {
                 }
 
                 if albums.isEmpty {
-                    libraryPlaceholder(load, empty: "No albums from this artist in your library.")
+                    libraryPlaceholder(load, empty: "No albums available for this artist.")
                 } else {
                     LazyVStack(alignment: .leading, spacing: Spacing.xs) {
                         HStack {
@@ -496,6 +496,201 @@ struct LibraryArtistDetailView: View {
             load = .loaded
         } catch {
             load = .failed
+        }
+    }
+}
+
+// MARK: - Shared section header
+
+func librarySectionHeader(_ title: String) -> some View {
+    HStack {
+        Text(title).font(.mtrxTitle3).foregroundStyle(Color.labelPrimary)
+        Spacer()
+    }
+    .padding(.top, Spacing.sm)
+}
+
+// MARK: - Add to Library button (real MusicKit write, honest feedback)
+
+/// Adds a catalog item to the user's Apple Music library via MusicKitManager.
+/// It only shows the "added" checkmark after the real write succeeds, and an
+/// honest warning glyph if it fails — never a fake confirmation.
+struct AddToLibraryButton: View {
+    let add: () async -> MusicKitManager.AddOutcome
+
+    enum Phase { case idle, adding, added, failed }
+    @State private var phase: Phase = .idle
+
+    var body: some View {
+        Button {
+            guard phase == .idle || phase == .failed else { return }
+            MtrxHaptics.impact(.light)
+            phase = .adding
+            Task { phase = (await add()) == .added ? .added : .failed }
+        } label: {
+            Group {
+                switch phase {
+                case .idle:   Image(systemName: "plus.circle")
+                case .adding: ProgressView()
+                case .added:  Image(systemName: "checkmark.circle.fill")
+                case .failed: Image(systemName: "exclamationmark.circle")
+                }
+            }
+            .font(.system(size: 22))
+            .foregroundStyle(iconColor)
+            .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .disabled(phase == .adding || phase == .added)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var iconColor: Color {
+        switch phase {
+        case .added:  return Color.statusSuccess
+        case .failed: return Color.statusWarning
+        default:      return Color.accentPrimary
+        }
+    }
+
+    private var accessibilityLabel: String {
+        switch phase {
+        case .idle:   return "Add to library"
+        case .adding: return "Adding to library"
+        case .added:  return "Added to library"
+        case .failed: return "Couldn't add to library, tap to retry"
+        }
+    }
+}
+
+// MARK: - Apple Music catalog search (find, play, add)
+
+struct MusicSearchView: View {
+    @State private var music = MusicKitManager.shared
+    @State private var term = ""
+    @State private var results = MusicKitManager.CatalogSearchResults()
+    @State private var state: LibraryLoadState = .idle
+
+    private var trimmed: String { term.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        ScrollView {
+            if trimmed.count < 2 {
+                promptState
+            } else if results.isEmpty {
+                searchPlaceholder
+            } else {
+                LazyVStack(alignment: .leading, spacing: Spacing.xs) {
+                    if !results.songs.isEmpty {
+                        librarySectionHeader("Songs")
+                        ForEach(Array(results.songs.enumerated()), id: \.element.id) { idx, song in
+                            HStack(spacing: Spacing.sm) {
+                                Button { Task { await music.playSongs(Array(results.songs), startAt: idx) } } label: {
+                                    SongRow(song: song, isCurrent: music.currentSong?.id == song.id, isPlaying: music.isPlaying)
+                                }
+                                .buttonStyle(.plain)
+                                AddToLibraryButton { await music.addToLibrary(song) }
+                            }
+                        }
+                    }
+                    if !results.albums.isEmpty {
+                        librarySectionHeader("Albums")
+                        ForEach(results.albums, id: \.id) { album in
+                            HStack(spacing: Spacing.sm) {
+                                NavigationLink { LibraryDetailView(source: .album(album)) } label: {
+                                    LibraryItemRow(artwork: album.artwork, title: album.title, subtitle: album.artistName)
+                                }
+                                .buttonStyle(.plain)
+                                AddToLibraryButton { await music.addToLibrary(album: album) }
+                            }
+                        }
+                    }
+                    if !results.artists.isEmpty {
+                        librarySectionHeader("Artists")
+                        ForEach(results.artists, id: \.id) { artist in
+                            NavigationLink { LibraryArtistDetailView(artist: artist) } label: {
+                                LibraryItemRow(artwork: artist.artwork, title: artist.name, subtitle: nil, circular: true)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    if !results.playlists.isEmpty {
+                        librarySectionHeader("Playlists")
+                        ForEach(results.playlists, id: \.id) { playlist in
+                            HStack(spacing: Spacing.sm) {
+                                NavigationLink { LibraryDetailView(source: .playlist(playlist)) } label: {
+                                    LibraryItemRow(artwork: playlist.artwork, title: playlist.name, subtitle: playlist.curatorName)
+                                }
+                                .buttonStyle(.plain)
+                                AddToLibraryButton { await music.addToLibrary(playlist: playlist) }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, Spacing.md).padding(.vertical, Spacing.sm)
+            }
+        }
+        .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
+        .navigationTitle("Search")
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $term, placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: "Songs, albums, artists, playlists")
+        .appleMusicAttributed()
+        // Debounced search: .task(id:) cancels the in-flight search whenever the
+        // term changes, so we only hit the catalog after the user pauses typing.
+        .task(id: term) { await runSearch() }
+    }
+
+    private var promptState: some View {
+        VStack(spacing: Spacing.sm) {
+            Image(systemName: "magnifyingglass").font(.system(size: 48)).foregroundStyle(Color.labelTertiary)
+            Text("Search Apple Music").font(.mtrxHeadline).foregroundStyle(Color.labelPrimary)
+            Text("Find songs, albums, artists and playlists to play or add to your library.")
+                .font(.mtrxCallout).foregroundStyle(Color.labelSecondary)
+                .multilineTextAlignment(.center).padding(.horizontal, Spacing.lg)
+        }
+        .frame(maxWidth: .infinity).padding(.top, Spacing.xxl)
+    }
+
+    @ViewBuilder
+    private var searchPlaceholder: some View {
+        switch state {
+        case .idle, .loading:
+            ProgressView().frame(maxWidth: .infinity).padding(.top, Spacing.xxl)
+        case .failed:
+            Text("Couldn't search Apple Music. Make sure Apple Music access is allowed and the app's MusicKit capability is enabled.")
+                .font(.mtrxCallout).foregroundStyle(Color.labelSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity).padding(.top, Spacing.xxl).padding(.horizontal, Spacing.lg)
+        case .loaded:
+            Text("No results for “\(trimmed)”.")
+                .font(.mtrxCallout).foregroundStyle(Color.labelTertiary)
+                .frame(maxWidth: .infinity).padding(.top, Spacing.xxl)
+        }
+    }
+
+    private func runSearch() async {
+        let q = trimmed
+        guard q.count >= 2 else {
+            results = MusicKitManager.CatalogSearchResults()
+            state = .idle
+            return
+        }
+        try? await Task.sleep(nanoseconds: 350_000_000)
+        if Task.isCancelled { return }
+        // Drop the previous query's hits before fetching so the honest loading
+        // spinner shows, and a failed reload falls through to the failed state
+        // instead of leaving stale results that look like the current query.
+        results = MusicKitManager.CatalogSearchResults()
+        state = .loading
+        do {
+            let r = try await music.searchCatalog(q)
+            if Task.isCancelled { return }
+            results = r
+            state = .loaded
+        } catch {
+            if Task.isCancelled { return }
+            state = .failed
         }
     }
 }
