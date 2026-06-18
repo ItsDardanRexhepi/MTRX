@@ -17,6 +17,42 @@ import Foundation
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
+#if canImport(WeatherKit)
+import WeatherKit
+#endif
+
+// MARK: - Apple Weather attribution
+//
+// WeatherKit REQUIRES attribution wherever its data is surfaced: the "Apple
+// Weather" mark plus a link to Apple's legal attribution page. This store is
+// flipped on the first successful WeatherKit fetch; the agent chat shows the
+// attribution footer (AppleWeatherAttributionView) whenever it's active.
+
+@MainActor
+@Observable
+final class WeatherKitAttribution {
+    static let shared = WeatherKitAttribution()
+
+    /// True once Trinity has surfaced WeatherKit data this session.
+    private(set) var isActive = false
+    /// Apple's legal attribution page (the "other data sources" link).
+    private(set) var legalPageURL: URL?
+
+    private var fetchedLegal = false
+
+    func recordProvided() async {
+        isActive = true
+        guard !fetchedLegal else { return }
+        fetchedLegal = true
+        #if canImport(WeatherKit)
+        if #available(iOS 16.0, macOS 13.0, *) {
+            if let attribution = try? await WeatherService.shared.attribution {
+                legalPageURL = attribution.legalPageURL
+            }
+        }
+        #endif
+    }
+}
 
 // MARK: - Tool Networking
 
@@ -119,7 +155,14 @@ struct TrinityWeatherTool: Tool {
             #if DEBUG
             print("[Trinity.weather] ERROR: \(error)")
             #endif
-            return "Weather lookup failed: \(error.localizedDescription)"
+            // Honest failure — never invent conditions. Most commonly this is
+            // WeatherKit not yet enabled on the App ID, or a transient outage.
+            return """
+            I couldn't pull live weather right now — Apple Weather (WeatherKit) \
+            may not be enabled for this app yet, or the service is briefly \
+            unreachable. Tell the user honestly that you can't get current \
+            conditions at the moment; do NOT make up the weather.
+            """
         }
     }
 
@@ -150,79 +193,59 @@ struct TrinityWeatherTool: Tool {
         }
     }
 
-    // MARK: Open-Meteo
+    // MARK: Geocoding (Apple CLGeocoder)
 
     private static func geocode(city: String) async throws -> (lat: Double, lon: Double, label: String)? {
-        var comps = URLComponents(string: "https://geocoding-api.open-meteo.com/v1/search")!
-        comps.queryItems = [
-            URLQueryItem(name: "name", value: city),
-            URLQueryItem(name: "count", value: "1"),
-        ]
-        let (data, _) = try await TrinityToolNet.session.data(from: comps.url!)
-        struct Geo: Decodable {
-            struct Hit: Decodable { let latitude: Double; let longitude: Double; let name: String; let country: String? }
-            let results: [Hit]?
+        guard let placemark = try? await CLGeocoder().geocodeAddressString(city).first,
+              let location = placemark.location else { return nil }
+        let name = placemark.locality ?? placemark.name ?? city
+        let label: String
+        if let admin = placemark.administrativeArea, admin != name {
+            label = "\(name), \(admin)"
+        } else if let country = placemark.country {
+            label = "\(name), \(country)"
+        } else {
+            label = name
         }
-        guard let hit = try JSONDecoder().decode(Geo.self, from: data).results?.first else { return nil }
-        let label = hit.country.map { "\(hit.name), \($0)" } ?? hit.name
-        return (hit.latitude, hit.longitude, label)
+        return (location.coordinate.latitude, location.coordinate.longitude, label)
     }
 
+    // MARK: Weather data — Apple WeatherKit
+
+    /// Real current conditions from Apple WeatherKit. Throws if WeatherKit is
+    /// unavailable (capability not enabled on the App ID, or a transient
+    /// failure) — the caller surfaces that honestly rather than inventing data.
     private static func fetchWeather(lat: Double, lon: Double) async throws -> String {
-        var comps = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
-        comps.queryItems = [
-            URLQueryItem(name: "latitude", value: String(lat)),
-            URLQueryItem(name: "longitude", value: String(lon)),
-            URLQueryItem(name: "current", value: "temperature_2m,apparent_temperature,weather_code,wind_speed_10m"),
-            URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
-            URLQueryItem(name: "temperature_unit", value: "fahrenheit"),
-            URLQueryItem(name: "wind_speed_unit", value: "mph"),
-            URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "forecast_days", value: "1"),
-        ]
-        let (data, _) = try await TrinityToolNet.session.data(from: comps.url!)
-        struct Forecast: Decodable {
-            struct Current: Decodable {
-                let temperature_2m: Double
-                let apparent_temperature: Double
-                let weather_code: Int
-                let wind_speed_10m: Double
-            }
-            struct Daily: Decodable {
-                let temperature_2m_max: [Double]
-                let temperature_2m_min: [Double]
-            }
-            let current: Current
-            let daily: Daily
+        #if canImport(WeatherKit)
+        guard #available(iOS 16.0, macOS 13.0, *) else {
+            throw WeatherToolError.unavailable
         }
-        let f = try JSONDecoder().decode(Forecast.self, from: data)
-        let condition = Self.describe(code: f.current.weather_code)
-        let high = f.daily.temperature_2m_max.first ?? f.current.temperature_2m
-        let low = f.daily.temperature_2m_min.first ?? f.current.temperature_2m
-        return String(
-            format: "%@, %.0f°F (feels like %.0f°F), wind %.0f mph, today's high %.0f°F / low %.0f°F.",
-            condition, f.current.temperature_2m, f.current.apparent_temperature,
-            f.current.wind_speed_10m, high, low
-        )
-    }
+        let location = CLLocation(latitude: lat, longitude: lon)
+        let weather = try await WeatherService.shared.weather(for: location)
+        let current = weather.currentWeather
 
-    /// WMO weather code → plain English.
-    private static func describe(code: Int) -> String {
-        switch code {
-        case 0: return "Clear"
-        case 1, 2: return "Partly cloudy"
-        case 3: return "Overcast"
-        case 45, 48: return "Foggy"
-        case 51...57: return "Drizzle"
-        case 61...67: return "Rain"
-        case 71...77: return "Snow"
-        case 80...82: return "Rain showers"
-        case 85, 86: return "Snow showers"
-        case 95...99: return "Thunderstorms"
-        default: return "Mixed conditions"
-        }
+        // Apple REQUIRES attribution wherever this data is shown — record it so
+        // the chat surfaces the Apple Weather mark + legal link.
+        await WeatherKitAttribution.shared.recordProvided()
+
+        let temp = current.temperature.converted(to: .fahrenheit).value
+        let feels = current.apparentTemperature.converted(to: .fahrenheit).value
+        let wind = current.wind.speed.converted(to: .milesPerHour).value
+        let today = weather.dailyForecast.forecast.first
+        let high = today?.highTemperature.converted(to: .fahrenheit).value ?? temp
+        let low = today?.lowTemperature.converted(to: .fahrenheit).value ?? temp
+
+        return String(
+            format: "%@, %.0f°F (feels like %.0f°F), wind %.0f mph, today's high %.0f°F / low %.0f°F. (Source: Apple Weather.)",
+            current.condition.description, temp, feels, wind, high, low
+        )
+        #else
+        throw WeatherToolError.unavailable
+        #endif
     }
 }
+
+enum WeatherToolError: Error { case unavailable }
 
 // MARK: - Web Lookup Tool
 

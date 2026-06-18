@@ -15,5 +15,12 @@
 	     graceful no-op (ubiquityIdentityToken is nil). -->
 	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
 	<string>$(TeamIdentifierPrefix)$(CFBundleIdentifier)</string>
+	<!-- WeatherKit: genuinely used by Trinity's getWeather tool
+	     (WeatherService.shared). REQUIRES the App ID to have the WeatherKit
+	     capability enabled in the Apple Developer portal; until then the tool
+	     fails honestly (it never invents conditions). Apple Weather attribution
+	     is shown in the agent chat wherever weather is surfaced. -->
+	<key>com.apple.developer.weatherkit</key>
+	<true/>
 </dict>
 </plist>

@@ -227,6 +227,7 @@ struct AgentConversationView: View {
                 // bleeds past the bottom edge, so the keyboard's rounded
                 // corners never expose dark notches at the seam.
                 VStack(spacing: 0) {
+                    AppleWeatherAttributionView()
                     quickActionChips
                     inputBar
                 }
@@ -1206,6 +1207,37 @@ struct CommunityAlertOverlay: View {
             withAnimation(Motion.springDefault) {
                 appeared = true
             }
+        }
+    }
+}
+
+// MARK: - Apple Weather attribution (WeatherKit compliance)
+
+/// Apple REQUIRES the Apple Weather mark + a link to its legal attribution page
+/// wherever WeatherKit data is surfaced. This footer appears in the agent chat
+/// once Trinity has provided weather this session (see WeatherKitAttribution).
+struct AppleWeatherAttributionView: View {
+    @State private var attribution = WeatherKitAttribution.shared
+
+    var body: some View {
+        if attribution.isActive {
+            HStack(spacing: 5) {
+                Image(systemName: "applelogo")
+                    .font(.system(size: 9, weight: .medium))
+                Text("Weather")
+                    .font(.system(size: 10, weight: .semibold))
+                if let url = attribution.legalPageURL {
+                    Text("·").font(.system(size: 10)).foregroundStyle(Color.labelQuaternary)
+                    Link("Other data sources", destination: url)
+                        .font(.system(size: 10))
+                        .tint(Color.labelTertiary)
+                }
+            }
+            .foregroundStyle(Color.labelTertiary)
+            .padding(.top, 4)
+            .padding(.bottom, 2)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Weather data provided by Apple Weather")
         }
     }
 }
