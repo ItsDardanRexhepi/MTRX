@@ -30,7 +30,20 @@ final class EventKitManager {
     private let eventCalKey = "mtrx.eventCalendarID"
     private let reminderListKey = "mtrx.reminderListID"
 
-    private init() { refreshStatus() }
+    private let personalSyncKey = "mtrx.personalSync"
+
+    /// Personal-calendar sync — the USER's explicit, opt-in choice. When ON,
+    /// MTRX also READS the user's personal calendars/reminders and lets events be
+    /// created in them. Default OFF: MTRX touches ONLY its own dedicated
+    /// containers and never reads personal data. Persisted.
+    var personalSyncEnabled: Bool {
+        didSet { UserDefaults.standard.set(personalSyncEnabled, forKey: personalSyncKey) }
+    }
+
+    private init() {
+        personalSyncEnabled = UserDefaults.standard.bool(forKey: personalSyncKey)   // default false
+        refreshStatus()
+    }
 
     // MARK: - Authorization (honest states)
 
@@ -181,6 +194,164 @@ final class EventKitManager {
             throw EventKitError.eventNotFound
         }
         try eventStore.remove(event, span: .thisEvent)
+    }
+
+    // MARK: - Interactive calendar: scoped reads
+    //
+    // The read scope is MTRX-only unless the user has explicitly opted into
+    // personal sync. On failure to resolve the MTRX container while sync is OFF
+    // we read NOTHING (never silently fall back to all calendars).
+
+    private enum ReadScope { case all, only([EKCalendar]), none }
+
+    private func eventReadScope() -> ReadScope {
+        if personalSyncEnabled { return .all }
+        guard let cal = try? mtrxEventCalendar() else { return .none }
+        return .only([cal])
+    }
+
+    private func reminderReadScope() -> ReadScope {
+        if personalSyncEnabled { return .all }
+        guard let list = try? mtrxReminderList() else { return .none }
+        return .only([list])
+    }
+
+    /// Events on a specific day.
+    func events(on day: Date) -> [EKEvent] {
+        guard calendarGranted else { return [] }
+        let calendars: [EKCalendar]?
+        switch eventReadScope() {
+        case .all: calendars = nil
+        case .only(let c): calendars = c
+        case .none: return []
+        }
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: day)
+        guard let end = cal.date(byAdding: .day, value: 1, to: start) else { return [] }
+        let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: calendars)
+        return eventStore.events(matching: predicate).sorted { $0.startDate < $1.startDate }
+    }
+
+    /// Start-of-day dates in the given month that have at least one event (for
+    /// the grid's day markers).
+    func eventDays(inMonthOf date: Date) -> Set<Date> {
+        guard calendarGranted else { return [] }
+        let calendars: [EKCalendar]?
+        switch eventReadScope() {
+        case .all: calendars = nil
+        case .only(let c): calendars = c
+        case .none: return []
+        }
+        let cal = Calendar.current
+        guard let month = cal.dateInterval(of: .month, for: date) else { return [] }
+        let predicate = eventStore.predicateForEvents(withStart: month.start, end: month.end, calendars: calendars)
+        var days = Set<Date>()
+        for e in eventStore.events(matching: predicate) {
+            // Mark every day a (possibly multi-day) event spans, clamped to the
+            // visible month, so the dot matches what events(on:) returns per day.
+            var d = max(cal.startOfDay(for: e.startDate), month.start)
+            let last = min(cal.startOfDay(for: e.endDate), month.end)
+            while d <= last {
+                days.insert(d)
+                guard let next = cal.date(byAdding: .day, value: 1, to: d) else { break }
+                d = next
+            }
+        }
+        return days
+    }
+
+    /// Reminders due on a specific day.
+    func reminders(on day: Date) async -> [EKReminder] {
+        guard reminderGranted else { return [] }
+        let lists: [EKCalendar]?
+        switch reminderReadScope() {
+        case .all: lists = nil
+        case .only(let c): lists = c
+        case .none: return []
+        }
+        let predicate = eventStore.predicateForReminders(in: lists)
+        let all = await withCheckedContinuation { cont in
+            eventStore.fetchReminders(matching: predicate) { cont.resume(returning: $0 ?? []) }
+        }
+        let cal = Calendar.current
+        return all.filter { r in
+            guard let comps = r.dueDateComponents, let due = cal.date(from: comps) else { return false }
+            return cal.isDate(due, inSameDayAs: day)
+        }
+    }
+
+    // MARK: - Interactive calendar: event + reminder CRUD
+
+    /// Writable calendars offered in the event editor's picker: MTRX first, plus
+    /// the user's other writable calendars only when personal sync is opted in.
+    func writableEventCalendars() -> [EKCalendar] {
+        guard calendarGranted, let mtrx = try? mtrxEventCalendar() else { return [] }
+        guard personalSyncEnabled else { return [mtrx] }
+        let others = eventStore.calendars(for: .event)
+            .filter { $0.allowsContentModifications && $0.calendarIdentifier != mtrx.calendarIdentifier }
+            .sorted { $0.title < $1.title }
+        return [mtrx] + others
+    }
+
+    func mtrxCalendarID() -> String? { try? mtrxEventCalendar().calendarIdentifier }
+
+    @discardableResult
+    func createEvent(title: String, start: Date, end: Date, notes: String?, in calendar: EKCalendar? = nil) throws -> String {
+        guard calendarGranted else { throw EventKitError.notAuthorized }
+        let event = EKEvent(eventStore: eventStore)
+        event.title = title
+        event.startDate = start
+        event.endDate = max(end, start)
+        event.notes = notes
+        event.calendar = try (calendar ?? mtrxEventCalendar())
+        event.addAlarm(EKAlarm(relativeOffset: -3600))
+        try eventStore.save(event, span: .thisEvent)
+        return event.eventIdentifier
+    }
+
+    func updateEvent(_ event: EKEvent, title: String, start: Date, end: Date, notes: String?, calendar: EKCalendar?) throws {
+        event.title = title
+        event.startDate = start
+        event.endDate = max(end, start)
+        event.notes = notes
+        if let calendar { event.calendar = calendar }
+        try eventStore.save(event, span: .thisEvent)
+    }
+
+    func deleteEvent(_ event: EKEvent) throws {
+        try eventStore.remove(event, span: .thisEvent)
+    }
+
+    func updateReminder(_ reminder: EKReminder, title: String, due: Date?, notes: String?) throws {
+        reminder.title = title
+        reminder.notes = notes
+        if let due {
+            reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: due)
+        } else {
+            reminder.dueDateComponents = nil
+        }
+        try eventStore.save(reminder, commit: true)
+    }
+
+    func deleteReminder(_ reminder: EKReminder) throws {
+        try eventStore.remove(reminder, commit: true)
+    }
+
+    /// Reminders with NO due date (the general checklist), scoped exactly like
+    /// the dated reads. Surfaced so an undated reminder is never silently hidden.
+    func undatedReminders() async -> [EKReminder] {
+        guard reminderGranted else { return [] }
+        let lists: [EKCalendar]?
+        switch reminderReadScope() {
+        case .all: lists = nil
+        case .only(let c): lists = c
+        case .none: return []
+        }
+        let predicate = eventStore.predicateForReminders(in: lists)
+        let all = await withCheckedContinuation { cont in
+            eventStore.fetchReminders(matching: predicate) { cont.resume(returning: $0 ?? []) }
+        }
+        return all.filter { $0.dueDateComponents == nil }
     }
 }
 

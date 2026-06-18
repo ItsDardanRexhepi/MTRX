@@ -283,7 +283,7 @@ struct MusicPlayerView: View {
                 Spacer()
             }
             .padding(.horizontal, Spacing.md).padding(.vertical, Spacing.sm)
-            .background(Color.surfaceOverlay, in: Capsule())
+            .mtrxLiquidGlass(in: Capsule())
         }
         .buttonStyle(.plain)
         .padding(.bottom, Spacing.xs)
@@ -369,7 +369,11 @@ struct MusicPlayerView: View {
                 .padding(.leading, Spacing.sm)
             }
             .padding(.horizontal, Spacing.md).padding(.vertical, Spacing.sm)
-            .background(.ultraThinMaterial)
+            // Docked bar: top-rounded so the glass rim frames the visible top edge,
+            // not the left / right / bottom screen edges.
+            .mtrxLiquidGlass(in: UnevenRoundedRectangle(
+                topLeadingRadius: Spacing.CornerRadius.lg,
+                topTrailingRadius: Spacing.CornerRadius.lg, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityHint("Opens the full player")
@@ -434,8 +438,19 @@ struct NowPlayingView: View {
                 Spacer(minLength: 0)
                 artwork
                 trackInfo
-                scrubber
-                transport
+                VStack(spacing: Spacing.md) {
+                    scrubber
+                    transport
+                }
+                .padding(Spacing.md)
+                .background(Color.trinityPrimary.opacity(0.035))
+                .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
+                        .stroke(LinearGradient(
+                            colors: [Color.trinityPrimary.opacity(0.35), Color.trinityPrimary.opacity(0.06)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
+                .shadow(color: Color.trinityPrimary.opacity(0.08), radius: 14, y: 6)
                 Spacer(minLength: 0)
                 bottomBar
             }
@@ -533,7 +548,7 @@ struct NowPlayingView: View {
 
     private var transport: some View {
         HStack {
-            transportButton(music.shuffleOn ? "shuffle" : "shuffle", active: music.shuffleOn, size: 20,
+            transportButton("shuffle", active: music.shuffleOn, size: 20,
                             label: music.shuffleOn ? "Shuffle on" : "Shuffle off") { music.toggleShuffle() }
             Spacer()
             transportButton("backward.fill", size: 28, label: "Previous") { music.skipPrevious() }
