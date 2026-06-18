@@ -210,6 +210,13 @@ struct MainTabView: View {
         // tabs. The tint still shifts green→cyan per selected tab.
         .tint(tabTint)
         .task {
+            // Warm Trinity's on-device model at launch so the very first chat
+            // isn't a cold start. Non-blocking + availability-gated; no-op when
+            // Apple Intelligence isn't present. The chat-open prewarm still warms
+            // the conversation session, but the expensive shared-model load is
+            // already done here.
+            FoundationModelsEngine.prewarmAtLaunch()
+
             // Optimistically restore the last verified tier so FeatureGate
             // honors it from the first frame after a relaunch…
             if let raw = UserDefaults.standard.string(forKey: StoreKitManager.tierDefaultsKey),

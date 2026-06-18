@@ -201,6 +201,30 @@ final class FoundationModelsEngine {
         #endif
     }
 
+    #if canImport(FoundationModels)
+    /// A lightweight session kept for the app's lifetime so the SHARED on-device
+    /// model (`SystemLanguageModel.default`) stays loaded after a launch
+    /// prewarm. Type-erased because `LanguageModelSession` is iOS 26+.
+    private static var _launchWarmer: Any?
+    #endif
+
+    /// Warm the shared on-device model at APP LAUNCH so the very first chat
+    /// isn't a cold start. Non-blocking (`prewarm()` is a hint that warms in the
+    /// background), availability-gated, and idempotent — it loads the shared
+    /// model once via a minimal throwaway session. It creates NO persona
+    /// conversation session, so Trinity/Neo/Morpheus separation is untouched;
+    /// the per-conversation sessions later reuse the already-loaded model.
+    static func prewarmAtLaunch() {
+        #if canImport(FoundationModels)
+        guard isAvailable else { return }
+        if #available(iOS 26.0, macOS 26.0, *) {
+            let warmer = (_launchWarmer as? LanguageModelSession) ?? LanguageModelSession()
+            _launchWarmer = warmer
+            warmer.prewarm()
+        }
+        #endif
+    }
+
     /// Generate a reply. `context` is prepended to the prompt (live
     /// wallet state, time of day); `instructions` is accepted for API
     /// compatibility but the persistent session's instructions win.
@@ -403,11 +427,13 @@ final class InferenceRouter {
             var reply = Self.sanitize(first)
             guard !reply.isEmpty else { return nil }
 
-            // The agents never leave the user with a refusal: when a
-            // reply sounds like "I can't / don't know", push the same
-            // session once more — tools included — for a real answer.
-            // One retry bounds the added latency.
-            if Self.soundsLikeRefusal(reply) {
+            // The agents never leave the user with a SPURIOUS refusal: when a
+            // reply sounds like "I can't / don't know" push the same session
+            // once more — tools included — for a real answer. But an honest,
+            // reasoned limitation (honest-pending tools, Apple Music/WeatherKit
+            // not connected, a location clarification) is a CORRECT refusal and
+            // must stand, never be retried away. One retry bounds the latency.
+            if Self.soundsLikeRefusal(reply), !Self.isHonestRefusal(reply) {
                 let retry = try await activeEngine.respond(
                     to: """
                     Answer my question directly this time. Use your tools — \
@@ -452,23 +478,25 @@ final class InferenceRouter {
             var reply = Self.sanitize(first)
             guard !reply.isEmpty else { return nil }
 
-            // Same no-refusal guarantee as the non-streaming path: if the
-            // reply reads like a refusal, push once more and replace it.
-            if Self.soundsLikeRefusal(reply) {
-                let retry = try await activeEngine.respond(
+            // No-refusal guarantee — but only for a SPURIOUS model refusal. An
+            // honest, reasoned limitation (the honest-pending tools, Apple Music
+            // not connected, a location clarification) is a CORRECT refusal and
+            // must stand — never retried away. Skipping those also avoids a
+            // wasted second generation. The remaining genuine retries STREAM
+            // (sanitizingPartial) instead of paying a blocking second full pass.
+            if Self.soundsLikeRefusal(reply), !Self.isHonestRefusal(reply) {
+                let retry = try await activeEngine.streamRespond(
                     to: """
                     Answer my question directly this time. Use your tools — \
                     search the web with different, simpler terms, check live \
                     prices or weather — or reason it out from what you know. \
                     Give me your best answer, not a statement that you can't.
                     """,
-                    context: context
+                    context: context,
+                    onPartial: sanitizingPartial
                 )
                 let retried = Self.sanitize(retry)
-                if !retried.isEmpty, !Self.soundsLikeRefusal(retried) {
-                    reply = retried
-                    await onPartial(retried)
-                }
+                if !retried.isEmpty { reply = retried }
             }
             return reply
         } catch {
@@ -504,6 +532,31 @@ final class InferenceRouter {
             "no information available",
         ]
         return markers.contains { lower.contains($0) }
+    }
+
+    /// True when a reply is an HONEST, reasoned limitation that must STAND — a
+    /// genuine "I can't do X yet because <real reason>": the honest-pending tools
+    /// (moveFunds / deployContract — backend not connected), Apple Music not
+    /// connected, WeatherKit/location unavailable, subscriptions not set up, or a
+    /// location clarification. These are CORRECT refusals and must never be
+    /// retried away or masked. They're distinguished from a content-free model
+    /// refusal by carrying a concrete reason — so if any reason is present we err
+    /// safe and let the refusal stand (we'd rather skip a retry than mask honesty).
+    private static func isHonestRefusal(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let honestReasons = [
+            "isn't connected", "is not connected", "not connected",
+            "backend", "on-chain", "on chain", "network isn't",
+            "once the network", "once it's connected", "once connected",
+            "won't pretend", "won't fake", "wouldn't be real",
+            "apple music", "weatherkit", "your location",
+            "which city", "can't see your location", "location services",
+            "not set up", "set up in app store", "app store connect",
+            "not available yet", "isn't enabled", "is not enabled",
+            "not enabled", "face id", "secure approval", "demo data",
+            "sample data", "sample balances", "isn't live yet",
+        ]
+        return honestReasons.contains { lower.contains($0) }
     }
 
     /// The inference source that will be used for the next request.
