@@ -298,25 +298,36 @@ final class AgentConversationViewModel: ObservableObject {
             return
         }
 
-        // A direct "what can you do / help me get around the app" question
-        // always gets a real, useful rundown — never a deflection.
-        if Self.isCapabilityQuestion(text) {
-            respondWithCapabilities()
-            return
-        }
+        // When Trinity's on-device model (Apple Foundation Models) is
+        // available, she runs fully model-driven: the model — with its tools —
+        // handles capability questions, app tasks, navigation, music, and
+        // actions itself. No scripted intent matching. The scripted handlers
+        // below stay as the fallback for Neo/Morpheus and for devices without
+        // Apple Intelligence.
+        let convoAgent = conversationID.flatMap { store.conversation(id: $0)?.agent } ?? manualAgentOverride ?? activeAgent
+        let trinityModelDriven = (convoAgent == .trinity) && inference.isOnDeviceAvailable
 
-        // In-app tasks — "make a social post about...", "change my bio
-        // to...", "set my theme to violet". The agent does it, right here.
-        if handleAppTask(text: text) {
-            return
-        }
+        if !trinityModelDriven {
+            // A direct "what can you do / help me get around the app" question
+            // always gets a real, useful rundown — never a deflection.
+            if Self.isCapabilityQuestion(text) {
+                respondWithCapabilities()
+                return
+            }
 
-        // App navigation — "open my social feed", "take me to the wallet",
-        // "open events". The agent drives the app there, then docks as a
-        // floating orb so she stays one tap away until swiped off.
-        if let destination = Self.appDestination(in: text) {
-            navigate(to: destination)
-            return
+            // In-app tasks — "make a social post about...", "change my bio
+            // to...", "set my theme to violet". The agent does it, right here.
+            if handleAppTask(text: text) {
+                return
+            }
+
+            // App navigation — "open my social feed", "take me to the wallet",
+            // "open events". The agent drives the app there, then docks as a
+            // floating orb so she stays one tap away until swiped off.
+            if let destination = Self.appDestination(in: text) {
+                navigate(to: destination)
+                return
+            }
         }
 
         // Check access control
@@ -332,10 +343,12 @@ final class AgentConversationViewModel: ObservableObject {
             let effective = conversationAgent ?? manualAgentOverride ?? agent
             activeAgent = effective
 
-            // Demo action engine: executable intents (send / swap / stake
-            // / deploy) are parsed, confirmed, and executed locally against
-            // the shared wallet — no backend required.
-            if effective == .trinity, handleDemoConversation(text: text) {
+            // Scripted action engine — now only the FALLBACK for when Trinity's
+            // on-device model isn't available. When it is, she's fully
+            // model-driven (above) and her tools handle actions instead. The
+            // Morpheus Face-ID gate for transfers lives in this scripted path
+            // and stays intact for that fallback.
+            if effective == .trinity, !inference.isOnDeviceAvailable, handleDemoConversation(text: text) {
                 return
             }
             processWithAgent(text: text, agent: effective)
