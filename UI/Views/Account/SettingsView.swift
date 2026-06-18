@@ -350,7 +350,10 @@ struct SettingsView: View {
                 }
             }
             .tint(Color.accentPrimary)
-            .onChange(of: biometricLock) { _, _ in triggerHaptic() }
+            .onChange(of: biometricLock) { _, on in
+                triggerHaptic()
+                AppLock.shared.setEnabled(on)   // actually gates the app-entry lock
+            }
 
             // Auto-Lock — navigation link to picker
             NavigationLink {
@@ -524,6 +527,8 @@ struct SettingsView: View {
         biometricLock = true
         autoLockInterval = "5 min"
         transactionSigning = true
+        // Keep the live app-lock singleton in sync with the reset preference.
+        AppLock.shared.setEnabled(true)
     }
 
     // MARK: - Biometric Detection

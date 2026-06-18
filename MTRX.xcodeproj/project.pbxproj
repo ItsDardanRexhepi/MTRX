@@ -217,6 +217,7 @@
 		A1A1A1A1A1A1A1A1A1A1A5B1 /* ReplayKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A5B2 /* ReplayKitManager.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A5C1 /* MetricsCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A5C2 /* MetricsCollector.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A6B1 /* HomeCalendarCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A6B2 /* HomeCalendarCard.swift */; };
+		A1A1A1A1A1A1A1A1A1A1A7B1 /* AppLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A7B2 /* AppLock.swift */; };
 		7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5908575B08029A598F60B914 /* PositionsWidget.swift */; };
 		E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8421C44BD0C6A17F16769739 /* Secrets.swift */; };
 		FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA7F1A65C0DE00000000001 /* FeatureFlags.swift */; };
@@ -575,6 +576,7 @@
 		A1A1A1A1A1A1A1A1A1A1A5B2 /* ReplayKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ReplayKitManager.swift"; path = "Apple/Media/ReplayKitManager.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A5C2 /* MetricsCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MetricsCollector.swift"; path = "Core/Diagnostics/MetricsCollector.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A6B2 /* HomeCalendarCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HomeCalendarCard.swift"; path = "UI/Views/Home/HomeCalendarCard.swift"; sourceTree = SOURCE_ROOT; };
+		A1A1A1A1A1A1A1A1A1A1A7B2 /* AppLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "AppLock.swift"; path = "UI/App/AppLock.swift"; sourceTree = SOURCE_ROOT; };
 		5908575B08029A598F60B914 /* PositionsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PositionsWidget.swift"; sourceTree = "<group>"; };
 		A97C29AD63741CF438998CE6 /* MTRX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MTRX.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE57FACE0000000000000A02 /* MTRXTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MTRXTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1926,6 +1928,7 @@
 				A1A1A1A1A1A1A1A1A1A1A5B1 /* ReplayKitManager.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A5C1 /* MetricsCollector.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A6B1 /* HomeCalendarCard.swift in Sources */,
+				A1A1A1A1A1A1A1A1A1A1A7B1 /* AppLock.swift in Sources */,
 				7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */,
 				E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */,
 				FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */,

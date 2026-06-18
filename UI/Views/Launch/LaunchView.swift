@@ -14,6 +14,9 @@ struct LaunchView: View {
     var ready: Bool = true
     /// Re-present Face ID — invoked when the locked portal is tapped.
     var onRetry: () -> Void = {}
+    /// A subtle hint shown on the held portal after a failed/cancelled scan,
+    /// telling the user to tap the orb to retry. nil = no hint.
+    var lockHint: String? = nil
     let onComplete: () -> Void
 
     @State private var opened = false
@@ -51,6 +54,17 @@ struct LaunchView: View {
         // re-presents Face ID — there is no way in without authenticating.
         .contentShape(Rectangle())
         .onTapGesture { if !opened { onRetry() } }
+        .overlay(alignment: .bottom) {
+            if let lockHint, !opened {
+                Text(lockHint)
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(Color.labelSecondary)
+                    .padding(.bottom, 64)
+                    .transition(.opacity)
+                    .accessibilityHint("Tap anywhere to retry Face ID")
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: lockHint)
         .onAppear { runEntrance() }
         .onChange(of: ready) { _, isReady in if isReady { openPortal() } }
     }

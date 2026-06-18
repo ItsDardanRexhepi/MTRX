@@ -85,17 +85,23 @@ struct MTRXApp: App {
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var appLock = AppLock.shared
     @State private var showLaunch = true
-    // Secure app-lock: a successful Face ID scan is required on every launch.
-    // The portal holds until `unlocked`, then dissolves straight into Home.
-    @State private var unlocked = false
-    @State private var authenticating = false
+    // Auto-present Face ID only on launch and on return-from-background — NOT on
+    // every .active, since dismissing the Face ID sheet itself returns the app to
+    // .active and would otherwise re-prompt in a loop (and block the lock
+    // screen's manual retry). Re-armed when we genuinely background.
+    @State private var armedForAuth = true
+
+    /// True while content must stay hidden behind the portal: a signed-in
+    /// session with the lock enabled and not yet unlocked.
+    private var portalLocked: Bool {
+        appState.isAuthenticated && appLock.isEnabled && appLock.isLocked
+    }
 
     var body: some View {
         ZStack {
-            // The app is mounted beneath the portal; the portal fully covers it
-            // and holds until Face ID unlocks, then dissolves onto it — so there
-            // is no separate lock screen, just portal → Home.
             Group {
                 if appState.isAuthenticated {
                     MainTabView()
@@ -105,43 +111,67 @@ struct RootView: View {
             }
             .animation(Motion.springDefault, value: appState.isAuthenticated)
 
+            // The portal IS the lock surface — there is no separate lock screen.
+            // It holds (covering all content) while the app is locked, and the
+            // portal→Home dissolve fires ONLY when authentication genuinely
+            // succeeds (appLock.isLocked → false in authenticate()'s success
+            // branch). A failed/cancelled scan leaves the portal in place; a tap
+            // on the orb re-presents Face ID. There is no path past it without a
+            // real success.
             if showLaunch {
-                // The portal IS the lock: it holds until a successful Face ID,
-                // then dissolves into Home. Tapping it re-presents Face ID if a
-                // scan was cancelled — there is no way in without authenticating.
-                LaunchView(ready: unlocked || !appState.isAuthenticated,
-                           onRetry: { authenticate() }) {
+                LaunchView(
+                    ready: !portalLocked,
+                    onRetry: { Task { await appLock.authenticate() } },
+                    lockHint: (portalLocked && appLock.lastError != nil && !appLock.isAuthenticating)
+                        ? "Tap to unlock" : nil
+                ) {
                     showLaunch = false
                 }
-                .zIndex(10)
+                .zIndex(30)
             }
-        }
-        // Face ID at the very beginning of every launch, on the splash.
-        .task(id: appState.isAuthenticated) {
-            if appState.isAuthenticated { authenticate() }
         }
         // Probe the gateway on launch so the app knows whether the backend is
         // live (updates the API client's networkStatus; demo data until then).
         .task { _ = await MTRXAPIClient.shared.checkHealth() }
-    }
-
-    /// Secure app-lock. A successful Face ID scan is required to enter; a failed
-    /// or cancelled scan does NOT grant access — the portal stays put, and a tap
-    /// re-presents Face ID. biometrics-only so the prompt always actually
-    /// appears (no passcode-grace skip) and is read before Home.
-    private func authenticate() {
-        guard appState.isAuthenticated, !unlocked, !authenticating else { return }
-        authenticating = true
-        Task {
-            // Present Face ID, then proceed once it resolves. The launch-time
-            // scan is reported as cancelled by the system even when it visually
-            // succeeds, so strict success-only checking hangs on the orb — we
-            // unlock once the scan completes.
-            _ = try? await BiometricAuth().authenticate(reason: "Unlock MTRX",
-                                                        allowPasscodeFallback: false)
-            await MainActor.run {
-                authenticating = false
-                unlocked = true
+        // Whenever the lock engages (background re-lock, or re-enabling it in
+        // Settings while in the foreground), bring the portal back; if we're
+        // already active (foreground re-enable), present Face ID right away.
+        .onChange(of: appLock.isLocked) { _, locked in
+            if locked {
+                showLaunch = true
+                if scenePhase == .active { Task { await appLock.authenticate() } }
+            }
+        }
+        // A new authenticated session (sign-out → sign-in) starts locked behind
+        // the portal; we're already .active here, so trigger Face ID directly.
+        .onChange(of: appState.isAuthenticated) { _, authed in
+            guard authed, appLock.isEnabled else { return }
+            appLock.lock()
+            showLaunch = true
+            Task { await appLock.authenticate() }
+        }
+        // Present Face ID only once the scene is actually .active — the fix for
+        // the old launch-time hang (presenting during the launch/scene transition
+        // got the prompt cancelled by the system). Re-lock + bring the portal
+        // back on background; .inactive is transient (the Face ID sheet itself,
+        // Control Center) so we deliberately do NOT lock on it.
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            guard appState.isAuthenticated, appLock.isEnabled else { return }
+            switch phase {
+            case .active:
+                // Auto-present only on launch / return-from-background. A failed
+                // or cancelled scan rests on the portal with its tap-to-retry
+                // rather than immediately re-prompting in a loop.
+                if appLock.isLocked && armedForAuth {
+                    armedForAuth = false
+                    Task { await appLock.authenticate() }
+                }
+            case .background:
+                appLock.lock()
+                armedForAuth = true
+                showLaunch = true   // a returning app shows portal → Face ID
+            default:
+                break
             }
         }
     }
