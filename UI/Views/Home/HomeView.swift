@@ -60,14 +60,11 @@ struct HomeView: View {
                         HomeMusicWidget { showMusicPlayer = true }
                             .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
 
-                        HomeCalendarCard()
+                        quickActionsSection
                             .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
 
-                        quickActionsSection
-                            .mtrxStaggeredAppearance(index: 4, isVisible: appeared)
-
                         homeFeedSection
-                            .mtrxStaggeredAppearance(index: 5, isVisible: appeared)
+                            .mtrxStaggeredAppearance(index: 4, isVisible: appeared)
                     }
                     .opacity(askFocused ? 0.42 : 1)
                     .blur(radius: askFocused ? 1.5 : 0)
@@ -213,7 +210,6 @@ struct HomeView: View {
 
     @State private var showWeatherPopup = false
     @State private var showCalendarPopup = false
-    @State private var calendarDate = Date()
 
     private var greetingHeader: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -229,7 +225,7 @@ struct HomeView: View {
                     .accessibilityHint("Opens weather")
                 Text("·")
                     .accessibilityHidden(true)
-                // Tap the date → an interactive liquid-glass calendar.
+                // Tap the date → the MTRX calendar + reminders (EventKit).
                 Text(Date().formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
                     .contentShape(Rectangle())
                     .onTapGesture { MtrxHaptics.impact(.light); showCalendarPopup = true }
@@ -246,9 +242,7 @@ struct HomeView: View {
                     .presentationBackground(.clear)
             }
             .sheet(isPresented: $showCalendarPopup) {
-                CalendarPopup(date: $calendarDate)
-                    .presentationDetents([.height(480)])
-                    .presentationBackground(.clear)
+                MTRXCalendarView()
             }
 
             HStack(spacing: Spacing.sm) {

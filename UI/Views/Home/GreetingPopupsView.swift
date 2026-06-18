@@ -53,49 +53,6 @@ struct LoopArrowGlyph: View {
     }
 }
 
-// MARK: - Calendar popup
-
-struct CalendarPopup: View {
-    @Binding var date: Date
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(spacing: Spacing.md) {
-            HStack {
-                Text("Calendar")
-                    .font(.mtrxHeadline)
-                    .foregroundStyle(Color.labelPrimary)
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .accessibilityLabel("Close")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.labelSecondary)
-                }
-                .buttonStyle(.plain)
-            }
-
-            DatePicker("", selection: $date, displayedComponents: .date)
-                .datePickerStyle(.graphical)
-                .labelsHidden()
-                .tint(Color.trinityPrimary)
-
-            Button {
-                date = Date()
-            } label: {
-                Text("Today")
-                    .font(.mtrxCalloutBold)
-                    .foregroundStyle(Color.trinityPrimary)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(Spacing.lg)
-        .frame(maxWidth: .infinity)
-        .mtrxLiquidGlass(cornerRadius: 30)
-        .padding(Spacing.md)
-    }
-}
-
 // MARK: - Weather popup (live, local)
 
 @MainActor
