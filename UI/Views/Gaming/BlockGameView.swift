@@ -256,6 +256,9 @@ struct BlockGameView: View {
             else if engine.paused { overlay(title: "Paused", symbol: "pause.circle.fill", tint: accent) }
         }
         .onDisappear { engine.stop() }
+        .onChange(of: engine.gameOver) { _, over in
+            if over { GameKitManager.shared.recordGameOver(.blocks, score: engine.score) }
+        }
     }
 
     // MARK: Chrome

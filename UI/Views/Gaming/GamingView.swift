@@ -85,6 +85,7 @@ class GamingViewModel: ObservableObject {
 struct GamingView: View {
     @StateObject private var viewModel = GamingViewModel()
     @State private var activeGame: GameItem?
+    @State private var gameKit = GameKitManager.shared
 
     private let gridColumns = [
         GridItem(.flexible(), spacing: Spacing.sm),
@@ -111,6 +112,7 @@ struct GamingView: View {
             .navigationTitle("Gaming")
             .navigationBarTitleDisplayMode(.large)
             .task { await viewModel.load() }
+            .onAppear { gameKit.authenticate() }
             .fullScreenCover(item: $activeGame) { game in
                 GameRunnerView(game: game)
             }
@@ -122,6 +124,7 @@ struct GamingView: View {
     private var gamingContent: some View {
         ScrollView {
             VStack(spacing: Spacing.sectionGap) {
+                gameCenterBar
                 gamesGrid
                 tournamentsSection
             }
@@ -129,6 +132,53 @@ struct GamingView: View {
         }
         .refreshable {
             await viewModel.load()
+        }
+    }
+
+    // Honest Game Center affordance: real auth state, never fake leaderboards.
+    @ViewBuilder
+    private var gameCenterBar: some View {
+        let row: AnyView? = {
+            switch gameKit.authState {
+            case .authenticated:
+                return AnyView(Button { gameKit.showDashboard() } label: {
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: "trophy.fill").foregroundStyle(.yellow)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Game Center").font(.mtrxCallout).foregroundStyle(Color.labelPrimary)
+                            if let alias = gameKit.playerAlias {
+                                Text(alias).font(.mtrxCaption2).foregroundStyle(Color.labelSecondary)
+                            }
+                        }
+                        Spacer()
+                        Text("Leaderboards").font(.mtrxCaptionBold).foregroundStyle(Color.accentPrimary)
+                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.labelTertiary)
+                    }
+                }.buttonStyle(.plain))
+            case .authenticating:
+                return AnyView(HStack(spacing: Spacing.sm) {
+                    ProgressView().tint(Color.accentPrimary)
+                    Text("Connecting to Game Center…").font(.mtrxCallout).foregroundStyle(Color.labelSecondary)
+                    Spacer()
+                })
+            case .unavailable:
+                return AnyView(Button { gameKit.authenticate() } label: {
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: "person.crop.circle.badge.plus").foregroundStyle(Color.accentPrimary)
+                        Text("Sign in to Game Center").font(.mtrxCallout).foregroundStyle(Color.labelPrimary)
+                        Spacer()
+                    }
+                }.buttonStyle(.plain))
+            case .unknown:
+                return nil
+            }
+        }()
+
+        if let row {
+            row
+                .padding(Spacing.md)
+                .background(Color.surfaceOverlay, in: RoundedRectangle(cornerRadius: Spacing.CornerRadius.md, style: .continuous))
+                .padding(.horizontal, Spacing.contentPadding)
         }
     }
 

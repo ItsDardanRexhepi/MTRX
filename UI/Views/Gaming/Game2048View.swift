@@ -183,7 +183,9 @@ struct Game2048View: View {
                 overlay(title: "2048!", symbol: "crown.fill", tint: accent, primary: "Keep Going") { engine.keepGoing = true }
             }
         }
-        .onAppear {}
+        .onChange(of: engine.gameOver) { _, over in
+            if over { GameKitManager.shared.recordGameOver(.merge2048, score: engine.score, won: engine.won) }
+        }
     }
 
     private var header: some View {

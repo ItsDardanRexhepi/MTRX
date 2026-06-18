@@ -191,7 +191,15 @@ struct BrickBreakerView: View {
                 overlay("Cleared!", "checkmark.seal.fill", Color.statusSuccess, "Next Level") { engine.nextLevel() }
             }
         }
-        .onDisappear { engine.stop() }
+        .onChange(of: engine.gameOver) { _, over in
+            if over { GameKitManager.shared.recordGameOver(.breakout, score: engine.score, won: engine.won) }
+        }
+        // Brick Breaker is endless via "Next Level" — also submit the cleared
+        // session score on exit (recordGameOver de-dupes via local best).
+        .onDisappear {
+            engine.stop()
+            GameKitManager.shared.recordGameOver(.breakout, score: engine.score, won: engine.won)
+        }
     }
 
     private var header: some View {

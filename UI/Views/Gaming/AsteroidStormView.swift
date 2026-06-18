@@ -216,6 +216,9 @@ struct AsteroidStormView: View {
             }
         }
         .onDisappear { engine.stop() }
+        .onChange(of: engine.gameOver) { _, over in
+            if over { GameKitManager.shared.recordGameOver(.asteroids, score: engine.score) }
+        }
     }
 
     private var header: some View {

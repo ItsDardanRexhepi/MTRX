@@ -63,6 +63,11 @@ struct GameRunnerView: View {
             }
         }
         .onDisappear { engine.stop() }
+        .onChange(of: engine.phase) { _, phase in
+            if phase == .won || phase == .lost {
+                GameKitManager.shared.recordGameOver(.arcade, score: engine.score, won: phase == .won)
+            }
+        }
     }
 
     // MARK: Chrome

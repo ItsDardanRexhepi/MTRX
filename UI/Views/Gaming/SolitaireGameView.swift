@@ -406,6 +406,9 @@ struct SolitaireGameView: View {
             if engine.won { winOverlay }
         }
         .onDisappear { engine.stop() }
+        .onChange(of: engine.won) { _, won in
+            if won { GameKitManager.shared.recordGameOver(.solitaire, score: engine.score, won: true) }
+        }
     }
 
     // MARK: Chrome

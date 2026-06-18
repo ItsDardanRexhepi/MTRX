@@ -194,6 +194,10 @@ struct ColorBurstGameView: View {
             }
             .padding(.top, Spacing.xs)
         }
+        // Endless match-3: submit the session's final score on exit.
+        .onDisappear {
+            GameKitManager.shared.recordGameOver(.colorburst, score: engine.score)
+        }
     }
 
     private var header: some View {
