@@ -263,27 +263,48 @@ struct MusicPlayerView: View {
 #if canImport(MusicKit)
     private var browseList: some View {
         ScrollView {
-            if music.chart.isEmpty {
-                Group {
-                    switch music.chartLoad {
-                    case .loading, .idle: Text("Loading top songs…").foregroundStyle(Color.labelTertiary)
-                    case .failed: Text("Couldn't load Apple Music content. The app's MusicKit capability may not be enabled yet.")
-                        .foregroundStyle(Color.labelSecondary).multilineTextAlignment(.center)
-                    case .loaded: Text("No songs available right now.").foregroundStyle(Color.labelTertiary)
-                    }
+            LazyVStack(spacing: Spacing.xs) {
+                librarySection
+                Divider().padding(.vertical, Spacing.sm)
+                chartSection
+            }
+            .padding(.horizontal, Spacing.md).padding(.top, Spacing.sm).padding(.bottom, Spacing.lg)
+        }
+    }
+
+    /// The user's saved Apple Music content, surfaced as categories that push
+    /// into dedicated browse screens. Independent of the catalog chart below.
+    private var librarySection: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            sectionHeader("Your Library")
+            ForEach(LibraryCategory.allCases) { category in
+                NavigationLink { category.destination } label: {
+                    MusicLibraryCategoryRow(category: category)
                 }
-                .font(.mtrxCallout).frame(maxWidth: .infinity).padding(.horizontal, Spacing.lg).padding(.top, Spacing.xl)
-            } else {
-                LazyVStack(spacing: Spacing.xs) {
-                    sectionHeader("Top Songs")
-                    ForEach(music.chart) { song in
-                        Button { Task { await music.play(song) } } label: {
-                            SongRow(song: song, isCurrent: music.currentSong?.id == song.id, isPlaying: music.isPlaying)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var chartSection: some View {
+        sectionHeader("Top Songs")
+        if music.chart.isEmpty {
+            Group {
+                switch music.chartLoad {
+                case .loading, .idle: Text("Loading top songs…").foregroundStyle(Color.labelTertiary)
+                case .failed: Text("Couldn't load Apple Music content. The app's MusicKit capability may not be enabled yet.")
+                    .foregroundStyle(Color.labelSecondary).multilineTextAlignment(.center)
+                case .loaded: Text("No songs available right now.").foregroundStyle(Color.labelTertiary)
                 }
-                .padding(.horizontal, Spacing.md).padding(.top, Spacing.sm).padding(.bottom, Spacing.lg)
+            }
+            .font(.mtrxCallout).frame(maxWidth: .infinity).padding(.top, Spacing.lg)
+        } else {
+            ForEach(music.chart) { song in
+                Button { Task { await music.play(song) } } label: {
+                    SongRow(song: song, isCurrent: music.currentSong?.id == song.id, isPlaying: music.isPlaying)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -343,7 +364,7 @@ struct MusicPlayerView: View {
 // MARK: - Song row
 
 #if canImport(MusicKit)
-private struct SongRow: View {
+struct SongRow: View {
     let song: Song
     let isCurrent: Bool
     let isPlaying: Bool

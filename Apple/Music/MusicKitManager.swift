@@ -361,6 +361,75 @@ final class MusicKitManager {
         try? session.setActive(true)
     }
 
+    // MARK: - Library (the user's saved Apple Music content)
+    //
+    // Reads go through MusicLibraryRequest, gated by the SAME authorization this
+    // manager owns; playback goes through the SAME queue engine above. No second
+    // MusicKit path. Reads need authorization + the App ID's MusicKit capability
+    // (no subscription required to READ the library); full playback still needs
+    // a subscription (else the preview fallback).
+
+    /// Public play entry for an arbitrary song list (library / playlist / album).
+    func playSongs(_ songs: [Song], startAt index: Int = 0) async {
+        await startQueue(songs: songs, at: index)
+    }
+
+    func libraryPlaylists(limit: Int = 25) async throws -> MusicItemCollection<Playlist> {
+        var request = MusicLibraryRequest<Playlist>()
+        request.limit = limit
+        return try await request.response().items
+    }
+
+    func librarySongs(limit: Int = 50, recentlyAdded: Bool = false) async throws -> MusicItemCollection<Song> {
+        var request = MusicLibraryRequest<Song>()
+        request.limit = limit
+        if recentlyAdded { request.sort(by: \.libraryAddedDate, ascending: false) }
+        return try await request.response().items
+    }
+
+    func libraryAlbums(limit: Int = 50, recentlyAdded: Bool = false) async throws -> MusicItemCollection<Album> {
+        var request = MusicLibraryRequest<Album>()
+        request.limit = limit
+        if recentlyAdded { request.sort(by: \.libraryAddedDate, ascending: false) }
+        return try await request.response().items
+    }
+
+    func libraryArtists(limit: Int = 50) async throws -> MusicItemCollection<Artist> {
+        var request = MusicLibraryRequest<Artist>()
+        request.limit = limit
+        return try await request.response().items
+    }
+
+    /// Next page of any library collection — pagination for large libraries.
+    func loadMore<T: MusicItem>(_ collection: MusicItemCollection<T>) async -> MusicItemCollection<T>? {
+        guard collection.hasNextBatch else { return nil }
+        return try? await collection.nextBatch()
+    }
+
+    /// Playable songs of a playlist (music videos skipped) for the shared engine.
+    func songs(of playlist: Playlist) async throws -> [Song] {
+        let detailed = try await playlist.with([.tracks])
+        return Self.songs(from: detailed.tracks)
+    }
+
+    func songs(of album: Album) async throws -> [Song] {
+        let detailed = try await album.with([.tracks])
+        return Self.songs(from: detailed.tracks)
+    }
+
+    func albums(of artist: Artist) async throws -> MusicItemCollection<Album> {
+        let detailed = try await artist.with([.albums])
+        return detailed.albums ?? []
+    }
+
+    private static func songs(from tracks: MusicItemCollection<Track>?) -> [Song] {
+        guard let tracks else { return [] }
+        return tracks.compactMap { track in
+            if case .song(let s) = track { return s }
+            return nil
+        }
+    }
+
 #else
     // MusicKit unavailable at compile time — keep the app honest & buildable.
     func refreshState() { state = .unavailable }

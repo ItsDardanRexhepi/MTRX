@@ -213,6 +213,7 @@
 		A1A1A1A1A1A1A1A1A1A1A201 /* CryptoPaymentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A202 /* CryptoPaymentSheet.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A301 /* MusicKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A302 /* MusicKitManager.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A401 /* MusicPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A402 /* MusicPlayerView.swift */; };
+		A1A1A1A1A1A1A1A1A1A1A4B1 /* MusicLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A4B2 /* MusicLibraryView.swift */; };
 		7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5908575B08029A598F60B914 /* PositionsWidget.swift */; };
 		E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8421C44BD0C6A17F16769739 /* Secrets.swift */; };
 		FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA7F1A65C0DE00000000001 /* FeatureFlags.swift */; };
@@ -567,6 +568,7 @@
 		A1A1A1A1A1A1A1A1A1A1A202 /* CryptoPaymentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CryptoPaymentSheet.swift"; path = "UI/Views/Wallet/CryptoPaymentSheet.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A302 /* MusicKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MusicKitManager.swift"; path = "Apple/Music/MusicKitManager.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A402 /* MusicPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MusicPlayerView.swift"; path = "UI/Views/Music/MusicPlayerView.swift"; sourceTree = SOURCE_ROOT; };
+		A1A1A1A1A1A1A1A1A1A1A4B2 /* MusicLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MusicLibraryView.swift"; path = "UI/Views/Music/MusicLibraryView.swift"; sourceTree = SOURCE_ROOT; };
 		5908575B08029A598F60B914 /* PositionsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PositionsWidget.swift"; sourceTree = "<group>"; };
 		A97C29AD63741CF438998CE6 /* MTRX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MTRX.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE57FACE0000000000000A02 /* MTRXTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MTRXTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1914,6 +1916,7 @@
 				A1A1A1A1A1A1A1A1A1A1A201 /* CryptoPaymentSheet.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A301 /* MusicKitManager.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A401 /* MusicPlayerView.swift in Sources */,
+				A1A1A1A1A1A1A1A1A1A1A4B1 /* MusicLibraryView.swift in Sources */,
 				7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */,
 				E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */,
 				FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */,
