@@ -83,8 +83,9 @@ struct GameRunnerView: View {
                 .font(.mtrxHeadline)
                 .foregroundStyle(.white)
             Spacer()
-            // Balance the layout.
-            Color.clear.frame(width: 38, height: 38)
+            // Record / clip this game (ReplayKit). Sits where the layout-balance
+            // slot was, mirroring the close button on the left.
+            GameRecordControl()
         }
         .padding(.horizontal, Spacing.contentPadding)
         .padding(.top, Spacing.sm)

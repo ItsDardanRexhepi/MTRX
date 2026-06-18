@@ -202,6 +202,7 @@ struct BrickBreakerView: View {
                 .font(.system(size: 19, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
             Spacer()
+            GameRecordControl()
             roundButton("arrow.clockwise") { engine.newGame() }
         }
         .padding(.horizontal, Spacing.md)

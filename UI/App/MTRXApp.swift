@@ -72,6 +72,9 @@ struct MTRXApp: App {
         case .background:
             appState.scheduleBackgroundTasks()
             walletManager.persistState()
+            // Stop any in-flight game screen recording on backgrounding so the
+            // recorder + timer don't outlive a visible game.
+            Task { await ReplayKitManager.shared.cancelIfRecording() }
         @unknown default:
             break
         }

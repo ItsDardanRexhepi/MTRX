@@ -194,6 +194,7 @@ struct Game2048View: View {
                 .font(.system(size: 20, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
             Spacer()
+            GameRecordControl()
             roundButton("arrow.clockwise") { withAnimation(.easeInOut(duration: 0.2)) { engine.newGame() } }
         }
         .padding(.horizontal, Spacing.md)

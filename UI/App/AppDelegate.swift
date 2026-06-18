@@ -26,6 +26,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         registerBackgroundTasks()
         requestNotificationPermissions(application: application)
         configureAnalytics()
+        // Subscribe to MetricKit so iOS delivers real performance + crash/hang
+        // diagnostics; stored locally only (see MetricsCollector).
+        MetricsCollector.shared.install()
         return true
     }
 

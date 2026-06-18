@@ -418,6 +418,7 @@ struct SolitaireGameView: View {
                 .font(.system(size: 19, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
             Spacer()
+            GameRecordControl()
             roundButton("arrow.clockwise") {
                 withAnimation(.easeInOut(duration: 0.25)) { engine.newGame() }
             }

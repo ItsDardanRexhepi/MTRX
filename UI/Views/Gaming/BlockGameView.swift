@@ -268,6 +268,7 @@ struct BlockGameView: View {
                 .font(.system(size: 19, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
             Spacer()
+            GameRecordControl()
             roundButton(engine.gameOver ? "arrow.clockwise" : (engine.paused ? "play.fill" : "pause.fill")) {
                 if engine.gameOver { engine.start() } else { engine.togglePause() }
             }
