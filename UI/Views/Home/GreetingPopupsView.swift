@@ -6,6 +6,9 @@
 
 import SwiftUI
 import CoreLocation
+#if canImport(WeatherKit)
+import WeatherKit
+#endif
 
 // MARK: - Loop-arrow glyph (shared — used by the Account "Messaging" tile)
 
@@ -145,64 +148,84 @@ final class WeatherLoader: NSObject, ObservableObject, CLLocationManagerDelegate
         Task { @MainActor in self.phase = .error("Couldn't find your location right now.") }
     }
 
+    // Real current conditions from Apple WeatherKit. Same `.loaded` interface as
+    // before; honest error states when WeatherKit is unavailable (capability not
+    // enabled) or a fetch fails — never fabricated weather.
     private func fetch(_ loc: CLLocation) async {
         let us = Locale.current.measurementSystem == .us
-        let tUnit = us ? "fahrenheit" : "celsius"
-        let wUnit = us ? "mph" : "kmh"
         var place = "Your area"
         if let pm = try? await CLGeocoder().reverseGeocodeLocation(loc).first {
             place = pm.locality ?? pm.administrativeArea ?? place
         }
-        let lat = loc.coordinate.latitude, lon = loc.coordinate.longitude
-        guard let url = URL(string: "https://api.open-meteo.com/v1/forecast?latitude=\(lat)&longitude=\(lon)&current=temperature_2m,weather_code,wind_speed_10m&temperature_unit=\(tUnit)&wind_speed_unit=\(wUnit)") else { return }
+        #if canImport(WeatherKit)
+        guard #available(iOS 16.0, *) else {
+            phase = .error("Weather needs iOS 16 or later on this device.")
+            return
+        }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let r = try JSONDecoder().decode(OpenMeteoResponse.self, from: data)
-            let (desc, icon) = Self.describe(r.current.weather_code)
+            let weather = try await WeatherService.shared.weather(for: loc)
+            let current = weather.currentWeather
+            // Apple REQUIRES attribution wherever this data is shown.
+            await WeatherKitAttribution.shared.recordProvided()
+            let (desc, icon) = Self.describe(current.condition)
+            let temp = current.temperature.converted(to: us ? .fahrenheit : .celsius).value
+            let wind = current.wind.speed.converted(to: us ? .milesPerHour : .kilometersPerHour).value
             phase = .loaded(place: place,
-                            temp: Int(r.current.temperature_2m.rounded()),
+                            temp: Int(temp.rounded()),
                             unit: us ? "°F" : "°C",
                             desc: desc, icon: icon,
-                            wind: Int(r.current.wind_speed_10m.rounded()),
+                            wind: Int(wind.rounded()),
                             windUnit: us ? "mph" : "km/h")
         } catch {
-            phase = .error("Couldn't load weather right now.")
+            phase = .error("Couldn't load weather right now. The app's WeatherKit capability may not be enabled yet.")
         }
+        #else
+        phase = .error("Weather isn't available on this build.")
+        #endif
     }
 
-    static func describe(_ code: Int) -> (String, String) {
-        switch code {
-        case 0:            return ("Clear", "sun.max.fill")
-        case 1, 2:         return ("Partly cloudy", "cloud.sun.fill")
-        case 3:            return ("Cloudy", "cloud.fill")
-        case 45, 48:       return ("Fog", "cloud.fog.fill")
-        case 51, 53, 55, 56, 57: return ("Drizzle", "cloud.drizzle.fill")
-        case 61, 63, 65, 66, 67: return ("Rain", "cloud.rain.fill")
-        case 71, 73, 75, 77: return ("Snow", "cloud.snow.fill")
-        case 80, 81, 82:   return ("Showers", "cloud.heavyrain.fill")
-        case 85, 86:       return ("Snow showers", "cloud.snow.fill")
-        case 95, 96, 99:   return ("Thunderstorm", "cloud.bolt.rain.fill")
-        default:           return ("—", "cloud.fill")
+    #if canImport(WeatherKit)
+    @available(iOS 16.0, *)
+    static func describe(_ condition: WeatherCondition) -> (String, String) {
+        switch condition {
+        case .clear, .mostlyClear, .hot:
+            return (condition.description, "sun.max.fill")
+        case .partlyCloudy:
+            return (condition.description, "cloud.sun.fill")
+        case .cloudy, .mostlyCloudy:
+            return (condition.description, "cloud.fill")
+        case .foggy, .haze, .smoky:
+            return (condition.description, "cloud.fog.fill")
+        case .drizzle:
+            return (condition.description, "cloud.drizzle.fill")
+        case .rain, .heavyRain, .sunShowers:
+            return (condition.description, "cloud.rain.fill")
+        case .snow, .heavySnow, .flurries, .sunFlurries, .wintryMix, .freezingDrizzle, .freezingRain:
+            return (condition.description, "cloud.snow.fill")
+        case .sleet, .hail, .blizzard, .blowingSnow:
+            return (condition.description, "cloud.sleet.fill")
+        case .thunderstorms, .strongStorms, .isolatedThunderstorms, .scatteredThunderstorms, .tropicalStorm, .hurricane:
+            return (condition.description, "cloud.bolt.rain.fill")
+        case .windy, .breezy, .blowingDust:
+            return (condition.description, "wind")
+        case .frigid:
+            return (condition.description, "thermometer.snowflake")
+        @unknown default:
+            return (condition.description, "cloud.fill")
         }
     }
-}
-
-private struct OpenMeteoResponse: Decodable {
-    struct Current: Decodable {
-        let temperature_2m: Double
-        let weather_code: Int
-        let wind_speed_10m: Double
-    }
-    let current: Current
+    #endif
 }
 
 struct WeatherPopup: View {
     @StateObject private var loader = WeatherLoader()
+    @State private var attribution = WeatherKitAttribution.shared
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: Spacing.sm) {
             content
+            if case .loaded = loader.phase { weatherAttribution }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(Spacing.xl)
@@ -261,5 +284,24 @@ struct WeatherPopup: View {
                 .font(.mtrxCaption1)
                 .foregroundStyle(Color.labelTertiary)
         }
+    }
+
+    // Apple Weather attribution — required wherever WeatherKit data is shown.
+    private var weatherAttribution: some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: "applelogo").font(.system(size: 9, weight: .semibold))
+                Text("Weather").font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(Color.labelTertiary)
+            if let url = attribution.legalPageURL {
+                Link("Other data sources", destination: url)
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color.labelTertiary)
+            }
+        }
+        .padding(.top, Spacing.xs)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Weather data provided by Apple Weather")
     }
 }

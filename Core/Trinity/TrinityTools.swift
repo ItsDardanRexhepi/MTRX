@@ -4,8 +4,8 @@
 // Tools the on-device model can call during a conversation
 // (Foundation Models tool calling, iOS 26+):
 //
-//   getWeather — current conditions via Open-Meteo (no API key), using
-//                the device location when permitted or a named city.
+//   getWeather — current conditions via Apple WeatherKit, using the device
+//                location when permitted or a named city (with attribution).
 //   searchWeb  — live factual lookups via Wikipedia + DuckDuckGo
 //                instant answers (no API key).
 //

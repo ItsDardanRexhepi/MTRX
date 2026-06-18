@@ -9,7 +9,7 @@ MTRX is built with the Swift open-source ecosystem and gratefully acknowledges:
 
 ## Data sources
 - Market data: CoinGecko public API
-- Weather: Open-Meteo (CC BY 4.0)
+- Weather: Apple Weather (WeatherKit)
 - Knowledge lookups: Wikipedia (CC BY-SA)
 
 Full license texts are available from their respective projects.
