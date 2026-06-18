@@ -83,6 +83,10 @@ struct PrivacyView: View {
     @State private var showDeleteConfirmation = false
     @State private var showExportReady = false
 
+    /// Live Apple Music connection state (the same MusicKitManager the player
+    /// uses) so the Connected Apps count reflects reality, not a fixed number.
+    @State private var music = MusicKitManager.shared
+
     // MARK: - Body
 
     var body: some View {
@@ -98,6 +102,7 @@ struct PrivacyView: View {
             .scrollContentBackground(.hidden)
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Privacy & Security")
+            .onAppear { music.refreshState() }
             .confirmationDialog(
                 "Delete Account",
                 isPresented: $showDeleteConfirmation,
@@ -248,14 +253,14 @@ struct PrivacyView: View {
     private var securitySection: some View {
         Section {
             NavigationLink {
-                connectedAppsPlaceholder
+                ConnectedAppsView()
             } label: {
                 HStack {
                     Text("Connected Apps")
                         .font(.mtrxBody)
                         .foregroundStyle(Color.labelPrimary)
                     Spacer()
-                    Text("3 connected")
+                    Text(music.isConnected ? "1 connected" : "Not connected")
                         .font(.mtrxCaption1)
                         .foregroundStyle(Color.labelSecondary)
                 }
@@ -313,17 +318,6 @@ struct PrivacyView: View {
 
     // MARK: - Placeholder Destinations
 
-    private var connectedAppsPlaceholder: some View {
-        MtrxEmptyState(
-            icon: "app.connected.to.app.below.fill",
-            title: "Connected Apps",
-            message: "Manage applications connected to your MTRX account."
-        )
-        .background(Color.backgroundPrimary)
-        .navigationTitle("Connected Apps")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
     private var activeSessionsPlaceholder: some View {
         MtrxEmptyState(
             icon: "desktopcomputer",
@@ -333,6 +327,133 @@ struct PrivacyView: View {
         .background(Color.backgroundPrimary)
         .navigationTitle("Active Sessions")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Connected Apps
+
+/// Real integrations connected to MTRX. Apple Music is the genuine integration
+/// (via MusicKit); its state is the LIVE `MusicKitManager` state — the very same
+/// one the music player reads, so connecting here and connecting from the player
+/// reflect one shared connection. Nothing is faked: the row shows exactly what
+/// MusicKit reports.
+struct ConnectedAppsView: View {
+    @State private var music = MusicKitManager.shared
+    @State private var showManageNote = false
+
+    var body: some View {
+        List {
+            Section {
+                appleMusicRow
+            } header: {
+                Text("Apps & Services")
+            } footer: {
+                Text("Connecting Apple Music lets the in-app player and Trinity play songs. This is a separate Apple Music permission — it isn't part of signing in. Full playback also needs an Apple Music subscription on this device.")
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(MtrxGradientBackground(style: .primary))
+        .navigationTitle("Connected Apps")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { music.refreshState() }
+        .alert("Manage Apple Music", isPresented: $showManageNote) {
+            Button("Open Settings") { Self.openSystemSettings() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Apple Music access is controlled by iOS. To disconnect, turn off Media & Apple Music for MTRX in Settings — the app can't revoke it for you.")
+        }
+    }
+
+    private var appleMusicRow: some View {
+        HStack(spacing: Spacing.md) {
+            // Apple Music identity: the Apple logo lockup + the service name.
+            // Not a re-creation of the Apple Music app icon (per Apple Music
+            // Identity Guidelines).
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(Color.labelPrimary.opacity(0.06))
+                    .frame(width: 38, height: 38)
+                Image(systemName: "applelogo")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(Color.labelPrimary)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Apple Music")
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelPrimary)
+                Text(statusText)
+                    .font(.mtrxCaption1)
+                    .foregroundStyle(statusColor)
+            }
+
+            Spacer(minLength: Spacing.sm)
+            trailing
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Apple Music, \(statusText)")
+    }
+
+    @ViewBuilder private var trailing: some View {
+        switch music.state {
+        case .notConnected:
+            Button {
+                Task { await music.connect() }
+            } label: {
+                if music.isWorking {
+                    ProgressView()
+                } else {
+                    Text("Connect")
+                        .font(.mtrxCaptionBold)
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(music.isWorking)
+        case .denied:
+            Button { Self.openSystemSettings() } label: {
+                Text("Open Settings").font(.mtrxCaptionBold).foregroundStyle(Color.accentPrimary)
+            }
+            .buttonStyle(.plain)
+        case .connectedFull, .connectedPreview:
+            Button { showManageNote = true } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.statusSuccess)
+                    Text("Manage").font(.mtrxCaption1).foregroundStyle(Color.labelSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+        case .unavailable:
+            Text("Unavailable").font(.mtrxCaption1).foregroundStyle(Color.labelTertiary)
+        }
+    }
+
+    private var statusText: String {
+        switch music.state {
+        case .notConnected:     return "Not connected"
+        case .denied:           return "Access denied — enable in Settings"
+        case .connectedFull:    return "Connected · Apple Music subscription"
+        case .connectedPreview: return "Connected · previews only (no subscription)"
+        case .unavailable:      return "Unavailable on this device"
+        }
+    }
+
+    private var statusColor: Color {
+        switch music.state {
+        case .connectedFull, .connectedPreview: return Color.statusSuccess
+        case .denied:                           return Color.statusWarning
+        default:                                return Color.labelSecondary
+        }
+    }
+
+    private static func openSystemSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
     }
 }
 
