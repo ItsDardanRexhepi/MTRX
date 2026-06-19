@@ -35,7 +35,6 @@
 		FC85B2BFF9FDA3B2CC41FB48 /* NetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6393E430CBD3F67B7822ADDE /* NetworkManager.swift */; };
 		1787BA9A71914676BE03C828 /* GameKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 906789EF58933D3DE6035DA6 /* GameKitManager.swift */; };
 		D42AE786E5525A97046D9B88 /* SpriteKitBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 161F35552426110248553C74 /* SpriteKitBridge.swift */; };
-		440241CC9B1046F695ED577B /* HomeKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1671DB755E66AFF62658F3AA /* HomeKitManager.swift */; };
 		7C60D9D73468AC64A0827D25 /* CoreMLManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72DABA878B59DD67E93D388B /* CoreMLManager.swift */; };
 		3B95C721EBD823F6C3D0F4A7 /* CreateMLPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E413D8BAFED6345156F9D7B /* CreateMLPipeline.swift */; };
 		5B8101C722D3C36D090C1A5A /* MetalAccelerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28B666C93F95FE7D0501FF13 /* MetalAccelerator.swift */; };
@@ -392,7 +391,6 @@
 		6393E430CBD3F67B7822ADDE /* NetworkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NetworkManager.swift"; sourceTree = "<group>"; };
 		906789EF58933D3DE6035DA6 /* GameKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameKitManager.swift"; sourceTree = "<group>"; };
 		161F35552426110248553C74 /* SpriteKitBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpriteKitBridge.swift"; sourceTree = "<group>"; };
-		1671DB755E66AFF62658F3AA /* HomeKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HomeKitManager.swift"; sourceTree = "<group>"; };
 		72DABA878B59DD67E93D388B /* CoreMLManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CoreMLManager.swift"; sourceTree = "<group>"; };
 		2E413D8BAFED6345156F9D7B /* CreateMLPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CreateMLPipeline.swift"; sourceTree = "<group>"; };
 		28B666C93F95FE7D0501FF13 /* MetalAccelerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MetalAccelerator.swift"; sourceTree = "<group>"; };
@@ -886,7 +884,6 @@
 		299A601587D1C32C14FD7B01 /* HomeKit */ = {
 			isa = PBXGroup;
 			children = (
-				1671DB755E66AFF62658F3AA,
 			);
 			path = "HomeKit";
 			name = "HomeKit";
@@ -1979,7 +1976,6 @@
 				FC85B2BFF9FDA3B2CC41FB48 /* NetworkManager.swift */,
 				1787BA9A71914676BE03C828 /* GameKitManager.swift */,
 				D42AE786E5525A97046D9B88 /* SpriteKitBridge.swift */,
-				440241CC9B1046F695ED577B /* HomeKitManager.swift */,
 				7C60D9D73468AC64A0827D25 /* CoreMLManager.swift */,
 				3B95C721EBD823F6C3D0F4A7 /* CreateMLPipeline.swift */,
 				5B8101C722D3C36D090C1A5A /* MetalAccelerator.swift */,
