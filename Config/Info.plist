@@ -36,7 +36,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>182</string>
+	<string>183</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
@@ -55,8 +55,6 @@
 	<string>MTRX shows and adds items in its own dedicated MTRX calendar — upcoming app activity like contract deadlines and payments. It doesn't read your personal calendars.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>MTRX shows and adds items in its own dedicated MTRX calendar — upcoming app activity like contract deadlines and payments. It doesn't read your personal calendars.</string>
-	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>MTRX keeps a checklist of your MTRX activity in its own dedicated MTRX reminders list. It doesn't read your personal reminders.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>MTRX uses your camera to scan QR codes, documents, and contracts for blockchain verification.</string>
 	<key>NSContactsUsageDescription</key>
@@ -75,6 +73,8 @@
 	<string>MTRX uses your microphone for voice commands with Trinity, Morpheus, and Oracle.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>MTRX accesses your photos to scan documents and contracts for blockchain registration.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>MTRX keeps a checklist of your MTRX activity in its own dedicated MTRX reminders list. It doesn't read your personal reminders.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>MTRX uses speech recognition for voice commands with Trinity.</string>
 	<key>UIApplicationSceneManifest</key>
