@@ -72,6 +72,15 @@ final class WalletCore: ObservableObject {
     /// Requires an unlocked wallet.
     func sign(_ data: Data, appleUserId: String) async throws -> Data {
         if !isUnlocked { try await unlock() }
+        // Per-transaction Face ID at the moment of signing (Phase 4 fund protection).
+        // When the user keeps this on (default), EVERY signature requires a fresh
+        // Face ID — not just the one-time wallet unlock. authenticate() throws on
+        // failure/cancel, so a failed Face ID never produces a signature. The key
+        // never leaves the Secure Enclave; the server never signs.
+        if SecurityPreferences.shared.requireBiometricForSigning {
+            _ = try await biometrics.authenticate(
+                reason: "Approve this transaction with Face ID")
+        }
         return try enclave.sign(data, tag: keyTag(for: appleUserId))
     }
 

@@ -2190,3 +2190,37 @@ private struct AnyEncodable: Encodable {
 // MARK: - EmptyBody
 
 private struct EmptyBody: Encodable {}
+
+// MARK: - Security: phone OTP (Phase 2)
+
+struct OTPPhoneBody: Encodable { let phone: String }
+struct OTPVerifyBody: Encodable { let phone: String; let code: String }
+
+/// Mirrors the server's raw OTP response bodies (gateway returns 200 with the
+/// outcome in the body). All fields optional so partial bodies still decode.
+struct OTPSentResponse: Decodable {
+    let sent: Bool?
+    let reason: String?
+    let expires_in: Int?
+    let rate_limited: Bool?
+}
+
+struct OTPVerifyResponse: Decodable {
+    let verified: Bool?
+    let reason: String?
+    let locked_out: Bool?
+}
+
+extension MTRXAPIClient {
+    /// Send an SMS one-time code to *phone* (consumer phone connection).
+    func requestPhoneOTP(phone: String) async throws -> OTPSentResponse {
+        try await post(path: "/security/phone/request",
+                       body: OTPPhoneBody(phone: phone), authenticated: false)
+    }
+
+    /// Verify the code the user typed. `verified == true` on success.
+    func verifyPhoneOTP(phone: String, code: String) async throws -> OTPVerifyResponse {
+        try await post(path: "/security/phone/verify",
+                       body: OTPVerifyBody(phone: phone, code: code), authenticated: false)
+    }
+}

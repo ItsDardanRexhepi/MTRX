@@ -23,6 +23,25 @@ struct SecuritySettingsView: View {
                     .foregroundStyle(Color.labelSecondary)
             }
 
+            // Phone verification (SMS OTP, Phase 2)
+            Section("Verification") {
+                NavigationLink {
+                    PhoneVerificationView()
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Connect phone number")
+                                .font(.mtrxBody).foregroundStyle(Color.labelPrimary)
+                            Text("Verify your phone with an SMS code")
+                                .font(.mtrxCaption2).foregroundStyle(Color.labelTertiary)
+                        }
+                    } icon: {
+                        Image(systemName: "phone.badge.checkmark")
+                            .foregroundStyle(Color.statusInfo)
+                    }
+                }
+            }
+
             // Extra confirmation over a threshold
             Section("Large transaction confirmation") {
                 Toggle(isOn: $prefs.extraConfirmEnabled) {
