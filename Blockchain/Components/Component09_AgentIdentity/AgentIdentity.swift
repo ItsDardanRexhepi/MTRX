@@ -207,14 +207,130 @@ final class AgentIdentity {
         completion(.success(()))
     }
 
-    /// Revoke a capability from an agent
-    func revokeCapability(agentDID: String, capabilityId: String, completion: @escaping (Result<Void, AgentIdentityError>) -> Void) {
+    /// Revoke a capability from an agent.
+    ///
+    /// Routes the revocation through the real submit pipeline: the
+    /// `revokeCapability(agentDID, capabilityId)` call is ABI-encoded and
+    /// enclave-signed via `revokeCapabilityOnChain` (UserOp → server paymaster →
+    /// bundler). Local state is mutated ONLY after a real on-chain success — we
+    /// never flip `isRevoked` before the bundler accepts the signed op, and we
+    /// never fabricate a tx hash. When the agent-identity registry address (or the
+    /// chain core) is unconfigured, the pipeline throws `.notConfigured` and the
+    /// local capability is left untouched.
+    ///
+    /// `sender` is the owner's smart-account address and `signingKeyTag` their
+    /// Secure Enclave key tag — both required for a real, non-custodial revoke.
+    func revokeCapability(agentDID: String, capabilityId: String, sender: String, signingKeyTag: String, completion: @escaping (Result<Void, AgentIdentityError>) -> Void) {
         guard agents[agentDID] != nil else {
             completion(.failure(.agentNotFound))
             return
         }
-        // TODO: Mark capability as revoked on-chain
-        completion(.success(()))
+        Task { @MainActor in
+            // WalletTransactionService.init? is @MainActor — construct on the main actor.
+            // Chain core unconfigured → no fake success, no local mutation.
+            guard let service = WalletTransactionService() else {
+                completion(.failure(.notConfigured))
+                return
+            }
+            do {
+                _ = try await Self.revokeCapabilityOnChain(
+                    agentDID: agentDID,
+                    capabilityId: capabilityId,
+                    sender: sender,
+                    signingKeyTag: signingKeyTag,
+                    service: service
+                )
+                // On-chain submit SUCCEEDED — only now mutate local state.
+                self.markCapabilityRevokedLocally(agentDID: agentDID, capabilityId: capabilityId)
+                completion(.success(()))
+            } catch let error as AgentIdentityError {
+                completion(.failure(error))
+            } catch {
+                // Any non-domain error (build/sign/submit failure) maps to a clear
+                // capability-not-revoked state — local data stays unchanged.
+                completion(.failure(.capabilityDenied))
+            }
+        }
+    }
+
+    /// ABI-encode `revokeCapability(string agentDID, string capabilityId)`.
+    ///
+    /// Both args are dynamic `string`. Head layout (2 words):
+    ///   [0] offset(agentDID)  [1] offset(capabilityId)
+    /// followed by the two tail-encoded strings in head order (agentDID, then
+    /// capabilityId). DIDs and capability ids are opaque UTF-8 identifiers, so we
+    /// pass them as on-chain strings — no fabricated bytes32 hashing here.
+    static func encodeRevokeCapability(agentDID: String, capabilityId: String) -> Data {
+        let didBytes = ABIEncoder.encodeBytes(Data(agentDID.utf8))      // length-prefixed + padded
+        let capBytes = ABIEncoder.encodeBytes(Data(capabilityId.utf8))
+
+        let headWords: UInt64 = 2
+        let headSize = headWords * 32
+        let offDID = headSize
+        let offCap = offDID + UInt64(didBytes.count)
+
+        var out = ABIEncoder.functionSelector("revokeCapability(string,string)")
+        out.append(ABIEncoder.encodeOffset(offDID))
+        out.append(ABIEncoder.encodeOffset(offCap))
+        out.append(didBytes)
+        out.append(capBytes)
+        return out
+    }
+
+    /// Revoke a capability on-chain through the real submit pipeline: enclave-signed
+    /// UserOp → server paymaster → bundler. Registry address deferred to
+    /// PendingCredentials (nil until set → throws `.notConfigured`, never a fake
+    /// revoke / fabricated tx hash). Static: needs no instance state (keeps it
+    /// testable without the in-memory identity graph).
+    @MainActor
+    static func revokeCapabilityOnChain(
+        agentDID: String,
+        capabilityId: String,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.agentIdentity)
+    ) async throws -> WalletTransactionService.Submission {
+        guard let registry = contract else { throw AgentIdentityError.notConfigured }
+        return try await service.submitCall(
+            to: registry,
+            value: 0,
+            data: encodeRevokeCapability(agentDID: agentDID, capabilityId: capabilityId),
+            sender: sender,
+            signingKeyTag: signingKeyTag
+        )
+    }
+
+    /// Flip the local `isRevoked` flag for the named capability AFTER a confirmed
+    /// on-chain revoke. `AgentCapability` is immutable, so we rebuild the agent's
+    /// capability array (and the agent record) with the one capability marked
+    /// revoked. No-ops cleanly if the agent or capability is no longer present.
+    @MainActor
+    private func markCapabilityRevokedLocally(agentDID: String, capabilityId: String) {
+        guard let agent = agents[agentDID] else { return }
+        let updatedCaps = agent.capabilities.map { cap -> AgentCapability in
+            guard cap.capabilityId == capabilityId, !cap.isRevoked else { return cap }
+            return AgentCapability(
+                capabilityId: cap.capabilityId,
+                name: cap.name,
+                scope: cap.scope,
+                maxValuePerAction: cap.maxValuePerAction,
+                dailyLimit: cap.dailyLimit,
+                expiresAt: cap.expiresAt,
+                delegatedBy: cap.delegatedBy,
+                isRevoked: true
+            )
+        }
+        agents[agentDID] = AgentDID(
+            did: agent.did,
+            ownerDID: agent.ownerDID,
+            agentType: agent.agentType,
+            capabilities: updatedCaps,
+            trustScore: agent.trustScore,
+            registeredAt: agent.registeredAt,
+            lastActiveAt: Date(),
+            isActive: agent.isActive
+        )
     }
 
     /// Check if an agent has a specific capability

@@ -70,6 +70,8 @@ enum PrivacyError: Error, LocalizedError {
     case disclosureRevoked
     case invalidProof
     case notConfigured
+    case proverNotConfigured
+    case proverRequestFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -80,6 +82,8 @@ enum PrivacyError: Error, LocalizedError {
         case .disclosureRevoked: return "Selective disclosure has been revoked."
         case .invalidProof: return "Invalid proof data."
         case .notConfigured: return "Privacy/shielded-pool contract not configured (PendingCredentials.Components.privacy)."
+        case .proverNotConfigured: return "ZK prover endpoint not configured — supply a prover URL (a real proof cannot be generated on-device)."
+        case .proverRequestFailed(let r): return "ZK prover request failed: \(r)"
         }
     }
 }
@@ -173,10 +177,28 @@ final class PrivacyManager: ObservableObject {
 
     // MARK: - On-chain execution (via the submit pipeline)
     //
-    // The shielded-transfer ZK proof itself must be produced by a real prover
-    // (out of scope for the app — generateZKProof above is a placeholder). The
-    // caller supplies the `proof` bytes; this method ABI-encodes and submits the
-    // shielded transfer with the user's own enclave key (self-custody).
+    // RESPONSIBILITY SPLIT (honest boundary — see generateZKProof below):
+    //
+    //   APP-SIDE (done here, fully in-app):
+    //     • shielded address generation            (generateShieldedAddress)
+    //     • ABI-encode shieldedTransfer(address,uint256,bytes)  (encodeShieldedTransfer)
+    //     • on-chain submit via the real spine      (sendShieldedOnChain →
+    //       WalletTransactionService.submitCall → enclave-sign → bundler).
+    //       Non-custodial: the user's own Secure Enclave key signs the UserOp;
+    //       the server only sponsors gas, it never signs the wallet op.
+    //
+    //   SERVER / EXTERNAL-SIDE (NOT done in-app — UNVERIFIED):
+    //     • zero-knowledge proof generation. A real Groth16/PLONK proof needs the
+    //       circuit + proving key + a prover runtime, which is not available
+    //       on-device. The `proof: Data` argument below is an INPUT produced by an
+    //       external prover (a server endpoint or a host-side prover). We never
+    //       fabricate it (no zero-byte proof, no random verification key). When no
+    //       prover is configured the caller gets an honest failure, never a fake
+    //       private transfer. See `submitShieldedWithExternalProof` for the
+    //       configured-prover-endpoint bridge.
+    //
+    // The caller supplies the `proof` bytes; this method ABI-encodes and submits
+    // the shielded transfer with the user's own enclave key (self-custody).
 
     /// ABI-encode `shieldedTransfer(address recipient, uint256 amount, bytes proof)`.
     static func encodeShieldedTransfer(recipient: String, amount: UInt64, proof: Data) -> Data {
@@ -209,6 +231,144 @@ final class PrivacyManager: ObservableObject {
             sender: sender,
             signingKeyTag: signingKeyTag
         )
+    }
+
+    // MARK: - External-prover bridge (configured endpoint → on-chain submit)
+
+    /// What we POST to the external prover and what we expect back. The prover is
+    /// out-of-app infrastructure (a server or host-side prover holding the circuit
+    /// + proving key); the app only carries the public statement to it.
+    private struct ProofRequest: Encodable {
+        let scheme: String          // e.g. "groth16" / "plonk" — prover decides the circuit
+        let senderShielded: String
+        let recipientShielded: String
+        let amount: String          // decimal string (avoids JS-number precision loss)
+        let token: String
+    }
+    private struct ProofResponse: Decodable {
+        /// 0x-prefixed (or bare) hex of the proof calldata the verifier expects.
+        let proofHex: String
+    }
+
+    /// Fetch a shielded-transfer proof from a CONFIGURED external prover endpoint,
+    /// then submit the shielded transfer on-chain via the real spine.
+    ///
+    /// HONEST BOUNDARY (UNVERIFIED — proving step): the zero-knowledge proof is
+    /// produced by `proverEndpoint`, NOT in-app. We never generate or fabricate a
+    /// proof here. This method only (1) asks the configured prover for proof bytes
+    /// over HTTPS and (2) routes those bytes through `sendShieldedOnChain`
+    /// (enclave-sign → bundler, self-custody). The proof's correctness is the
+    /// prover's responsibility and is verified on-chain by the pool's verifier —
+    /// it is UNVERIFIED from the app's standpoint.
+    ///
+    /// GRACEFUL CONFIG: if `proverEndpoint` is nil/blank → `.proverNotConfigured`
+    /// (no proof, no submit). If the shielded-pool contract is unconfigured,
+    /// `sendShieldedOnChain` throws `.notConfigured`. Either way: a clear
+    /// needs-config state, never a fake private transfer.
+    ///
+    /// NOTE: the proper home for the prover URL is a `PendingCredentials` field
+    /// (e.g. `PendingCredentials.Privacy.zkProverEndpoint`); it is passed in here
+    /// so this component does not edit the shared config file. See build_risk_notes.
+    @MainActor
+    func submitShieldedWithExternalProof(
+        senderShielded: String,
+        recipientShielded: String,
+        amount: UInt64,
+        token: String,
+        sender: String,
+        signingKeyTag: String,
+        service: WalletTransactionService,
+        proverEndpoint: String?,
+        scheme: ZKProofType = .groth16,
+        session: URLSession = .shared,
+        contract: String? = PendingCredentials.filled(PendingCredentials.Components.privacy)
+    ) async throws -> WalletTransactionService.Submission {
+        // Pool contract must be configured before we even ask for a proof.
+        guard contract != nil else { throw PrivacyError.notConfigured }
+
+        // Prover endpoint must be configured — we CANNOT prove on-device.
+        guard let endpointString = PendingCredentials.filled(proverEndpoint ?? ""),
+              let url = URL(string: endpointString) else {
+            throw PrivacyError.proverNotConfigured
+        }
+
+        // 1. Ask the external prover for the proof bytes (public statement only).
+        let proof = try await fetchProof(
+            from: url,
+            request: ProofRequest(
+                scheme: scheme.rawValue,
+                senderShielded: senderShielded,
+                recipientShielded: recipientShielded,
+                amount: String(amount),
+                token: token
+            ),
+            session: session
+        )
+
+        // 2. Submit the shielded transfer on-chain with the user's enclave key.
+        //    `recipientShielded` is the on-chain shielded recipient address.
+        return try await sendShieldedOnChain(
+            recipient: recipientShielded,
+            amount: amount,
+            proof: proof,
+            sender: sender,
+            signingKeyTag: signingKeyTag,
+            service: service,
+            contract: contract
+        )
+    }
+
+    /// POST the public statement to the prover and decode the returned proof bytes.
+    /// Returns the raw proof `Data`. Throws `.proverRequestFailed` on any transport
+    /// / decode error — we never substitute a fabricated proof on failure.
+    private func fetchProof(from url: URL, request: ProofRequest, session: URLSession) async throws -> Data {
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        do {
+            req.httpBody = try JSONEncoder().encode(request)
+        } catch {
+            throw PrivacyError.proverRequestFailed("encode request: \(error.localizedDescription)")
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: req)
+        } catch {
+            throw PrivacyError.proverRequestFailed(error.localizedDescription)
+        }
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw PrivacyError.proverRequestFailed("prover returned HTTP \(code)")
+        }
+
+        let decoded: ProofResponse
+        do {
+            decoded = try JSONDecoder().decode(ProofResponse.self, from: data)
+        } catch {
+            throw PrivacyError.proverRequestFailed("decode proof: \(error.localizedDescription)")
+        }
+        guard let proof = Self.dataFromHex(decoded.proofHex), !proof.isEmpty else {
+            throw PrivacyError.invalidProof
+        }
+        return proof
+    }
+
+    /// Parse a (optionally 0x-prefixed) hex string into bytes. Returns nil on odd
+    /// length / invalid nibble so a malformed prover response can't pass as a proof.
+    private static func dataFromHex(_ hexString: String) -> Data? {
+        let hex = hexString.hasPrefix("0x") ? String(hexString.dropFirst(2)) : hexString
+        guard hex.count % 2 == 0 else { return nil }
+        var out = Data(capacity: hex.count / 2)
+        var idx = hex.startIndex
+        while idx < hex.endIndex {
+            let next = hex.index(idx, offsetBy: 2)
+            guard let byte = UInt8(hex[idx..<next], radix: 16) else { return nil }
+            out.append(byte)
+            idx = next
+        }
+        return out
     }
 
     // MARK: - Selective Disclosure
@@ -249,12 +409,18 @@ final class PrivacyManager: ObservableObject {
         "shielded_\(UUID().uuidString.prefix(16))"
     }
 
-    /// A real Groth16 proof requires an actual prover (circuit + proving key),
-    /// which isn't available on-device. We do NOT fabricate a zero-byte proof
-    /// with a random verification key — we fail honestly so callers can route to
-    /// a real prover or surface the limitation.
+    /// HONEST BOUNDARY (UNVERIFIED — proving step is EXTERNAL).
+    ///
+    /// A real Groth16/PLONK proof requires an actual prover (circuit + proving
+    /// key + prover runtime), which is NOT available on-device. We do NOT
+    /// fabricate a zero-byte proof with a random verification key — we fail
+    /// honestly so callers route to a real prover. For the on-chain path, use
+    /// `submitShieldedWithExternalProof(...)`, which fetches proof bytes from a
+    /// configured external prover endpoint and submits them through the spine.
+    /// The proof's validity is enforced on-chain by the pool's verifier; from the
+    /// app's standpoint it is UNVERIFIED.
     private func generateZKProof(sender: String, amount: Double) throws -> ZKProof {
-        throw PrivacyError.proofGenerationFailed("On-device ZK proving is unavailable — supply a proof from a real prover.")
+        throw PrivacyError.proofGenerationFailed("On-device ZK proving is unavailable — supply a proof from a real prover (see submitShieldedWithExternalProof).")
     }
 }
 

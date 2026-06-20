@@ -200,16 +200,86 @@ final class ContractConversion {
         completion(.success(spec))
     }
 
-    /// Deploy the converted smart contract on-chain
-    func deployContract(contractId: String, completion: @escaping (Result<String, ContractConversionError>) -> Void) {
+    /// Deploy the converted smart contract on-chain.
+    ///
+    /// Bridges the completion API to the real on-chain `deployOnChain` path:
+    /// enclave-signed UserOp → server paymaster → bundler, via the CREATE2 factory
+    /// at PendingCredentials.Components.contractConversion. `sender` is the user's
+    /// smart-account address and `signingKeyTag` their Secure Enclave key tag; both
+    /// must be supplied for a real, user-signed deploy (the server never signs).
+    ///
+    /// HONEST BOUNDARY — Solidity compilation (UNVERIFIED): the app has no in-app
+    /// Solidity compiler, so the contract's creation `bytecode` is an INPUT here.
+    /// The caller compiles the converted source out of band (e.g. via solc / a build
+    /// service) and passes the resulting creation code. We ABI-encode the CREATE2
+    /// `deploy(bytes32,bytes)` call around that bytecode and route it through the
+    /// real submit pipeline — we never compile, and never fabricate a deploy.
+    ///
+    /// `salt` makes the CREATE2 address deterministic; when omitted it is derived
+    /// from the contractId so re-deploys of the same spec target the same address.
+    ///
+    /// GRACEFUL CONFIG: when the chain core is unconfigured, `WalletTransactionService.init?`
+    /// returns nil and we surface a clear "needs config" error; when the factory
+    /// address is blank, `deployOnChain` throws the same — never a stub, never a
+    /// fake success, never a fabricated tx hash.
+    ///
+    /// HONEST RESULT: the *deployed* contract address is only known once the factory
+    /// tx is mined (read it from the UserOperation receipt's Deployed log) — we never
+    /// invent it here. On success this reports the real bundler `userOpHash`; the
+    /// caller resolves the on-chain address from the receipt.
+    func deployContract(
+        contractId: String,
+        bytecode: Data,
+        sender: String,
+        signingKeyTag: String,
+        salt: Data? = nil,
+        completion: @escaping (Result<String, ContractConversionError>) -> Void
+    ) {
         guard let spec = conversions[contractId] else {
             completion(.failure(.parsingFailed(reason: "Contract not found")))
             return
         }
+        guard !bytecode.isEmpty else {
+            completion(.failure(.deploymentFailed(reason: "No compiled bytecode supplied — Solidity compilation is performed out of band (no in-app compiler)")))
+            return
+        }
+        // Deterministic CREATE2 salt: caller-supplied, else derived from the spec id
+        // so the counterfactual address is stable across re-deploys of this contract.
+        let create2Salt = salt ?? Data(spec.contractId.utf8)
 
-        // TODO: Compile Solidity, deploy via ERC-4337 UserOperation
-        _ = spec
-        completion(.failure(.deploymentFailed(reason: "Not implemented")))
+        Task { @MainActor in
+            // Gate on the chain core: nil until PendingCredentials (rpc/bundler/chain)
+            // are filled. WalletTransactionService.init? is @MainActor. Never a fake deploy.
+            guard let service = WalletTransactionService() else {
+                completion(.failure(.deploymentFailed(reason: "On-chain config not set — fill PendingCredentials (chain core + ContractConversion factory)")))
+                return
+            }
+            do {
+                let submission = try await self.deployOnChain(
+                    salt: create2Salt,
+                    bytecode: bytecode,
+                    sender: sender,
+                    signingKeyTag: signingKeyTag,
+                    service: service
+                )
+                // Mark the local spec as deployed only after the submit pipeline
+                // returns a real userOpHash. The on-chain address is resolved from
+                // the receipt by the caller — not invented here.
+                self.conversions[contractId] = SmartContractSpec(
+                    contractId: spec.contractId,
+                    sourceAgreement: spec.sourceAgreement,
+                    parties: spec.parties,
+                    clauses: spec.clauses,
+                    deploymentConfig: spec.deploymentConfig,
+                    createdAt: spec.createdAt,
+                    status: .deployed
+                )
+                self.delegate?.conversion(self, didConvert: contractId)
+                completion(.success(submission.userOpHash))
+            } catch {
+                completion(.failure(.deploymentFailed(reason: error.localizedDescription)))
+            }
+        }
     }
 
     // MARK: - On-chain execution (via the submit pipeline)

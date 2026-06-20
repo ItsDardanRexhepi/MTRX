@@ -190,8 +190,21 @@ final class DAOManager {
         completion(.success(vote))
     }
 
-    /// Execute a succeeded proposal
-    func executeProposal(proposalId: String, completion: @escaping (Result<Void, DAOError>) -> Void) {
+    /// Execute a succeeded proposal by dispatching its actions on-chain as ONE
+    /// atomic batched UserOperation (enclave-signed, self-custodial). `sender` is
+    /// the user's smart-account address and `signingKeyTag` its Secure Enclave key
+    /// tag — required to sign the batch; the server never signs.
+    ///
+    /// The delegate's `didExecuteProposal` fires ONLY after the bundler accepts
+    /// the signed batch op (returns a real userOp hash) — never optimistically.
+    /// On any failure (needs-config, build, sign, or bundler reject) the proposal
+    /// is left as-is and the error is surfaced — no fake success.
+    func executeProposal(
+        proposalId: String,
+        sender: String,
+        signingKeyTag: String,
+        completion: @escaping (Result<WalletTransactionService.Submission, DAOError>) -> Void
+    ) {
         guard let proposal = proposals[proposalId] else {
             completion(.failure(.proposalNotFound))
             return
@@ -200,9 +213,34 @@ final class DAOManager {
             completion(.failure(.proposalNotSucceeded))
             return
         }
-        // TODO: Execute proposal actions via ERC-4337 batch UserOperation
-        delegate?.dao(self, didExecuteProposal: proposalId)
-        completion(.failure(.executionFailed))
+
+        // Run the real batch path. Mark executed + notify the delegate ONLY on a
+        // confirmed bundler submission; map every failure honestly.
+        Task { @MainActor in
+            do {
+                let submission = try await self.executeProposalOnChain(
+                    actions: proposal.actions,
+                    sender: sender,
+                    signingKeyTag: signingKeyTag
+                )
+                self.proposals[proposalId] = DAOProposal(
+                    proposalId: proposal.proposalId, daoId: proposal.daoId, proposer: proposal.proposer,
+                    title: proposal.title, description: proposal.description, actions: proposal.actions,
+                    votesFor: proposal.votesFor, votesAgainst: proposal.votesAgainst, votesAbstain: proposal.votesAbstain,
+                    status: .executed, createdAt: proposal.createdAt,
+                    votingEndsAt: proposal.votingEndsAt, executionETA: proposal.executionETA
+                )
+                self.delegate?.dao(self, didExecuteProposal: proposalId)
+                completion(.success(submission))
+            } catch let error as DAOError {
+                self.delegate?.dao(self, didFailWithError: error)
+                completion(.failure(error))
+            } catch {
+                // Build/sign/bundler errors from the spine surface as executionFailed.
+                self.delegate?.dao(self, didFailWithError: .executionFailed)
+                completion(.failure(.executionFailed))
+            }
+        }
     }
 
     // MARK: - On-chain execution (via the submit pipeline)
@@ -236,6 +274,130 @@ final class DAOManager {
             sender: sender,
             signingKeyTag: signingKeyTag
         )
+    }
+
+    /// Execute a succeeded proposal's actions on-chain as ONE atomic batched
+    /// UserOperation through the real submit pipeline:
+    ///
+    ///   ERC4337Manager.buildBatchUserOperation(execute each ProposalAction)
+    ///     → server verifying-paymaster (GasSponsorship — key on server only)
+    ///     → ENCLAVE SIGN (P-256, Face-ID-gated inside WalletCore on the spine)
+    ///     → bundler submit
+    ///
+    /// The smart account's `executeBatch(address[],uint256[],bytes[])` fans the
+    /// proposal's (target, value, calldata) actions out atomically — exactly the
+    /// governance-execution semantics, in a single self-custodial UserOp.
+    ///
+    /// WHY NOT `service.submitCall`: `WalletTransactionService` only exposes a
+    /// SINGLE-call entry point; there is no batch entry point on the service. So
+    /// this mirrors the spine's own internal build→sponsor→sign→submit sequence
+    /// using the public `ERC4337Manager` batch builder, reading every external
+    /// value from `PendingCredentials` (nothing hardcoded). No private key ever
+    /// lives in the app — the wallet signature comes from the Secure Enclave, the
+    /// paymaster signature from the server.
+    ///
+    /// `actions` are the proposal's on-chain actions (each target/value/calldata).
+    /// `sender` is the user's smart-account address; `signingKeyTag` its enclave
+    /// key tag. Returns the bundler's userOp hash — never a fabricated hash.
+    ///
+    /// GRACEFUL CONFIG: throws `DAOError.notConfigured` when the chain core
+    /// (PendingCredentials rpc/chainID/entryPoint/factory + bundler) isn't filled,
+    /// and `DAOError.executionFailed` if a proposal carries no actions to execute.
+    @MainActor
+    func executeProposalOnChain(
+        actions: [ProposalAction],
+        sender: String,
+        signingKeyTag: String,
+        userTier: UserTier = .free
+    ) async throws -> WalletTransactionService.Submission {
+        // Nothing to dispatch — refuse rather than claim a no-op succeeded.
+        guard !actions.isEmpty else { throw DAOError.executionFailed }
+
+        // Chain core must be configured (same gate as the spine's
+        // WalletTransactionService.Config.fromPendingCredentials()). Reads each
+        // value from PendingCredentials — never hardcoded. Blank → needs-config.
+        guard PendingCredentials.isChainConfigured,
+              let rpc = PendingCredentials.filled(PendingCredentials.Network.rpcURL)
+                .flatMap({ URL(string: $0) }),
+              let bundler = PendingCredentials.filled(PendingCredentials.AccountAbstraction.bundlerURL)
+                .flatMap({ URL(string: $0) })
+        else {
+            throw DAOError.notConfigured
+        }
+
+        let networkConfig = BaseNetworkConfig(
+            rpcURL: rpc,
+            chainId: UInt64(PendingCredentials.Network.chainID),
+            bundlerURL: bundler
+        )
+        let paymasterAddress = PendingCredentials.filled(PendingCredentials.AccountAbstraction.paymasterAddress)
+        let manager = ERC4337Manager(
+            entryPointAddress: PendingCredentials.filled(PendingCredentials.AccountAbstraction.entryPointAddress) ?? "",
+            paymasterAddress: paymasterAddress,
+            bundlerURL: bundler,
+            networkConfig: networkConfig
+        )
+        manager.setAccountAddress(sender)
+        manager.configureSigningKey(tag: signingKeyTag)
+
+        // 1. Build the unsigned BATCH op (real ABI-encoded executeBatch calldata):
+        //    one account call per ProposalAction (target, value, calldata).
+        let calls: [(to: String, value: UInt64, data: Data)] = actions.map {
+            (to: $0.target, value: $0.value, data: $0.calldata)
+        }
+        let op: UserOperation
+        switch manager.buildBatchUserOperation(calls: calls) {
+        case .success(let built): op = built
+        case .failure: throw DAOError.executionFailed
+        }
+
+        // 2. Fetch verifying-paymaster data from the SERVER (key never in app). If
+        //    the policy/budget declines or the server is unreachable, proceed
+        //    UNSPONSORED — we never fabricate paymaster data.
+        let sponsorship = GasSponsorship(
+            paymasterAddress: paymasterAddress ?? "",
+            platformBudgetWei: 1_000_000_000_000_000_000, // 1 ETH default platform budget
+            paymasterSignatureEndpoint: PendingCredentials.AccountAbstraction.paymasterSignatureEndpoint,
+            entryPoint: PendingCredentials.AccountAbstraction.entryPointAddress,
+            chainID: PendingCredentials.Network.chainID
+        )
+        let sponsoredOp = (try? await sponsorship.sponsoredOperation(op, userAddress: sender, userTier: userTier)) ?? op
+
+        // 3. Sign with the user's Secure Enclave key (P-256, Face-ID-gated inside
+        //    the enclave provider). NEVER a throwaway key — refuses if unset.
+        let signedOp = try await Self.signed(manager, sponsoredOp)
+
+        // 4. Submit the signed batch op to the bundler.
+        let hash = try await Self.submitted(manager, signedOp)
+        return WalletTransactionService.Submission(userOpHash: hash, signedOperation: signedOp)
+    }
+
+    // MARK: - Continuation bridges to the completion-based ERC4337Manager
+    //
+    // These mirror the private bridges inside WalletTransactionService (which are
+    // not visible here) so the batch path runs the exact same enclave-sign →
+    // bundler-submit sequence as the single-call spine.
+
+    private static func signed(_ manager: ERC4337Manager, _ op: UserOperation) async throws -> UserOperation {
+        try await withCheckedThrowingContinuation { continuation in
+            manager.signOperation(op) { result in
+                switch result {
+                case .success(let signed): continuation.resume(returning: signed)
+                case .failure(let error): continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private static func submitted(_ manager: ERC4337Manager, _ op: UserOperation) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            manager.submitOperation(op) { result in
+                switch result {
+                case .success(let hash): continuation.resume(returning: hash)
+                case .failure(let error): continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     // MARK: - Query
