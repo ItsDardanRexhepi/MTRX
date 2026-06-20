@@ -3,14 +3,26 @@ import Combine
 
 /// Controls access to Neo, Trinity, and Morpheus based on user type and scenario.
 ///
+/// ⚠️ UX-ONLY — NOT THE SECURITY BOUNDARY.
+/// This app ships to user devices and can be decompiled, so nothing here is a
+/// real enforcement gate. The authoritative Morpheus security gate lives
+/// server-side (0pnMatrx `runtime/security/morpheus.py`), consulted before every
+/// Neo action. This class is the *client* of that gate: it provides instant
+/// classification hints and routing for UX (which agent to show, what warning to
+/// surface), but every security-relevant decision is decided — and re-decided —
+/// on the server. Local state (bans, classifications) is an optimistic mirror
+/// that must reconcile with the server; never treat it as binding. (Phase 3
+/// wires the real ban authority + on-chain record on the server.)
+///
 /// Two user types:
 /// - Consumer: Trinity primary, Morpheus at pivotal moments, Neo invisible
 /// - Owner (Dardan): Neo primary, enhanced Trinity + Morpheus available
+///   (owner identity is being moved from Telegram to Apple ID + Twilio OTP — Phase 2)
 ///
-/// Three scenarios for unauthorized Neo access:
+/// Three scenarios for unauthorized Neo access (the *server* makes the binding call):
 /// - Scenario 1 (Unintentional): Trinity intercepts silently
 /// - Scenario 2 (Malicious): Morpheus handles with permanent ban
-/// - Scenario 3 (Legitimate): Owner approval required via three-factor auth
+/// - Scenario 3 (Legitimate): Owner approval required (OTP-verified owner — Phase 2)
 @MainActor
 final class AgentAccessControl: ObservableObject {
     static let shared = AgentAccessControl()
@@ -124,7 +136,13 @@ final class AgentAccessControl: ObservableObject {
         }
     }
 
-    /// Execute Scenario 2: Permanent ban
+    /// Execute Scenario 2: Permanent ban.
+    ///
+    /// UX MIRROR ONLY. The authoritative, permanent ban is recorded server-side
+    /// (DB + on-chain) by the Morpheus security gate — Phase 3. This local set
+    /// gives instant feedback, but a determined client could clear it; the server
+    /// rejects a banned identity at the boundary regardless. Reconcile with the
+    /// server ban list; never rely on this as enforcement.
     func executeScenario2(userID: String) {
         bannedUsers.insert(userID)
         saveBannedUsers()
@@ -258,6 +276,10 @@ struct UserIntent {
                                "is this safe", "what am i agreeing to", "permanent",
                                "irreversible", "deploy", "can't be undone"]
 
+        // UX HINT ONLY — fast local keyword heuristics to pick which agent/warning
+        // to show immediately. The binding classification (unintentional / malicious
+        // / legitimate) is made server-side by the Morpheus gate (Phase 3); never ban
+        // or grant on the strength of these client-side keywords alone.
         let targetsNeo = neoKeywords.contains { lower.contains($0) }
         let isMalicious = maliciousKeywords.contains { lower.contains($0) }
         let isMorpheusTrigger = morpheusTriggers.contains { lower.contains($0) }
