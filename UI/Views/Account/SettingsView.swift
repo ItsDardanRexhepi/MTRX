@@ -367,6 +367,24 @@ struct SettingsView: View {
                 )
             }
 
+            // Fund Protection — user-side transaction limits (Phase 4)
+            NavigationLink {
+                SecuritySettingsView()
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Fund Protection")
+                            .font(.mtrxBody)
+                            .foregroundStyle(Color.labelPrimary)
+                        Text("Confirmations, delays, and daily limits you control")
+                            .font(.mtrxCaption1)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+                } icon: {
+                    SettingsIcon(symbol: "shield.lefthalf.filled", color: .statusSuccess)
+                }
+            }
+
             // Transaction Signing — toggle
             Toggle(isOn: $transactionSigning) {
                 Label {

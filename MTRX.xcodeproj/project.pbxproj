@@ -121,6 +121,8 @@
 		67DA2A6F55753159D74484FC /* Engine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2544FA4106CFC87156554C5 /* Engine.swift */; };
 		516B0C8F1145D16286A1C019 /* Gates.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B0B1EBDE813A884D05ED71 /* Gates.swift */; };
 		ADD6E031349DCF2A1CC3F24D /* AgentAccessControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88999708365D91474AF91D9D /* AgentAccessControl.swift */; };
+		5EC0FEED000000000000B001 /* SecurityPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC0FEED000000000000F001 /* SecurityPreferences.swift */; };
+		5EC0FEED000000000000B002 /* SecuritySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC0FEED000000000000F002 /* SecuritySettingsView.swift */; };
 		0EEE48A6C084A98527E879F6 /* TemporalContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BFD78C6891E291ABCCE24DB /* TemporalContext.swift */; };
 		2C2F75F30DC83DFCF03ABC36 /* Trinity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFF96992C806F1C71DA62AA9 /* Trinity.swift */; };
 		38DF83846716948FCD76E00A /* TrinityContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1548AC16FA18DE18C2C75BB0 /* TrinityContext.swift */; };
@@ -486,6 +488,8 @@
 		D2544FA4106CFC87156554C5 /* Engine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Engine.swift"; sourceTree = "<group>"; };
 		E2B0B1EBDE813A884D05ED71 /* Gates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Gates.swift"; sourceTree = "<group>"; };
 		88999708365D91474AF91D9D /* AgentAccessControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentAccessControl.swift"; sourceTree = "<group>"; };
+		5EC0FEED000000000000F001 /* SecurityPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SecurityPreferences.swift"; sourceTree = "<group>"; };
+		5EC0FEED000000000000F002 /* SecuritySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SecuritySettingsView.swift"; sourceTree = "<group>"; };
 		8BFD78C6891E291ABCCE24DB /* TemporalContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TemporalContext.swift"; sourceTree = "<group>"; };
 		FFF96992C806F1C71DA62AA9 /* Trinity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trinity.swift"; sourceTree = "<group>"; };
 		1548AC16FA18DE18C2C75BB0 /* TrinityContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrinityContext.swift"; sourceTree = "<group>"; };
@@ -1412,6 +1416,7 @@
 			isa = PBXGroup;
 			children = (
 				88999708365D91474AF91D9D,
+				5EC0FEED000000000000F001 /* SecurityPreferences.swift */,
 			);
 			path = "Security";
 			name = "Security";
@@ -1628,6 +1633,7 @@
 				F3DED005AA7EF75E400A2928,
 				5B56AE81777B96829044018F,
 				4EE3D0B503B25E136FCCDBB2,
+				5EC0FEED000000000000F002 /* SecuritySettingsView.swift */,
 				C3D4E5F6A7B8C9D0E1F2A3B4,
 				D4E5F6A7B8C9D0E1F2A3B4C5,
 				E877DAEC7E3B7A49350A5E22,
@@ -2062,6 +2068,8 @@
 				67DA2A6F55753159D74484FC /* Engine.swift */,
 				516B0C8F1145D16286A1C019 /* Gates.swift */,
 				ADD6E031349DCF2A1CC3F24D /* AgentAccessControl.swift */,
+				5EC0FEED000000000000B001 /* SecurityPreferences.swift */,
+				5EC0FEED000000000000B002 /* SecuritySettingsView.swift */,
 				0EEE48A6C084A98527E879F6 /* TemporalContext.swift */,
 				2C2F75F30DC83DFCF03ABC36 /* Trinity.swift */,
 				38DF83846716948FCD76E00A /* TrinityContext.swift */,
