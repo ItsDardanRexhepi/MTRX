@@ -8,6 +8,39 @@ import XCTest
 /// on the Simulator the enclave falls back to a real software P-256 key.
 final class WalletTests: XCTestCase {
 
+    // MARK: - keccak256 (true Ethereum keccak, not SHA-256)
+
+    func testKeccak256_emptyVector() {
+        // The canonical keccak256("") test vector.
+        XCTAssertEqual(
+            Keccak256.hashHex(data: Data()),
+            "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+            "keccak256(\"\") must match the known Ethereum vector (proves it is keccak, not SHA-256/SHA3)"
+        )
+    }
+
+    func testKeccak256_abcVector() {
+        XCTAssertEqual(
+            Keccak256.hashHex(data: Data("abc".utf8)),
+            "0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45",
+            "keccak256(\"abc\") known vector"
+        )
+    }
+
+    func testFunctionSelectors_matchKnownEthereumValues() {
+        // The whole point of FIX 1: selectors must equal the real Ethereum values.
+        let cases: [(String, String)] = [
+            ("transfer(address,uint256)", "a9059cbb"),
+            ("balanceOf(address)",        "70a08231"),
+            ("approve(address,uint256)",  "095ea7b3"),
+            ("transferFrom(address,address,uint256)", "23b872dd"),
+        ]
+        for (sig, expected) in cases {
+            let sel = ABIEncoder.functionSelector(sig).map { String(format: "%02x", $0) }.joined()
+            XCTAssertEqual(sel, expected, "selector for \(sig) must be 0x\(expected)")
+        }
+    }
+
     // MARK: - Secure Enclave (real CryptoKit)
 
     func testEnclave_signProducesRealNonEmptySignature() throws {

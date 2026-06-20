@@ -16,16 +16,91 @@ protocol ERC4337ManagerDelegate: AnyObject {
 
 // MARK: - Keccak256 Utility
 
-/// SHA3-256 based hash used as keccak256 approximation within the CryptoKit
-/// constraint. A production deployment should swap in a true keccak256
-/// implementation (e.g. via a C binding). The bit layout is identical for
-/// all encoding/signing paths so signatures produced here are internally
-/// consistent.
+/// True Ethereum keccak256 (Keccak-f[1600], rate 1088, capacity 512, original
+/// Keccak `0x01` padding — NOT NIST SHA3-256's `0x06`). Pure Swift, no external
+/// dependency. This is the hash Ethereum requires for function selectors, the
+/// ERC-4337 UserOperation hash, and CREATE2 addresses. Verified against known
+/// vectors in `WalletTests` (e.g. keccak256("") and the standard ERC-20 selectors).
 enum Keccak256 {
 
+    private static let roundConstants: [UInt64] = [
+        0x0000000000000001, 0x0000000000008082, 0x800000000000808a, 0x8000000080008000,
+        0x000000000000808b, 0x0000000080000001, 0x8000000080008081, 0x8000000000008009,
+        0x000000000000008a, 0x0000000000000088, 0x0000000080008009, 0x000000008000000a,
+        0x000000008000808b, 0x800000000000008b, 0x8000000000008089, 0x8000000000008003,
+        0x8000000000008002, 0x8000000000000080, 0x000000000000800a, 0x800000008000000a,
+        0x8000000080008081, 0x8000000000008080, 0x0000000080000001, 0x8000000080008008,
+    ]
+
+    // Rho rotation offsets, indexed [x + 5*y].
+    private static let rotationOffsets: [Int] = [
+        0, 1, 62, 28, 27,
+        36, 44, 6, 55, 20,
+        3, 10, 43, 25, 39,
+        41, 45, 15, 21, 8,
+        18, 2, 61, 56, 14,
+    ]
+
+    @inline(__always)
+    private static func rotl(_ x: UInt64, _ n: Int) -> UInt64 {
+        n == 0 ? x : (x << UInt64(n)) | (x >> UInt64(64 - n))
+    }
+
+    private static func keccakF(_ a: inout [UInt64]) {
+        for round in 0..<24 {
+            // Theta
+            var c = [UInt64](repeating: 0, count: 5)
+            for x in 0..<5 { c[x] = a[x] ^ a[x + 5] ^ a[x + 10] ^ a[x + 15] ^ a[x + 20] }
+            var d = [UInt64](repeating: 0, count: 5)
+            for x in 0..<5 { d[x] = c[(x + 4) % 5] ^ rotl(c[(x + 1) % 5], 1) }
+            for y in 0..<5 { for x in 0..<5 { a[x + 5 * y] ^= d[x] } }
+            // Rho + Pi
+            var b = [UInt64](repeating: 0, count: 25)
+            for y in 0..<5 {
+                for x in 0..<5 {
+                    let idx = x + 5 * y
+                    b[y + 5 * ((2 * x + 3 * y) % 5)] = rotl(a[idx], rotationOffsets[idx])
+                }
+            }
+            // Chi
+            for y in 0..<5 {
+                for x in 0..<5 {
+                    a[x + 5 * y] = b[x + 5 * y] ^ (~b[(x + 1) % 5 + 5 * y] & b[(x + 2) % 5 + 5 * y])
+                }
+            }
+            // Iota
+            a[0] ^= roundConstants[round]
+        }
+    }
+
     static func hash(data: Data) -> Data {
-        let digest = SHA256.hash(data: data)
-        return Data(digest)
+        let rate = 136 // bytes (1088 bits) for keccak-256
+        var message = [UInt8](data)
+        // Padding: append 0x01, zero-fill to a multiple of rate, set the final byte's high bit.
+        message.append(0x01)
+        while message.count % rate != 0 { message.append(0x00) }
+        message[message.count - 1] |= 0x80
+
+        var state = [UInt64](repeating: 0, count: 25)
+        var offset = 0
+        while offset < message.count {
+            for i in 0..<(rate / 8) {
+                var lane: UInt64 = 0
+                for j in 0..<8 { lane |= UInt64(message[offset + i * 8 + j]) << UInt64(8 * j) }
+                state[i] ^= lane
+            }
+            keccakF(&state)
+            offset += rate
+        }
+
+        // Squeeze the first 32 bytes (4 little-endian lanes).
+        var out = [UInt8]()
+        out.reserveCapacity(32)
+        for i in 0..<4 {
+            let lane = state[i]
+            for j in 0..<8 { out.append(UInt8((lane >> UInt64(8 * j)) & 0xff)) }
+        }
+        return Data(out)
     }
 
     static func hashHex(data: Data) -> String {
