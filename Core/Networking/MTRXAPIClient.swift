@@ -15,6 +15,11 @@ enum MTRXAPIError: LocalizedError, Equatable {
     case httpError(statusCode: Int, body: String)
     case unauthorized
     case forbidden
+    /// The server security gate (Morpheus) declined this action — blocked / frozen /
+    /// paused / owner-approval-required. The associated string is the server's
+    /// GENERIC, non-leaking message; the app surfaces it as-is and never shows an
+    /// internal reason (the server doesn't send one).
+    case securityBlocked(String)
     case notFound(String)
     case rateLimited(retryAfter: TimeInterval?)
     case serverError(String)
@@ -40,6 +45,10 @@ enum MTRXAPIError: LocalizedError, Equatable {
             return "Authentication required. Please sign in."
         case .forbidden:
             return "You do not have permission for this action."
+        case .securityBlocked(let message):
+            return message.isEmpty
+                ? "This action couldn't be authorized for security reasons. Please try again."
+                : message
         case .notFound(let resource):
             return "Not found: \(resource)"
         case .rateLimited(let retryAfter):
@@ -60,6 +69,13 @@ enum MTRXAPIError: LocalizedError, Equatable {
 
     static func == (lhs: MTRXAPIError, rhs: MTRXAPIError) -> Bool {
         lhs.errorDescription == rhs.errorDescription
+    }
+
+    /// True when this is a server security-gate block — for UX branching (show a
+    /// neutral "blocked for security" state rather than a generic network error).
+    var isSecurityBlock: Bool {
+        if case .securityBlocked = self { return true }
+        return false
     }
 }
 
@@ -718,7 +734,8 @@ final class MTRXAPIClient: @unchecked Sendable {
         path: String,
         body: (any Encodable)? = nil,
         queryItems: [URLQueryItem]? = nil,
-        authenticated: Bool = true
+        authenticated: Bool = true,
+        headers: [String: String]? = nil
     ) throws -> URLRequest {
         guard var components = URLComponents(string: baseURL + path) else {
             throw MTRXAPIError.invalidURL(path)
@@ -744,6 +761,12 @@ final class MTRXAPIClient: @unchecked Sendable {
                 request.httpBody = try encoder.encode(AnyEncodable(body))
             } catch {
                 throw MTRXAPIError.encodingFailed(error.localizedDescription)
+            }
+        }
+
+        if let headers {
+            for (field, value) in headers {
+                request.setValue(value, forHTTPHeaderField: field)
             }
         }
 
@@ -802,7 +825,10 @@ final class MTRXAPIClient: @unchecked Sendable {
             clearToken()
             throw MTRXAPIError.unauthorized
         case 403:
-            throw MTRXAPIError.forbidden
+            // A 403 is the security gate declining the action. Surface the server's
+            // GENERIC message (it is already non-leaking) so the UI can show a clear
+            // blocked / frozen / paused / owner-approval state — never an internal reason.
+            throw MTRXAPIError.securityBlocked(Self.extractErrorMessage(from: data) ?? "")
         case 404:
             let body = String(data: data, encoding: .utf8) ?? ""
             throw MTRXAPIError.notFound(body)
@@ -839,6 +865,16 @@ final class MTRXAPIClient: @unchecked Sendable {
     private func retryDelay(attempt: Int) -> TimeInterval {
         let jitter = Double.random(in: 0...0.3)
         return baseRetryDelay * pow(2.0, Double(attempt)) + jitter
+    }
+
+    /// Pull a human-readable message out of an error response body (the gateway
+    /// returns `{"error": "..."}`; some routes use `{"message": "..."}`). Used to
+    /// surface the security gate's generic, non-leaking denial to the user.
+    static func extractErrorMessage(from data: Data) -> String? {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return (obj["error"] as? String) ?? (obj["message"] as? String)
     }
 
     // MARK: - Convenience HTTP Verbs
@@ -891,9 +927,11 @@ final class MTRXAPIClient: @unchecked Sendable {
     func postRaw<Body: Encodable>(
         path: String,
         body: Body,
-        authenticated: Bool = true
+        authenticated: Bool = true,
+        headers: [String: String]? = nil
     ) async throws -> [String: AnyCodableValue] {
-        let request = try buildRequest(method: .post, path: path, body: body, authenticated: authenticated)
+        let request = try buildRequest(method: .post, path: path, body: body,
+                                       authenticated: authenticated, headers: headers)
         return try await execute(request)
     }
 
@@ -2329,7 +2367,14 @@ extension MTRXAPIClient {
             envelope = nil
         }
 
-        return try await postRaw(path: path, body: AttestedBody(base: body, appAttest: envelope))
+        // Thread the wallet identity so the server can attribute the action to the
+        // right account (the gate reads it; the X-Wallet-Address header is the
+        // server's primary identity source). Only on the enabled path — the inert
+        // path above adds no header, so default behaviour is byte-for-byte unchanged.
+        let headers = identity.isEmpty ? nil : ["X-Wallet-Address": identity]
+        return try await postRaw(path: path,
+                                 body: AttestedBody(base: body, appAttest: envelope),
+                                 headers: headers)
     }
 
     /// The server-side identity (wallet address) the assertion binds to. Read on the
