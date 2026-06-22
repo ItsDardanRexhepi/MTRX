@@ -19,6 +19,11 @@ struct SendView: View {
     @State private var showTokenPicker: Bool = false
     @State private var showQRAlert: Bool = false
     @State private var showSendConfirmation: Bool = false
+    // P2.1 asset scope: non-native (ERC-20) sends are out of scope for the first real
+    // flow. They get an explicit honest "token sends not available" and never reach the
+    // ETH-only signed path — so a wrong-asset send (sending native value for a token) is
+    // impossible.
+    @State private var showTokenUnavailable: Bool = false
 
     private var selectedToken: AppTokenBalance {
         guard walletManager.tokens.indices.contains(selectedTokenIndex) else {
@@ -47,6 +52,14 @@ struct SendView: View {
 
     private var canProceed: Bool {
         isValidAddress && isValidAmount
+    }
+
+    /// True only for the chain's NATIVE asset (Base Sepolia ETH). The first real Send
+    /// flow (P2.2) supports native ETH only; non-native ERC-20 tokens are honest-failed
+    /// so a wrong-asset send is impossible — BlockchainBridge.sendTransaction moves
+    /// native value, not ERC-20 transfer calldata.
+    private var isNativeSend: Bool {
+        selectedToken.symbol.uppercased() == "ETH"
     }
 
     var body: some View {
@@ -83,6 +96,11 @@ struct SendView: View {
             Button("OK") {}
         } message: {
             Text("On-chain sending isn't available in this build yet. Your funds have not moved.")
+        }
+        .alert("Token Sends Unavailable", isPresented: $showTokenUnavailable) {
+            Button("OK") {}
+        } message: {
+            Text("Only ETH sends are supported in this build. \(selectedToken.symbol) sending isn't available yet — nothing was sent.")
         }
     }
 
@@ -354,12 +372,18 @@ struct SendView: View {
 
             VStack(spacing: Spacing.ms) {
                 Button {
-                    // Honest failure: no real signing/broadcast exists yet, so this
-                    // must NOT claim the transfer succeeded. Surfaces "not available
-                    // yet" instead of a fake "Transaction Sent". (Wiring to the real
-                    // signed-transfer path is Phase 2, not here.)
                     MtrxHaptics.impact(.medium)
-                    showSendConfirmation = true
+                    if isNativeSend {
+                        // Native ETH: the slot P2.2 wires to the real signed testnet
+                        // send. Until then it honest-fails ("not available yet") — never
+                        // a fake "Transaction Sent".
+                        showSendConfirmation = true
+                    } else {
+                        // Non-native (ERC-20): out of scope for the first real flow.
+                        // Honest-fail explicitly so a token never reaches the ETH-only
+                        // path (which would otherwise move native value = wrong asset).
+                        showTokenUnavailable = true
+                    }
                 } label: {
                     Text("Confirm & Send")
                 }
