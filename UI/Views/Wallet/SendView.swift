@@ -116,12 +116,19 @@ struct SendView: View {
             return
         }
 
-        // 3. Real signed testnet send. Success ONLY when it broadcasts and returns a hash.
+        // 3. Real signed testnet send. Success ONLY when it broadcasts and returns a
+        //    real, non-empty op-hash. A blank/invalid hash (e.g. a misbehaving bundler
+        //    returning {"result":""}) is treated as a FAILURE — never a fake "Sent".
         isSending = true
         do {
             let result = try await BlockchainBridge.shared.sendTransaction(to: recipientAddress, amount: wei)
             isSending = false
-            sentHash = result.transactionHash   // honest success — a real op-hash
+            let hash = result.transactionHash
+            guard hash.hasPrefix("0x"), hash.count > 2 else {
+                sendError = "The network didn't return a valid transaction hash. The send may not have completed — check your wallet before retrying."
+                return
+            }
+            sentHash = hash   // honest success — a real op-hash
             MtrxHaptics.success()
         } catch {
             isSending = false

@@ -992,7 +992,8 @@ class WalletManager: ObservableObject {
             return AppTokenBalance(
                 symbol: t.symbol, name: t.name,
                 balance: max(0, newBalance),
-                priceUSD: t.priceUSD, change24h: t.change24h, iconColor: t.iconColor
+                priceUSD: t.priceUSD, change24h: t.change24h, iconColor: t.iconColor,
+                isNative: t.isNative   // preserve the structural native flag across remaps
             )
         }
         if symbol.caseInsensitiveCompare("ETH") == .orderedSame, let eth = token("ETH") {
@@ -1123,7 +1124,8 @@ class WalletManager: ObservableObject {
                     symbol: t.symbol, name: t.name, balance: t.balance,
                     priceUSD: price,
                     change24h: entry["usd_24h_change"] ?? t.change24h,
-                    iconColor: t.iconColor
+                    iconColor: t.iconColor,
+                    isNative: t.isNative   // preserve the structural native flag across remaps
                 )
             }
             if let eth = token("ETH") {
@@ -1145,7 +1147,11 @@ class WalletManager: ObservableObject {
                     symbol: t.symbol, name: t.name, balance: t.balance,
                     priceUSD: t.balance > 0 ? t.valueUSD / t.balance : 0,
                     change24h: 0,
-                    iconColor: WalletManager.tokenColor(for: t.symbol)
+                    iconColor: WalletManager.tokenColor(for: t.symbol),
+                    // Data-layer native determination (Base's native asset is ETH). The
+                    // SEND keys off this structural flag, never a symbol check at send time;
+                    // real contract metadata (contractAddress == nil) is a later hardening.
+                    isNative: t.symbol.caseInsensitiveCompare("ETH") == .orderedSame
                 )
             }
         }
