@@ -193,6 +193,46 @@ enum PendingCredentials {
         static let gatewayURL = ""
     }
 
+    // MARK: - Security (App Attest + biometric owner factor)
+    //
+    // Client half of two server-side layers in Matrix-Security-System:
+    //   • App Attest (server Package D / AppAttestVerifier) — proves a request comes
+    //     from a genuine, unmodified MTRX build on a real Apple device.
+    //   • Biometric Secure-Enclave owner factor (server Package E / owner.py) — the
+    //     owner third factor is a Face/Touch-ID-gated App Attest assertion.
+    //
+    // BOTH FLAGS DEFAULT OFF. With both off the whole client layer is INERT: no
+    // challenge fetch, no biometric prompt, no assertion attached — privileged
+    // requests go out byte-for-byte unchanged. The feature does nothing live until
+    // the security server is deployed AND the flags are deliberately flipped, in
+    // lockstep with the server, per SECURITY_REVIEW_CHECKLIST §14.4. Never enable
+    // `appAttestEnforced` before the server's OPNMATRX_APPATTEST_ENFORCE is on.
+
+    enum Security {
+
+        /// Master switch: whether the client ATTEMPTS App Attest at all (fetch a
+        /// challenge, biometric-gate, attach the assertion to fund-moving requests).
+        /// DEFAULT OFF → the layer is inert and requests are unchanged. Flip ON only
+        /// once the security server is deployed; this alone is observe-compatible —
+        /// the server records `would_block` but does not deny while its own
+        /// OPNMATRX_APPATTEST_ENFORCE is off.
+        static let appAttestEnabled = false
+
+        /// Mirror of the SERVER flag OPNMATRX_APPATTEST_ENFORCE. DEFAULT OFF.
+        /// OFF (observe): a privileged request that can't produce a valid assertion is
+        /// NOT blocked locally — it is sent without one (the server observes).
+        /// ON (enforce): such a request HARD-FAILS on the client — the app never sends
+        /// an unattested request dressed up as attested. Flip ON only in lockstep with
+        /// the server flag. Has no effect unless `appAttestEnabled` is also on.
+        static let appAttestEnforced = false
+    }
+
+    /// True once the client App Attest layer is active (master switch on).
+    static var isAppAttestEnabled: Bool { Security.appAttestEnabled }
+
+    /// True once the client enforces App Attest locally (both switches on).
+    static var isAppAttestEnforced: Bool { Security.appAttestEnabled && Security.appAttestEnforced }
+
     // MARK: - Legal
 
     enum Legal {
