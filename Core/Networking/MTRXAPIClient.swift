@@ -1300,7 +1300,9 @@ final class MTRXAPIClient: @unchecked Sendable {
     func sendPayment(to: String, amount: Double, currency: String, memo: String? = nil) async throws -> [String: AnyCodableValue] {
         var body: [String: String] = ["to": to, "amount": "\(amount)", "currency": currency]
         if let memo { body["memo"] = memo }
-        return try await postRaw(path: "/api/v1/payments/send", body: body)
+        // Fund-moving: routes through the App Attest attach path. INERT (identical to a
+        // plain postRaw) until PendingCredentials.Security.appAttestEnabled is flipped on.
+        return try await postFundMovingAttested(path: "/api/v1/payments/send", body: body)
     }
 
     func getPayment(id: String) async throws -> [String: AnyCodableValue] {
@@ -2222,5 +2224,117 @@ extension MTRXAPIClient {
     func verifyPhoneOTP(phone: String, code: String) async throws -> OTPVerifyResponse {
         try await post(path: "/security/phone/verify",
                        body: OTPVerifyBody(phone: phone, code: code), authenticated: false)
+    }
+}
+
+// MARK: - Security: App Attest (Package D) + biometric owner factor (Package E)
+//
+// Client interface to the Matrix-Security-System App Attest verifier
+// (matrix_security/attest/app_attest.py). Endpoint PATHS follow the existing
+// `/security/...` convention used by the phone-OTP routes above; the deployed
+// gateway must expose these (the server module defines the verifier methods,
+// new_challenge / verify_attestation / verify_assertion — the HTTP wiring is the
+// gateway's, so confirm these paths against it before enabling). Snake_case JSON
+// keys match the server kwargs exactly.
+
+/// `GET /security/appattest/challenge` → a one-time 32-byte hex challenge.
+struct AttestChallengeResponse: Decodable { let challenge: String }
+
+/// `POST /security/appattest/attest` body (server: verify_attestation).
+struct AttestVerifyBody: Encodable {
+    let key_id: String
+    let attestation_obj_b64: String
+    let challenge: String
+}
+
+/// Raw server reply; fields optional so a partial body still decodes.
+struct AttestVerifyResponse: Decodable {
+    let verified: Bool?
+    let reason: String?
+}
+
+/// Normalised attestation result handed back to AppAttestManager.
+struct AttestVerifyResult {
+    let verified: Bool
+    let reason: String?
+}
+
+/// Wraps a fund-moving body and appends the App Attest `app_attest` envelope at the
+/// SAME top level (the gate reads `context["app_attest"]`). When the envelope is nil
+/// (observe mode could not produce one) the body is byte-for-byte the original.
+struct AttestedBody<Base: Encodable>: Encodable {
+    let base: Base
+    let appAttest: AppAttestManager.Envelope?
+
+    private enum CodingKeys: String, CodingKey { case app_attest }
+
+    func encode(to encoder: Encoder) throws {
+        try base.encode(to: encoder)                       // flatten the original fields
+        if let appAttest {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(appAttest, forKey: .app_attest)   // add app_attest alongside
+        }
+    }
+}
+
+extension MTRXAPIClient {
+
+    /// Fetch a one-time App Attest challenge bound to *identity* (server: new_challenge).
+    func fetchAttestChallenge(identity: String) async throws -> String {
+        let resp: AttestChallengeResponse = try await get(
+            path: "/security/appattest/challenge",
+            queryItems: identity.isEmpty ? nil : [URLQueryItem(name: "identity", value: identity)],
+            authenticated: true)
+        return resp.challenge
+    }
+
+    /// Register a freshly attested key with the server (server: verify_attestation).
+    /// One-time per install; AppAttestManager.registerIfNeeded drives this.
+    func verifyAttestation(keyId: String, attestationObjectB64: String,
+                           challenge: String) async throws -> AttestVerifyResult {
+        let resp: AttestVerifyResponse = try await post(
+            path: "/security/appattest/attest",
+            body: AttestVerifyBody(key_id: keyId,
+                                   attestation_obj_b64: attestationObjectB64,
+                                   challenge: challenge))
+        return AttestVerifyResult(verified: resp.verified ?? false, reason: resp.reason)
+    }
+
+    /// POST a fund-moving request, attaching a biometric-gated App Attest assertion
+    /// when the client layer is enabled. Behaviour by flag (PendingCredentials.Security):
+    ///   • appAttestEnabled OFF  → identical to `postRaw` (INERT: no challenge fetch, no
+    ///                              biometric prompt, no assertion — the default).
+    ///   • enabled, enforced OFF → best-effort: attach an assertion if one can be made,
+    ///                              otherwise send without (the server observes).
+    ///   • enabled, enforced ON  → an assertion is REQUIRED; if one can't be produced
+    ///                              the request HARD-FAILS — never sent unattested.
+    func postFundMovingAttested<Body: Encodable>(
+        path: String, body: Body
+    ) async throws -> [String: AnyCodableValue] {
+        guard PendingCredentials.Security.appAttestEnabled else {
+            return try await postRaw(path: path, body: body)
+        }
+
+        let identity = await currentSecurityIdentity()
+        let requestBytes = (try? encoder.encode(AnyEncodable(body))) ?? Data()
+
+        var envelope: AppAttestManager.Envelope?
+        do {
+            envelope = try await AppAttestManager.shared.fundMovingAssertion(
+                for: requestBytes, identity: identity)
+        } catch {
+            // ENFORCE: never dress an unattested request as attested — fail closed.
+            if PendingCredentials.Security.appAttestEnforced { throw error }
+            // OBSERVE: proceed without; the server records would_block but allows.
+            envelope = nil
+        }
+
+        return try await postRaw(path: path, body: AttestedBody(base: body, appAttest: envelope))
+    }
+
+    /// The server-side identity (wallet address) the assertion binds to. Read on the
+    /// main actor since WalletCore is @MainActor; empty string when no wallet is active.
+    private func currentSecurityIdentity() async -> String {
+        await MainActor.run { WalletCore.shared.address ?? "" }
     }
 }
