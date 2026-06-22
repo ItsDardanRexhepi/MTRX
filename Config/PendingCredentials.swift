@@ -93,9 +93,10 @@ enum PendingCredentials {
 
     enum Network {
 
-        /// HTTPS JSON-RPC endpoint for the chain.
-        /// Format: `https://...` (e.g. an Alchemy/Infura/QuickNode Base URL).
-        /// Where: your RPC provider dashboard (Base mainnet or Base Sepolia).
+        /// HTTPS JSON-RPC endpoint for the chain. TESTNET-ONLY phase: this must be a
+        /// Base **Sepolia** endpoint (e.g. an Alchemy/Infura/QuickNode Base Sepolia
+        /// URL). Format: `https://...`. Empty = unconfigured (no real network; sends
+        /// honest-fail — nothing is faked). Do NOT point this at Base mainnet.
         static let rpcURL = ""
 
         /// WebSocket JSON-RPC endpoint for live subscriptions
@@ -105,10 +106,11 @@ enum PendingCredentials {
         /// Where: same RPC provider, "WebSocket" endpoint.
         static let webSocketURL = ""
 
-        /// EVM chain id.
-        /// Format: integer. Base mainnet = 8453, Base Sepolia = 84532.
-        /// Where: chainlist.org / your provider. Leave 0 until decided.
-        static let chainID = 0
+        /// EVM chain id. TESTNET-ONLY phase: Base **Sepolia** (84532). Base mainnet
+        /// (8453) is intentionally NOT used — BlockchainBridge reads this value and
+        /// fails CLOSED (signs nothing) against any non-testnet chain. Change this
+        /// away from 84532 only after the human-review + go-live gate.
+        static let chainID = 84_532
     }
 
     // MARK: - Account Abstraction (ERC-4337)
@@ -116,9 +118,9 @@ enum PendingCredentials {
     enum AccountAbstraction {
 
         /// ERC-4337 bundler RPC URL (accepts `eth_sendUserOperation`,
-        /// `eth_estimateUserOperationGas`, etc.).
-        /// Format: `https://...`
-        /// Where: your bundler provider (Pimlico/Alchemy/Stackup/Biconomy).
+        /// `eth_estimateUserOperationGas`, etc.). TESTNET-ONLY phase: a Base **Sepolia**
+        /// bundler endpoint (Pimlico/Alchemy/Stackup/Biconomy, Base Sepolia network).
+        /// Format: `https://...`. Empty = unconfigured (sends honest-fail).
         static let bundlerURL = ""
 
         /// The canonical EntryPoint contract address for the bundler's

@@ -318,8 +318,37 @@ final class BlockchainBridge {
     /// Currently connected wallet address.
     private(set) var connectedWalletAddress: String?
 
-    /// Base network chain ID.
-    private let chainId: UInt64 = 8453
+    // MARK: - Chain configuration (config-driven; TESTNET-ONLY in this phase)
+    //
+    // The chain id is NEVER a hardcoded mainnet constant. It reads
+    // PendingCredentials.Network.chainID when set, otherwise defaults to Base Sepolia
+    // testnet. A mainnet (or any non-testnet) value is caught and fails CLOSED before
+    // any signing/submission by assertTestnetSigning().
+
+    /// Base mainnet chain id — explicitly forbidden for signing in this testnet-only phase.
+    static let baseMainnetChainID: UInt64 = 8453
+    /// Base Sepolia testnet chain id — the only chain signing is permitted against now.
+    static let baseSepoliaChainID: UInt64 = 84_532
+
+    /// Active chain id. Config-driven (PendingCredentials.Network.chainID), defaulting
+    /// to Base Sepolia testnet — never a hardcoded mainnet.
+    private let chainId: UInt64 = {
+        let configured = PendingCredentials.Network.chainID
+        return configured > 0 ? UInt64(configured) : BlockchainBridge.baseSepoliaChainID
+    }()
+
+    /// Fail CLOSED before any signing/submission if the active chain is not the
+    /// permitted testnet. In this testnet-only phase, signing is locked to Base
+    /// Sepolia (84532); mainnet — or any other chain — must NEVER be signed against.
+    /// Throws an honest error and signs nothing.
+    private func assertTestnetSigning() throws {
+        guard chainId == Self.baseSepoliaChainID else {
+            let which = (chainId == Self.baseMainnetChainID) ? " (Base mainnet)" : ""
+            throw BlockchainBridgeError.signingFailed(reason:
+                "Testnet-only build — signing is restricted to Base Sepolia (\(Self.baseSepoliaChainID)). "
+                + "Chain \(chainId)\(which) is not permitted. Nothing was signed.")
+        }
+    }
 
     private let bridgeQueue = DispatchQueue(label: "com.mtrx.blockchain.bridge", qos: .userInitiated)
 
@@ -375,6 +404,7 @@ final class BlockchainBridge {
 
     /// Send a token/ETH transaction to an address.
     func sendTransaction(to: String, amount: UInt64, data: Data = Data()) async throws -> TransactionResult {
+        try assertTestnetSigning()   // testnet-only: fail closed before any build/sign
         guard let manager = erc4337Manager else { throw BlockchainBridgeError.walletNotConnected }
 
         // Build the UserOperation
@@ -1629,6 +1659,7 @@ final class BlockchainBridge {
 
     /// Sign and submit a UserOperation, returning the operation hash.
     private func submitSignedOperation(_ operation: UserOperation, type: String) async throws -> String {
+        try assertTestnetSigning()   // testnet-only: fail closed before sign/submit
         guard let manager = erc4337Manager else { throw BlockchainBridgeError.walletNotConnected }
 
         // Estimate gas
