@@ -250,6 +250,8 @@ enum ERC4337Error: Error, LocalizedError {
     case nonceMismatch
     case simulationFailed(reason: String)
     case networkError(underlying: Error)
+    /// Testnet-only lock: refused to sign against a non-permitted chain (e.g. mainnet).
+    case signingChainNotPermitted(chainId: UInt64)
 
     var errorDescription: String? {
         switch self {
@@ -262,6 +264,9 @@ enum ERC4337Error: Error, LocalizedError {
         case .nonceMismatch: return "Account nonce mismatch."
         case .simulationFailed(let reason): return "Simulation failed: \(reason)"
         case .networkError(let err): return "Network error: \(err.localizedDescription)"
+        case .signingChainNotPermitted(let id):
+            return "Testnet-only build — signing is restricted to Base Sepolia "
+                + "(\(BaseNetworkConfig.permittedSigningChainID)); chain \(id) is not permitted. Nothing was signed."
         }
     }
 }
@@ -729,6 +734,15 @@ final class ERC4337Manager {
 
     /// Sign a UserOperation using an externally provided Secure Enclave provider.
     func signOperation(_ operation: UserOperation, with secureEnclave: SecureEnclaveProvider, keyTag: String, completion: @escaping (Result<UserOperation, ERC4337Error>) -> Void) {
+        // Testnet-only lock (P2.0): this is the SINGLE sign primitive every signing path
+        // funnels into (BlockchainBridge, NFTManager, DAOManager, WalletTransactionService,
+        // and any future caller). Fail CLOSED before computing the message or producing any
+        // signature if the chain is not the permitted testnet (Base Sepolia). Mainnet — and
+        // every other chain — must never be signed against in this phase.
+        guard networkConfig.isSigningPermitted else {
+            completion(.failure(.signingChainNotPermitted(chainId: networkConfig.chainId)))
+            return
+        }
         let opHash = operation.hash
         guard let hashData = Data(hexString: opHash) else {
             completion(.failure(.invalidSignature))
@@ -1000,4 +1014,16 @@ struct BaseNetworkConfig {
     let rpcURL: URL
     let chainId: UInt64
     let bundlerURL: URL
+}
+
+extension BaseNetworkConfig {
+    /// The ONLY chain id signing is permitted against in this TESTNET-ONLY phase
+    /// (Base Sepolia). Single source of truth — referenced by the sign primitive and
+    /// by BlockchainBridge's defense-in-depth guard.
+    static let permittedSigningChainID: UInt64 = 84_532   // Base Sepolia
+    /// Base mainnet — named only to make the forbidden value explicit and searchable.
+    static let baseMainnetChainID: UInt64 = 8_453
+
+    /// True only when signing is allowed against this config's chain (testnet-only lock).
+    var isSigningPermitted: Bool { chainId == Self.permittedSigningChainID }
 }

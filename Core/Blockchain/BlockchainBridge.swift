@@ -325,10 +325,13 @@ final class BlockchainBridge {
     // testnet. A mainnet (or any non-testnet) value is caught and fails CLOSED before
     // any signing/submission by assertTestnetSigning().
 
+    // Single source of truth for the chain policy lives on BaseNetworkConfig (the
+    // sign primitive's guard uses it too). These alias it for the bridge-level
+    // defense-in-depth guard so 84532 / 8453 are defined exactly once.
     /// Base mainnet chain id — explicitly forbidden for signing in this testnet-only phase.
-    static let baseMainnetChainID: UInt64 = 8453
+    static let baseMainnetChainID: UInt64 = BaseNetworkConfig.baseMainnetChainID
     /// Base Sepolia testnet chain id — the only chain signing is permitted against now.
-    static let baseSepoliaChainID: UInt64 = 84_532
+    static let baseSepoliaChainID: UInt64 = BaseNetworkConfig.permittedSigningChainID
 
     /// Active chain id. Config-driven (PendingCredentials.Network.chainID), defaulting
     /// to Base Sepolia testnet — never a hardcoded mainnet.
