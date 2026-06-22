@@ -76,17 +76,12 @@ class MintNFTViewModel: ObservableObject {
 
     func mint() async {
         guard canMint else { return }
-        isMinting = true
-        errorMessage = nil
-
-        do {
-            try await Task.sleep(for: .seconds(2))
-            isMinting = false
-            mintComplete = true
-        } catch {
-            errorMessage = "Minting failed. Please try again."
-            isMinting = false
-        }
+        // Honest failure: there is no real mint (no contract call / signing) yet, so
+        // this must NOT show "NFT Minted". Surfaces an honest unavailable message and
+        // leaves mintComplete false. Wiring to the real mint path is Phase 2.
+        isMinting = false
+        mintComplete = false
+        errorMessage = "Minting isn't available in this build yet. Nothing was minted."
     }
 }
 

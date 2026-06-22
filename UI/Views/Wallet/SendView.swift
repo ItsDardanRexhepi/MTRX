@@ -79,10 +79,10 @@ struct SendView: View {
         } message: {
             Text("QR Scanner requires camera permission. Paste an address instead.")
         }
-        .alert("Transaction Sent", isPresented: $showSendConfirmation) {
-            Button("Done") { dismiss() }
+        .alert("Not Available Yet", isPresented: $showSendConfirmation) {
+            Button("OK") {}
         } message: {
-            Text("Successfully sent \(amountText) \(selectedToken.symbol)")
+            Text("On-chain sending isn't available in this build yet. Your funds have not moved.")
         }
     }
 
@@ -354,7 +354,11 @@ struct SendView: View {
 
             VStack(spacing: Spacing.ms) {
                 Button {
-                    MtrxHaptics.success()
+                    // Honest failure: no real signing/broadcast exists yet, so this
+                    // must NOT claim the transfer succeeded. Surfaces "not available
+                    // yet" instead of a fake "Transaction Sent". (Wiring to the real
+                    // signed-transfer path is Phase 2, not here.)
+                    MtrxHaptics.impact(.medium)
                     showSendConfirmation = true
                 } label: {
                     Text("Confirm & Send")

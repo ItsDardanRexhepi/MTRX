@@ -140,7 +140,10 @@ final class GovernanceViewModel: ObservableObject {
 
     func confirmVote() {
         guard selectedProposal != nil, selectedVote != nil else { return }
-        MtrxHaptics.success()
+        // Honest failure: votes are not submitted on-chain or to any service yet, so
+        // this must not claim "Vote submitted successfully". `hasVoted` now drives an
+        // honest "not available yet" message (see the vote sheet). Wiring is Phase 2.
+        MtrxHaptics.impact(.medium)
         hasVoted = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.showVoteSheet = false
@@ -583,11 +586,11 @@ struct GovernanceView: View {
                         // Confirm button
                         if viewModel.hasVoted {
                             HStack(spacing: Spacing.sm) {
-                                Image(systemName: Symbols.complete)
-                                    .foregroundStyle(Color.statusSuccess)
-                                Text("Vote submitted successfully")
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundStyle(Color.labelSecondary)
+                                Text("On-chain voting isn't available in this build yet. No vote was recorded.")
                                     .font(.mtrxCalloutBold)
-                                    .foregroundStyle(Color.statusSuccess)
+                                    .foregroundStyle(Color.labelSecondary)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, Spacing.md)

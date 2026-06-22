@@ -19,6 +19,8 @@ struct SwapView: View {
     @State private var showCustomSlippage: Bool = false
     @State private var swapRotation: Double = 0
     @State private var showConfirmation: Bool = false
+    // Honest failure: no real swap execution exists yet, so confirm must not claim success.
+    @State private var showUnavailable: Bool = false
     @State private var isVisible: Bool = false
     @State private var showFromPicker: Bool = false
     @State private var showToPicker: Bool = false
@@ -571,12 +573,19 @@ struct SwapView: View {
 
             VStack(spacing: Spacing.ms) {
                 Button {
-                    MtrxHaptics.success()
-                    dismiss()
+                    // Honest failure: surface "not available yet" rather than a fake
+                    // success-and-dismiss. Wiring to the real swap path is Phase 2.
+                    MtrxHaptics.impact(.medium)
+                    showUnavailable = true
                 } label: {
                     Text("Confirm Swap")
                 }
                 .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, fullWidth: true))
+                .alert("Not Available Yet", isPresented: $showUnavailable) {
+                    Button("OK") {}
+                } message: {
+                    Text("On-chain swaps aren't available in this build yet. No swap was made.")
+                }
 
                 Button {
                     MtrxHaptics.impact(.light)

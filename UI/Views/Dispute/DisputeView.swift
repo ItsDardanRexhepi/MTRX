@@ -17,6 +17,9 @@ final class DisputeViewModel: ObservableObject {
     @Published var selectedSegment: DisputeSegment = .myDisputes
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    /// Honest "not available yet" notice for unbuilt actions (file/vote/claim). Driving
+    /// a one-off alert so an action never reports a fake success.
+    @Published var actionUnavailable: String?
     @Published var showCreateForm: Bool = false
     @Published var contentAppeared: Bool = false
     @Published var isDemo: Bool = false
@@ -100,47 +103,23 @@ final class DisputeViewModel: ObservableObject {
 
     func submitDispute() async {
         guard canSubmitDispute else { return }
-        isSubmitting = true
-
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
-
-        let newDispute = DisputeCase(
-            counterparty: counterpartyAddress,
-            description_: disputeDescription,
-            stakeAmount: Double(stakeAmount) ?? 0,
-            status: .pending,
-            votesFor: 0,
-            votesAgainst: 0,
-            deadline: Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date(),
-            wonByUser: false,
-            isJuryCase: false
-        )
-        activeDisputes.insert(newDispute, at: 0)
+        // Honest failure: there is no real on-chain dispute submission (no stake
+        // escrow, no contract call) yet. Do NOT fabricate a pending dispute or play a
+        // success haptic — surface an honest notice and keep the form. Phase 2 wires it.
         isSubmitting = false
-        showCreateForm = false
-        resetForm()
-        MtrxHaptics.success()
+        actionUnavailable = "Filing a dispute isn't available in this build yet. Nothing was submitted and no stake was taken."
     }
 
     func vote(for dispute: DisputeCase, inFavor: Bool) {
-        if let index = juryCases.firstIndex(where: { $0.id == dispute.id }) {
-            if inFavor {
-                juryCases[index].votesFor += 1
-            } else {
-                juryCases[index].votesAgainst += 1
-            }
-            juryCases[index].hasVoted = true
-        }
-        MtrxHaptics.impact(.medium)
+        // Honest failure: jury votes are not recorded on-chain or to any service yet.
+        // Do NOT mutate local tallies as if the vote counted.
+        actionUnavailable = "Jury voting isn't available in this build yet. No vote was recorded."
     }
 
     func claimWinnings() {
-        for i in activeDisputes.indices {
-            if activeDisputes[i].status == .resolved && activeDisputes[i].wonByUser {
-                activeDisputes[i].claimed = true
-            }
-        }
-        MtrxHaptics.success()
+        // Honest failure: there is no real claim (no on-chain payout) yet. Do NOT mark
+        // anything claimed or play a success haptic — that would imply funds moved.
+        actionUnavailable = "Claiming isn't available in this build yet. Nothing was claimed."
     }
 
     private func resetForm() {
@@ -189,6 +168,14 @@ struct DisputeView: View {
                     }
                 }
                 .background(MtrxGradientBackground(style: .primary))
+                .alert("Not Available Yet", isPresented: Binding(
+                    get: { viewModel.actionUnavailable != nil },
+                    set: { if !$0 { viewModel.actionUnavailable = nil } }
+                )) {
+                    Button("OK") { viewModel.actionUnavailable = nil }
+                } message: {
+                    Text(viewModel.actionUnavailable ?? "")
+                }
 
                 // FAB
                 if viewModel.selectedSegment == .myDisputes {
