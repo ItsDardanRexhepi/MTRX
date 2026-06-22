@@ -482,8 +482,12 @@ final class WalletCreation {
                 completion(.failure(.guardianSetupFailed))
                 return
             }
-            // TODO: Deploy social recovery module with guardian addresses
-            completion(.success(()))
+            // Honest failure: the social recovery module is NOT deployed (there is no
+            // on-chain guardian registry yet), so guardian recovery is NOT set up.
+            // Report failure rather than a fake success that would tell the user their
+            // wallet is recoverable via guardians when it is not. Phase 4 builds the
+            // real module; until then this must say it isn't available.
+            completion(.failure(.recoverySetupFailed))
         }
     }
 

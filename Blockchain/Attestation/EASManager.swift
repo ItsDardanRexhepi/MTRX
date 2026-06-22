@@ -264,9 +264,10 @@ final class EASManager {
         requests: [AttestationRequest],
         completion: @escaping (Result<[String], EASError>) -> Void
     ) {
-        // TODO: ABI-encode multiAttest call
-        // Submit as single UserOperation for gas efficiency
-        completion(.success([]))
+        // Honest failure: multiAttest ABI-encoding + submission is not implemented, so
+        // no attestations are created. Return failure rather than success([]), which
+        // would imply the batch was written on-chain when nothing was.
+        completion(.failure(.verificationFailed(reason: "Batch attestation is not available yet.")))
     }
 
     // MARK: - Attestation Verification
@@ -306,8 +307,12 @@ final class EASManager {
                             completion(.success(true))
                             return
                         }
-                        // TODO: Call resolver contract to verify
-                        completion(.success(true))
+                        // Honest failure: the resolver-contract check is not implemented,
+                        // so we cannot assert this attestation satisfies its resolver
+                        // conditions. Return failure rather than a fake success(true).
+                        // (The no-resolver branch above legitimately succeeds — there is
+                        // nothing to check there.)
+                        completion(.failure(.verificationFailed(reason: "Resolver verification is not available yet.")))
                     }
                 }
             }
