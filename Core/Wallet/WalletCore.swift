@@ -68,18 +68,23 @@ final class WalletCore: ObservableObject {
 
     // MARK: - Signing
 
-    /// Sign an intent envelope / message hash with the wallet key.
+    /// Sign an OFF-CHAIN message / identity-proof payload with the wallet key.
     /// Requires an unlocked wallet.
+    ///
+    /// NON-TRANSACTION SIGNING ONLY — this must NOT be used to sign or broadcast a
+    /// UserOperation / on-chain transaction. ALL transaction signing goes through
+    /// `ERC4337Manager.signOperation`, which enforces the testnet chain guard
+    /// (fail-closed against mainnet). The only caller is `IdentityManager.signProof`
+    /// (an off-chain DID / verifiable-credential proof).
     func sign(_ data: Data, appleUserId: String) async throws -> Data {
         if !isUnlocked { try await unlock() }
-        // Per-transaction Face ID at the moment of signing (Phase 4 fund protection).
-        // When the user keeps this on (default), EVERY signature requires a fresh
-        // Face ID — not just the one-time wallet unlock. authenticate() throws on
-        // failure/cancel, so a failed Face ID never produces a signature. The key
-        // never leaves the Secure Enclave; the server never signs.
+        // Fresh Face ID at the moment of signing when the user keeps biometric signing
+        // on (default). authenticate() throws on failure/cancel, so a failed Face ID
+        // never produces a signature. The key never leaves the Secure Enclave; the
+        // server never signs.
         if SecurityPreferences.shared.requireBiometricForSigning {
             _ = try await biometrics.authenticate(
-                reason: "Approve this transaction with Face ID")
+                reason: "Authorize identity proof with Face ID")
         }
         return try enclave.sign(data, tag: keyTag(for: appleUserId))
     }
