@@ -2382,4 +2382,40 @@ extension MTRXAPIClient {
     private func currentSecurityIdentity() async -> String {
         await MainActor.run { WalletCore.shared.address ?? "" }
     }
+
+    // ⚠️ ADVISORY ONLY — NOT ENFORCEMENT (Requirement 5, Option B).
+    //
+    // Best-effort gate consult before a self-custody send. A self-custody on-chain
+    // send is built/signed/submitted by the app (which holds the key), so the server
+    // gate cannot physically veto it — the app must voluntarily consult and obey. This
+    // hook does the minimum: it asks the gate and aborts ONLY on an explicit deny. An
+    // absent / unreachable gate (no backend, missing endpoint, network error) PROCEEDS,
+    // because the app is not the enforcement boundary and a testnet self-custody send
+    // must not be blocked by an advisory layer that isn't deployed.
+    //
+    // *** This is NOT sufficient to move real money. *** Real pre-funds enforcement
+    // requires the Option A server preflight endpoint (a fail-closed, blocking check) —
+    // a HARD go-live blocker (R1/R2 tier), see SECURITY_REVIEW_CHECKLIST §14.8. Until
+    // that exists, no real-value send may rely on this hook.
+    //
+    // Returns true = "not explicitly denied" (proceed); false = explicit gate deny (abort).
+    func securityPreflightAllowsSend(to: String, valueUSD: Double, chainId: UInt64) async -> Bool {
+        // No backend deployed (e.g. testnet today) -> no gate to consult -> proceed.
+        guard PendingCredentials.isBackendConfigured else { return true }
+        let body: [String: String] = [
+            "to": to,
+            "value_usd": "\(valueUSD)",
+            "chain_id": "\(chainId)",
+            "action_type": "transfer",
+        ]
+        do {
+            _ = try await postFundMovingAttested(path: "/api/v1/security/preflight", body: body)
+            return true
+        } catch let err as MTRXAPIError where err.isSecurityBlock {
+            return false   // explicit Morpheus deny -> abort the send
+        } catch {
+            // Advisory: an absent / unreachable gate must NOT block a self-custody send.
+            return true
+        }
+    }
 }

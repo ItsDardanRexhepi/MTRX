@@ -1212,11 +1212,16 @@ struct AppTokenBalance: Identifiable {
     let priceUSD: Double
     let change24h: Double
     let iconColor: Color
+    /// True ONLY for the chain's native asset (ETH on Base). A STRUCTURAL flag — the
+    /// real signed send path keys off this, not the symbol string, so a token can't be
+    /// treated as native by spoofing its symbol "ETH". Set authoritatively from token
+    /// metadata (here, on the curated sample list); defaults to false (= a token).
+    var isNative: Bool = false
 
     var valueUSD: Double { balance * priceUSD }
 
     static let sampleData: [AppTokenBalance] = [
-        AppTokenBalance(symbol: "ETH", name: "Ethereum", balance: 2.4531, priceUSD: 3245.67, change24h: 3.12, iconColor: .blue),
+        AppTokenBalance(symbol: "ETH", name: "Ethereum", balance: 2.4531, priceUSD: 3245.67, change24h: 3.12, iconColor: .blue, isNative: true),
         AppTokenBalance(symbol: "USDC", name: "USD Coin", balance: 1250.00, priceUSD: 1.00, change24h: 0.01, iconColor: .green),
         AppTokenBalance(symbol: "MTRX", name: "Matrix Token", balance: 50000, priceUSD: 0.0234, change24h: 12.45, iconColor: .accentPrimary),
         AppTokenBalance(symbol: "WBTC", name: "Wrapped Bitcoin", balance: 0.0521, priceUSD: 67890.12, change24h: -1.23, iconColor: .orange),

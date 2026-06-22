@@ -18,12 +18,16 @@ struct SendView: View {
     @State private var isVisible: Bool = false
     @State private var showTokenPicker: Bool = false
     @State private var showQRAlert: Bool = false
-    @State private var showSendConfirmation: Bool = false
     // P2.1 asset scope: non-native (ERC-20) sends are out of scope for the first real
     // flow. They get an explicit honest "token sends not available" and never reach the
     // ETH-only signed path — so a wrong-asset send (sending native value for a token) is
     // impossible.
     @State private var showTokenUnavailable: Bool = false
+    // P2.2: real native-ETH send state. "Transaction Sent" fires ONLY on a real op-hash;
+    // sendError carries the real, honest error on any failure (nothing is ever faked).
+    @State private var isSending: Bool = false
+    @State private var sendError: String?
+    @State private var sentHash: String?
 
     private var selectedToken: AppTokenBalance {
         guard walletManager.tokens.indices.contains(selectedTokenIndex) else {
@@ -58,8 +62,71 @@ struct SendView: View {
     /// flow (P2.2) supports native ETH only; non-native ERC-20 tokens are honest-failed
     /// so a wrong-asset send is impossible — BlockchainBridge.sendTransaction moves
     /// native value, not ERC-20 transfer calldata.
+    ///
+    /// Keyed off the STRUCTURAL `isNative` flag (set from token metadata), NOT the symbol
+    /// string — so a token cannot be treated as native by spoofing its symbol "ETH".
     private var isNativeSend: Bool {
-        selectedToken.symbol.uppercased() == "ETH"
+        selectedToken.isNative
+    }
+
+    /// `amount` (ETH units) → wei, guarded to fit BlockchainBridge's UInt64. nil if invalid.
+    private var weiAmount: UInt64? {
+        guard amount > 0 else { return nil }
+        let wei = NSDecimalNumber(value: amount).multiplying(byPowerOf10: 18)
+        guard wei.compare(NSDecimalNumber(value: UInt64.max)) != .orderedDescending else { return nil }
+        return wei.uint64Value
+    }
+
+    // MARK: - Real native-ETH send (P2.2)
+
+    /// Real native-ETH testnet send: biometric → advisory gate consult → real signed
+    /// broadcast → success ONLY on a real op-hash. Every failure (no wallet, bad amount,
+    /// cancelled Face ID, gate deny, network/revert) surfaces the real error honestly;
+    /// nothing ever fakes "Transaction Sent". Does nothing for non-native tokens.
+    @MainActor
+    private func sendNative() async {
+        guard isNativeSend else { return }
+        sendError = nil
+
+        // Precondition: a connected wallet + a valid native amount. Honest-fail otherwise.
+        guard BlockchainBridge.shared.isWalletConnected else {
+            sendError = "Connect a wallet before sending. Nothing was sent."
+            return
+        }
+        guard let wei = weiAmount else {
+            sendError = "Enter a valid ETH amount. Nothing was sent."
+            return
+        }
+
+        // 1. Biometric gate BEFORE signing. A cancelled / failed Face ID ABORTS — no sign.
+        do {
+            let ok = try await BiometricAuth.shared.authenticate(reason: "Confirm sending \(amountText) ETH")
+            guard ok else { return }   // user cancelled → abort; nothing signed, nothing sent
+        } catch {
+            sendError = (error as? LocalizedError)?.errorDescription ?? "Face ID was not confirmed. Nothing was sent."
+            return
+        }
+
+        // 2. Advisory security gate consult (Requirement 5, Option B — NOT enforcement;
+        //    see MTRXAPIClient.securityPreflightAllowsSend). An explicit deny aborts.
+        let allowed = await MTRXAPIClient.shared.securityPreflightAllowsSend(
+            to: recipientAddress, valueUSD: usdEquivalent, chainId: BlockchainBridge.baseSepoliaChainID)
+        guard allowed else {
+            sendError = "This transfer couldn't be authorized right now. Nothing was sent."
+            return
+        }
+
+        // 3. Real signed testnet send. Success ONLY when it broadcasts and returns a hash.
+        isSending = true
+        do {
+            let result = try await BlockchainBridge.shared.sendTransaction(to: recipientAddress, amount: wei)
+            isSending = false
+            sentHash = result.transactionHash   // honest success — a real op-hash
+            MtrxHaptics.success()
+        } catch {
+            isSending = false
+            sendError = (error as? LocalizedError)?.errorDescription ?? "The transfer could not be completed. Nothing was sent."
+        }
     }
 
     var body: some View {
@@ -92,10 +159,24 @@ struct SendView: View {
         } message: {
             Text("QR Scanner requires camera permission. Paste an address instead.")
         }
-        .alert("Not Available Yet", isPresented: $showSendConfirmation) {
-            Button("OK") {}
+        // Success — fires ONLY when the send actually broadcast and returned a real hash.
+        .alert("Transaction Sent", isPresented: Binding(
+            get: { sentHash != nil },
+            set: { if !$0 { sentHash = nil } }
+        )) {
+            Button("Done") { sentHash = nil; dismiss() }
         } message: {
-            Text("On-chain sending isn't available in this build yet. Your funds have not moved.")
+            Text("Sent \(amountText) ETH. Transaction \(truncateAddress(sentHash ?? "")).")
+        }
+        // Honest failure — the real error from any stage (no wallet, bad amount, Face ID
+        // cancelled, gate deny, network/revert). Never a fake success.
+        .alert("Send Failed", isPresented: Binding(
+            get: { sendError != nil },
+            set: { if !$0 { sendError = nil } }
+        )) {
+            Button("OK") { sendError = nil }
+        } message: {
+            Text(sendError ?? "")
         }
         .alert("Token Sends Unavailable", isPresented: $showTokenUnavailable) {
             Button("OK") {}
@@ -374,10 +455,9 @@ struct SendView: View {
                 Button {
                     MtrxHaptics.impact(.medium)
                     if isNativeSend {
-                        // Native ETH: the slot P2.2 wires to the real signed testnet
-                        // send. Until then it honest-fails ("not available yet") — never
-                        // a fake "Transaction Sent".
-                        showSendConfirmation = true
+                        // Native ETH: real signed testnet send (P2.2). biometric →
+                        // advisory gate → broadcast → success ONLY on a real op-hash.
+                        Task { await sendNative() }
                     } else {
                         // Non-native (ERC-20): out of scope for the first real flow.
                         // Honest-fail explicitly so a token never reaches the ETH-only
@@ -385,9 +465,10 @@ struct SendView: View {
                         showTokenUnavailable = true
                     }
                 } label: {
-                    Text("Confirm & Send")
+                    Text(isSending ? "Sending…" : "Confirm & Send")
                 }
                 .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, fullWidth: true))
+                .disabled(isSending)
 
                 Button {
                     MtrxHaptics.impact(.light)
