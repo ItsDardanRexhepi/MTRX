@@ -848,6 +848,18 @@ struct AgentConversationView: View {
                     .frame(width: 36, height: 36)
             }
 
+            // Speaker toggle — read Trinity's replies aloud (on-device TTS).
+            Button {
+                MtrxHaptics.impact(.light)
+                viewModel.toggleVoiceOutput()
+            } label: {
+                Image(systemName: viewModel.voiceOutputEnabled ? "speaker.wave.2.fill" : "speaker.slash")
+                    .accessibilityLabel(viewModel.voiceOutputEnabled ? "Mute Trinity's voice" : "Hear Trinity's replies")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(viewModel.voiceOutputEnabled ? agentAccent : Color.labelTertiary)
+                    .frame(width: 32, height: 36)
+            }
+
             // Text field — addressed to whoever is in the room.
             TextField("Ask \(agentName)...", text: $viewModel.inputText, axis: .vertical)
                 .font(.mtrxBody)

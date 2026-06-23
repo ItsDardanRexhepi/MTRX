@@ -91,6 +91,35 @@ final class AgentConversationViewModel: ObservableObject {
         isListening = false
     }
 
+    // MARK: - Voice output (V4 — on-device TTS, Tier 1)
+    @Published var voiceOutputEnabled = false
+    private let trinityVoice = TrinityVoice()
+
+    func toggleVoiceOutput() {
+        voiceOutputEnabled.toggle()
+        if !voiceOutputEnabled { trinityVoice.stop() }
+    }
+
+    /// Speak an agent reply when voice output is on. On-device, in the reply's OWN language for
+    /// Tier-1 languages; for a language with no on-device voice we stay SILENT (the text reply
+    /// still shows) rather than speak it in the wrong voice — honest, not faked. Tier-2 neural TTS
+    /// is gated behind ExtendedLanguageGate and wired with credentials later. Money-isolated.
+    func speakIfEnabled(_ text: String) {
+        guard voiceOutputEnabled else { return }
+        let spoken = Self.strippedForSpeech(text)
+        guard !spoken.isEmpty else { return }
+        let lang = NaturalLanguageProcessor.shared.languageProfile(for: spoken)
+        guard lang.tier1Supported else { return }
+        Task { await trinityVoice.speak(spoken, languageCode: lang.code) }
+    }
+
+    /// Strip markdown so TTS doesn't read "asterisk asterisk" etc.
+    private static func strippedForSpeech(_ text: String) -> String {
+        var s = text
+        for token in ["**", "__", "`", "#", "*", "_", ">"] { s = s.replacingOccurrences(of: token, with: "") }
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private let accessControl = AgentAccessControl.shared
     private let morpheus = MorpheusInterventions.shared
     private var userID: String = ""
@@ -764,6 +793,7 @@ final class AgentConversationViewModel: ObservableObject {
                     } else {
                         messages.append(AgentMessage(text: onDevice, role: .agent, agentName: agentName))
                     }
+                    speakIfEnabled(onDevice)
                     isTyping = false
                     return
                 }
@@ -802,6 +832,7 @@ final class AgentConversationViewModel: ObservableObject {
                     agentName: agentName,
                     suggestedActions: (apiResponse.suggestedActions ?? []).map { SuggestedAction(title: $0.label, description: $0.label, action: $0.action) }
                 ))
+                speakIfEnabled(apiResponse.text)
                 isTyping = false
             } catch {
                 // 3 — Local template fallback (ENGLISH-ONLY). The scripted responses are
@@ -831,6 +862,7 @@ final class AgentConversationViewModel: ObservableObject {
                     role: .agent,
                     agentName: agentName
                 ))
+                speakIfEnabled(response)
                 isTyping = false
             }
         }
@@ -1155,6 +1187,7 @@ final class AgentConversationViewModel: ObservableObject {
             agentName: "Trinity",
             suggestedActions: actions
         ))
+        speakIfEnabled(text)
     }
 
     /// True when the user is plainly asking what the agent can do or for

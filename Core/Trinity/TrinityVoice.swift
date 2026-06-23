@@ -127,6 +127,33 @@ final class TrinityVoice: NSObject, @unchecked Sendable {
         selectedVoice = selectBestVoice(for: currentProfile)
     }
 
+    /// Speak `text` in the given language (a short code like "fr", "ja", "zh-Hans"), choosing the
+    /// best on-device voice for it. Used by the multilingual chat TTS so Trinity speaks replies in
+    /// the user's language. Keeps Trinity's rate/pitch; only the language/voice changes.
+    func speak(_ text: String, languageCode: String) async {
+        let base = currentProfile
+        let profile = VoiceProfile(
+            identifier: base.identifier, name: base.name, rate: base.rate, pitch: base.pitch,
+            volume: base.volume, language: Self.ttsLocale(for: languageCode),
+            preUtteranceDelay: base.preUtteranceDelay, postUtteranceDelay: base.postUtteranceDelay
+        )
+        await speak(text, with: profile)
+    }
+
+    /// Map a bare language code (NLLanguage raw value) to a representative BCP-47 locale the
+    /// speech synthesizer has voices for.
+    static func ttsLocale(for code: String) -> String {
+        switch code {
+        case "en": return "en-US"; case "da": return "da-DK"; case "nl": return "nl-NL"
+        case "fr": return "fr-FR"; case "de": return "de-DE"; case "it": return "it-IT"
+        case "nb", "no": return "nb-NO"; case "pt": return "pt-BR"; case "es": return "es-ES"
+        case "sv": return "sv-SE"; case "tr": return "tr-TR"; case "vi": return "vi-VN"
+        case "zh-Hans": return "zh-CN"; case "zh-Hant": return "zh-TW"
+        case "ja": return "ja-JP"; case "ko": return "ko-KR"
+        default: return code
+        }
+    }
+
     /// Pause current speech at the next word boundary.
     func pause() {
         guard synthesizer.isSpeaking else { return }
