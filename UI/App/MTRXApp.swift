@@ -734,6 +734,10 @@ class AppState: ObservableObject {
     @Published var walletAddress: String = DemoDataProvider.walletAddress
     @Published var joinDate: Date = Date()
     @Published var notificationCount: Int = 0
+    /// Phase 4-A / W2: set at launch when the persisted signing key is missing/invalidated or not
+    /// biometric-gated — the wallet needs a Tier-A reset (the step-5 recovery UI surfaces this).
+    /// `nil` = signer OK, or no wallet, or cloud-identity-only.
+    @Published var walletSignerResetReason: String?
 
     private enum Keys {
         static let onboardingComplete = "com.mtrx.onboardingComplete"
@@ -771,6 +775,22 @@ class AppState: ObservableObject {
         // Restore the backend session token (JWT in the Keychain) so API calls
         // are authenticated across launches.
         MTRXAPIClient.shared.loadStoredToken()
+
+        // Phase 4-A / W2–W3: restore + re-validate the wallet's signing key (the canonical signer).
+        restoreWalletSigner()
+    }
+
+    /// Restore the wallet's signing key at launch (W2) and bind it as the canonical signer (W3),
+    /// re-validating the key is present AND biometric-gated before trusting the persisted pointer.
+    /// Captures a reset reason if the key is gone/invalidated/ungated so recovery (step 5) can route
+    /// the user — never silently trusts a tampered/stale record for value-signing.
+    private func restoreWalletSigner() {
+        switch WalletCreation().restoreActiveWallet() {
+        case .needsReset(let reason):
+            walletSignerResetReason = reason
+        case .restored, .identityOnly, .noWallet:
+            walletSignerResetReason = nil
+        }
     }
 
     func navigate(to destination: NavigationDestination) {

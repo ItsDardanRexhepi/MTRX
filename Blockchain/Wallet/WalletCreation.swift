@@ -31,6 +31,9 @@ protocol SecureEnclaveProvider {
     func sign(data: Data, withKeyTag tag: String, context: LAContext?) throws -> Data
     func deleteKey(tag: String) throws
     func keyExists(tag: String) -> Bool
+    /// Whether the key for `tag` is biometric-gated — probes the REAL access control (P3.4), used by
+    /// restore-on-launch (W2) to re-validate a persisted key tag before binding it as the signer.
+    func isGated(tag: String) -> Bool
 }
 
 extension SecureEnclaveProvider {
@@ -67,6 +70,7 @@ struct SmartWallet {
 struct ActiveWalletRecord: Codable {
     let address: String
     let keyTag: String
+    let publicKey: Data          // non-secret; lets restore reconstruct SmartWallet without an enclave read
     let recoveryMethod: String   // RecoveryMethod.rawValue
     let createdAt: Date
     let isDeployed: Bool
@@ -74,6 +78,7 @@ struct ActiveWalletRecord: Codable {
     init(_ wallet: SmartWallet) {
         self.address = wallet.address
         self.keyTag = wallet.keyTag
+        self.publicKey = wallet.publicKey
         self.recoveryMethod = wallet.recoveryMethod.rawValue
         self.createdAt = wallet.createdAt
         self.isDeployed = wallet.isDeployed
@@ -246,6 +251,64 @@ final class WalletCreation {
                 completion(.failure(.biometricAuthFailed))
             }
         }
+    }
+
+    // MARK: - Restore on launch (Phase 4-A / W2–W3)
+
+    /// Outcome of restoring the active wallet from the persisted record at launch.
+    enum RestoreOutcome {
+        case restored(SmartWallet)       // usable: a present, biometric-GATED key — bound as canonical signer
+        case needsReset(reason: String)  // key persisted but missing/invalidated or NOT gated → route to Tier-A reset (step 5)
+        case identityOnly(SmartWallet)   // cloud-metadata restore: address known, NO local signing key yet → needs recovery
+        case noWallet                    // nothing persisted
+    }
+
+    /// Restore the active wallet from the persisted record (W2) and bind it as the canonical signer
+    /// (W3) — but ONLY after re-validating the real key state.
+    ///
+    /// HARD REQUIREMENT (W1 adversarial note): the persisted `keyTag` is a non-secret POINTER, not a
+    /// guarantee. A tampered/stale record could name an ungated or missing key. So we re-probe the
+    /// REAL key — `keyExists` + `isGated` (P3.4, probes the actual access control) — and bind it ONLY
+    /// when present AND gated. A missing/invalidated key (e.g. a `.biometryCurrentSet` key destroyed
+    /// by a Face ID re-enrollment) or an ungated/legacy key is routed to **reset** (bridge to step 5
+    /// / Tier-A), never silently bound for value-signing — and never hangs.
+    @discardableResult
+    func restoreActiveWallet() -> RestoreOutcome {
+        guard let record = WalletRecordStore.load() else { return .noWallet }
+
+        // Cloud-metadata restore: identity only, no local signing key on this device yet.
+        if record.keyTag.isEmpty {
+            let wallet = makeWallet(from: record)
+            self.activeWallet = wallet
+            return .identityOnly(wallet)
+        }
+
+        // Re-probe the REAL key — the record is a pointer, not proof.
+        guard secureEnclaveProvider.keyExists(tag: record.keyTag) else {
+            return .needsReset(reason: "Your signing key is no longer available — it may have been reset when your Face ID / Touch ID changed. Reset the wallet to create a new protected key.")
+        }
+        guard secureEnclaveProvider.isGated(tag: record.keyTag) else {
+            // Present but NOT biometric-gated (tampered record or a legacy ungated key) — the weak-key
+            // case (P3.4). Do NOT bind for value-signing; route to reset.
+            return .needsReset(reason: "Your signing key isn't biometric-protected. Reset the wallet to create a protected key.")
+        }
+
+        // Present AND gated → bind as the canonical signer.
+        let wallet = makeWallet(from: record)
+        self.activeWallet = wallet
+        return .restored(wallet)
+    }
+
+    private func makeWallet(from record: ActiveWalletRecord) -> SmartWallet {
+        SmartWallet(
+            address: record.address,
+            publicKey: record.publicKey,
+            createdAt: record.createdAt,
+            recoveryMethod: RecoveryMethod(rawValue: record.recoveryMethod) ?? .faceID,
+            accountType: .standard,
+            isDeployed: record.isDeployed,
+            keyTag: record.keyTag
+        )
     }
 
     // MARK: - Recovery
@@ -711,5 +774,9 @@ final class DefaultSecureEnclaveProvider: SecureEnclaveProvider {
 
     func keyExists(tag: String) -> Bool {
         manager.hasKey(tag: tag)
+    }
+
+    func isGated(tag: String) -> Bool {
+        manager.isGated(tag: tag)
     }
 }
