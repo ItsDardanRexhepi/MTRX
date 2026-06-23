@@ -241,33 +241,6 @@ final class WalletCreation {
         return recoveryGuardians
     }
 
-    // MARK: - Signing
-
-    /// Sign arbitrary data with the Secure Enclave owner key.
-    ///
-    /// NON-TRANSACTION SIGNING ONLY — this must NOT be used to sign or broadcast a
-    /// UserOperation / on-chain transaction. ALL transaction signing goes through
-    /// `ERC4337Manager.signOperation`, which enforces the testnet chain guard
-    /// (fail-closed against mainnet). (No production caller today; exercised by tests.)
-    func sign(data: Data, completion: @escaping (Result<Data, WalletCreationError>) -> Void) {
-        biometricProvider.authenticateWithBiometrics(reason: "Authorize signature with Face ID") { [weak self] result in
-            guard let self = self else { return }
-
-            switch result {
-            case .success:
-                do {
-                    let keyTag = "\(self.keyTagPrefix).owner"
-                    let signature = try self.secureEnclaveProvider.sign(data: data, withKeyTag: keyTag)
-                    completion(.success(signature))
-                } catch {
-                    completion(.failure(.secureEnclaveError(reason: error.localizedDescription)))
-                }
-            case .failure:
-                completion(.failure(.biometricAuthFailed))
-            }
-        }
-    }
-
     // MARK: - Private Implementation
 
     private func performWalletCreation(
