@@ -644,6 +644,11 @@ final class AgentConversationViewModel: ObservableObject {
         // Build conversation context from recent messages
         let conversationContext = buildConversationContext()
 
+        // V0 — multilingual foundation: detect the user's language on-device (shared by text
+        // and voice; no data leaves the device). Drives response-language mirroring below via
+        // langProfile.mirrorInstruction, and the honest English-only offline fallback.
+        let langProfile = NaturalLanguageProcessor.shared.languageProfile(for: text)
+
         Task {
             // 1 — On-device Apple Intelligence (instant, private, offline).
             // The session keeps its own conversation context across turns.
@@ -664,6 +669,8 @@ final class AgentConversationViewModel: ObservableObject {
             // restored chats keep their context across app relaunches,
             // and switching between saved chats never crosses wires.
             contextLine += Self.transcriptRecap(messages)
+            // Mirror the user's language on the on-device model (within its supported set).
+            if !langProfile.mirrorInstruction.isEmpty { contextLine += " " + langProfile.mirrorInstruction }
             let persona: InferenceRouter.Persona = {
                 switch agent {
                 case .trinity: return .trinity
@@ -713,7 +720,7 @@ final class AgentConversationViewModel: ObservableObject {
                 let apiResponse = try await MTRXAPIClient.shared.sendAgentMessage(
                     agent: agentName.lowercased(),
                     message: text,
-                    context: temporal + "\n" + conversationContext,
+                    context: temporal + "\n" + conversationContext + (langProfile.mirrorInstruction.isEmpty ? "" : "\n" + langProfile.mirrorInstruction),
                     conversationHistory: buildHistoryPayload()
                 )
 
@@ -725,8 +732,21 @@ final class AgentConversationViewModel: ObservableObject {
                 ))
                 isTyping = false
             } catch {
-                // 3 — Local template fallback
+                // 3 — Local template fallback (ENGLISH-ONLY). The scripted responses are
+                // English; a non-English message must NOT get a fake English reply here. The
+                // API LLM above is the multilingual (mirroring) path — when it's unreachable
+                // and the user wrote in another language, fail honestly instead of answering
+                // in the wrong language. (Tier-2 extended-language support lands in V2+.)
                 isOffline = true
+                if !langProfile.isEnglish {
+                    messages.append(AgentMessage(
+                        text: "I can chat with you in \(langProfile.displayName) when I'm connected, but my offline responses are English-only right now. Please try again once you're back online.",
+                        role: .agent,
+                        agentName: agentName
+                    ))
+                    isTyping = false
+                    return
+                }
                 let response = generateResponse(
                     text: text,
                     agent: agent,
@@ -1340,6 +1360,12 @@ final class AgentConversationViewModel: ObservableObject {
 
     // MARK: - Local Response Generation
 
+    /// ENGLISH-ONLY scripted fallback — used only when BOTH the on-device model and the API
+    /// gateway are unavailable. Non-English input is never answered here: `processWithAgent`
+    /// routes it to the API LLM (which mirrors the user's language) and, when that's
+    /// unreachable, returns an honest "offline responses are English-only" message instead of
+    /// a wrong-language reply. Do not add non-English branches here — multilingual lives on the
+    /// model paths, not the scripted templates.
     private func generateResponse(text: String, agent: AgentAccessControl.ActiveAgent, temporal: String, intercepted: Bool) -> String {
         if intercepted {
             // Scenario 1: Trinity warmly redirects without revealing the interception

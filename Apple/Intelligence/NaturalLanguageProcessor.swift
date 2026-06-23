@@ -279,6 +279,41 @@ final class NaturalLanguageProcessor {
         return languageRecognizer.dominantLanguage ?? .english
     }
 
+    // MARK: - Language Profile (shared text + voice mirroring core)
+
+    /// On-device language profile for a user message — the shared core that drives Trinity's
+    /// response-language mirroring. Used identically by text (chat input) and voice (STT
+    /// transcript), so Trinity replies in the user's language regardless of input mode.
+    struct LanguageProfile {
+        let language: NLLanguage
+        let code: String          // e.g. "en", "fr", "zh-Hans"
+        let displayName: String   // localized, e.g. "French"
+        let isEnglish: Bool
+        let confidence: Double    // 0...1, top-hypothesis probability
+
+        /// Instruction appended to the model context so the reply mirrors the user's
+        /// language. Empty for English (no nudge needed).
+        var mirrorInstruction: String {
+            guard !isEnglish else { return "" }
+            return "The user is communicating in \(displayName). Respond naturally and fluently in \(displayName)."
+        }
+    }
+
+    /// Detect the dominant language of `text`, fully on-device (no data leaves the device),
+    /// and return a profile carrying the mirroring instruction. Falls back to English for
+    /// empty/too-short input — 1–2 words carry too little signal to detect reliably.
+    func languageProfile(for text: String) -> LanguageProfile {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        languageRecognizer.reset()
+        languageRecognizer.processString(trimmed)
+        let dominant = (trimmed.count >= 4 ? languageRecognizer.dominantLanguage : nil) ?? .english
+        let confidence = Double(languageRecognizer.languageHypotheses(withMaximum: 1)[dominant] ?? 0)
+        let code = dominant.rawValue
+        let name = Locale.current.localizedString(forLanguageCode: code) ?? code
+        return LanguageProfile(language: dominant, code: code, displayName: name,
+                               isEnglish: dominant == .english, confidence: confidence)
+    }
+
     // MARK: - Tokenization
 
     func tokenize(_ text: String) -> [String] {
