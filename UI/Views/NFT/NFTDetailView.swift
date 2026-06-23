@@ -12,6 +12,7 @@ class NFTDetailViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var actionInProgress: String?
+    @Published var actionUnavailable: String?
 
     let nft: NFTDisplayItem
 
@@ -32,33 +33,24 @@ class NFTDetailViewModel: ObservableObject {
     }
 
     func listForSale() async {
-        actionInProgress = "list"
-        do {
-            try await Task.sleep(for: .seconds(1))
-            actionInProgress = nil
-        } catch {
-            actionInProgress = nil
-        }
+        // Honest failure: no real marketplace-listing path is wired. Do NOT silently
+        // clear the spinner and pretend it worked — nothing was listed.
+        actionInProgress = nil
+        actionUnavailable = "Listing isn't available in this build yet. Nothing was listed."
     }
 
     func transfer() async {
-        actionInProgress = "transfer"
-        do {
-            try await Task.sleep(for: .seconds(1))
-            actionInProgress = nil
-        } catch {
-            actionInProgress = nil
-        }
+        // Honest failure: no real on-chain NFT transfer path is wired. Do NOT silently
+        // clear the spinner and pretend it worked — nothing was transferred.
+        actionInProgress = nil
+        actionUnavailable = "NFT transfer isn't available in this build yet. Nothing was transferred."
     }
 
     func makeOffer() async {
-        actionInProgress = "offer"
-        do {
-            try await Task.sleep(for: .seconds(1))
-            actionInProgress = nil
-        } catch {
-            actionInProgress = nil
-        }
+        // Honest failure: no real offer path is wired. Do NOT silently clear the spinner
+        // and pretend it worked — no offer was made.
+        actionInProgress = nil
+        actionUnavailable = "Making an offer isn't available in this build yet. No offer was made."
     }
 }
 
@@ -97,6 +89,14 @@ struct NFTDetailView: View {
         .navigationTitle(nft.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load() }
+        .alert("Not Available Yet", isPresented: Binding(
+            get: { viewModel.actionUnavailable != nil },
+            set: { if !$0 { viewModel.actionUnavailable = nil } }
+        )) {
+            Button("OK", role: .cancel) { viewModel.actionUnavailable = nil }
+        } message: {
+            Text(viewModel.actionUnavailable ?? "")
+        }
     }
 
     // MARK: - Detail Content

@@ -24,6 +24,7 @@ final class ContractViewModel: ObservableObject {
     // State
     @Published var isDeploying: Bool = false
     @Published var deploySuccess: Bool = false
+    @Published var deployUnavailable: Bool = false
 
     // MARK: - Validation
 
@@ -84,40 +85,13 @@ final class ContractViewModel: ObservableObject {
     // MARK: - Deploy
 
     func deploy() {
-        // Off-grid: route the deployment through the local mesh outbox
-        // instead of blocking on a network that isn't there.
-        if NetworkPathMonitor.shared.isOffline {
-            let name = contractName.isEmpty ? (selectedTemplate?.rawValue ?? "Contract") : contractName
-            MeshOutbox.shared.enqueue(LocalIntent(kind: .contract, reference: name, note: "deploy"))
-            isDeploying = false
-            deploySuccess = true
-            return
-        }
-
-        isDeploying = true
-        MtrxHaptics.impact(.heavy)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-            guard let self else { return }
-            self.isDeploying = false
-            self.deploySuccess = true
-            MtrxHaptics.success()
-
-            // The new contract lands at the top of the Build hub list.
-            if let template = self.selectedTemplate {
-                DeployedContractsStore.shared.items.insert(ContractListItem(
-                    title: self.contractName.isEmpty ? template.rawValue : self.contractName,
-                    contractType: template.rawValue,
-                    counterparty: String(DemoArtifacts.address(seed: "contract|\(self.contractName)|\(template.rawValue)").prefix(10)) + "…",
-                    value: "$0.00",
-                    valueNumeric: 0,
-                    status: .active,
-                    typeIcon: template.icon,
-                    createdDate: Date().formatted(.dateTime.month(.abbreviated).day().year()),
-                    actionLabel: "View"
-                ), at: 0)
-            }
-        }
+        // Honest failure: there is no real on-chain deploy path wired (no signer / no
+        // chain configured), so this must NOT fabricate a deployed contract or show
+        // "Contract Deployed". Killed the timer-then-success, the fake deploySuccess, the
+        // DeployedContractsStore insert, and the off-grid fake. Nothing is deployed.
+        isDeploying = false
+        deploySuccess = false
+        deployUnavailable = true
     }
 
     func pasteAddress() {
@@ -214,6 +188,11 @@ struct ContractView: View {
                 if viewModel.deploySuccess {
                     deploySuccessOverlay
                 }
+            }
+            .alert("Not Available Yet", isPresented: $viewModel.deployUnavailable) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Contract deployment isn't available in this build yet. Nothing was deployed.")
             }
             .navigationTitle("New Contract")
             .navigationBarTitleDisplayMode(.inline)

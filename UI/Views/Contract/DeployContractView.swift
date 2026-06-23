@@ -20,6 +20,7 @@ final class DeployContractViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var deployedAddress: String?
     @Published var showConfirmation: Bool = false
+    @Published var deployUnavailable: Bool = false
     @Published var gasEstimate: DeployGasEstimate?
     @Published var contentAppeared: Bool = false
     @Published var searchText: String = ""
@@ -125,23 +126,13 @@ final class DeployContractViewModel: ObservableObject {
 
     func deploy() async {
         guard canDeploy else { return }
-        isDeploying = true
-
-        try? await Task.sleep(nanoseconds: 3_000_000_000)
-
-        // SIMULATED deploy (no chain configured). Derive a deterministic,
-        // content-addressed demo address from the template + params — never the
-        // old hardcoded real Uniswap router address. The real on-chain deploy
-        // runs through the WalletTransactionService pipeline once PendingCredentials
-        // is filled.
-        let seed = (selectedTemplate?.name ?? "contract") + "|" + parameterValues
-            .sorted { $0.key < $1.key }
-            .map { "\($0.key)=\($0.value)" }
-            .joined(separator: "&")
-        deployedAddress = DemoArtifacts.address(seed: seed)
+        // Honest failure: there is no real on-chain deploy path wired (no signer / no
+        // chain), so this must NOT fabricate a deployed address or show success. Killed
+        // the timer-then-address and the success haptic. Nothing is deployed.
         isDeploying = false
         showConfirmation = false
-        MtrxHaptics.success()
+        deployedAddress = nil
+        deployUnavailable = true
     }
 
     func reset() {
@@ -213,6 +204,11 @@ struct DeployContractView: View {
             }
             .sheet(isPresented: $viewModel.showConfirmation) {
                 deployConfirmationSheet
+            }
+            .alert("Not Available Yet", isPresented: $viewModel.deployUnavailable) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Contract deployment isn't available in this build yet. Nothing was deployed.")
             }
         }
         .task {
