@@ -86,4 +86,31 @@ Ordered by reachability:
 5. **Out-of-band fixes** (do regardless of gating): repair `BlockchainBridge.swap:989` fake-success; fix-or-delete `CryptoPaymentSheet`.
 6. **Gated tier** (Swap, DeFi ×4, Bridge) — each needs the un-gate/licensing decision **and** its real path; Swap already scoped as the larger server-mediated build (S1–S5).
 
+---
+
+## UPDATE (2026-06-23) — Send's signing path is FULLY UNWIRED; activation is a §14.8c-gated program
+
+Found while scoping P3.2b (single Face ID on Send). **This corrects the line above** ("the only
+WIRED real send is Send"): Send is a fully-honest **dead-end**, not a wired real send.
+
+- **`BlockchainBridge.connectWallet(address:)` is never called anywhere** → `connectedWalletAddress`
+  is always nil → `isWalletConnected` always false → `SendView.sendNative` returns at its **first
+  guard** ("Connect a wallet before sending"), *before the biometric, before `sendTransaction`,
+  before any signing*. Three more stops sit below it: `erc4337Manager` is nil (assigned only inside
+  the un-called `connectWallet`), and the convenience `signOperation(op){}` fails `.invalidSignature`
+  because `configureSigningKey` is never called on the bridge manager.
+- **The gated signing key is ORPHANED.** The biometric-gated owner key (P3.1,
+  `com.mtrx.wallet.key.owner.<UUID>`) lives in `WalletCreation.activeWallet`, which is **in-memory
+  only — the random-UUID tag is never persisted** → after a relaunch the app cannot find its own
+  signing key. Three disjoint wallet notions exist (WalletCore ungated / SmartWallet gated-but-orphaned
+  / WalletService server-side); none is wired to the bridge.
+- **Activating Send = a W1–W7 go-live program, blocked by §14.8c.** Persist the gated tag (W1),
+  wallet load/restore (W2), pick the canonical signer (W3), real CREATE2 `sender` + factory config
+  (W4), wire `connectWallet`+`configureSigningKey` (W5), thread the P3.2b LAContext (W6), real
+  RPC/bundler/paymaster (W7). Real signing on the `.biometryCurrentSet` key is **forbidden by §14.8c
+  until Phase 4 recovery handles biometric-change key-loss** — and W1 (persisting the gated tag)
+  sharpens that fund-loss coupling. Full scope: `SEND_ACTIVATION_SCOPE.md` (not in repo; ask).
+- **P3.2b is held as dormant readiness** — its single-prompt premise (Send double-prompts) doesn't
+  exist until W1–W5 land. Parked behind Phase 4.
+
 Every wiring step: biometric → advisory gate → guarded sign → success only on a real result → honest failure otherwise → adversarial self-verify → package for review → hold push.
