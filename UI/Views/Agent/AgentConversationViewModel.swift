@@ -54,6 +54,10 @@ final class AgentConversationViewModel: ObservableObject {
 
     func startVoiceInput() {
         voiceError = nil
+        // V5 — barge-in + clean handoff: stop any in-progress speech before recording, so the
+        // session moves .playback → .record and the mic never captures Trinity's own voice.
+        trinityVoice.stop()
+        isSpeaking = false
         transcriber.requestAuthorization { [weak self] granted in
             guard let self else { return }
             guard granted else {
@@ -93,6 +97,7 @@ final class AgentConversationViewModel: ObservableObject {
 
     // MARK: - Voice output (V4 — on-device TTS, Tier 1)
     @Published var voiceOutputEnabled = false
+    @Published var isSpeaking = false
     private let trinityVoice = TrinityVoice()
 
     func toggleVoiceOutput() {
@@ -110,7 +115,14 @@ final class AgentConversationViewModel: ObservableObject {
         guard !spoken.isEmpty else { return }
         let lang = NaturalLanguageProcessor.shared.languageProfile(for: spoken)
         guard lang.tier1Supported else { return }
-        Task { await trinityVoice.speak(spoken, languageCode: lang.code) }
+        // V5 — clean handoff: stop listening before speaking so the session moves .record → .playback
+        // without a clash, and we never transcribe Trinity's own voice back into the input.
+        if isListening { stopVoiceInput() }
+        Task {
+            isSpeaking = true
+            await trinityVoice.speak(spoken, languageCode: lang.code)
+            isSpeaking = false
+        }
     }
 
     /// Strip markdown so TTS doesn't read "asterisk asterisk" etc.

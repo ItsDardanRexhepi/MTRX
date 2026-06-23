@@ -99,6 +99,11 @@ final class TrinityVoice: NSObject, @unchecked Sendable {
     /// Speak the given text using Trinity's voice profile.
     /// - Parameter text: The text to speak.
     func speak(_ text: String) async {
+        // V5 — re-assert the .playback session before speaking. The mic (STT) switches the shared
+        // AVAudioSession to .record; this flips it back to .playback so the reply plays on the right
+        // route. Idempotent for back-to-back replies; the mic side stops TTS before it records, so
+        // the two never fight over the session.
+        configureAudioSession()
         // Stop any current speech
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .word)
