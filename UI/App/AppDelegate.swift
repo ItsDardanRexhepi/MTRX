@@ -24,7 +24,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         configureAppearance()
         registerBackgroundTasks()
-        requestNotificationPermissions(application: application)
+        // The MVP build has no APNs entitlement and no notification-driven features,
+        // so prompting on launch would ask for a permission we can't fulfill. Gated
+        // until mvpMode is off (production), when the aps-environment entitlement and
+        // real notification flows are in place.
+        if !FeatureFlags.mvpMode {
+            requestNotificationPermissions(application: application)
+        }
         configureAnalytics()
         // Subscribe to MetricKit so iOS delivers real performance + crash/hang
         // diagnostics; stored locally only (see MetricsCollector).
