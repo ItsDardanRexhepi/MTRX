@@ -30,6 +30,7 @@ final class SecureEnclaveManager {
         case corruptKeyData
         case authenticationRequired
         case weakKeySigningRefused
+        case noSigningKey
 
         var errorDescription: String? {
             switch self {
@@ -37,6 +38,7 @@ final class SecureEnclaveManager {
             case .corruptKeyData: return "Stored key data is unreadable."
             case .authenticationRequired: return "Authentication required — nothing was signed."
             case .weakKeySigningRefused: return "This wallet's signing key isn't biometric-protected, so it can't move funds. Reset the wallet to create a protected key — nothing was signed."
+            case .noSigningKey: return "This device has no local signing key — use recovery to establish one. Nothing was signed."
             }
         }
     }
@@ -132,6 +134,9 @@ final class SecureEnclaveManager {
     /// the enclave signature is load-bearing and any auth failure surfaces as
     /// `KeyError.authenticationRequired` — never a silently-skipped or faked sig.
     func sign(_ data: Data, tag: String, context: LAContext? = nil) throws -> Data {
+        // An EMPTY tag means "no local signing key" (e.g. a cloud-metadata restore, Phase 4-A) —
+        // fail fast with a clear error instead of a misleading generic keychain failure downstream.
+        guard !tag.isEmpty else { throw KeyError.noSigningKey }
         // sign() NEVER creates a key. Creation — with the correct gating — is the caller's job via
         // publicKeyData / generateKeyPair / ensureKey. A missing key here throws (corruptKeyData)
         // rather than lazily minting an UNGATED key and signing with it, which would BYPASS the
@@ -185,6 +190,10 @@ final class SecureEnclaveManager {
     /// is logged but allowed, so testnet flows and the Simulator money-signing tests (ungated keys)
     /// are unaffected. A gated key signs normally via `sign()` (biometric enforced there).
     func signForValue(_ data: Data, tag: String, context: LAContext? = nil) throws -> Data {
+        // An EMPTY tag means "no local signing key" (e.g. a cloud-metadata restore, Phase 4-A) —
+        // fail fast and clearly here, before the gating probe, rather than producing a misleading
+        // generic keychain error downstream.
+        guard !tag.isEmpty else { throw KeyError.noSigningKey }
         if !isGated(tag: tag) {
             if Self.enforceGatedOwnerKeyForValue {
                 throw KeyError.weakKeySigningRefused

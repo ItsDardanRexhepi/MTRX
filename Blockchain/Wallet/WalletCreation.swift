@@ -51,6 +51,54 @@ struct SmartWallet {
     let recoveryMethod: RecoveryMethod
     let accountType: AccountType
     let isDeployed: Bool
+    /// The Secure Enclave signing-key tag this wallet's owner key lives under (Phase 4-A / W1).
+    /// A reference (Keychain account name), NOT secret — the gated private key never leaves the
+    /// enclave. **Empty** for a cloud-metadata restore: that device has no local signing key for
+    /// the address until Tier-A reset or Tier-B guardian rotation re-establishes one.
+    let keyTag: String
+}
+
+// MARK: - Active Wallet Record persistence (Phase 4-A / W1)
+
+/// Durable record of the active smart wallet so its owner signing key is findable across an app
+/// relaunch (W1). `keyTag` is a reference (a Keychain account name), NOT secret — the gated private
+/// key itself never leaves the Secure Enclave. Device-local (UserDefaults); a new DEVICE recovers
+/// identity via the iCloud-Keychain backup + Tier-A reset / Tier-B rotation, not this record.
+struct ActiveWalletRecord: Codable {
+    let address: String
+    let keyTag: String
+    let recoveryMethod: String   // RecoveryMethod.rawValue
+    let createdAt: Date
+    let isDeployed: Bool
+
+    init(_ wallet: SmartWallet) {
+        self.address = wallet.address
+        self.keyTag = wallet.keyTag
+        self.recoveryMethod = wallet.recoveryMethod.rawValue
+        self.createdAt = wallet.createdAt
+        self.isDeployed = wallet.isDeployed
+    }
+}
+
+/// Device-local persistence for the active wallet record. Stores a non-secret pointer record so the
+/// app can find its own gated signing key after relaunch (W1). The gated key stays in the enclave;
+/// W2 reads this back; the Tier-A reset path (step 5) clears it when a key is reset.
+enum WalletRecordStore {
+    private static let key = "com.mtrx.activeWalletRecord.v1"
+
+    static func save(_ record: ActiveWalletRecord) {
+        guard let data = try? JSONEncoder().encode(record) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    static func load() -> ActiveWalletRecord? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(ActiveWalletRecord.self, from: data)
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
 }
 
 struct SecureEnclaveKeyPair {
@@ -288,9 +336,11 @@ final class WalletCreation {
                     createdAt: Date(),
                     recoveryMethod: recoveryMethod,
                     accountType: accountType,
-                    isDeployed: false
+                    isDeployed: false,
+                    keyTag: keyTag
                 )
                 self.activeWallet = wallet
+                WalletRecordStore.save(ActiveWalletRecord(wallet))   // W1: persist so the signer survives relaunch
 
                 DispatchQueue.main.async {
                     self.delegate?.walletCreation(self, didCreateWallet: wallet)
@@ -329,9 +379,11 @@ final class WalletCreation {
                 createdAt: backup.createdAt,
                 recoveryMethod: .cloudBackup,
                 accountType: .standard,
-                isDeployed: false
+                isDeployed: false,
+                keyTag: ""   // cloud restore = identity only; no local signing key on this device yet
             )
             self.activeWallet = wallet
+            WalletRecordStore.save(ActiveWalletRecord(wallet))
             DispatchQueue.main.async {
                 self.delegate?.walletCreation(self, didRecoverWallet: wallet)
                 completion(.success(wallet))
@@ -388,9 +440,11 @@ final class WalletCreation {
                     createdAt: Date(),
                     recoveryMethod: .socialRecovery,
                     accountType: .socialRecovery,
-                    isDeployed: true
+                    isDeployed: true,
+                    keyTag: newKeyTag
                 )
                 self.activeWallet = wallet
+                WalletRecordStore.save(ActiveWalletRecord(wallet))
                 self.delegate?.walletCreation(self, didRecoverWallet: wallet)
                 completion(.success(wallet))
             } catch {
