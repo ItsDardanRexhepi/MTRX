@@ -42,6 +42,25 @@ struct SecuritySettingsView: View {
                 }
             }
 
+            // Wallet backup & recovery (Phase 4-A)
+            Section("Wallet recovery") {
+                NavigationLink {
+                    RecoveryView()
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Backup & recovery")
+                                .font(.mtrxBody).foregroundStyle(Color.labelPrimary)
+                            Text("Back up your wallet to iCloud and check its protection")
+                                .font(.mtrxCaption2).foregroundStyle(Color.labelTertiary)
+                        }
+                    } icon: {
+                        Image(systemName: "lock.rotation")
+                            .foregroundStyle(Color.statusInfo)
+                    }
+                }
+            }
+
             // Extra confirmation over a threshold
             Section("Large transaction confirmation") {
                 Toggle(isOn: $prefs.extraConfirmEnabled) {
@@ -131,5 +150,155 @@ struct SecuritySettingsView: View {
         f.currencyCode = "USD"
         f.maximumFractionDigits = 0
         return f.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
+    }
+}
+
+// MARK: - Wallet Recovery (Phase 4-A / step 4)
+//
+// This screen is UI + wiring only — it DRIVES the existing, tested recovery code
+// (`WalletCreation.backupActiveWallet` → `backupToCloud`, `recoverWallet` →
+// `performWalletRecovery`, and the W2/W3 `restoreActiveWallet` outcome). No crypto is
+// reimplemented here, and NO value/UserOperation is signed: backup/restore move only the wallet's
+// recoverable METADATA (address + public key) and re-validate the key reference. The Tier-A reset
+// ACTION (step 5) and the Tier-B guardian-rotation recovery are intentionally NOT wired here.
+
+@MainActor
+final class RecoveryViewModel: ObservableObject {
+    enum SignerStatus { case unknown, protected, needsReset(String), identityOnly, noWallet }
+    enum ActionState: Equatable { case idle, inProgress, success(String), failure(String) }
+
+    @Published var signerStatus: SignerStatus = .unknown
+    @Published var backupState: ActionState = .idle
+    @Published var restoreState: ActionState = .idle
+    @Published var guardians: [RecoveryGuardian] = []
+
+    private let creator = WalletCreation()
+
+    /// Refresh the (honest) signer status by re-running the W2/W3 validated restore. Sync probes only
+    /// — no signing, no prompt.
+    func refresh() {
+        switch creator.restoreActiveWallet() {
+        case .restored:           signerStatus = .protected
+        case .needsReset(let r):  signerStatus = .needsReset(r)
+        case .identityOnly:       signerStatus = .identityOnly
+        case .noWallet:           signerStatus = .noWallet
+        }
+        guardians = creator.getGuardians()
+    }
+
+    func backUp() {
+        backupState = .inProgress
+        creator.backupActiveWallet { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    self?.backupState = .success("Backed up to iCloud Keychain.")
+                case .failure(let error):
+                    self?.backupState = .failure((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    func restore() {
+        restoreState = .inProgress
+        creator.recoverWallet { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    self?.restoreState = .success("Wallet details restored from iCloud.")
+                    self?.refresh()
+                case .failure(.invalidRecoveryData):
+                    self?.restoreState = .failure("No iCloud backup was found for this account.")
+                case .failure(let error):
+                    self?.restoreState = .failure(error.errorDescription ?? "Restore couldn't be completed.")
+                }
+            }
+        }
+    }
+}
+
+struct RecoveryView: View {
+    @StateObject private var vm = RecoveryViewModel()
+
+    var body: some View {
+        List {
+            Section("Wallet protection") { signerStatusRow }
+
+            Section("iCloud backup") {
+                Text("Backs up your wallet's recoverable details — address and public key — to your "
+                     + "iCloud Keychain. Your signing key never leaves this device.")
+                    .font(.mtrxCaption2).foregroundStyle(Color.labelTertiary)
+                Button { vm.backUp() } label: {
+                    Label("Back up to iCloud", systemImage: "icloud.and.arrow.up")
+                }
+                .disabled(vm.backupState == .inProgress)
+                stateRow(vm.backupState)
+            }
+
+            Section("Restore") {
+                Text("Restores your wallet's details from an iCloud backup — e.g. on a new device. "
+                     + "Regaining the ability to sign may still require recovery.")
+                    .font(.mtrxCaption2).foregroundStyle(Color.labelTertiary)
+                Button { vm.restore() } label: {
+                    Label("Restore from iCloud", systemImage: "icloud.and.arrow.down")
+                }
+                .disabled(vm.restoreState == .inProgress)
+                stateRow(vm.restoreState)
+            }
+
+            Section("Recovery guardians") {
+                if vm.guardians.isEmpty {
+                    Text("No guardians added.")
+                        .font(.mtrxCaption1).foregroundStyle(Color.labelTertiary)
+                } else {
+                    ForEach(vm.guardians, id: \.address) { g in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(g.name).font(.mtrxBody).foregroundStyle(Color.labelPrimary)
+                            Text(g.address).font(.mtrxCaption2).foregroundStyle(Color.labelTertiary)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Wallet Recovery")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { vm.refresh() }
+    }
+
+    @ViewBuilder private var signerStatusRow: some View {
+        switch vm.signerStatus {
+        case .unknown:
+            ProgressView()
+        case .protected:
+            Label("Protected — your signing key is biometric-secured.", systemImage: "checkmark.shield.fill")
+                .font(.mtrxCallout).foregroundStyle(Color.statusSuccess)
+        case .needsReset(let reason):
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Your signing key needs to be reset", systemImage: "exclamationmark.triangle.fill")
+                    .font(.mtrxCalloutBold).foregroundStyle(Color.statusWarning)
+                Text(reason).font(.mtrxCaption2).foregroundStyle(Color.labelSecondary)
+            }
+        case .identityOnly:
+            Label("Restored from iCloud — this device has no signing key yet. Set up recovery to sign.",
+                  systemImage: "key.slash")
+                .font(.mtrxCallout).foregroundStyle(Color.statusInfo)
+        case .noWallet:
+            Text("No wallet on this device yet.")
+                .font(.mtrxCallout).foregroundStyle(Color.labelSecondary)
+        }
+    }
+
+    @ViewBuilder private func stateRow(_ state: RecoveryViewModel.ActionState) -> some View {
+        switch state {
+        case .idle:
+            EmptyView()
+        case .inProgress:
+            HStack(spacing: 8) { ProgressView(); Text("Working…").font(.mtrxCaption2).foregroundStyle(Color.labelTertiary) }
+        case .success(let msg):
+            Label(msg, systemImage: "checkmark.circle.fill").font(.mtrxCaption1).foregroundStyle(Color.statusSuccess)
+        case .failure(let msg):
+            Label(msg, systemImage: "exclamationmark.circle.fill").font(.mtrxCaption1).foregroundStyle(Color.statusWarning)
+        }
     }
 }

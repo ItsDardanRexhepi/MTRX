@@ -354,6 +354,19 @@ final class WalletCreation {
         }
     }
 
+    /// Back up the ACTIVE wallet's recoverable metadata to iCloud Keychain (Phase 4-A / step 4).
+    /// This WIRES the existing, tested `backupToCloud` (real AES-GCM + iCloud Keychain) — it does NOT
+    /// reimplement any crypto. Only NON-secret metadata is backed up; the Secure Enclave private key
+    /// is non-exportable and never leaves the device. Fails honestly when there is no active wallet.
+    func backupActiveWallet(completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let wallet = activeWallet else {
+            completion(.failure(NSError(domain: "MTRX.Recovery", code: 1, userInfo: [NSLocalizedDescriptionKey:
+                "No wallet to back up yet. Create or restore a wallet first."])))
+            return
+        }
+        backupToCloud(publicKey: wallet.publicKey, completion: completion)
+    }
+
     /// Recover wallet using social recovery guardians
     func recoverWithGuardians(
         approvals: [GuardianApproval],
