@@ -45,11 +45,19 @@ final class SecureEnclaveManager {
     /// `.privateKeyUsage + .biometryCurrentSet`: every private-key operation (signing) then
     /// requires biometric auth, enforced by the enclave itself, and the key is invalidated if
     /// the enrolled biometrics change. This is the transaction-signing key's gate; identity-proof
-    /// keys are created ungated (the default). The software fallback (Simulator / no enclave) is
-    /// NOT gated here — that is hardened separately in P3.3 (KeychainManager.storeWalletKey).
+    /// keys are created ungated (the default).
+    ///
+    /// P3.3 — the software fallback (Simulator / no enclave) is gated too. When `biometricGated`
+    /// is true and no enclave is present, the software private key is stored under a keychain
+    /// `.biometryCurrentSet` access control (biometric required to read it for signing) and the
+    /// public key is stored in an ungated companion item (so address derivation never prompts).
+    /// This closes the last "every signing path requires biometric" hole P3.1/P3.2 deferred.
+    /// (`KeychainManager.storeWalletKey` carried this hardening but is unusable as-is: its access
+    /// group `group.com.mtrx.shared` is not entitled, and its service differs from this one — so
+    /// the hardening lives here, in the working key store.)
     @discardableResult
     func ensureKey(tag: String, biometricGated: Bool = false) throws -> Bool {
-        if try loadKeyData(tag: tag) != nil { return false }
+        if keyExistsNoPrompt(tag: tag) { return false }
         if isSecureEnclaveAvailable {
             let key: SecureEnclave.P256.Signing.PrivateKey
             if biometricGated {
@@ -60,14 +68,30 @@ final class SecureEnclaveManager {
             try storeKeyData(key.dataRepresentation, tag: tag)
         } else {
             let key = P256.Signing.PrivateKey()
-            try storeKeyData(key.rawRepresentation, tag: tag)
+            if biometricGated {
+                try storeGatedSoftwareKey(key, tag: tag)
+            } else {
+                try storeKeyData(key.rawRepresentation, tag: tag)
+            }
         }
         return true
     }
 
-    /// Raw public key bytes for `tag`, creating the key on first use.
+    /// Raw public key bytes for `tag`, creating the key on first use. Never triggers biometric:
+    /// enclave keys expose their public key freely, and software-gated keys (P3.3) keep the public
+    /// key in an ungated companion item so address derivation doesn't prompt.
     func publicKeyData(tag: String, biometricGated: Bool = false) throws -> Data {
         try ensureKey(tag: tag, biometricGated: biometricGated)
+        // Software-gated key: read ONLY the ungated public companion (no biometric prompt). If the
+        // companion is missing (corruption / interrupted store), fail honestly — do NOT fall
+        // through to read the gated private, which would prompt biometric just for address
+        // derivation (P3.3 adversarial review, HIGH). The gated private item is never read here.
+        if !isSecureEnclaveAvailable, biometricGated {
+            guard let pub = try loadKeyData(tag: publicTag(tag)) else {
+                throw KeyError.corruptKeyData
+            }
+            return pub
+        }
         guard let stored = try loadKeyData(tag: tag) else {
             throw KeyError.corruptKeyData
         }
@@ -98,35 +122,46 @@ final class SecureEnclaveManager {
     /// the enclave signature is load-bearing and any auth failure surfaces as
     /// `KeyError.authenticationRequired` — never a silently-skipped or faked sig.
     func sign(_ data: Data, tag: String, context: LAContext? = nil) throws -> Data {
-        try ensureKey(tag: tag)
-        guard let stored = try loadKeyData(tag: tag) else {
-            throw KeyError.corruptKeyData
-        }
+        // sign() NEVER creates a key. Creation — with the correct gating — is the caller's job via
+        // publicKeyData / generateKeyPair / ensureKey. A missing key here throws (corruptKeyData)
+        // rather than lazily minting an UNGATED key and signing with it, which would BYPASS the
+        // biometric gate (P3.3 adversarial review, CRITICAL). loadKeyData returning nil below is
+        // the honest "no usable key" failure.
         let digest = SHA256.hash(data: data)
+        // Reuse the caller's authenticated context, or mint a fresh one that refuses to reuse any
+        // prior unlock (reuse-duration 0). Used by BOTH the enclave gate (at signature time) and
+        // the P3.3 software gate (at the keychain read).
+        let authContext = context ?? freshSigningContext()
 
         if isSecureEnclaveAvailable {
-            // Reuse the caller's authenticated context, or mint a fresh one that
-            // refuses to reuse any prior unlock (reuse-duration 0).
-            let authContext = context ?? freshSigningContext()
-            if let seKey = try? SecureEnclave.P256.Signing.PrivateKey(
+            // Enclave key: the keychain blob is ungated; biometric is enforced by the enclave at
+            // signature time via `authContext` (P3.2). Load-bearing — a decline throws honestly and
+            // does NOT fall through once the enclave key reconstructs.
+            if let stored = try loadKeyData(tag: tag),
+               let seKey = try? SecureEnclave.P256.Signing.PrivateKey(
                 dataRepresentation: stored, authenticationContext: authContext) {
-                // Load-bearing: a biometric decline/failure throws here and is
-                // mapped to an honest auth error. We do NOT fall through to any
-                // other signing path after the enclave key reconstructs.
                 do {
                     return try seKey.signature(for: digest).derRepresentation
                 } catch {
                     throw mapSigningError(error)
                 }
             }
-            // `stored` was not reconstructable as an enclave key on an enclave
-            // device (e.g. a software key minted when no enclave was present).
-            // Fall through to the software path — this is NOT an auth failure.
+            // Not an enclave-format blob (e.g. a software key minted when no enclave was present).
+            // Fall through to the software path — NOT an auth failure.
         }
-        if let soft = try? P256.Signing.PrivateKey(rawRepresentation: stored) {
-            return try soft.signature(for: digest).derRepresentation
+
+        // Software path (Simulator / no enclave). For a P3.3 biometric-gated key the private item
+        // carries a `.biometryCurrentSet` access control, so reading it requires biometric —
+        // threaded through `authContext`. A declined/failed biometric makes `loadKeyData` throw
+        // `KeyError.authenticationRequired`; we never fall through to an unauthenticated signature.
+        // For an ungated software key the context is simply unused (no prompt).
+        guard let stored = try loadKeyData(tag: tag, context: authContext) else {
+            throw KeyError.corruptKeyData
         }
-        throw KeyError.corruptKeyData
+        guard let soft = try? P256.Signing.PrivateKey(rawRepresentation: stored) else {
+            throw KeyError.corruptKeyData
+        }
+        return try soft.signature(for: digest).derRepresentation
     }
 
     // MARK: - Signing auth context
@@ -150,19 +185,17 @@ final class SecureEnclaveManager {
         return KeyError.authenticationRequired
     }
 
-    /// Whether a key already exists for `tag` — read-only, never creates one.
+    /// Whether a key already exists for `tag` — read-only, never creates one, and never prompts
+    /// biometric (a gated key would otherwise prompt just to check existence).
     func hasKey(tag: String) -> Bool {
-        ((try? loadKeyData(tag: tag)) ?? nil) != nil
+        keyExistsNoPrompt(tag: tag)
     }
 
-    /// Remove the key for `tag` (sign-out / account reset).
+    /// Remove the key for `tag` (sign-out / account reset) — including its ungated public
+    /// companion if the key was a P3.3 software-gated key.
     func deleteKey(tag: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: tag,
-        ]
-        SecItemDelete(query as CFDictionary)
+        deleteItem(tag: tag)
+        deleteItem(tag: publicTag(tag))
     }
 
     // MARK: - Keychain plumbing
@@ -186,8 +219,10 @@ final class SecureEnclaveManager {
         return access
     }
 
+    /// Store ungated key data (enclave blob, ungated software key, or the public companion of a
+    /// software-gated key). Single-item replace — does NOT touch companions.
     private func storeKeyData(_ data: Data, tag: String) throws {
-        deleteKey(tag: tag)
+        deleteItem(tag: tag)
         let attrs: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -199,18 +234,89 @@ final class SecureEnclaveManager {
         guard status == errSecSuccess else { throw KeyError.keychainStatus(status) }
     }
 
-    private func loadKeyData(tag: String) throws -> Data? {
-        let query: [String: Any] = [
+    /// P3.3 — store a software P-256 key biometric-gated: the private key under a keychain
+    /// `.biometryCurrentSet` access control (biometric required to read it for signing), the public
+    /// key under an ungated companion item (so address derivation never prompts). Mirrors the
+    /// enclave gate; `.privateKeyUsage` is enclave-only and intentionally omitted here. Requires an
+    /// enrolled biometric — on a device/Simulator with none, the gated store fails honestly rather
+    /// than silently creating an ungated signing key.
+    private func storeGatedSoftwareKey(_ key: P256.Signing.PrivateKey, tag: String) throws {
+        // Ungated public companion first (so a later failure leaves nothing signable behind).
+        try storeKeyData(key.publicKey.rawRepresentation, tag: publicTag(tag))
+        deleteItem(tag: tag)
+        var error: Unmanaged<CFError>?
+        guard let access = SecAccessControlCreateWithFlags(
+            nil,
+            kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly,
+            .biometryCurrentSet,
+            &error
+        ) else {
+            deleteItem(tag: publicTag(tag))
+            if let err = error?.takeRetainedValue() { throw err }
+            throw KeyError.corruptKeyData
+        }
+        let attrs: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: tag,
+            kSecValueData as String: key.rawRepresentation,
+            kSecAttrAccessControl as String: access,
+        ]
+        let status = SecItemAdd(attrs as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            deleteItem(tag: publicTag(tag))   // roll back — never leave a half-stored key
+            throw KeyError.keychainStatus(status)
+        }
+    }
+
+    private func loadKeyData(tag: String, context: LAContext? = nil) throws -> Data? {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: tag,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
+        if let context = context {
+            query[kSecUseAuthenticationContext as String] = context
+        }
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         if status == errSecItemNotFound { return nil }
+        if status == errSecUserCanceled || status == errSecAuthFailed {
+            // Biometric declined/failed on a P3.3-gated key — honest, load-bearing failure.
+            throw KeyError.authenticationRequired
+        }
         guard status == errSecSuccess else { throw KeyError.keychainStatus(status) }
         return item as? Data
     }
+
+    /// Existence check that NEVER triggers biometric: asking for the data of a gated key would
+    /// prompt, so we skip the auth UI and treat "present but needs auth" (`errSecInteractionNotAllowed`)
+    /// as existing.
+    private func keyExistsNoPrompt(tag: String) -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: tag,
+            kSecReturnData as String: false,
+            kSecUseAuthenticationUI as String: kSecUseAuthenticationUISkip,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        let status = SecItemCopyMatching(query as CFDictionary, nil)
+        return status == errSecSuccess || status == errSecInteractionNotAllowed
+    }
+
+    /// Delete exactly one keychain item for `tag` (no companion handling).
+    private func deleteItem(tag: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: tag,
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+
+    /// Companion tag holding the ungated public key for a P3.3 software-gated key.
+    private func publicTag(_ tag: String) -> String { tag + ".public" }
 }
