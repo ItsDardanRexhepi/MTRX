@@ -336,6 +336,74 @@ final class WalletCreation {
         )
     }
 
+    // MARK: - Tier-A reset (Phase 4-A / step 5)
+
+    /// Tier-A reset — the ESCAPE for an invalidated / missing / ungated signing key. Creates a FRESH
+    /// biometric-gated wallet (NEW key, NEW address) and abandons the old account. On testnet there
+    /// are no real funds; this is the §14.8c **testnet** recovery the P3.4 "reset the wallet" error
+    /// promises. It is NOT a fund-preserving recovery — that is Tier-B (guardian owner-rotation),
+    /// parked behind the recovery-module contract + server.
+    ///
+    /// STRAND-SAFE ordering: the new gated key is created AND re-probed gated BEFORE the old key or
+    /// records are touched. A failure mid-reset therefore leaves the existing state intact (never a
+    /// "old key deleted, new key missing" strand). Honest: fails truthfully, never a fake reset.
+    func resetWallet(completion: @escaping (Result<SmartWallet, WalletCreationError>) -> Void) {
+        creationQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            // 1. Create a fresh GATED key (the same gated path wallet creation uses). On failure
+            //    NOTHING has changed yet — old key + records untouched.
+            let newKeyTag = "\(self.keyTagPrefix).owner.\(UUID().uuidString)"
+            let keyPair: SecureEnclaveKeyPair
+            do {
+                keyPair = try self.secureEnclaveProvider.generateKeyPair(tag: newKeyTag, biometricGated: true)
+            } catch {
+                completion(.failure(.keyGenerationFailed))
+                return
+            }
+
+            // 2. Re-probe the NEW key is ACTUALLY biometric-gated — a reset that produced an ungated
+            //    key would defeat the whole point. If not gated, roll back the new key and fail.
+            guard self.secureEnclaveProvider.isGated(tag: newKeyTag) else {
+                try? self.secureEnclaveProvider.deleteKey(tag: newKeyTag)
+                completion(.failure(.secureEnclaveError(reason: "The new signing key isn't biometric-protected. Nothing was reset.")))
+                return
+            }
+
+            // 3. New gated key confirmed → NOW retire the old. The old-key delete is BEST-EFFORT
+            //    (try?) BY DESIGN: the reset's success hinges on the new GATED key, NOT on cleaning up
+            //    the old one. A delete that fails leaves the OLD (invalidated/ungated) key in the
+            //    keychain — harmless: it's unreferenced (the record below points to the new key) and
+            //    can't move value (P3.4 refuses ungated value-signing; an invalidated key can't sign).
+            if let oldTag = WalletRecordStore.load()?.keyTag, !oldTag.isEmpty {
+                try? self.secureEnclaveProvider.deleteKey(tag: oldTag)
+            }
+            WalletRecordStore.clear()
+            GuardianStore.clear()   // a fresh wallet starts with no guardians
+
+            let address = self.deriveAccountAddress(from: keyPair.publicKey)
+            let wallet = SmartWallet(
+                address: address, publicKey: keyPair.publicKey, createdAt: Date(),
+                recoveryMethod: .faceID, accountType: .standard, isDeployed: false, keyTag: newKeyTag
+            )
+            // activeWallet AND the persisted record are both set HERE, in the serial creationQueue —
+            // NOT in the async backup completion below. So rapid/concurrent resets can't diverge them
+            // (the queue serializes), and a crash after this point leaves a valid persisted wallet
+            // that restore-on-launch picks up.
+            self.activeWallet = wallet
+            WalletRecordStore.save(ActiveWalletRecord(wallet))
+
+            // 4. Re-backup the fresh wallet's metadata (best-effort — the reset already succeeded
+            //    once the new gated key exists; a backup failure does not undo the reset).
+            self.backupToCloud(publicKey: keyPair.publicKey) { _ in
+                DispatchQueue.main.async {
+                    self.delegate?.walletCreation(self, didCreateWallet: wallet)
+                    completion(.success(wallet))
+                }
+            }
+        }
+    }
+
     // MARK: - Recovery
 
     /// Recover wallet using Face ID and cloud backup
@@ -421,6 +489,15 @@ final class WalletCreation {
             keyPair = try secureEnclaveProvider.generateKeyPair(tag: keyTag, biometricGated: true)
         } catch {
             completion(.failure(.keyGenerationFailed))
+            return
+        }
+
+        // Re-probe the new owner key is ACTUALLY biometric-gated, then roll back if not — the same
+        // guarantee resetWallet enforces (adversarial review, consistency). A non-gated owner key
+        // must NEVER become the wallet's signer. (isGated probes the real access control, P3.4.)
+        guard secureEnclaveProvider.isGated(tag: keyTag) else {
+            try? secureEnclaveProvider.deleteKey(tag: keyTag)
+            completion(.failure(.secureEnclaveError(reason: "The signing key isn't biometric-protected.")))
             return
         }
 

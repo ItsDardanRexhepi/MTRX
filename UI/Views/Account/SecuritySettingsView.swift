@@ -170,6 +170,8 @@ final class RecoveryViewModel: ObservableObject {
     @Published var signerStatus: SignerStatus = .unknown
     @Published var backupState: ActionState = .idle
     @Published var restoreState: ActionState = .idle
+    @Published var resetState: ActionState = .idle
+    @Published var showResetConfirm = false
     @Published var guardians: [RecoveryGuardian] = []
 
     private let creator = WalletCreation()
@@ -212,6 +214,23 @@ final class RecoveryViewModel: ObservableObject {
                     self?.restoreState = .failure("No iCloud backup was found for this account.")
                 case .failure(let error):
                     self?.restoreState = .failure(error.errorDescription ?? "Restore couldn't be completed.")
+                }
+            }
+        }
+    }
+
+    /// Tier-A reset (step 5): create a fresh GATED wallet (new address, old testnet account
+    /// abandoned). Drives WalletCreation.resetWallet; surfaces honest states only.
+    func resetWallet() {
+        resetState = .inProgress
+        creator.resetWallet { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    self?.resetState = .success("New protected wallet created.")
+                    self?.refresh()
+                case .failure(let error):
+                    self?.resetState = .failure(error.errorDescription ?? "Reset couldn't be completed. Nothing was changed.")
                 }
             }
         }
@@ -264,6 +283,13 @@ struct RecoveryView: View {
         .navigationTitle("Wallet Recovery")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { vm.refresh() }
+        .confirmationDialog("Reset wallet?", isPresented: $vm.showResetConfirm, titleVisibility: .visible) {
+            Button("Reset — create a new wallet", role: .destructive) { vm.resetWallet() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This creates a NEW wallet with a new address. The old wallet on this device can't "
+                 + "be recovered here. On testnet there are no real funds.")
+        }
     }
 
     @ViewBuilder private var signerStatusRow: some View {
@@ -274,10 +300,15 @@ struct RecoveryView: View {
             Label("Protected — your signing key is biometric-secured.", systemImage: "checkmark.shield.fill")
                 .font(.mtrxCallout).foregroundStyle(Color.statusSuccess)
         case .needsReset(let reason):
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
                 Label("Your signing key needs to be reset", systemImage: "exclamationmark.triangle.fill")
                     .font(.mtrxCalloutBold).foregroundStyle(Color.statusWarning)
                 Text(reason).font(.mtrxCaption2).foregroundStyle(Color.labelSecondary)
+                Button(role: .destructive) { vm.showResetConfirm = true } label: {
+                    Label("Reset wallet", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .disabled(vm.resetState == .inProgress)
+                stateRow(vm.resetState)
             }
         case .identityOnly:
             Label("Restored from iCloud — this device has no signing key yet. Set up recovery to sign.",
