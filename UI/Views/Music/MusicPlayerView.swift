@@ -13,18 +13,21 @@ import Observation
 import MusicKit
 #endif
 
-// MARK: - Apple Music attribution lockup (single-line, never wraps)
+// MARK: - Apple Music attribution (text only — never recreate the Apple logo)
 
+/// Plain "Apple Music" text attribution. Per the SF Symbols license and the Apple
+/// Music Identity Guidelines we must NOT build a custom lockup from the Apple logo —
+/// the old version did exactly that (`applelogo` symbol + "Music"). Text attribution
+/// is the compliant form for in-app use; if a branded badge is ever wanted, use
+/// Apple's official Apple Music badge artwork (a supplied asset), never a hand-rolled mark.
 struct AppleMusicBadge: View {
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "applelogo").font(.system(size: 11, weight: .semibold))
-            Text("Music").font(.system(size: 12, weight: .semibold))
-        }
-        .fixedSize()
-        .foregroundStyle(Color.labelSecondary)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Apple Music")
+        Text("Apple Music")
+            .font(.system(size: 12, weight: .semibold))
+            .fixedSize()
+            .foregroundStyle(Color.labelSecondary)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Apple Music")
     }
 }
 
