@@ -185,7 +185,7 @@ final class WalletTests: XCTestCase {
         let pubRaw = try mgr.publicKeyData(tag: tag)
 
         let url = URL(string: "https://unused.invalid")!
-        let cfg = BaseNetworkConfig(rpcURL: url, chainId: 8453, bundlerURL: url)
+        let cfg = BaseNetworkConfig(rpcURL: url, chainId: 84_532, bundlerURL: url)
         let manager = ERC4337Manager(entryPointAddress: "", paymasterAddress: nil, bundlerURL: url, networkConfig: cfg)
         manager.configureSigningKey(tag: tag)
 
@@ -205,7 +205,7 @@ final class WalletTests: XCTestCase {
         var message = Data()
         message.append(Self.hexToData(op.hash))
         message.append(ABIEncoder.encodeAddress(""))
-        message.append(ABIEncoder.encodeUInt256(UInt64(8453)))
+        message.append(ABIEncoder.encodeUInt256(UInt64(84_532)))
         let messageHash = Keccak256.hash(data: message)
 
         let pub = try P256.Signing.PublicKey(rawRepresentation: pubRaw)
@@ -217,7 +217,7 @@ final class WalletTests: XCTestCase {
     /// Without a configured enclave key, signing must FAIL — never a throwaway.
     func testSignOperation_refusesWithoutConfiguredKey() {
         let url = URL(string: "https://unused.invalid")!
-        let cfg = BaseNetworkConfig(rpcURL: url, chainId: 8453, bundlerURL: url)
+        let cfg = BaseNetworkConfig(rpcURL: url, chainId: 84_532, bundlerURL: url)
         let manager = ERC4337Manager(entryPointAddress: "", paymasterAddress: nil, bundlerURL: url, networkConfig: cfg)
         let exp = expectation(description: "refuse")
         var didFail = false
@@ -283,7 +283,7 @@ final class WalletTests: XCTestCase {
         let cfg = WalletTransactionService.Config(
             rpcURL: URL(string: "https://rpc.test")!,
             bundlerURL: URL(string: "https://bundler.test")!,
-            chainID: 8453,
+            chainID: 84_532,
             entryPoint: entryPoint,
             paymasterAddress: "0x1111111111111111111111111111111111111111",
             paymasterSignatureEndpoint: "https://paymaster.test/sign",
@@ -325,7 +325,7 @@ final class WalletTests: XCTestCase {
         var message = Data()
         message.append(Self.hexToData(submission.signedOperation.hash))
         message.append(ABIEncoder.encodeAddress(entryPoint))
-        message.append(ABIEncoder.encodeUInt256(UInt64(8453)))
+        message.append(ABIEncoder.encodeUInt256(UInt64(84_532)))
         let messageHash = Keccak256.hash(data: message)
         let pub = try P256.Signing.PublicKey(rawRepresentation: pubRaw)
         let ecdsa = try P256.Signing.ECDSASignature(derRepresentation: sig)
@@ -367,7 +367,7 @@ final class WalletTests: XCTestCase {
         let cfg = WalletTransactionService.Config(
             rpcURL: URL(string: "https://rpc.test")!,
             bundlerURL: URL(string: "https://bundler.test")!,
-            chainID: 8453,
+            chainID: 84_532,
             entryPoint: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
             paymasterAddress: "0x1111111111111111111111111111111111111111",
             paymasterSignatureEndpoint: "https://paymaster.test/sign",
@@ -493,7 +493,7 @@ final class WalletTests: XCTestCase {
         let cfg = WalletTransactionService.Config(
             rpcURL: URL(string: "https://rpc.test")!,
             bundlerURL: URL(string: "https://bundler.test")!,
-            chainID: 8453,
+            chainID: 84_532,
             entryPoint: entryPoint,
             paymasterAddress: "0x1111111111111111111111111111111111111111",
             paymasterSignatureEndpoint: "https://paymaster.test/sign",
@@ -522,7 +522,7 @@ final class WalletTests: XCTestCase {
         var message = Data()
         message.append(Self.hexToData(submission.signedOperation.hash))
         message.append(ABIEncoder.encodeAddress(entryPoint))
-        message.append(ABIEncoder.encodeUInt256(UInt64(8453)))
+        message.append(ABIEncoder.encodeUInt256(UInt64(84_532)))
         let pub = try P256.Signing.PublicKey(rawRepresentation: pubRaw)
         let ecdsa = try P256.Signing.ECDSASignature(derRepresentation: sig)
         XCTAssertTrue(pub.isValidSignature(ecdsa, for: Keccak256.hash(data: message)),
@@ -536,7 +536,7 @@ final class WalletTests: XCTestCase {
     static func dummyERC4337() -> ERC4337Manager {
         let url = URL(string: "https://unused.invalid")!
         return ERC4337Manager(entryPointAddress: "", paymasterAddress: nil, bundlerURL: url,
-                              networkConfig: BaseNetworkConfig(rpcURL: url, chainId: 8453, bundlerURL: url))
+                              networkConfig: BaseNetworkConfig(rpcURL: url, chainId: 84_532, bundlerURL: url))
     }
 
     // MARK: - Component: NFT (Component 03)
