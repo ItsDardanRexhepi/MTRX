@@ -5,6 +5,7 @@
 
 import Foundation
 import CryptoKit
+import LocalAuthentication
 
 // MARK: - Protocols
 
@@ -722,18 +723,23 @@ final class ERC4337Manager {
     ///
     /// P-256/RIP-7212 CONSTRAINT: the on-chain account validation MUST verify
     /// P-256 (secp256r1) — the Secure Enclave cannot produce secp256k1 sigs.
-    func signOperation(_ operation: UserOperation, completion: @escaping (Result<UserOperation, ERC4337Error>) -> Void) {
+    func signOperation(_ operation: UserOperation, context: LAContext? = nil, completion: @escaping (Result<UserOperation, ERC4337Error>) -> Void) {
         guard let keyTag = signingKeyTag else {
             // No enclave signing key configured — refuse rather than sign with a
             // throwaway key (which would fail on-chain validation anyway).
             completion(.failure(.invalidSignature))
             return
         }
-        signOperation(operation, with: DefaultSecureEnclaveProvider(), keyTag: keyTag, completion: completion)
+        signOperation(operation, with: DefaultSecureEnclaveProvider(), keyTag: keyTag, context: context, completion: completion)
     }
 
     /// Sign a UserOperation using an externally provided Secure Enclave provider.
-    func signOperation(_ operation: UserOperation, with secureEnclave: SecureEnclaveProvider, keyTag: String, completion: @escaping (Result<UserOperation, ERC4337Error>) -> Void) {
+    ///
+    /// `context` (P3.2, decision #2): an already-authenticated `LAContext` the
+    /// enclave reuses so a biometric-gated key doesn't prompt a second time for
+    /// the same user action. `nil` (default) → the enclave authenticates this
+    /// signature on its own with a fresh, reuse-0 context.
+    func signOperation(_ operation: UserOperation, with secureEnclave: SecureEnclaveProvider, keyTag: String, context: LAContext? = nil, completion: @escaping (Result<UserOperation, ERC4337Error>) -> Void) {
         // Testnet-only lock (P2.0): this is the SINGLE sign primitive every signing path
         // funnels into (BlockchainBridge, NFTManager, DAOManager, WalletTransactionService,
         // and any future caller). Fail CLOSED before computing the message or producing any
@@ -756,7 +762,7 @@ final class ERC4337Manager {
         let messageHash = Keccak256.hash(data: message)
 
         do {
-            let sigData = try secureEnclave.sign(data: messageHash, withKeyTag: keyTag)
+            let sigData = try secureEnclave.sign(data: messageHash, withKeyTag: keyTag, context: context)
 
             let signedOp = UserOperation(
                 sender: operation.sender,

@@ -5,6 +5,7 @@
 
 import CryptoKit
 import Foundation
+import LocalAuthentication
 import Security
 
 // MARK: - Protocols
@@ -23,8 +24,22 @@ protocol BiometricAuthProvider {
 protocol SecureEnclaveProvider {
     func generateKeyPair(tag: String, biometricGated: Bool) throws -> SecureEnclaveKeyPair
     func sign(data: Data, withKeyTag tag: String) throws -> Data
+    /// Sign while threading an already-authenticated `LAContext` into the enclave
+    /// (P3.2, decision #2): the enclave reuses that authentication instead of
+    /// prompting again. Pass `nil` to let the enclave authenticate the signature
+    /// on its own (a fresh, reuse-0 context).
+    func sign(data: Data, withKeyTag tag: String, context: LAContext?) throws -> Data
     func deleteKey(tag: String) throws
     func keyExists(tag: String) -> Bool
+}
+
+extension SecureEnclaveProvider {
+    /// Back-compat default: providers that don't thread a context route through
+    /// the contextless path (the enclave then mints its own per-signature auth).
+    /// Keeps existing conformers/mocks valid without change.
+    func sign(data: Data, withKeyTag tag: String, context: LAContext?) throws -> Data {
+        try sign(data: data, withKeyTag: tag)
+    }
 }
 
 // MARK: - Data Models
@@ -625,6 +640,12 @@ final class DefaultSecureEnclaveProvider: SecureEnclaveProvider {
     func sign(data: Data, withKeyTag tag: String) throws -> Data {
         // Real P-256 DER signature over SHA-256(data) from the enclave key.
         try manager.sign(data, tag: tag)
+    }
+
+    func sign(data: Data, withKeyTag tag: String, context: LAContext?) throws -> Data {
+        // Threads the caller's authenticated context (decision #2) so a
+        // biometric-gated key doesn't double-prompt; nil = fresh per-sig auth.
+        try manager.sign(data, tag: tag, context: context)
     }
 
     func deleteKey(tag: String) throws {

@@ -10,6 +10,7 @@
 
 import CryptoKit
 import Foundation
+import LocalAuthentication
 import Security
 
 final class SecureEnclaveManager {
@@ -19,11 +20,13 @@ final class SecureEnclaveManager {
     enum KeyError: Error, LocalizedError {
         case keychainStatus(OSStatus)
         case corruptKeyData
+        case authenticationRequired
 
         var errorDescription: String? {
             switch self {
             case .keychainStatus(let s): return "Keychain error (\(s))."
             case .corruptKeyData: return "Stored key data is unreadable."
+            case .authenticationRequired: return "Authentication required — nothing was signed."
             }
         }
     }
@@ -79,20 +82,72 @@ final class SecureEnclaveManager {
     }
 
     /// DER signature over SHA-256(data) using the key for `tag`.
-    func sign(_ data: Data, tag: String) throws -> Data {
+    ///
+    /// Biometric handling (P3.2). When the key for `tag` is biometric-gated
+    /// (P3.1, `.biometryCurrentSet`), the Secure Enclave requires a Face ID /
+    /// Touch ID check for this signature. The `context` controls that check:
+    ///
+    /// - Pass an already-authenticated `LAContext` (e.g. the one the Send UI
+    ///   evaluated a moment ago) to REUSE that authentication, so the user is
+    ///   not prompted a second time for the same action (decision #2).
+    /// - Pass `nil` (the default) and each signature gets its OWN fresh context
+    ///   with reuse-duration 0 — no silent reuse of an unrelated recent unlock;
+    ///   the enclave authenticates this signature on its own.
+    ///
+    /// A declined / cancelled / failed biometric does NOT produce a signature:
+    /// the enclave signature is load-bearing and any auth failure surfaces as
+    /// `KeyError.authenticationRequired` — never a silently-skipped or faked sig.
+    func sign(_ data: Data, tag: String, context: LAContext? = nil) throws -> Data {
         try ensureKey(tag: tag)
         guard let stored = try loadKeyData(tag: tag) else {
             throw KeyError.corruptKeyData
         }
         let digest = SHA256.hash(data: data)
-        if isSecureEnclaveAvailable,
-           let seKey = try? SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: stored) {
-            return try seKey.signature(for: digest).derRepresentation
+
+        if isSecureEnclaveAvailable {
+            // Reuse the caller's authenticated context, or mint a fresh one that
+            // refuses to reuse any prior unlock (reuse-duration 0).
+            let authContext = context ?? freshSigningContext()
+            if let seKey = try? SecureEnclave.P256.Signing.PrivateKey(
+                dataRepresentation: stored, authenticationContext: authContext) {
+                // Load-bearing: a biometric decline/failure throws here and is
+                // mapped to an honest auth error. We do NOT fall through to any
+                // other signing path after the enclave key reconstructs.
+                do {
+                    return try seKey.signature(for: digest).derRepresentation
+                } catch {
+                    throw mapSigningError(error)
+                }
+            }
+            // `stored` was not reconstructable as an enclave key on an enclave
+            // device (e.g. a software key minted when no enclave was present).
+            // Fall through to the software path — this is NOT an auth failure.
         }
         if let soft = try? P256.Signing.PrivateKey(rawRepresentation: stored) {
             return try soft.signature(for: digest).derRepresentation
         }
         throw KeyError.corruptKeyData
+    }
+
+    // MARK: - Signing auth context
+
+    /// A fresh authentication context for a single signature that refuses to
+    /// reuse any earlier biometric unlock (reuse-duration 0). Each standalone
+    /// signature therefore authenticates on its own.
+    private func freshSigningContext() -> LAContext {
+        let context = LAContext()
+        context.touchIDAuthenticationAllowableReuseDuration = 0
+        return context
+    }
+
+    /// Map an enclave signing failure to an honest, user-facing error. A
+    /// biometric-gated key fails to sign only when authentication is declined,
+    /// cancelled, failed, locked out, or the key was invalidated by a biometric
+    /// change (Phase 4 recovery territory). In every case the truth is the same:
+    /// nothing was signed and the user must authenticate.
+    private func mapSigningError(_ error: Error) -> Error {
+        if error is KeyError { return error }
+        return KeyError.authenticationRequired
     }
 
     /// Whether a key already exists for `tag` — read-only, never creates one.
