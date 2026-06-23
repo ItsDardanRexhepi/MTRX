@@ -86,6 +86,7 @@ struct GamingView: View {
     @StateObject private var viewModel = GamingViewModel()
     @State private var activeGame: GameItem?
     @State private var gameKit = GameKitManager.shared
+    @State private var tournamentUnavailable: String?
 
     private let gridColumns = [
         GridItem(.flexible(), spacing: Spacing.sm),
@@ -115,6 +116,14 @@ struct GamingView: View {
             .onAppear { gameKit.authenticate() }
             .fullScreenCover(item: $activeGame) { game in
                 GameRunnerView(game: game)
+            }
+            .alert("Not Available Yet", isPresented: Binding(
+                get: { tournamentUnavailable != nil },
+                set: { if !$0 { tournamentUnavailable = nil } }
+            )) {
+                Button("OK", role: .cancel) { tournamentUnavailable = nil }
+            } message: {
+                Text(tournamentUnavailable ?? "")
             }
         }
     }
@@ -322,7 +331,8 @@ struct GamingView: View {
 
                 if tournament.status == "Open" {
                     Button {
-                        // Register action
+                        tournamentUnavailable = "Tournament registration isn't available in this build yet. You weren't registered."
+                        MtrxHaptics.warning()
                     } label: {
                         Text("Register")
                             .font(.mtrxCaptionBold)
