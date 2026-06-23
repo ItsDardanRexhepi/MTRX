@@ -39,6 +39,58 @@ final class AgentConversationViewModel: ObservableObject {
     @Published var showFirstBoot = false
     @Published var isOffline: Bool = false
 
+    // MARK: - Voice input (V3 — on-device STT, Tier 1)
+    @Published var isListening = false
+    @Published var voiceError: String?
+    private let transcriber = SpeechTranscriber.shared
+
+    /// Toggle the microphone. On-device transcription (SFSpeechRecognizer, requiresOnDeviceRecognition)
+    /// streams into inputText as the user speaks — 100% on-device for Tier-1 languages, nothing leaves
+    /// the device. (Tier-2 extended/auto-detect voice is gated behind ExtendedLanguageGate and wired to
+    /// the cloud STT later — V3.5/V4.) Money-isolated: only mutates chat text.
+    func toggleVoiceInput() {
+        if isListening { stopVoiceInput() } else { startVoiceInput() }
+    }
+
+    func startVoiceInput() {
+        voiceError = nil
+        transcriber.requestAuthorization { [weak self] granted in
+            guard let self else { return }
+            guard granted else {
+                self.voiceError = "Speech recognition is off. Turn it on in Settings → Privacy → Speech Recognition to talk to Trinity."
+                return
+            }
+            do {
+                try self.transcriber.startTranscription(
+                    onPartial: { [weak self] partial in
+                        DispatchQueue.main.async { self?.inputText = partial }
+                    },
+                    onFinal: { [weak self] result in
+                        DispatchQueue.main.async {
+                            self?.inputText = result.text
+                            self?.isListening = false
+                        }
+                    },
+                    onError: { [weak self] _ in
+                        DispatchQueue.main.async {
+                            self?.isListening = false
+                            self?.voiceError = "I couldn't quite catch that — let's try again."
+                        }
+                    }
+                )
+                self.isListening = true
+            } catch {
+                self.isListening = false
+                self.voiceError = "Voice input isn't available right now."
+            }
+        }
+    }
+
+    func stopVoiceInput() {
+        transcriber.stopTranscription()
+        isListening = false
+    }
+
     private let accessControl = AgentAccessControl.shared
     private let morpheus = MorpheusInterventions.shared
     private var userID: String = ""

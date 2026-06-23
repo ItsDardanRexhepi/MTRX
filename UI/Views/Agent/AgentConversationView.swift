@@ -25,7 +25,6 @@ struct AgentConversationView: View {
     var isModal: Bool = false
 
     @Environment(\.dismiss) private var dismiss
-    @State private var isListening = false
     @State private var appeared = false
     @State private var showAgentIdentity = false
     @State private var showSearch = false
@@ -354,6 +353,14 @@ struct AgentConversationView: View {
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        }
+        .alert("Voice", isPresented: Binding(
+            get: { viewModel.voiceError != nil },
+            set: { if !$0 { viewModel.voiceError = nil } }
+        )) {
+            Button("OK", role: .cancel) { viewModel.voiceError = nil }
+        } message: {
+            Text(viewModel.voiceError ?? "")
         }
     }
 
@@ -832,12 +839,12 @@ struct AgentConversationView: View {
             // Microphone button
             Button {
                 MtrxHaptics.impact(.light)
-                isListening.toggle()
+                viewModel.toggleVoiceInput()
             } label: {
-                Image(systemName: isListening ? Symbols.microphoneSlash : Symbols.microphone)
-                    .accessibilityLabel("Microphone")
+                Image(systemName: viewModel.isListening ? Symbols.microphoneSlash : Symbols.microphone)
+                    .accessibilityLabel(viewModel.isListening ? "Stop listening" : "Speak to \(agentName)")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(isListening ? Color.statusError : Color.labelTertiary)
+                    .foregroundStyle(viewModel.isListening ? Color.statusError : Color.labelTertiary)
                     .frame(width: 36, height: 36)
             }
 
