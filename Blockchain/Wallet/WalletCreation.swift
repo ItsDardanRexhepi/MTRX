@@ -106,6 +106,31 @@ enum WalletRecordStore {
     }
 }
 
+/// Device-local persistence for the recovery guardian list (Phase 4-A / step 3). Guardians are
+/// NON-SECRET metadata — public wallet address + display name + addedAt + isConfirmed. No private
+/// keys and no approval signatures are stored here (approval signatures are `GuardianApproval`, an
+/// ephemeral recovery-time input, never persisted). UserDefaults is therefore appropriate.
+enum GuardianStore {
+    private static let key = "com.mtrx.recoveryGuardians.v1"
+
+    static func save(_ guardians: [RecoveryGuardian]) {
+        guard let data = try? JSONEncoder().encode(guardians) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    static func load() -> [RecoveryGuardian] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let guardians = try? JSONDecoder().decode([RecoveryGuardian].self, from: data) else {
+            return []
+        }
+        return guardians
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}
+
 struct SecureEnclaveKeyPair {
     let publicKey: Data
     let keyTag: String
@@ -172,7 +197,7 @@ final class WalletCreation {
     private let keyTagPrefix = "com.mtrx.wallet.key"
 
     /// Recovery guardians for social recovery
-    private var recoveryGuardians: [RecoveryGuardian] = []
+    private var recoveryGuardians: [RecoveryGuardian] = GuardianStore.load()
 
     /// Cloud backup identifier
     private var cloudBackupID: String?
@@ -352,14 +377,16 @@ final class WalletCreation {
 
     // MARK: - Guardian Management
 
-    /// Add a recovery guardian
+    /// Add a recovery guardian (persisted so the list survives relaunch — Phase 4-A / step 3).
     func addGuardian(_ guardian: RecoveryGuardian) {
         recoveryGuardians.append(guardian)
+        GuardianStore.save(recoveryGuardians)
     }
 
-    /// Remove a recovery guardian
+    /// Remove a recovery guardian (persisted).
     func removeGuardian(address: String) {
         recoveryGuardians.removeAll { $0.address == address }
+        GuardianStore.save(recoveryGuardians)
     }
 
     /// Get current guardians
@@ -699,9 +726,9 @@ extension WalletCreation {
 
 // MARK: - Supporting Types
 
-struct RecoveryGuardian {
-    let address: String
-    let name: String
+struct RecoveryGuardian: Codable {
+    let address: String      // guardian's PUBLIC wallet address — non-secret
+    let name: String         // display name — non-secret
     let addedAt: Date
     let isConfirmed: Bool
 }
