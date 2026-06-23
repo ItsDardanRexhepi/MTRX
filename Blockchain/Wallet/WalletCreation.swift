@@ -638,14 +638,17 @@ final class DefaultSecureEnclaveProvider: SecureEnclaveProvider {
     }
 
     func sign(data: Data, withKeyTag tag: String) throws -> Data {
-        // Real P-256 DER signature over SHA-256(data) from the enclave key.
-        try manager.sign(data, tag: tag)
+        // VALUE/money seam (P3.4): the ERC-4337 signer routes here, so refuse a non-biometric-gated
+        // (legacy) owner key — OBSERVE-default, enforced at go-live. Real P-256 DER signature over
+        // SHA-256(data) from the gated key.
+        try manager.signForValue(data, tag: tag)
     }
 
     func sign(data: Data, withKeyTag tag: String, context: LAContext?) throws -> Data {
-        // Threads the caller's authenticated context (decision #2) so a
-        // biometric-gated key doesn't double-prompt; nil = fresh per-sig auth.
-        try manager.sign(data, tag: tag, context: context)
+        // Threads the caller's authenticated context (decision #2) so a biometric-gated key doesn't
+        // double-prompt; nil = fresh per-sig auth. Routes through signForValue (P3.4) — money seam,
+        // refuses a legacy ungated owner key (OBSERVE-default).
+        try manager.signForValue(data, tag: tag, context: context)
     }
 
     func deleteKey(tag: String) throws {

@@ -17,16 +17,26 @@ final class SecureEnclaveManager {
 
     static let shared = SecureEnclaveManager()
 
+    /// P3.4 — value-signing enforcement of the biometric gate. OBSERVE-default: while `false`, a
+    /// value/UserOperation signature attempted with a NON-biometric-gated (legacy / pre-Phase-3)
+    /// owner key is LOGGED but allowed (testnet, flags off, and so the Simulator money-signing
+    /// tests — which use ungated keys — stay green). Flip to `true` at go-live so the weak path is
+    /// REFUSED and a legacy ungated owner key can never move funds. Identity-proof signing is
+    /// unaffected — it goes through `sign()`, not `signForValue()`.
+    static var enforceGatedOwnerKeyForValue = false
+
     enum KeyError: Error, LocalizedError {
         case keychainStatus(OSStatus)
         case corruptKeyData
         case authenticationRequired
+        case weakKeySigningRefused
 
         var errorDescription: String? {
             switch self {
             case .keychainStatus(let s): return "Keychain error (\(s))."
             case .corruptKeyData: return "Stored key data is unreadable."
             case .authenticationRequired: return "Authentication required — nothing was signed."
+            case .weakKeySigningRefused: return "This wallet's signing key isn't biometric-protected, so it can't move funds. Reset the wallet to create a protected key — nothing was signed."
             }
         }
     }
@@ -162,6 +172,38 @@ final class SecureEnclaveManager {
             throw KeyError.corruptKeyData
         }
         return try soft.signature(for: digest).derRepresentation
+    }
+
+    /// VALUE signing (P3.4) — sign a money/UserOperation payload, refusing a key that is NOT
+    /// biometric-gated. This is the money seam's entry point (the `SecureEnclaveProvider` the
+    /// ERC-4337 signer uses routes here); identity-proof signing stays on `sign()` and may use an
+    /// ungated key by design.
+    ///
+    /// A legacy / pre-Phase-3 owner key is ungated and could move funds without biometric — the
+    /// "weak path". When `enforceGatedOwnerKeyForValue` is on (go-live), signing with such a key is
+    /// REFUSED (`KeyError.weakKeySigningRefused`, nothing signed). OBSERVE-default (off): the attempt
+    /// is logged but allowed, so testnet flows and the Simulator money-signing tests (ungated keys)
+    /// are unaffected. A gated key signs normally via `sign()` (biometric enforced there).
+    func signForValue(_ data: Data, tag: String, context: LAContext? = nil) throws -> Data {
+        if !isGated(tag: tag) {
+            if Self.enforceGatedOwnerKeyForValue {
+                throw KeyError.weakKeySigningRefused
+            }
+            // OBSERVE: a non-gated owner key would move value. Record it; do not block (flags off,
+            // testnet). At go-live this same condition REFUSES.
+            print("[SecureEnclave] OBSERVE P3.4: value-signing with a NON-biometric-gated key — would be REFUSED at go-live (enforceGatedOwnerKeyForValue). tag=\(tag)")
+        }
+        return try sign(data, tag: tag, context: context)
+    }
+
+    /// Whether the key for `tag` is biometric-gated — reflecting the key's REAL access control, not
+    /// a spoofable/stale marker (P3.4 adversarial review). Both paths probe the actual gate: a
+    /// non-gated key can therefore NEVER be reported as gated.
+    func isGated(tag: String) -> Bool {
+        if isSecureEnclaveAvailable {
+            return enclaveKeyRequiresBiometric(tag: tag)
+        }
+        return privateRequiresAuth(tag: tag)
     }
 
     // MARK: - Signing auth context
@@ -319,4 +361,45 @@ final class SecureEnclaveManager {
 
     /// Companion tag holding the ungated public key for a P3.3 software-gated key.
     private func publicTag(_ tag: String) -> String { tag + ".public" }
+
+    // MARK: - Gated-key detection (P3.4)
+
+    /// Probe whether the ENCLAVE key for `tag` is biometric-gated by reflecting its REAL access
+    /// control — not a spoofable marker. Attempt a signature with `interactionNotAllowed`: a gated
+    /// (`.biometryCurrentSet`) key cannot sign without interaction → throws; an ungated key signs
+    /// with no interaction → succeeds. Silent (no biometric prompt — interaction is disallowed, so
+    /// it fails fast instead of prompting). The throwaway signature over a constant is discarded and
+    /// never broadcast. Critically: a usable ungated key always SIGNS here (→ returns false), so an
+    /// ungated key can never be misreported as gated; only a throw yields `true`.
+    private func enclaveKeyRequiresBiometric(tag: String) -> Bool {
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        guard let stored = try? loadKeyData(tag: tag),
+              let seKey = try? SecureEnclave.P256.Signing.PrivateKey(
+                dataRepresentation: stored, authenticationContext: context) else {
+            return false
+        }
+        do {
+            _ = try seKey.signature(for: SHA256.hash(data: Data([0x00])))
+            return false   // signed without interaction → ungated
+        } catch {
+            return true    // interaction required (or unusable) → gated; a usable ungated key never reaches here
+        }
+    }
+
+    /// Probe whether the SOFTWARE private item for `tag` is biometric-gated WITHOUT prompting: a
+    /// `.biometryCurrentSet` item returns `errSecInteractionNotAllowed` under `UISkip`; an ungated
+    /// item returns its data (`errSecSuccess`). Reflects the real keychain access control, so it
+    /// can't be spoofed by writing a marker.
+    private func privateRequiresAuth(tag: String) -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: tag,
+            kSecReturnData as String: true,
+            kSecUseAuthenticationUI as String: kSecUseAuthenticationUISkip,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        return SecItemCopyMatching(query as CFDictionary, nil) == errSecInteractionNotAllowed
+    }
 }
