@@ -253,6 +253,11 @@ enum ERC4337Error: Error, LocalizedError {
     case networkError(underlying: Error)
     /// Testnet-only lock: refused to sign against a non-permitted chain (e.g. mainnet).
     case signingChainNotPermitted(chainId: UInt64)
+    /// The signer itself reported an HONEST reason the signature wasn't produced (P3.5) — e.g. a
+    /// declined/failed biometric ("authentication required — nothing was signed") or a refused
+    /// weak/ungated key. Carries that reason through to the UI verbatim instead of collapsing it
+    /// into a misleading "invalid signature".
+    case signingFailed(reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -268,6 +273,7 @@ enum ERC4337Error: Error, LocalizedError {
         case .signingChainNotPermitted(let id):
             return "Testnet-only build — signing is restricted to Base Sepolia "
                 + "(\(BaseNetworkConfig.permittedSigningChainID)); chain \(id) is not permitted. Nothing was signed."
+        case .signingFailed(let reason): return reason
         }
     }
 }
@@ -778,7 +784,14 @@ final class ERC4337Manager {
                 signature: sigData
             )
             completion(.success(signedOp))
+        } catch let keyError as SecureEnclaveManager.KeyError {
+            // P3.5 — the signer reported an HONEST reason (declined/failed biometric →
+            // authenticationRequired; refused weak key → weakKeySigningRefused; unreadable key).
+            // Surface that reason verbatim instead of collapsing it into a misleading
+            // "invalid signature", so the user sees the true declined-state.
+            completion(.failure(.signingFailed(reason: keyError.errorDescription ?? "Signing failed — nothing was signed.")))
         } catch {
+            // A genuine cryptographic/serialization failure (not a decline) → generic.
             completion(.failure(.invalidSignature))
         }
     }
