@@ -5,6 +5,7 @@
 
 import Foundation
 import CryptoKit
+import LocalAuthentication
 
 // MARK: - Protocols
 
@@ -252,6 +253,11 @@ enum ERC4337Error: Error, LocalizedError {
     case networkError(underlying: Error)
     /// Testnet-only lock: refused to sign against a non-permitted chain (e.g. mainnet).
     case signingChainNotPermitted(chainId: UInt64)
+    /// The signer itself reported an HONEST reason the signature wasn't produced (P3.5) — e.g. a
+    /// declined/failed biometric ("authentication required — nothing was signed") or a refused
+    /// weak/ungated key. Carries that reason through to the UI verbatim instead of collapsing it
+    /// into a misleading "invalid signature".
+    case signingFailed(reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -267,6 +273,7 @@ enum ERC4337Error: Error, LocalizedError {
         case .signingChainNotPermitted(let id):
             return "Testnet-only build — signing is restricted to Base Sepolia "
                 + "(\(BaseNetworkConfig.permittedSigningChainID)); chain \(id) is not permitted. Nothing was signed."
+        case .signingFailed(let reason): return reason
         }
     }
 }
@@ -722,18 +729,23 @@ final class ERC4337Manager {
     ///
     /// P-256/RIP-7212 CONSTRAINT: the on-chain account validation MUST verify
     /// P-256 (secp256r1) — the Secure Enclave cannot produce secp256k1 sigs.
-    func signOperation(_ operation: UserOperation, completion: @escaping (Result<UserOperation, ERC4337Error>) -> Void) {
+    func signOperation(_ operation: UserOperation, context: LAContext? = nil, completion: @escaping (Result<UserOperation, ERC4337Error>) -> Void) {
         guard let keyTag = signingKeyTag else {
             // No enclave signing key configured — refuse rather than sign with a
             // throwaway key (which would fail on-chain validation anyway).
             completion(.failure(.invalidSignature))
             return
         }
-        signOperation(operation, with: DefaultSecureEnclaveProvider(), keyTag: keyTag, completion: completion)
+        signOperation(operation, with: DefaultSecureEnclaveProvider(), keyTag: keyTag, context: context, completion: completion)
     }
 
     /// Sign a UserOperation using an externally provided Secure Enclave provider.
-    func signOperation(_ operation: UserOperation, with secureEnclave: SecureEnclaveProvider, keyTag: String, completion: @escaping (Result<UserOperation, ERC4337Error>) -> Void) {
+    ///
+    /// `context` (P3.2, decision #2): an already-authenticated `LAContext` the
+    /// enclave reuses so a biometric-gated key doesn't prompt a second time for
+    /// the same user action. `nil` (default) → the enclave authenticates this
+    /// signature on its own with a fresh, reuse-0 context.
+    func signOperation(_ operation: UserOperation, with secureEnclave: SecureEnclaveProvider, keyTag: String, context: LAContext? = nil, completion: @escaping (Result<UserOperation, ERC4337Error>) -> Void) {
         // Testnet-only lock (P2.0): this is the SINGLE sign primitive every signing path
         // funnels into (BlockchainBridge, NFTManager, DAOManager, WalletTransactionService,
         // and any future caller). Fail CLOSED before computing the message or producing any
@@ -756,7 +768,7 @@ final class ERC4337Manager {
         let messageHash = Keccak256.hash(data: message)
 
         do {
-            let sigData = try secureEnclave.sign(data: messageHash, withKeyTag: keyTag)
+            let sigData = try secureEnclave.sign(data: messageHash, withKeyTag: keyTag, context: context)
 
             let signedOp = UserOperation(
                 sender: operation.sender,
@@ -772,7 +784,14 @@ final class ERC4337Manager {
                 signature: sigData
             )
             completion(.success(signedOp))
+        } catch let keyError as SecureEnclaveManager.KeyError {
+            // P3.5 — the signer reported an HONEST reason (declined/failed biometric →
+            // authenticationRequired; refused weak key → weakKeySigningRefused; unreadable key).
+            // Surface that reason verbatim instead of collapsing it into a misleading
+            // "invalid signature", so the user sees the true declined-state.
+            completion(.failure(.signingFailed(reason: keyError.errorDescription ?? "Signing failed — nothing was signed.")))
         } catch {
+            // A genuine cryptographic/serialization failure (not a decline) → generic.
             completion(.failure(.invalidSignature))
         }
     }

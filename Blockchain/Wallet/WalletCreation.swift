@@ -5,6 +5,7 @@
 
 import CryptoKit
 import Foundation
+import LocalAuthentication
 import Security
 
 // MARK: - Protocols
@@ -21,10 +22,24 @@ protocol BiometricAuthProvider {
 }
 
 protocol SecureEnclaveProvider {
-    func generateKeyPair(tag: String) throws -> SecureEnclaveKeyPair
+    func generateKeyPair(tag: String, biometricGated: Bool) throws -> SecureEnclaveKeyPair
     func sign(data: Data, withKeyTag tag: String) throws -> Data
+    /// Sign while threading an already-authenticated `LAContext` into the enclave
+    /// (P3.2, decision #2): the enclave reuses that authentication instead of
+    /// prompting again. Pass `nil` to let the enclave authenticate the signature
+    /// on its own (a fresh, reuse-0 context).
+    func sign(data: Data, withKeyTag tag: String, context: LAContext?) throws -> Data
     func deleteKey(tag: String) throws
     func keyExists(tag: String) -> Bool
+}
+
+extension SecureEnclaveProvider {
+    /// Back-compat default: providers that don't thread a context route through
+    /// the contextless path (the enclave then mints its own per-signature auth).
+    /// Keeps existing conformers/mocks valid without change.
+    func sign(data: Data, withKeyTag tag: String, context: LAContext?) throws -> Data {
+        try sign(data: data, withKeyTag: tag)
+    }
 }
 
 // MARK: - Data Models
@@ -241,33 +256,6 @@ final class WalletCreation {
         return recoveryGuardians
     }
 
-    // MARK: - Signing
-
-    /// Sign arbitrary data with the Secure Enclave owner key.
-    ///
-    /// NON-TRANSACTION SIGNING ONLY — this must NOT be used to sign or broadcast a
-    /// UserOperation / on-chain transaction. ALL transaction signing goes through
-    /// `ERC4337Manager.signOperation`, which enforces the testnet chain guard
-    /// (fail-closed against mainnet). (No production caller today; exercised by tests.)
-    func sign(data: Data, completion: @escaping (Result<Data, WalletCreationError>) -> Void) {
-        biometricProvider.authenticateWithBiometrics(reason: "Authorize signature with Face ID") { [weak self] result in
-            guard let self = self else { return }
-
-            switch result {
-            case .success:
-                do {
-                    let keyTag = "\(self.keyTagPrefix).owner"
-                    let signature = try self.secureEnclaveProvider.sign(data: data, withKeyTag: keyTag)
-                    completion(.success(signature))
-                } catch {
-                    completion(.failure(.secureEnclaveError(reason: error.localizedDescription)))
-                }
-            case .failure:
-                completion(.failure(.biometricAuthFailed))
-            }
-        }
-    }
-
     // MARK: - Private Implementation
 
     private func performWalletCreation(
@@ -279,7 +267,7 @@ final class WalletCreation {
         let keyTag = "\(keyTagPrefix).owner.\(UUID().uuidString)"
         let keyPair: SecureEnclaveKeyPair
         do {
-            keyPair = try secureEnclaveProvider.generateKeyPair(tag: keyTag)
+            keyPair = try secureEnclaveProvider.generateKeyPair(tag: keyTag, biometricGated: true)
         } catch {
             completion(.failure(.keyGenerationFailed))
             return
@@ -370,7 +358,7 @@ final class WalletCreation {
         let newKeyTag = "\(keyTagPrefix).owner.\(UUID().uuidString)"
         let newKeyPair: SecureEnclaveKeyPair
         do {
-            newKeyPair = try secureEnclaveProvider.generateKeyPair(tag: newKeyTag)
+            newKeyPair = try secureEnclaveProvider.generateKeyPair(tag: newKeyTag, biometricGated: true)
         } catch {
             completion(.failure(.keyGenerationFailed))
             return
@@ -642,15 +630,25 @@ final class DefaultSecureEnclaveProvider: SecureEnclaveProvider {
 
     private let manager = SecureEnclaveManager.shared
 
-    func generateKeyPair(tag: String) throws -> SecureEnclaveKeyPair {
+    func generateKeyPair(tag: String, biometricGated: Bool) throws -> SecureEnclaveKeyPair {
         // Creates the enclave key on first use and returns its REAL public key.
-        let publicKey = try manager.publicKeyData(tag: tag)
+        // biometricGated=true binds the signing key to .biometryCurrentSet at the enclave.
+        let publicKey = try manager.publicKeyData(tag: tag, biometricGated: biometricGated)
         return SecureEnclaveKeyPair(publicKey: publicKey, keyTag: tag)
     }
 
     func sign(data: Data, withKeyTag tag: String) throws -> Data {
-        // Real P-256 DER signature over SHA-256(data) from the enclave key.
-        try manager.sign(data, tag: tag)
+        // VALUE/money seam (P3.4): the ERC-4337 signer routes here, so refuse a non-biometric-gated
+        // (legacy) owner key — OBSERVE-default, enforced at go-live. Real P-256 DER signature over
+        // SHA-256(data) from the gated key.
+        try manager.signForValue(data, tag: tag)
+    }
+
+    func sign(data: Data, withKeyTag tag: String, context: LAContext?) throws -> Data {
+        // Threads the caller's authenticated context (decision #2) so a biometric-gated key doesn't
+        // double-prompt; nil = fresh per-sig auth. Routes through signForValue (P3.4) — money seam,
+        // refuses a legacy ungated owner key (OBSERVE-default).
+        try manager.signForValue(data, tag: tag, context: context)
     }
 
     func deleteKey(tag: String) throws {
