@@ -156,20 +156,25 @@ final class PortfolioAggregator {
     static let shared = PortfolioAggregator()
 
     func fetchSummary(period: PortfolioPeriod, includeDeFi: Bool) async throws -> IntentPortfolioSnapshot {
-        return IntentPortfolioSnapshot(
-            totalValueUSD: "0.00",
-            changePercent24h: 0.0,
-            topHoldings: [],
-            defiPositions: 0,
-            defiTVL: "0.00"
-        )
+        // No fabricated portfolio. Returning hardcoded $0.00 would tell a funded user their
+        // holdings are empty — a false reading presented as real. Live portfolio data isn't
+        // wired to this Siri path yet, so fail honestly instead of inventing a balance.
+        throw NSError(domain: "MTRX.Intent", code: 1, userInfo: [NSLocalizedDescriptionKey:
+            "Your portfolio isn't available from Siri in this build yet. Open MTRX to see it."])
     }
 
     func tokenPrice(symbol: String) async throws -> String {
-        return "0.00"
+        // No hardcoded "0.00" — that reports a fabricated number as the real market price.
+        // Live prices aren't wired to this Siri path yet; fail honestly.
+        throw NSError(domain: "MTRX.Intent", code: 1, userInfo: [NSLocalizedDescriptionKey:
+            "Live token prices aren't available in this build yet."])
     }
 
     func setAlert(symbol: String, type: PortfolioAlertType, threshold: Double) async throws {
-        // Store alert in UserDefaults or CloudKit
+        // An empty body here let perform() report "Alert set" while nothing was stored or
+        // scheduled — the user would rely on an alert that never fires. Fail honestly until a
+        // real alert store + monitor exists.
+        throw NSError(domain: "MTRX.Intent", code: 1, userInfo: [NSLocalizedDescriptionKey:
+            "Portfolio alerts aren't available in this build yet. Nothing was set."])
     }
 }

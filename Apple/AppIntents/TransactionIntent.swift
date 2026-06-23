@@ -181,12 +181,11 @@ final class TransactionEstimator {
     static let shared = TransactionEstimator()
 
     func estimate(type: TransactionType, to: String, amount: Decimal, token: String, network: BlockchainNetwork) async throws -> TransactionEstimate {
-        return TransactionEstimate(
-            gasEstimateUSD: "$0.00",
-            totalCostUSD: "$0.00",
-            summary: "Estimated transaction",
-            estimatedTime: 15
-        )
+        // Don't fabricate a "$0.00" gas/total estimate for the confirmation dialog — that tells
+        // the user the transaction is free. No on-chain network is configured, so fail honestly
+        // HERE, before any confirmation is shown, matching TransactionExecutor.execute below.
+        throw NSError(domain: "MTRX.Intent", code: 1, userInfo: [NSLocalizedDescriptionKey:
+            "On-chain transactions aren't available in this build yet — configure a network first."])
     }
 }
 

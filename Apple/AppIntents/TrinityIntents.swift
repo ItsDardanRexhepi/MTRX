@@ -182,20 +182,32 @@ final class TrinityPaymentService {
 final class TrinityGasService {
     static let shared = TrinityGasService()
     func currentPrice(network: BlockchainNetwork) async throws -> Double {
-        return 25.0
+        // No hardcoded gas number — returning 25.0 would report a fabricated price as a
+        // real reading. Live gas isn't wired to this Siri path yet, so fail honestly
+        // rather than hand the user an invented value.
+        throw NSError(domain: "MTRX.Intent", code: 1, userInfo: [NSLocalizedDescriptionKey:
+            "Live gas prices aren't available in this build yet."])
     }
 }
 
 final class TrinitySwapService {
     static let shared = TrinitySwapService()
     func swap(from: String, to: String, amount: Decimal) async throws -> String {
-        return "Swap executed"
+        // Do not report "Swap executed" for a swap that never ran. Swap execution is a
+        // regulated surface and is intentionally not available — fail honestly so the
+        // Shortcut never tells the user a swap happened when nothing did.
+        throw NSError(domain: "MTRX.Intent", code: 1, userInfo: [NSLocalizedDescriptionKey:
+            "Token swaps aren't available in this build. Nothing was executed."])
     }
 }
 
 final class TrinityStakingService {
     static let shared = TrinityStakingService()
     func stake(token: String, amount: Decimal, protocol: String) async throws -> String {
-        return "Staking initiated"
+        // Do not report "Staking initiated" for staking that never ran. This regulated
+        // DeFi surface is intentionally not available — fail honestly so the Shortcut
+        // never tells the user funds were staked when nothing happened.
+        throw NSError(domain: "MTRX.Intent", code: 1, userInfo: [NSLocalizedDescriptionKey:
+            "Staking isn't available in this build. Nothing was executed."])
     }
 }

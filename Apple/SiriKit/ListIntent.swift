@@ -133,13 +133,17 @@ final class ListIntentHandler: NSObject, INCreateTaskListIntentHandling {
     // MARK: - Portfolio Alert
 
     private func handlePortfolioAlert(intent: INCreateTaskListIntent, completion: @escaping (INCreateTaskListIntentResponse) -> Void) {
-        completion(INCreateTaskListIntentResponse(code: .success, userActivity: nil))
+        // No alert is stored or scheduled, so don't report the alert as created. Fail honestly
+        // rather than telling the user an alert exists that will never fire.
+        completion(INCreateTaskListIntentResponse(code: .failure, userActivity: nil))
     }
 
     // MARK: - Generic List
 
     private func handleGenericList(intent: INCreateTaskListIntent, completion: @escaping (INCreateTaskListIntentResponse) -> Void) {
-        completion(INCreateTaskListIntentResponse(code: .success, userActivity: nil))
+        // No generic-list store exists, so nothing is created. Fail honestly instead of
+        // confirming a list creation that didn't happen.
+        completion(INCreateTaskListIntentResponse(code: .failure, userActivity: nil))
     }
 
     // MARK: - Classification
@@ -194,8 +198,11 @@ final class PortfolioWatchlistStore {
     }
 
     func createWatchlist(name: String, tokens: [String], completion: @escaping (Result<Watchlist, Error>) -> Void) {
-        let watchlist = Watchlist(id: UUID().uuidString, name: name, tokens: tokens)
-        completion(.success(watchlist))
+        // Nothing here persists the watchlist — no App Group, no store the main app reads — so
+        // it must not report success. The in-memory struct vanishes after this call. Fail
+        // honestly until a real persistence path exists, rather than confirming a saved list.
+        completion(.failure(NSError(domain: "MTRX.Intent", code: 1, userInfo: [NSLocalizedDescriptionKey:
+            "Watchlists aren't available from Siri in this build yet. Nothing was saved."])))
     }
 }
 
@@ -205,6 +212,9 @@ final class TransactionReminderEngine {
     static let shared = TransactionReminderEngine()
 
     func createReminders(tasks: [String], completion: @escaping (Bool) -> Void) {
-        completion(true)
+        // No reminder is scheduled or persisted here (the app's NotificationManager /
+        // EventKitManager are never called), so do not report success — that would promise a
+        // reminder that never fires. Fail honestly until scheduling is wired.
+        completion(false)
     }
 }

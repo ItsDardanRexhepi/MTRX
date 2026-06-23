@@ -156,7 +156,11 @@ final class PaymentIntentHandler: NSObject, INSendPaymentIntentHandling {
 final class TrinityContactResolver {
     static let shared = TrinityContactResolver()
     func resolveWalletContact(_ person: INPerson, completion: @escaping (INPerson?) -> Void) {
-        completion(person)
+        // Fail closed. This resolver does NOT validate the address, do an ENS lookup, or match
+        // a contact — so it must not report the payee as resolved/validated. Returning nil makes
+        // resolvePayee answer .unsupported() (honest "not recognized") instead of rubber-stamping
+        // any recipient as a known wallet contact. Real resolution is future work.
+        completion(nil)
     }
 }
 
