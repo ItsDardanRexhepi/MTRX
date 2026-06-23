@@ -155,7 +155,6 @@
 		E78D5B775F27F3B18986E40D /* VoiceOverSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EE56923C0CAB506A02FD305 /* VoiceOverSupport.swift */; };
 		F59B7624DED99BCC48B87D58 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E501DAE4CBB33BCDC89E3FC9 /* AppDelegate.swift */; };
 		39F450A8CF77FE3B0B2E30DD /* MTRXApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 471126D0A1CEE244E9101BFB /* MTRXApp.swift */; };
-		6E3F5B72D7857C0B0B79CBAA /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 073888356ED9046083E6D0AD /* SceneDelegate.swift */; };
 		37E4013FE0F44922648BB402 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18C2E922D672C92061B3217 /* Colors.swift */; };
 		AC27596D7AFF1A1D9947EBCB /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE73F1FBF4DC32B909AA3B4 /* Motion.swift */; };
 		B52AFE628D58CA714DC074B6 /* Spacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F5473CC0DB01A5AAAAC1D1 /* Spacing.swift */; };
@@ -532,7 +531,6 @@
 		6EE56923C0CAB506A02FD305 /* VoiceOverSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceOverSupport.swift"; sourceTree = "<group>"; };
 		E501DAE4CBB33BCDC89E3FC9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate.swift"; sourceTree = "<group>"; };
 		471126D0A1CEE244E9101BFB /* MTRXApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MTRXApp.swift"; sourceTree = "<group>"; };
-		073888356ED9046083E6D0AD /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SceneDelegate.swift"; sourceTree = "<group>"; };
 		81C3B4DCE887E9F326A95E50 /* AppClipEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppClipEntry.swift"; sourceTree = "<group>"; };
 		979FA1C77018F7545A664BF6 /* AppClipFundraiser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppClipFundraiser.swift"; sourceTree = "<group>"; };
 		D4F4B1CB5324C10E2D711B7B /* AppClipMarketplace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppClipMarketplace.swift"; sourceTree = "<group>"; };
@@ -1567,7 +1565,6 @@
 			children = (
 				E501DAE4CBB33BCDC89E3FC9,
 				471126D0A1CEE244E9101BFB,
-				073888356ED9046083E6D0AD,
 			);
 			path = "App";
 			name = "App";
@@ -2100,7 +2097,6 @@
 				E78D5B775F27F3B18986E40D /* VoiceOverSupport.swift */,
 				F59B7624DED99BCC48B87D58 /* AppDelegate.swift */,
 				39F450A8CF77FE3B0B2E30DD /* MTRXApp.swift */,
-				6E3F5B72D7857C0B0B79CBAA /* SceneDelegate.swift */,
 				37E4013FE0F44922648BB402 /* Colors.swift */,
 				AC27596D7AFF1A1D9947EBCB /* Motion.swift */,
 				B52AFE628D58CA714DC074B6 /* Spacing.swift */,
