@@ -31,6 +31,9 @@ protocol SecureEnclaveProvider {
     func sign(data: Data, withKeyTag tag: String, context: LAContext?) throws -> Data
     func deleteKey(tag: String) throws
     func keyExists(tag: String) -> Bool
+    /// Whether the key for `tag` is biometric-gated — probes the REAL access control (P3.4), used by
+    /// restore-on-launch (W2) to re-validate a persisted key tag before binding it as the signer.
+    func isGated(tag: String) -> Bool
 }
 
 extension SecureEnclaveProvider {
@@ -51,6 +54,81 @@ struct SmartWallet {
     let recoveryMethod: RecoveryMethod
     let accountType: AccountType
     let isDeployed: Bool
+    /// The Secure Enclave signing-key tag this wallet's owner key lives under (Phase 4-A / W1).
+    /// A reference (Keychain account name), NOT secret — the gated private key never leaves the
+    /// enclave. **Empty** for a cloud-metadata restore: that device has no local signing key for
+    /// the address until Tier-A reset or Tier-B guardian rotation re-establishes one.
+    let keyTag: String
+}
+
+// MARK: - Active Wallet Record persistence (Phase 4-A / W1)
+
+/// Durable record of the active smart wallet so its owner signing key is findable across an app
+/// relaunch (W1). `keyTag` is a reference (a Keychain account name), NOT secret — the gated private
+/// key itself never leaves the Secure Enclave. Device-local (UserDefaults); a new DEVICE recovers
+/// identity via the iCloud-Keychain backup + Tier-A reset / Tier-B rotation, not this record.
+struct ActiveWalletRecord: Codable {
+    let address: String
+    let keyTag: String
+    let publicKey: Data          // non-secret; lets restore reconstruct SmartWallet without an enclave read
+    let recoveryMethod: String   // RecoveryMethod.rawValue
+    let createdAt: Date
+    let isDeployed: Bool
+
+    init(_ wallet: SmartWallet) {
+        self.address = wallet.address
+        self.keyTag = wallet.keyTag
+        self.publicKey = wallet.publicKey
+        self.recoveryMethod = wallet.recoveryMethod.rawValue
+        self.createdAt = wallet.createdAt
+        self.isDeployed = wallet.isDeployed
+    }
+}
+
+/// Device-local persistence for the active wallet record. Stores a non-secret pointer record so the
+/// app can find its own gated signing key after relaunch (W1). The gated key stays in the enclave;
+/// W2 reads this back; the Tier-A reset path (step 5) clears it when a key is reset.
+enum WalletRecordStore {
+    private static let key = "com.mtrx.activeWalletRecord.v1"
+
+    static func save(_ record: ActiveWalletRecord) {
+        guard let data = try? JSONEncoder().encode(record) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    static func load() -> ActiveWalletRecord? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(ActiveWalletRecord.self, from: data)
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}
+
+/// Device-local persistence for the recovery guardian list (Phase 4-A / step 3). Guardians are
+/// NON-SECRET metadata — public wallet address + display name + addedAt + isConfirmed. No private
+/// keys and no approval signatures are stored here (approval signatures are `GuardianApproval`, an
+/// ephemeral recovery-time input, never persisted). UserDefaults is therefore appropriate.
+enum GuardianStore {
+    private static let key = "com.mtrx.recoveryGuardians.v1"
+
+    static func save(_ guardians: [RecoveryGuardian]) {
+        guard let data = try? JSONEncoder().encode(guardians) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    static func load() -> [RecoveryGuardian] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let guardians = try? JSONDecoder().decode([RecoveryGuardian].self, from: data) else {
+            return []
+        }
+        return guardians
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
 }
 
 struct SecureEnclaveKeyPair {
@@ -119,7 +197,7 @@ final class WalletCreation {
     private let keyTagPrefix = "com.mtrx.wallet.key"
 
     /// Recovery guardians for social recovery
-    private var recoveryGuardians: [RecoveryGuardian] = []
+    private var recoveryGuardians: [RecoveryGuardian] = GuardianStore.load()
 
     /// Cloud backup identifier
     private var cloudBackupID: String?
@@ -200,6 +278,132 @@ final class WalletCreation {
         }
     }
 
+    // MARK: - Restore on launch (Phase 4-A / W2–W3)
+
+    /// Outcome of restoring the active wallet from the persisted record at launch.
+    enum RestoreOutcome {
+        case restored(SmartWallet)       // usable: a present, biometric-GATED key — bound as canonical signer
+        case needsReset(reason: String)  // key persisted but missing/invalidated or NOT gated → route to Tier-A reset (step 5)
+        case identityOnly(SmartWallet)   // cloud-metadata restore: address known, NO local signing key yet → needs recovery
+        case noWallet                    // nothing persisted
+    }
+
+    /// Restore the active wallet from the persisted record (W2) and bind it as the canonical signer
+    /// (W3) — but ONLY after re-validating the real key state.
+    ///
+    /// HARD REQUIREMENT (W1 adversarial note): the persisted `keyTag` is a non-secret POINTER, not a
+    /// guarantee. A tampered/stale record could name an ungated or missing key. So we re-probe the
+    /// REAL key — `keyExists` + `isGated` (P3.4, probes the actual access control) — and bind it ONLY
+    /// when present AND gated. A missing/invalidated key (e.g. a `.biometryCurrentSet` key destroyed
+    /// by a Face ID re-enrollment) or an ungated/legacy key is routed to **reset** (bridge to step 5
+    /// / Tier-A), never silently bound for value-signing — and never hangs.
+    @discardableResult
+    func restoreActiveWallet() -> RestoreOutcome {
+        guard let record = WalletRecordStore.load() else { return .noWallet }
+
+        // Cloud-metadata restore: identity only, no local signing key on this device yet.
+        if record.keyTag.isEmpty {
+            let wallet = makeWallet(from: record)
+            self.activeWallet = wallet
+            return .identityOnly(wallet)
+        }
+
+        // Re-probe the REAL key — the record is a pointer, not proof.
+        guard secureEnclaveProvider.keyExists(tag: record.keyTag) else {
+            return .needsReset(reason: "Your signing key is no longer available — it may have been reset when your Face ID / Touch ID changed. Reset the wallet to create a new protected key.")
+        }
+        guard secureEnclaveProvider.isGated(tag: record.keyTag) else {
+            // Present but NOT biometric-gated (tampered record or a legacy ungated key) — the weak-key
+            // case (P3.4). Do NOT bind for value-signing; route to reset.
+            return .needsReset(reason: "Your signing key isn't biometric-protected. Reset the wallet to create a protected key.")
+        }
+
+        // Present AND gated → bind as the canonical signer.
+        let wallet = makeWallet(from: record)
+        self.activeWallet = wallet
+        return .restored(wallet)
+    }
+
+    private func makeWallet(from record: ActiveWalletRecord) -> SmartWallet {
+        SmartWallet(
+            address: record.address,
+            publicKey: record.publicKey,
+            createdAt: record.createdAt,
+            recoveryMethod: RecoveryMethod(rawValue: record.recoveryMethod) ?? .faceID,
+            accountType: .standard,
+            isDeployed: record.isDeployed,
+            keyTag: record.keyTag
+        )
+    }
+
+    // MARK: - Tier-A reset (Phase 4-A / step 5)
+
+    /// Tier-A reset — the ESCAPE for an invalidated / missing / ungated signing key. Creates a FRESH
+    /// biometric-gated wallet (NEW key, NEW address) and abandons the old account. On testnet there
+    /// are no real funds; this is the §14.8c **testnet** recovery the P3.4 "reset the wallet" error
+    /// promises. It is NOT a fund-preserving recovery — that is Tier-B (guardian owner-rotation),
+    /// parked behind the recovery-module contract + server.
+    ///
+    /// STRAND-SAFE ordering: the new gated key is created AND re-probed gated BEFORE the old key or
+    /// records are touched. A failure mid-reset therefore leaves the existing state intact (never a
+    /// "old key deleted, new key missing" strand). Honest: fails truthfully, never a fake reset.
+    func resetWallet(completion: @escaping (Result<SmartWallet, WalletCreationError>) -> Void) {
+        creationQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            // 1. Create a fresh GATED key (the same gated path wallet creation uses). On failure
+            //    NOTHING has changed yet — old key + records untouched.
+            let newKeyTag = "\(self.keyTagPrefix).owner.\(UUID().uuidString)"
+            let keyPair: SecureEnclaveKeyPair
+            do {
+                keyPair = try self.secureEnclaveProvider.generateKeyPair(tag: newKeyTag, biometricGated: true)
+            } catch {
+                completion(.failure(.keyGenerationFailed))
+                return
+            }
+
+            // 2. Re-probe the NEW key is ACTUALLY biometric-gated — a reset that produced an ungated
+            //    key would defeat the whole point. If not gated, roll back the new key and fail.
+            guard self.secureEnclaveProvider.isGated(tag: newKeyTag) else {
+                try? self.secureEnclaveProvider.deleteKey(tag: newKeyTag)
+                completion(.failure(.secureEnclaveError(reason: "The new signing key isn't biometric-protected. Nothing was reset.")))
+                return
+            }
+
+            // 3. New gated key confirmed → NOW retire the old. The old-key delete is BEST-EFFORT
+            //    (try?) BY DESIGN: the reset's success hinges on the new GATED key, NOT on cleaning up
+            //    the old one. A delete that fails leaves the OLD (invalidated/ungated) key in the
+            //    keychain — harmless: it's unreferenced (the record below points to the new key) and
+            //    can't move value (P3.4 refuses ungated value-signing; an invalidated key can't sign).
+            if let oldTag = WalletRecordStore.load()?.keyTag, !oldTag.isEmpty {
+                try? self.secureEnclaveProvider.deleteKey(tag: oldTag)
+            }
+            WalletRecordStore.clear()
+            GuardianStore.clear()   // a fresh wallet starts with no guardians
+
+            let address = self.deriveAccountAddress(from: keyPair.publicKey)
+            let wallet = SmartWallet(
+                address: address, publicKey: keyPair.publicKey, createdAt: Date(),
+                recoveryMethod: .faceID, accountType: .standard, isDeployed: false, keyTag: newKeyTag
+            )
+            // activeWallet AND the persisted record are both set HERE, in the serial creationQueue —
+            // NOT in the async backup completion below. So rapid/concurrent resets can't diverge them
+            // (the queue serializes), and a crash after this point leaves a valid persisted wallet
+            // that restore-on-launch picks up.
+            self.activeWallet = wallet
+            WalletRecordStore.save(ActiveWalletRecord(wallet))
+
+            // 4. Re-backup the fresh wallet's metadata (best-effort — the reset already succeeded
+            //    once the new gated key exists; a backup failure does not undo the reset).
+            self.backupToCloud(publicKey: keyPair.publicKey) { _ in
+                DispatchQueue.main.async {
+                    self.delegate?.walletCreation(self, didCreateWallet: wallet)
+                    completion(.success(wallet))
+                }
+            }
+        }
+    }
+
     // MARK: - Recovery
 
     /// Recover wallet using Face ID and cloud backup
@@ -216,6 +420,19 @@ final class WalletCreation {
                 completion(.failure(.biometricAuthFailed))
             }
         }
+    }
+
+    /// Back up the ACTIVE wallet's recoverable metadata to iCloud Keychain (Phase 4-A / step 4).
+    /// This WIRES the existing, tested `backupToCloud` (real AES-GCM + iCloud Keychain) — it does NOT
+    /// reimplement any crypto. Only NON-secret metadata is backed up; the Secure Enclave private key
+    /// is non-exportable and never leaves the device. Fails honestly when there is no active wallet.
+    func backupActiveWallet(completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let wallet = activeWallet else {
+            completion(.failure(NSError(domain: "MTRX.Recovery", code: 1, userInfo: [NSLocalizedDescriptionKey:
+                "No wallet to back up yet. Create or restore a wallet first."])))
+            return
+        }
+        backupToCloud(publicKey: wallet.publicKey, completion: completion)
     }
 
     /// Recover wallet using social recovery guardians
@@ -241,14 +458,16 @@ final class WalletCreation {
 
     // MARK: - Guardian Management
 
-    /// Add a recovery guardian
+    /// Add a recovery guardian (persisted so the list survives relaunch — Phase 4-A / step 3).
     func addGuardian(_ guardian: RecoveryGuardian) {
         recoveryGuardians.append(guardian)
+        GuardianStore.save(recoveryGuardians)
     }
 
-    /// Remove a recovery guardian
+    /// Remove a recovery guardian (persisted).
     func removeGuardian(address: String) {
         recoveryGuardians.removeAll { $0.address == address }
+        GuardianStore.save(recoveryGuardians)
     }
 
     /// Get current guardians
@@ -273,6 +492,15 @@ final class WalletCreation {
             return
         }
 
+        // Re-probe the new owner key is ACTUALLY biometric-gated, then roll back if not — the same
+        // guarantee resetWallet enforces (adversarial review, consistency). A non-gated owner key
+        // must NEVER become the wallet's signer. (isGated probes the real access control, P3.4.)
+        guard secureEnclaveProvider.isGated(tag: keyTag) else {
+            try? secureEnclaveProvider.deleteKey(tag: keyTag)
+            completion(.failure(.secureEnclaveError(reason: "The signing key isn't biometric-protected.")))
+            return
+        }
+
         // Step 3: Derive smart account address from public key
         let accountAddress = deriveAccountAddress(from: keyPair.publicKey)
 
@@ -288,9 +516,11 @@ final class WalletCreation {
                     createdAt: Date(),
                     recoveryMethod: recoveryMethod,
                     accountType: accountType,
-                    isDeployed: false
+                    isDeployed: false,
+                    keyTag: keyTag
                 )
                 self.activeWallet = wallet
+                WalletRecordStore.save(ActiveWalletRecord(wallet))   // W1: persist so the signer survives relaunch
 
                 DispatchQueue.main.async {
                     self.delegate?.walletCreation(self, didCreateWallet: wallet)
@@ -329,9 +559,11 @@ final class WalletCreation {
                 createdAt: backup.createdAt,
                 recoveryMethod: .cloudBackup,
                 accountType: .standard,
-                isDeployed: false
+                isDeployed: false,
+                keyTag: ""   // cloud restore = identity only; no local signing key on this device yet
             )
             self.activeWallet = wallet
+            WalletRecordStore.save(ActiveWalletRecord(wallet))
             DispatchQueue.main.async {
                 self.delegate?.walletCreation(self, didRecoverWallet: wallet)
                 completion(.success(wallet))
@@ -388,9 +620,11 @@ final class WalletCreation {
                     createdAt: Date(),
                     recoveryMethod: .socialRecovery,
                     accountType: .socialRecovery,
-                    isDeployed: true
+                    isDeployed: true,
+                    keyTag: newKeyTag
                 )
                 self.activeWallet = wallet
+                WalletRecordStore.save(ActiveWalletRecord(wallet))
                 self.delegate?.walletCreation(self, didRecoverWallet: wallet)
                 completion(.success(wallet))
             } catch {
@@ -582,9 +816,9 @@ extension WalletCreation {
 
 // MARK: - Supporting Types
 
-struct RecoveryGuardian {
-    let address: String
-    let name: String
+struct RecoveryGuardian: Codable {
+    let address: String      // guardian's PUBLIC wallet address — non-secret
+    let name: String         // display name — non-secret
     let addedAt: Date
     let isConfirmed: Bool
 }
@@ -657,5 +891,9 @@ final class DefaultSecureEnclaveProvider: SecureEnclaveProvider {
 
     func keyExists(tag: String) -> Bool {
         manager.hasKey(tag: tag)
+    }
+
+    func isGated(tag: String) -> Bool {
+        manager.isGated(tag: tag)
     }
 }
