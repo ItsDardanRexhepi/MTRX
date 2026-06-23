@@ -212,7 +212,6 @@
 		4D1875846DCD1599B1D2EB05 /* PaymentsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82104B947B91EE438CAD3D70 /* PaymentsWidget.swift */; };
 		17CCFA7AE30F112B7DC0DCC0 /* PortfolioWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8205FBB87B74C328432EBDEB /* PortfolioWidget.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A101 /* WidgetSharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A102 /* WidgetSharedStore.swift */; };
-		A1A1A1A1A1A1A1A1A1A1A201 /* CryptoPaymentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A202 /* CryptoPaymentSheet.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A301 /* MusicKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A302 /* MusicKitManager.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A401 /* MusicPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A402 /* MusicPlayerView.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A4B1 /* MusicLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A4B2 /* MusicLibraryView.swift */; };
@@ -573,7 +572,6 @@
 		82104B947B91EE438CAD3D70 /* PaymentsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PaymentsWidget.swift"; sourceTree = "<group>"; };
 		8205FBB87B74C328432EBDEB /* PortfolioWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PortfolioWidget.swift"; sourceTree = "<group>"; };
 		A1A1A1A1A1A1A1A1A1A1A102 /* WidgetSharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WidgetSharedStore.swift"; path = "UI/Widgets/WidgetSharedStore.swift"; sourceTree = SOURCE_ROOT; };
-		A1A1A1A1A1A1A1A1A1A1A202 /* CryptoPaymentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CryptoPaymentSheet.swift"; path = "UI/Views/Wallet/CryptoPaymentSheet.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A302 /* MusicKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MusicKitManager.swift"; path = "Apple/Music/MusicKitManager.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A402 /* MusicPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MusicPlayerView.swift"; path = "UI/Views/Music/MusicPlayerView.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A4B2 /* MusicLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MusicLibraryView.swift"; path = "UI/Views/Music/MusicLibraryView.swift"; sourceTree = SOURCE_ROOT; };
@@ -1927,7 +1925,6 @@
 				4D1875846DCD1599B1D2EB05 /* PaymentsWidget.swift in Sources */,
 				17CCFA7AE30F112B7DC0DCC0 /* PortfolioWidget.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A101 /* WidgetSharedStore.swift in Sources */,
-				A1A1A1A1A1A1A1A1A1A1A201 /* CryptoPaymentSheet.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A301 /* MusicKitManager.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A401 /* MusicPlayerView.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A4B1 /* MusicLibraryView.swift in Sources */,
