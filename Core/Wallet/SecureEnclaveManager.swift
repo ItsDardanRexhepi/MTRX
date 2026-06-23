@@ -37,11 +37,23 @@ final class SecureEnclaveManager {
 
     /// Create the key for `tag` if it doesn't exist. Returns true when a
     /// new key was generated, false when one already existed.
+    ///
+    /// When `biometricGated` is true AND a Secure Enclave is present, the key is bound to
+    /// `.privateKeyUsage + .biometryCurrentSet`: every private-key operation (signing) then
+    /// requires biometric auth, enforced by the enclave itself, and the key is invalidated if
+    /// the enrolled biometrics change. This is the transaction-signing key's gate; identity-proof
+    /// keys are created ungated (the default). The software fallback (Simulator / no enclave) is
+    /// NOT gated here — that is hardened separately in P3.3 (KeychainManager.storeWalletKey).
     @discardableResult
-    func ensureKey(tag: String) throws -> Bool {
+    func ensureKey(tag: String, biometricGated: Bool = false) throws -> Bool {
         if try loadKeyData(tag: tag) != nil { return false }
         if isSecureEnclaveAvailable {
-            let key = try SecureEnclave.P256.Signing.PrivateKey()
+            let key: SecureEnclave.P256.Signing.PrivateKey
+            if biometricGated {
+                key = try SecureEnclave.P256.Signing.PrivateKey(accessControl: biometricAccessControl())
+            } else {
+                key = try SecureEnclave.P256.Signing.PrivateKey()
+            }
             try storeKeyData(key.dataRepresentation, tag: tag)
         } else {
             let key = P256.Signing.PrivateKey()
@@ -51,8 +63,8 @@ final class SecureEnclaveManager {
     }
 
     /// Raw public key bytes for `tag`, creating the key on first use.
-    func publicKeyData(tag: String) throws -> Data {
-        try ensureKey(tag: tag)
+    func publicKeyData(tag: String, biometricGated: Bool = false) throws -> Data {
+        try ensureKey(tag: tag, biometricGated: biometricGated)
         guard let stored = try loadKeyData(tag: tag) else {
             throw KeyError.corruptKeyData
         }
@@ -101,6 +113,23 @@ final class SecureEnclaveManager {
     // MARK: - Keychain plumbing
 
     private let service = "com.opnmatrx.mtrx.wallet-keys"
+
+    /// Access control binding a Secure Enclave key to the user's current biometrics:
+    /// `.privateKeyUsage` (operations run in the enclave) + `.biometryCurrentSet` (biometric
+    /// required per use; the key is invalidated if the enrolled biometric set changes).
+    private func biometricAccessControl() throws -> SecAccessControl {
+        var error: Unmanaged<CFError>?
+        guard let access = SecAccessControlCreateWithFlags(
+            nil,
+            kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly,
+            [.privateKeyUsage, .biometryCurrentSet],
+            &error
+        ) else {
+            if let err = error?.takeRetainedValue() { throw err }
+            throw KeyError.corruptKeyData
+        }
+        return access
+    }
 
     private func storeKeyData(_ data: Data, tag: String) throws {
         deleteKey(tag: tag)

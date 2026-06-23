@@ -21,7 +21,7 @@ protocol BiometricAuthProvider {
 }
 
 protocol SecureEnclaveProvider {
-    func generateKeyPair(tag: String) throws -> SecureEnclaveKeyPair
+    func generateKeyPair(tag: String, biometricGated: Bool) throws -> SecureEnclaveKeyPair
     func sign(data: Data, withKeyTag tag: String) throws -> Data
     func deleteKey(tag: String) throws
     func keyExists(tag: String) -> Bool
@@ -279,7 +279,7 @@ final class WalletCreation {
         let keyTag = "\(keyTagPrefix).owner.\(UUID().uuidString)"
         let keyPair: SecureEnclaveKeyPair
         do {
-            keyPair = try secureEnclaveProvider.generateKeyPair(tag: keyTag)
+            keyPair = try secureEnclaveProvider.generateKeyPair(tag: keyTag, biometricGated: true)
         } catch {
             completion(.failure(.keyGenerationFailed))
             return
@@ -370,7 +370,7 @@ final class WalletCreation {
         let newKeyTag = "\(keyTagPrefix).owner.\(UUID().uuidString)"
         let newKeyPair: SecureEnclaveKeyPair
         do {
-            newKeyPair = try secureEnclaveProvider.generateKeyPair(tag: newKeyTag)
+            newKeyPair = try secureEnclaveProvider.generateKeyPair(tag: newKeyTag, biometricGated: true)
         } catch {
             completion(.failure(.keyGenerationFailed))
             return
@@ -642,9 +642,10 @@ final class DefaultSecureEnclaveProvider: SecureEnclaveProvider {
 
     private let manager = SecureEnclaveManager.shared
 
-    func generateKeyPair(tag: String) throws -> SecureEnclaveKeyPair {
+    func generateKeyPair(tag: String, biometricGated: Bool) throws -> SecureEnclaveKeyPair {
         // Creates the enclave key on first use and returns its REAL public key.
-        let publicKey = try manager.publicKeyData(tag: tag)
+        // biometricGated=true binds the signing key to .biometryCurrentSet at the enclave.
+        let publicKey = try manager.publicKeyData(tag: tag, biometricGated: biometricGated)
         return SecureEnclaveKeyPair(publicKey: publicKey, keyTag: tag)
     }
 

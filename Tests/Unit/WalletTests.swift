@@ -86,7 +86,7 @@ final class WalletTests: XCTestCase {
         let tag = "test.defaultprovider.\(UUID().uuidString)"
         defer { try? provider.deleteKey(tag: tag) }
 
-        _ = try provider.generateKeyPair(tag: tag)
+        _ = try provider.generateKeyPair(tag: tag, biometricGated: false)
         let sig = try provider.sign(data: Data("intent envelope".utf8), withKeyTag: tag)
 
         XCTAssertGreaterThan(sig.count, 0, "Provider signature must not be empty")
