@@ -678,7 +678,12 @@ final class AgentConversationViewModel: ObservableObject {
                 case .neo: return .neo
                 }
             }()
-            if !intercepted {
+            // V1 — Tier-1 routing: the on-device Apple model runs only for languages it
+            // handles well (langProfile.tier1Supported). A non-Tier-1 language skips it and
+            // goes straight to the broader gateway, so we never garble output by nudging the
+            // on-device model toward a language it can't speak. (Tier-2 extended coverage for
+            // languages outside on-device is gated to Enterprise + opt-in in V2.)
+            if !intercepted && langProfile.tier1Supported {
                 // Stream the on-device reply into a single live bubble so the
                 // agent starts answering the instant the first token lands,
                 // instead of after the whole reply is generated.

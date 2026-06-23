@@ -291,6 +291,19 @@ final class NaturalLanguageProcessor {
         let isEnglish: Bool
         let confidence: Double    // 0...1, top-hypothesis probability
 
+        /// TIER 1 — languages the on-device Apple Foundation Model handles well (default,
+        /// free, fully on-device). Source: Apple Intelligence supported languages. Anything
+        /// outside this set degrades on-device and is a candidate for Tier-2 extended support
+        /// (Enterprise + privacy opt-in; the gate is built in V2).
+        static let tier1Languages: Set<NLLanguage> = [
+            .english, .danish, .dutch, .french, .german, .italian, .norwegian, .portuguese,
+            .spanish, .swedish, .turkish, .vietnamese, .simplifiedChinese, .traditionalChinese,
+            .japanese, .korean
+        ]
+
+        /// True when the detected language is in the Tier-1 on-device set.
+        var tier1Supported: Bool { LanguageProfile.tier1Languages.contains(language) }
+
         /// Instruction appended to the model context so the reply mirrors the user's
         /// language. Empty for English (no nudge needed).
         var mirrorInstruction: String {
