@@ -55,7 +55,6 @@
 		894785B387B090BA8003FAA1 /* LiveActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89A0DA0FED5777B153C7649 /* LiveActivityView.swift */; };
 		BCA47B419CE39D705A1312CF /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E7A1BDCAC651FB58309AFA /* NotificationManager.swift */; };
 		07F2BD759447B83C5072DCC2 /* PushKitHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD23F239FB97113C322F5613 /* PushKitHandler.swift */; };
-		351D17A6475051F8B3B32B53 /* VoiceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E114B436C9E10D41E1E386 /* VoiceManager.swift */; };
 		1DBB0DF18AE654B99FF81D10 /* NetworkExtensionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81F0544BF8AC223538F86833 /* NetworkExtensionManager.swift */; };
 		8F9B0E6F7E38918DE576B3AB /* SKAdNetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AFBD64DA9D3E4AFB11DEE63 /* SKAdNetworkManager.swift */; };
 		25B7D598E4146B4CFE8EABD8 /* ScreenTimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C014933BF5AF4D55D433F549 /* ScreenTimeManager.swift */; };
@@ -413,7 +412,6 @@
 		D89A0DA0FED5777B153C7649 /* LiveActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LiveActivityView.swift"; sourceTree = "<group>"; };
 		04E7A1BDCAC651FB58309AFA /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NotificationManager.swift"; sourceTree = "<group>"; };
 		DD23F239FB97113C322F5613 /* PushKitHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PushKitHandler.swift"; sourceTree = "<group>"; };
-		E1E114B436C9E10D41E1E386 /* VoiceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceManager.swift"; sourceTree = "<group>"; };
 		81F0544BF8AC223538F86833 /* NetworkExtensionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NetworkExtensionManager.swift"; sourceTree = "<group>"; };
 		7AFBD64DA9D3E4AFB11DEE63 /* SKAdNetworkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SKAdNetworkManager.swift"; sourceTree = "<group>"; };
 		C014933BF5AF4D55D433F549 /* ScreenTimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScreenTimeManager.swift"; sourceTree = "<group>"; };
@@ -2002,7 +2000,6 @@
 				894785B387B090BA8003FAA1 /* LiveActivityView.swift */,
 				BCA47B419CE39D705A1312CF /* NotificationManager.swift */,
 				07F2BD759447B83C5072DCC2 /* PushKitHandler.swift */,
-				351D17A6475051F8B3B32B53 /* VoiceManager.swift */,
 				1DBB0DF18AE654B99FF81D10 /* NetworkExtensionManager.swift */,
 				8F9B0E6F7E38918DE576B3AB /* SKAdNetworkManager.swift */,
 				25B7D598E4146B4CFE8EABD8 /* ScreenTimeManager.swift */,
