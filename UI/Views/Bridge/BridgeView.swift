@@ -134,20 +134,12 @@ class BridgeViewModel: ObservableObject {
 
     func bridge() async {
         guard canBridge else { return }
-        isBridging = true
-        bridgeStatus = .sent
-
-        do {
-            try await Task.sleep(for: .seconds(2))
-            bridgeStatus = .confirming
-            try await Task.sleep(for: .seconds(3))
-            bridgeStatus = .arrived
-            isBridging = false
-        } catch {
-            errorMessage = "Bridge transaction failed."
-            isBridging = false
-            bridgeStatus = .idle
-        }
+        // Honest failure: no real bridge path is wired. Do NOT advance the status to
+        // .confirming/.arrived or fire a success — that would imply funds moved across
+        // chains. Nothing was bridged.
+        isBridging = false
+        bridgeStatus = .idle
+        errorMessage = "Bridging isn't available in this build yet. Nothing was bridged."
     }
 
     func reset() {

@@ -107,25 +107,15 @@ class LiquidityViewModel: ObservableObject {
     }
 
     func addLiquidity() async {
-        isAdding = true
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            isAdding = false
-            showAddLiquidity = false
-        } catch {
-            isAdding = false
-        }
+        // Honest failure: no real liquidity path is wired. Do NOT dismiss as if it worked —
+        // no liquidity was added.
+        errorMessage = "Adding liquidity isn't available in this build yet. Nothing was added."
     }
 
     func removeLiquidity() async {
-        isRemoving = true
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            isRemoving = false
-            showRemoveLiquidity = false
-        } catch {
-            isRemoving = false
-        }
+        // Honest failure: no real liquidity path is wired. Do NOT dismiss as if it worked —
+        // no liquidity was removed.
+        errorMessage = "Removing liquidity isn't available in this build yet. Nothing was removed."
     }
 
     static let samplePools: [LiquidityPool] = [

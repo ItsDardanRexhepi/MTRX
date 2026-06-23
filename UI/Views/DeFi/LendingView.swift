@@ -138,15 +138,10 @@ class LendingViewModel: ObservableObject {
     }
 
     func submitAction() async {
-        guard let _ = actionType, let _ = actionMarket else { return }
-        isSubmitting = true
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            isSubmitting = false
-            showActionSheet = false
-        } catch {
-            isSubmitting = false
-        }
+        guard actionType != nil, actionMarket != nil else { return }
+        // Honest failure: no real lending/borrowing path is wired. Do NOT dismiss as if it
+        // worked — nothing was supplied/borrowed/repaid.
+        errorMessage = "This action isn't available in this build yet. Nothing was submitted."
     }
 
     static let sampleMarkets: [LendingMarketDisplay] = [

@@ -129,37 +129,21 @@ class StakingViewModel: ObservableObject {
     }
 
     func stakeETH() async {
-        guard let amount = Double(ethStakeAmount), amount > 0 else { return }
-        isStaking = true
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            isStaking = false
-            ethStakeAmount = ""
-        } catch {
-            isStaking = false
-        }
+        guard (Double(ethStakeAmount) ?? 0) > 0 else { return }
+        // Honest failure: no real staking path is wired. Do NOT clear the form as if it
+        // worked — nothing was staked.
+        errorMessage = "Staking isn't available in this build yet. Nothing was staked."
     }
 
     func unstake() async {
-        isUnstaking = true
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            isUnstaking = false
-            showUnstakeSheet = false
-            unstakeAmount = ""
-        } catch {
-            isUnstaking = false
-        }
+        // Honest failure: no real unstaking path is wired. Do NOT dismiss/clear as if it
+        // worked — nothing was unstaked.
+        errorMessage = "Unstaking isn't available in this build yet. Nothing was unstaked."
     }
 
     func claimRewards() async {
-        isClaimingRewards = true
-        do {
-            try await Task.sleep(for: .seconds(1))
-            isClaimingRewards = false
-        } catch {
-            isClaimingRewards = false
-        }
+        // Honest failure: no real claim path is wired. Nothing was claimed.
+        errorMessage = "Claiming rewards isn't available in this build yet. Nothing was claimed."
     }
 
     static let samplePools: [StakingPool] = [

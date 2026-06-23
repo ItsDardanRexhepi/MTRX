@@ -149,15 +149,9 @@ class YieldViewModel: ObservableObject {
     }
 
     func deposit() async {
-        isDepositing = true
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            isDepositing = false
-            showDepositSheet = false
-            depositAmount = ""
-        } catch {
-            isDepositing = false
-        }
+        // Honest failure: no real yield-deposit path is wired. Do NOT dismiss/clear as if
+        // it worked — nothing was deposited.
+        errorMessage = "Depositing isn't available in this build yet. Nothing was deposited."
     }
 
     static let sampleStrategies: [YieldStrategy] = [
