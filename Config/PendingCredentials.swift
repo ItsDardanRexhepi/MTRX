@@ -304,7 +304,11 @@ enum PendingCredentials {
         static let governance = ""
         /// 20 — Dashboard / analytics reader. Format: 0x+40 hex.
         static let dashboard = ""
-        /// 21 — DEX router (REGULATED: display + self-custody only).
+        /// 21 — DEX router / swap-aggregator address (Base Sepolia, testnet). Format: 0x+40 hex.
+        /// PLACEHOLDER slot for the swap path. Filling it enables nothing on its own:
+        /// on-chain swap EXECUTION (S2–S4) is BLOCKED on a legal/licensing decision
+        /// (App Store 3.1.5(b) + money-transmission/exchange law), not a technical gap.
+        /// REGULATED — leave empty for the App Store MVP build (display + self-custody only).
         static let dex = ""
         /// 22 — Fundraising / ICO (REGULATED: display + self-custody only).
         static let fundraising = ""

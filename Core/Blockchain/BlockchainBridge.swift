@@ -998,30 +998,49 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let swapId = response["swapId"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let swapId = response["swapId"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid swap response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "dex_swap")
+        // A swap MOVES FUNDS. It is "successful" ONLY when the on-chain approve+swap
+        // batch is actually signed and submitted and the bundler returns a real
+        // operation hash. The server-echoed "transactionHash" is NOT proof of execution
+        // and must never be returned as success. The real op-hash from
+        // submitSignedOperation — which fails closed on the testnet lock, signing, or
+        // submission — is the sole source of truth; anything short of it fails honestly.
+        guard let manager = erc4337Manager else { throw BlockchainBridgeError.walletNotConnected }
 
-        // Swap typically needs approve + swap as batch
-        if let calldataItems = response["batchCalldata"] as? [[String: Any]],
-           let manager = erc4337Manager {
-            let calls: [(to: String, value: UInt64, data: Data)] = calldataItems.compactMap { item in
-                guard let to = item["to"] as? String,
-                      let dataHex = item["data"] as? String,
-                      let data = Data(hexString: dataHex) else { return nil }
-                let value = UInt64(item["value"] as? String ?? "0") ?? 0
-                return (to: to, value: value, data: data)
-            }
-            if !calls.isEmpty {
-                let batchResult = manager.buildBatchUserOperation(calls: calls)
-                if case .success(let op) = batchResult {
-                    _ = try? await submitSignedOperation(op, type: "dex_swap")
-                }
-            }
+        guard let calldataItems = response["batchCalldata"] as? [[String: Any]], !calldataItems.isEmpty else {
+            throw BlockchainBridgeError.unsupportedOperation(
+                "On-chain swap execution isn't available yet (the route service returned no approve+swap calldata). Nothing was swapped."
+            )
+        }
+
+        // Parse EVERY calldata item. A partially-parsed batch (e.g. approve without the
+        // swap, or swap without approve) is dangerous, so require all items to parse —
+        // otherwise fail honestly rather than submit an incomplete batch.
+        let calls: [(to: String, value: UInt64, data: Data)] = calldataItems.compactMap { item in
+            guard let to = item["to"] as? String,
+                  let dataHex = item["data"] as? String,
+                  let data = Data(hexString: dataHex) else { return nil }
+            let value = UInt64(item["value"] as? String ?? "0") ?? 0
+            return (to: to, value: value, data: data)
+        }
+        guard calls.count == calldataItems.count, !calls.isEmpty else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Swap route returned malformed calldata. Nothing was swapped.")
+        }
+
+        let op: UserOperation
+        switch manager.buildBatchUserOperation(calls: calls) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build swap operation: \(err.localizedDescription)")
+        }
+
+        // Load-bearing submit: throws on testnet-lock / signing / submission failure —
+        // no try?-swallow. submitSignedOperation tracks the op and returns the real hash.
+        let opHash = try await submitSignedOperation(op, type: "dex_swap")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Swap submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return SwapResult(
@@ -1030,7 +1049,7 @@ final class BlockchainBridge {
             toToken: toToken,
             amountIn: amountIn,
             amountOut: response["amountOut"] as? UInt64 ?? 0,
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash from the submitted UserOperation — never the server echo
             status: .pending
         )
     }
