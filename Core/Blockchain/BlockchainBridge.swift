@@ -479,28 +479,35 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let contractAddress = response["contractAddress"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let contractAddress = response["contractAddress"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Missing contract address in deployment response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "contract_deploy")
+        // Deploying a contract WRITES ON-CHAIN. Success requires a real on-chain submit
+        // returning a validated op-hash — never the server-echoed "transactionHash". Same
+        // load-bearing pattern as swap(): no try?-swallow; honest throw if there's no
+        // executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let factoryAddress = response["factoryAddress"] as? String, !factoryAddress.isEmpty,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain contract deployment isn't available yet (the deploy service returned no executable calldata). Nothing was deployed.")
+        }
 
-        // If we have calldata from the API, submit via ERC-4337
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let manager = erc4337Manager {
-            let factoryAddress = response["factoryAddress"] as? String ?? ""
-            let opResult = manager.buildUserOperation(to: factoryAddress, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "contract_deploy")
-            }
+        let op: UserOperation
+        switch manager.buildUserOperation(to: factoryAddress, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build deployment operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "contract_deploy")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Deployment submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return ContractResult(
             contractAddress: contractAddress,
-            deploymentTxHash: txHash,
+            deploymentTxHash: opHash,   // real op-hash — never the server echo
             templateId: template,
             status: .pending,
             abi: response["abi"] as? String
@@ -518,28 +525,34 @@ final class BlockchainBridge {
         ])
 
         guard let tokenId = response["tokenId"] as? String,
-              let contractAddress = response["contractAddress"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+              let contractAddress = response["contractAddress"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid mint response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "nft_mint")
+        // Minting an NFT WRITES ON-CHAIN. Success requires a real on-chain submit returning a
+        // validated op-hash — never the server-echoed "transactionHash". Same load-bearing
+        // pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain NFT minting isn't available yet (the mint service returned no executable calldata). Nothing was minted.")
+        }
 
-        // Submit the mint calldata via ERC-4337
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: contractAddress, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "nft_mint")
-            }
+        let op: UserOperation
+        switch manager.buildUserOperation(to: contractAddress, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build mint operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "nft_mint")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Mint submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return NFTResult(
             tokenId: tokenId,
             contractAddress: contractAddress,
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             metadataURI: response["metadataURI"] as? String ?? "",
             status: .pending
         )
@@ -556,24 +569,31 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let stakeId = response["stakeId"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let stakeId = response["stakeId"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid staking response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "stake")
-
+        // Staking MOVES FUNDS. Success requires a real on-chain submit returning a
+        // validated op-hash — never the server-echoed "transactionHash". Same load-bearing
+        // pattern as swap(): no try?-swallow; honest throw if there's no executable path.
         // Convert ETH to wei and submit via ERC-4337
         let weiAmount = UInt64(amount * 1e18)
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let stakingContract = response["stakingContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: stakingContract, value: weiAmount, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "stake")
-            }
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let stakingContract = response["stakingContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain staking execution isn't available yet (the staking service returned no executable calldata). Nothing was staked.")
+        }
+
+        let op: UserOperation
+        switch manager.buildUserOperation(to: stakingContract, value: weiAmount, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build staking operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "stake")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Staking submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return StakeResult(
@@ -581,7 +601,7 @@ final class BlockchainBridge {
             amountETH: amount,
             validator: validator,
             estimatedAPY: response["estimatedAPY"] as? Double ?? 0.0,
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             status: .pending
         )
     }
@@ -597,30 +617,47 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let loanId = response["loanId"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let loanId = response["loanId"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid loan creation response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "loan_create")
+        // Creating a loan MOVES FUNDS (collateral deposit + borrow). Success requires the
+        // on-chain approve+borrow batch to be signed, submitted, and returned with a real
+        // op-hash — never the server-echoed "transactionHash". Same load-bearing pattern as
+        // swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let manager = erc4337Manager else { throw BlockchainBridgeError.walletNotConnected }
 
-        // Submit approval + borrow as a batch operation
-        if let calldataItems = response["batchCalldata"] as? [[String: Any]],
-           let manager = erc4337Manager {
-            let calls: [(to: String, value: UInt64, data: Data)] = calldataItems.compactMap { item in
-                guard let to = item["to"] as? String,
-                      let dataHex = item["data"] as? String,
-                      let data = Data(hexString: dataHex) else { return nil }
-                let value = UInt64(item["value"] as? String ?? "0") ?? 0
-                return (to: to, value: value, data: data)
-            }
-            if !calls.isEmpty {
-                let batchResult = manager.buildBatchUserOperation(calls: calls)
-                if case .success(let op) = batchResult {
-                    _ = try? await submitSignedOperation(op, type: "loan_create")
-                }
-            }
+        guard let calldataItems = response["batchCalldata"] as? [[String: Any]], !calldataItems.isEmpty else {
+            throw BlockchainBridgeError.unsupportedOperation(
+                "On-chain loan execution isn't available yet (the loan service returned no approve+borrow calldata). Nothing was borrowed."
+            )
+        }
+
+        // Parse EVERY calldata item. A partially-parsed batch (e.g. approve without the
+        // borrow, or borrow without approve) is dangerous, so require all items to parse —
+        // otherwise fail honestly rather than submit an incomplete batch.
+        let calls: [(to: String, value: UInt64, data: Data)] = calldataItems.compactMap { item in
+            guard let to = item["to"] as? String,
+                  let dataHex = item["data"] as? String,
+                  let data = Data(hexString: dataHex) else { return nil }
+            let value = UInt64(item["value"] as? String ?? "0") ?? 0
+            return (to: to, value: value, data: data)
+        }
+        guard calls.count == calldataItems.count, !calls.isEmpty else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Loan creation returned malformed calldata. Nothing was borrowed.")
+        }
+
+        let op: UserOperation
+        switch manager.buildBatchUserOperation(calls: calls) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build loan operation: \(err.localizedDescription)")
+        }
+
+        // Load-bearing submit: throws on testnet-lock / signing / submission failure —
+        // no try?-swallow. submitSignedOperation tracks the op and returns the real hash.
+        let opHash = try await submitSignedOperation(op, type: "loan_create")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Loan submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return LoanResult(
@@ -631,7 +668,7 @@ final class BlockchainBridge {
             borrowAmount: amount,
             interestRate: response["interestRate"] as? Double ?? 0.0,
             healthFactor: response["healthFactor"] as? Double ?? 0.0,
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash from the submitted UserOperation — never the server echo
             status: .pending
         )
     }
@@ -647,28 +684,32 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid vote response")
+        // A vote is an on-chain governance action. Success requires a real on-chain submit
+        // returning a validated op-hash — never the server-echoed "transactionHash". Same
+        // load-bearing pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let govContract = response["governanceContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain vote execution isn't available yet (the governance service returned no executable calldata). Nothing was voted.")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "governance_vote")
+        let op: UserOperation
+        switch manager.buildUserOperation(to: govContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build vote operation: \(err.localizedDescription)")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let govContract = response["governanceContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: govContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "governance_vote")
-            }
+        let opHash = try await submitSignedOperation(op, type: "governance_vote")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Vote submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return VoteResult(
             proposalId: proposalId,
             voteChoice: vote,
             votingPower: response["votingPower"] as? UInt64 ?? 0,
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             status: .pending
         )
     }
@@ -684,29 +725,37 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let claimId = response["claimId"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let claimId = response["claimId"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid claim response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "insurance_claim")
+        // Filing a claim is an on-chain action against the insurance contract. Success
+        // requires a real submit returning a validated op-hash — never the server-echoed
+        // "transactionHash". Same load-bearing pattern as swap(): no try?-swallow; honest
+        // throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let insuranceContract = response["insuranceContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain claim execution isn't available yet (the claim service returned no executable calldata). Nothing was filed.")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let insuranceContract = response["insuranceContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: insuranceContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "insurance_claim")
-            }
+        let op: UserOperation
+        switch manager.buildUserOperation(to: insuranceContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build claim operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "insurance_claim")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Claim submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return ClaimResult(
             claimId: claimId,
             claimType: type,
             policyId: response["policyId"] as? String ?? "",
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             status: .pending
         )
     }
@@ -722,30 +771,38 @@ final class BlockchainBridge {
 
         let response = try await postToAPI(endpoint: "blockchain/marketplace/list", body: body)
 
-        guard let listingId = response["listingId"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let listingId = response["listingId"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid listing response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "marketplace_list")
+        // A listing PUTS AN ITEM ON-CHAIN (approval + list as a batch). Success requires a real
+        // on-chain submit returning a validated op-hash — never the server-echoed "transactionHash".
+        // Same load-bearing pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataItems = response["batchCalldata"] as? [[String: Any]],
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain listing execution isn't available yet (the marketplace service returned no executable calldata). Nothing was listed.")
+        }
 
-        // Marketplace listing typically needs approval + list as batch
-        if let calldataItems = response["batchCalldata"] as? [[String: Any]],
-           let manager = erc4337Manager {
-            let calls: [(to: String, value: UInt64, data: Data)] = calldataItems.compactMap { item in
-                guard let to = item["to"] as? String,
-                      let dataHex = item["data"] as? String,
-                      let data = Data(hexString: dataHex) else { return nil }
-                let value = UInt64(item["value"] as? String ?? "0") ?? 0
-                return (to: to, value: value, data: data)
-            }
-            if !calls.isEmpty {
-                let batchResult = manager.buildBatchUserOperation(calls: calls)
-                if case .success(let op) = batchResult {
-                    _ = try? await submitSignedOperation(op, type: "marketplace_list")
-                }
-            }
+        let calls: [(to: String, value: UInt64, data: Data)] = calldataItems.compactMap { item in
+            guard let to = item["to"] as? String,
+                  let dataHex = item["data"] as? String,
+                  let data = Data(hexString: dataHex) else { return nil }
+            let value = UInt64(item["value"] as? String ?? "0") ?? 0
+            return (to: to, value: value, data: data)
+        }
+        guard calls.count == calldataItems.count, !calls.isEmpty else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Listing calldata was malformed. Nothing was listed.")
+        }
+
+        let op: UserOperation
+        switch manager.buildBatchUserOperation(calls: calls) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build listing operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "marketplace_list")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Listing submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return ListingResult(
@@ -753,7 +810,7 @@ final class BlockchainBridge {
             itemId: response["itemId"] as? String ?? "",
             price: price,
             currency: response["currency"] as? String ?? "ETH",
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             status: .pending
         )
     }
@@ -769,22 +826,29 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let fundraiserId = response["fundraiserId"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let fundraiserId = response["fundraiserId"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid fundraiser response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "fundraiser_create")
+        // Creating a fundraiser deploys/registers an on-chain contract. Success requires a real
+        // on-chain submit returning a validated op-hash — never the server-echoed "transactionHash".
+        // Same load-bearing pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let factoryAddress = response["factoryAddress"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain fundraiser execution isn't available yet (the fundraising service returned no executable calldata). Nothing was created.")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let factoryAddress = response["factoryAddress"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: factoryAddress, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "fundraiser_create")
-            }
+        let op: UserOperation
+        switch manager.buildUserOperation(to: factoryAddress, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build fundraiser operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "fundraiser_create")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Fundraiser submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return FundraiserResult(
@@ -792,7 +856,7 @@ final class BlockchainBridge {
             title: title,
             goalAmount: goal,
             contractAddress: response["contractAddress"] as? String ?? "",
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             status: .pending
         )
     }
@@ -884,28 +948,36 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let attestationId = response["attestationId"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let attestationId = response["attestationId"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid attestation response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "attestation")
+        // An attestation WRITES ON-CHAIN STATE. Success requires a real on-chain submit
+        // returning a validated op-hash — never the server-echoed "transactionHash". Same
+        // load-bearing pattern as swap(): no try?-swallow; honest throw if there's no
+        // executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let easContract = response["easContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain attestation execution isn't available yet (the attestation service returned no executable calldata). Nothing was attested.")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let easContract = response["easContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: easContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "attestation")
-            }
+        let op: UserOperation
+        switch manager.buildUserOperation(to: easContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build attestation operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "attestation")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Attestation submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return AttestationResult(
             attestationId: attestationId,
             schemaId: schemaId,
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             status: .pending
         )
     }
@@ -921,27 +993,32 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid identity response")
+        // Registering an identity WRITES ON-CHAIN STATE. A real success requires an
+        // actual submit returning a validated op-hash — never the server-echoed
+        // "transactionHash". Same load-bearing pattern as swap(): no try?-swallow;
+        // honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let identityContract = response["identityContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain identity registration isn't available yet (the identity service returned no executable calldata). Nothing was registered.")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "identity_register")
+        let op: UserOperation
+        switch manager.buildUserOperation(to: identityContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build identity operation: \(err.localizedDescription)")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let identityContract = response["identityContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: identityContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "identity_register")
-            }
+        let opHash = try await submitSignedOperation(op, type: "identity_register")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Identity registration did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return IdentityResult(
             did: did,
             attestations: response["attestations"] as? [String] ?? [],
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             status: .pending
         )
     }
@@ -958,29 +1035,36 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let paymentId = response["paymentId"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let paymentId = response["paymentId"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid payment response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "payment")
+        // A payment MOVES FUNDS. Success requires a real on-chain submit returning a
+        // validated op-hash — never the server-echoed "transactionHash". Same load-bearing
+        // pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let tokenContract = response["tokenContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain payment execution isn't available yet (the payment service returned no executable calldata). Nothing was paid.")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let tokenContract = response["tokenContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: tokenContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "payment")
-            }
+        let op: UserOperation
+        switch manager.buildUserOperation(to: tokenContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build payment operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "payment")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Payment submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return PaymentResult(
             paymentId: paymentId,
             amount: amount,
             recipient: to,
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             status: .pending
         )
     }
@@ -1065,29 +1149,36 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let rewardId = response["rewardId"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let rewardId = response["rewardId"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid reward response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "reward_claim")
+        // Claiming a reward MOVES FUNDS. Success requires a real on-chain submit returning a
+        // validated op-hash — never the server-echoed "transactionHash". Same load-bearing
+        // pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let rewardsContract = response["rewardsContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain reward claim isn't available yet (the rewards service returned no executable calldata). Nothing was claimed.")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let rewardsContract = response["rewardsContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: rewardsContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "reward_claim")
-            }
+        let op: UserOperation
+        switch manager.buildUserOperation(to: rewardsContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build reward-claim operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "reward_claim")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Reward-claim submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return RewardResult(
             rewardId: rewardId,
             programId: programId,
             pointsEarned: response["pointsEarned"] as? UInt64 ?? 0,
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             status: .pending
         )
     }
@@ -1103,23 +1194,30 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let subscriptionId = response["subscriptionId"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let subscriptionId = response["subscriptionId"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid subscription response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "subscription")
-
+        // A subscription MOVES FUNDS. Success requires a real on-chain submit returning a
+        // validated op-hash — never the server-echoed "transactionHash". Same load-bearing
+        // pattern as swap(): no try?-swallow; honest throw if there's no executable path.
         let cost = UInt64(response["costWei"] as? String ?? "0") ?? 0
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let subContract = response["subscriptionContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: subContract, value: cost, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "subscription")
-            }
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let subContract = response["subscriptionContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain subscription execution isn't available yet (the subscription service returned no executable calldata). Nothing was charged.")
+        }
+
+        let op: UserOperation
+        switch manager.buildUserOperation(to: subContract, value: cost, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build subscription operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "subscription")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Subscription submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         let expiresAt: Date
@@ -1133,7 +1231,7 @@ final class BlockchainBridge {
             subscriptionId: subscriptionId,
             planId: planId,
             expiresAt: expiresAt,
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             status: .pending
         )
     }
@@ -1148,25 +1246,34 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let txHash = response["transactionHash"] as? String else {
+        guard response["stakeId"] as? String != nil || response["transactionHash"] as? String != nil else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid unstake response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "unstake")
+        // Unstaking MOVES FUNDS (withdraws principal/rewards). Success requires a real
+        // on-chain submit returning a validated op-hash — never the server-echoed
+        // "transactionHash". Same load-bearing pattern as swap(): no try?-swallow; honest
+        // throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let stakingContract = response["stakingContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain unstake execution isn't available yet (the staking service returned no executable calldata). Nothing was unstaked.")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let stakingContract = response["stakingContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: stakingContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "unstake")
-            }
+        let op: UserOperation
+        switch manager.buildUserOperation(to: stakingContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build unstake operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "unstake")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Unstake submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return TransactionResult(
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             operationHash: opHash,
             status: .pending,
             gasUsed: 0,
@@ -1186,32 +1293,39 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid repayment response")
+        guard let manager = erc4337Manager else { throw BlockchainBridgeError.walletNotConnected }
+
+        // Repaying a loan MOVES FUNDS. Success requires a real on-chain submit returning a
+        // validated op-hash — never the server-echoed "transactionHash". Same load-bearing
+        // batch pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataItems = response["batchCalldata"] as? [[String: Any]], !calldataItems.isEmpty else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain loan repayment isn't available yet (the loan service returned no executable calldata). Nothing was repaid.")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "loan_repay")
+        let calls: [(to: String, value: UInt64, data: Data)] = calldataItems.compactMap { item in
+            guard let to = item["to"] as? String,
+                  let dataHex = item["data"] as? String,
+                  let data = Data(hexString: dataHex) else { return nil }
+            let value = UInt64(item["value"] as? String ?? "0") ?? 0
+            return (to: to, value: value, data: data)
+        }
+        guard calls.count == calldataItems.count, !calls.isEmpty else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Loan-repayment route returned malformed calldata. Nothing was repaid.")
+        }
 
-        if let calldataItems = response["batchCalldata"] as? [[String: Any]],
-           let manager = erc4337Manager {
-            let calls: [(to: String, value: UInt64, data: Data)] = calldataItems.compactMap { item in
-                guard let to = item["to"] as? String,
-                      let dataHex = item["data"] as? String,
-                      let data = Data(hexString: dataHex) else { return nil }
-                let value = UInt64(item["value"] as? String ?? "0") ?? 0
-                return (to: to, value: value, data: data)
-            }
-            if !calls.isEmpty {
-                let batchResult = manager.buildBatchUserOperation(calls: calls)
-                if case .success(let op) = batchResult {
-                    _ = try? await submitSignedOperation(op, type: "loan_repay")
-                }
-            }
+        let op: UserOperation
+        switch manager.buildBatchUserOperation(calls: calls) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build loan-repayment operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "loan_repay")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Loan-repayment submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return TransactionResult(
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             operationHash: opHash,
             status: .pending,
             gasUsed: 0,
@@ -1230,27 +1344,34 @@ final class BlockchainBridge {
 
         let response = try await postToAPI(endpoint: "blockchain/rwa/tokenize", body: body)
 
-        guard let contractAddress = response["contractAddress"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let contractAddress = response["contractAddress"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid tokenization response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "rwa_tokenize")
+        // Tokenizing an asset WRITES ON-CHAIN. Success requires a real on-chain submit returning
+        // a validated op-hash — never the server-echoed "transactionHash". Same load-bearing
+        // pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let factoryAddress = response["factoryAddress"] as? String, !factoryAddress.isEmpty,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain asset tokenization isn't available yet (the RWA service returned no executable calldata). Nothing was tokenized.")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let factoryAddress = response["factoryAddress"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: factoryAddress, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "rwa_tokenize")
-            }
+        let op: UserOperation
+        switch manager.buildUserOperation(to: factoryAddress, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build tokenization operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "rwa_tokenize")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Tokenization submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return ContractResult(
             contractAddress: contractAddress,
-            deploymentTxHash: txHash,
+            deploymentTxHash: opHash,   // real op-hash — never the server echo
             templateId: response["templateId"] as? String ?? "rwa",
             status: .pending,
             abi: response["abi"] as? String
@@ -1268,25 +1389,29 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid dispute response")
+        // Filing a dispute COMMITS EVIDENCE ON-CHAIN. Success requires a real on-chain submit
+        // returning a validated op-hash — never the server-echoed "transactionHash". Same
+        // load-bearing pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let disputeContract = response["disputeContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain dispute filing isn't available yet (the dispute service returned no executable calldata). Nothing was filed.")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "dispute_file")
+        let op: UserOperation
+        switch manager.buildUserOperation(to: disputeContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build dispute operation: \(err.localizedDescription)")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let disputeContract = response["disputeContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: disputeContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "dispute_file")
-            }
+        let opHash = try await submitSignedOperation(op, type: "dispute_file")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Dispute submission did not return a valid operation hash. Nothing was filed.")
         }
 
         return TransactionResult(
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             operationHash: opHash,
             status: .pending,
             gasUsed: 0,
@@ -1305,25 +1430,30 @@ final class BlockchainBridge {
 
         let response = try await postToAPI(endpoint: "blockchain/ip/register", body: body)
 
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid IP registration response")
+        // IP registration WRITES STATE ON-CHAIN. Success requires a real on-chain submit
+        // returning a validated op-hash — never the server-echoed "transactionHash". Same
+        // load-bearing pattern as swap(): no try?-swallow; honest throw if there's no
+        // executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let ipContract = response["ipContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain IP registration isn't available yet (the registration service returned no executable calldata). Nothing was registered.")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "ip_register")
+        let op: UserOperation
+        switch manager.buildUserOperation(to: ipContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build IP registration operation: \(err.localizedDescription)")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let ipContract = response["ipContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: ipContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "ip_register")
-            }
+        let opHash = try await submitSignedOperation(op, type: "ip_register")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "IP registration submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return TransactionResult(
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             operationHash: opHash,
             status: .pending,
             gasUsed: 0,
@@ -1343,25 +1473,30 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid supply chain response")
+        // Recording a supply-chain event WRITES STATE ON-CHAIN. Success requires a real
+        // on-chain submit returning a validated op-hash — never the server-echoed
+        // "transactionHash". Same load-bearing pattern as swap(): no try?-swallow; honest
+        // throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let scContract = response["supplyChainContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain supply-chain event execution isn't available yet (the supply-chain service returned no executable calldata). Nothing was recorded.")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "supply_chain_event")
+        let op: UserOperation
+        switch manager.buildUserOperation(to: scContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build supply chain operation: \(err.localizedDescription)")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let scContract = response["supplyChainContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: scContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "supply_chain_event")
-            }
+        let opHash = try await submitSignedOperation(op, type: "supply_chain_event")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Supply chain submission did not return a valid operation hash. Nothing was recorded.")
         }
 
         return TransactionResult(
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             operationHash: opHash,
             status: .pending,
             gasUsed: 0,
@@ -1372,29 +1507,13 @@ final class BlockchainBridge {
 
     /// Request oracle data and store the result on-chain.
     func requestOracleData(feedId: String) async throws -> TransactionResult {
-        guard isWalletConnected else { throw BlockchainBridgeError.walletNotConnected }
-
-        let response = try await postToAPI(endpoint: "blockchain/oracle/request", body: [
-            "feedId": feedId,
-            "walletAddress": connectedWalletAddress ?? "",
-            "chainId": String(chainId)
-        ])
-
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid oracle response")
-        }
-
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "oracle_request")
-
-        return TransactionResult(
-            transactionHash: txHash,
-            operationHash: opHash,
-            status: .pending,
-            gasUsed: 0,
-            blockNumber: nil,
-            timestamp: Date()
-        )
+        // EXPLICIT honest failure (not incidental on postToAPI throwing when the server is
+        // absent). This is a server-mediated path with NO app-side signing/submit, so it
+        // cannot return a verifiable on-chain result and must NOT echo a server hash as
+        // success. The moment a server exists, incidental honest-failure would silently
+        // become a fake-success — so it fails honestly now. Real wiring requires the
+        // server-vs-app-signer architecture decision (flagged separately). Nothing was requested.
+        throw BlockchainBridgeError.unsupportedOperation("On-chain oracle data requests aren't available in this build yet. Nothing was requested.")
     }
 
     /// Contribute to a gaming ecosystem (in-game asset purchase, etc.).
@@ -1409,25 +1528,29 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid gaming purchase response")
+        // Purchasing a game asset MOVES FUNDS. Success requires a real on-chain submit returning
+        // a validated op-hash — never the server-echoed "transactionHash". Same load-bearing
+        // pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let gameContract = response["gameContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain game-asset purchase isn't available yet (the gaming service returned no executable calldata). Nothing was purchased.")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "gaming_purchase")
+        let op: UserOperation
+        switch manager.buildUserOperation(to: gameContract, value: price, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build game-asset purchase operation: \(err.localizedDescription)")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let gameContract = response["gameContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: gameContract, value: price, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "gaming_purchase")
-            }
+        let opHash = try await submitSignedOperation(op, type: "gaming_purchase")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Game-asset purchase submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return TransactionResult(
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             operationHash: opHash,
             status: .pending,
             gasUsed: 0,
@@ -1438,29 +1561,14 @@ final class BlockchainBridge {
 
     /// Issue a security token.
     func issueSecurityToken(params: [String: Any]) async throws -> ContractResult {
-        guard isWalletConnected else { throw BlockchainBridgeError.walletNotConnected }
-
-        var body = params
-        body["walletAddress"] = connectedWalletAddress ?? ""
-        body["chainId"] = String(chainId)
-
-        let response = try await postToAPI(endpoint: "blockchain/securities/issue", body: body)
-
-        guard let contractAddress = response["contractAddress"] as? String,
-              let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid securities response")
-        }
-
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "security_issue")
-
-        return ContractResult(
-            contractAddress: contractAddress,
-            deploymentTxHash: txHash,
-            templateId: response["templateId"] as? String ?? "security_token",
-            status: .pending,
-            abi: response["abi"] as? String
-        )
+        // EXPLICIT honest failure on the MOST REGULATED path in the codebase. Securities
+        // issuance is server-mediated with NO app-side signing/submit, so it cannot return a
+        // verifiable on-chain result. It must NEVER echo a server hash as success — the moment
+        // a server exists, incidental honest-failure (postToAPI throwing) would silently become
+        // a fake-success on a securities path. Fails honestly now; real issuance requires both a
+        // server-vs-app-signer architecture decision AND securities licensing (flagged
+        // separately). Nothing was issued.
+        throw BlockchainBridgeError.unsupportedOperation("Security-token issuance isn't available in this build yet. Nothing was issued.")
     }
 
     /// Mint a stablecoin or interact with the stablecoin module.
@@ -1474,25 +1582,29 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid stablecoin mint response")
+        // Minting a stablecoin MOVES FUNDS. Success requires a real on-chain submit returning
+        // a validated op-hash — never the server-echoed "transactionHash". Same load-bearing
+        // pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let stablecoinContract = response["stablecoinContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain stablecoin minting isn't available yet (the stablecoin service returned no executable calldata). Nothing was minted.")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "stablecoin_mint")
+        let op: UserOperation
+        switch manager.buildUserOperation(to: stablecoinContract, value: collateral, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build stablecoin mint operation: \(err.localizedDescription)")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let stablecoinContract = response["stablecoinContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: stablecoinContract, value: collateral, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "stablecoin_mint")
-            }
+        let opHash = try await submitSignedOperation(op, type: "stablecoin_mint")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Stablecoin mint submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return TransactionResult(
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             operationHash: opHash,
             status: .pending,
             gasUsed: 0,
@@ -1513,29 +1625,36 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let paymentId = response["paymentId"] as? String,
-              let txHash = response["transactionHash"] as? String else {
+        guard let paymentId = response["paymentId"] as? String else {
             throw BlockchainBridgeError.transactionFailed(reason: "Invalid agentic payment response")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "agentic_payment")
+        // An agentic payment MOVES FUNDS on an agent's behalf. Success requires a real on-chain
+        // submit returning a validated op-hash — never the server-echoed "transactionHash". Same
+        // load-bearing pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let paymentContract = response["paymentContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain agentic payment execution isn't available yet (the payment service returned no executable calldata). Nothing was paid.")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let paymentContract = response["paymentContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: paymentContract, value: amount, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "agentic_payment")
-            }
+        let op: UserOperation
+        switch manager.buildUserOperation(to: paymentContract, value: amount, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build agentic payment operation: \(err.localizedDescription)")
+        }
+
+        let opHash = try await submitSignedOperation(op, type: "agentic_payment")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Agentic payment submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return PaymentResult(
             paymentId: paymentId,
             amount: amount,
             recipient: agentId,
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             status: .pending
         )
     }
@@ -1552,25 +1671,29 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid private transfer response")
+        // A private transfer MOVES FUNDS. Success requires a real on-chain submit returning a
+        // validated op-hash — never the server-echoed "transactionHash". Same load-bearing
+        // pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let privacyContract = response["privacyContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain private transfer execution isn't available yet (the privacy service returned no executable calldata). Nothing was transferred.")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "private_transfer")
+        let op: UserOperation
+        switch manager.buildUserOperation(to: privacyContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build private transfer operation: \(err.localizedDescription)")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let privacyContract = response["privacyContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: privacyContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "private_transfer")
-            }
+        let opHash = try await submitSignedOperation(op, type: "private_transfer")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Private transfer submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return TransactionResult(
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             operationHash: opHash,
             status: .pending,
             gasUsed: 0,
@@ -1581,30 +1704,12 @@ final class BlockchainBridge {
 
     /// Post to the social module (on-chain social graph).
     func socialPost(content: String, metadata: [String: Any]) async throws -> TransactionResult {
-        guard isWalletConnected else { throw BlockchainBridgeError.walletNotConnected }
-
-        let response = try await postToAPI(endpoint: "blockchain/social/post", body: [
-            "content": content,
-            "metadata": metadata,
-            "walletAddress": connectedWalletAddress ?? "",
-            "chainId": String(chainId)
-        ])
-
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid social post response")
-        }
-
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "social_post")
-
-        return TransactionResult(
-            transactionHash: txHash,
-            operationHash: opHash,
-            status: .pending,
-            gasUsed: 0,
-            blockNumber: nil,
-            timestamp: Date()
-        )
+        // EXPLICIT honest failure (not incidental on postToAPI throwing). This is a
+        // server-mediated path with NO app-side signing/submit, so it cannot return a
+        // verifiable on-chain result and must NOT echo a server hash as success. Fails
+        // honestly now; real wiring requires the server-vs-app-signer architecture decision
+        // (flagged separately). Nothing was posted.
+        throw BlockchainBridgeError.unsupportedOperation("On-chain social posting isn't available in this build yet. Nothing was posted.")
     }
 
     /// Redeem cashback or brand rewards.
@@ -1617,25 +1722,29 @@ final class BlockchainBridge {
             "chainId": String(chainId)
         ])
 
-        guard let txHash = response["transactionHash"] as? String else {
-            throw BlockchainBridgeError.transactionFailed(reason: "Invalid cashback redemption response")
+        // A cashback redemption MOVES FUNDS. Success requires a real on-chain submit returning
+        // a validated op-hash — never the server-echoed "transactionHash". Same load-bearing
+        // pattern as swap(): no try?-swallow; honest throw if there's no executable path.
+        guard let calldataHex = response["calldata"] as? String,
+              let calldata = Data(hexString: calldataHex),
+              let cashbackContract = response["cashbackContract"] as? String,
+              let manager = erc4337Manager else {
+            throw BlockchainBridgeError.unsupportedOperation("On-chain cashback redemption isn't available yet (the cashback service returned no executable calldata). Nothing was redeemed.")
         }
 
-        let opHash = response["operationHash"] as? String ?? txHash
-        transactionTracker.track(operationHash: opHash, type: "cashback_redeem")
+        let op: UserOperation
+        switch manager.buildUserOperation(to: cashbackContract, value: 0, data: calldata) {
+        case .success(let built): op = built
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: "Could not build cashback redemption operation: \(err.localizedDescription)")
+        }
 
-        if let calldataHex = response["calldata"] as? String,
-           let calldata = Data(hexString: calldataHex),
-           let cashbackContract = response["cashbackContract"] as? String,
-           let manager = erc4337Manager {
-            let opResult = manager.buildUserOperation(to: cashbackContract, value: 0, data: calldata)
-            if case .success(let op) = opResult {
-                _ = try? await submitSignedOperation(op, type: "cashback_redeem")
-            }
+        let opHash = try await submitSignedOperation(op, type: "cashback_redeem")
+        guard opHash.hasPrefix("0x"), opHash.count > 2 else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Cashback redemption submission did not return a valid operation hash. Nothing was confirmed.")
         }
 
         return TransactionResult(
-            transactionHash: txHash,
+            transactionHash: opHash,   // real op-hash — never the server echo
             operationHash: opHash,
             status: .pending,
             gasUsed: 0,
