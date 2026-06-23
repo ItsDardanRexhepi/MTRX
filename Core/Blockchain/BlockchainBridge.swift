@@ -1201,7 +1201,13 @@ final class BlockchainBridge {
         // A subscription MOVES FUNDS. Success requires a real on-chain submit returning a
         // validated op-hash — never the server-echoed "transactionHash". Same load-bearing
         // pattern as swap(): no try?-swallow; honest throw if there's no executable path.
-        let cost = UInt64(response["costWei"] as? String ?? "0") ?? 0
+        // The subscription amount must come from the server. Silently defaulting a missing
+        // costWei to 0 would send a 0-value transaction the user believes is a real charge
+        // (it would just bounce) — a quiet wrong thing. Fail honestly if the amount is
+        // missing/unparseable. (An explicit "0" — a free tier — is allowed and parses fine.)
+        guard let costWei = response["costWei"] as? String, let cost = UInt64(costWei) else {
+            throw BlockchainBridgeError.transactionFailed(reason: "Couldn't determine the subscription amount. Nothing was charged.")
+        }
         guard let calldataHex = response["calldata"] as? String,
               let calldata = Data(hexString: calldataHex),
               let subContract = response["subscriptionContract"] as? String,
