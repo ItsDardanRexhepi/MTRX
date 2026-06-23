@@ -77,6 +77,7 @@ struct PrivacyView: View {
     @AppStorage("mtrx_analytics") private var analytics: Bool = true
     @AppStorage("mtrx_crash_reports") private var crashReports: Bool = true
     @AppStorage("mtrx_trinity_learning") private var trinityLearning: Bool = true
+    @AppStorage("mtrx_extended_language_api") private var extendedLanguage: Bool = false
 
     // MARK: - State
 
@@ -95,6 +96,7 @@ struct PrivacyView: View {
                 privacyLevelSection
                 profileVisibilitySection
                 dataSection
+                extendedLanguageSection
                 securitySection
                 dangerZoneSection
             }
@@ -245,6 +247,23 @@ struct PrivacyView: View {
             Text("Data")
         } footer: {
             Text("Your data never leaves your device unless you explicitly share it.")
+        }
+    }
+
+    // MARK: - Extended Language (Tier 2)
+
+    private var extendedLanguageSection: some View {
+        Section {
+            Toggle("Extended Language Support", isOn: $extendedLanguage)
+                .font(.mtrxBody)
+                .tint(Color.accentPrimary)
+                .onChange(of: extendedLanguage) { _, _ in
+                    MtrxHaptics.selection()
+                }
+        } header: {
+            Text("Trinity Languages")
+        } footer: {
+            Text("Trinity speaks \(NaturalLanguageProcessor.LanguageProfile.tier1Languages.count) languages privately on your device, free. Extended Language Support adds many more languages and dialects — it needs MTRX Enterprise, and because it works by sending your messages and voice to a secure third-party language service, it stays off until you turn it on here. Leave it off to keep everything on-device.")
         }
     }
 

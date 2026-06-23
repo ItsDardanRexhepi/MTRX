@@ -720,6 +720,21 @@ final class AgentConversationViewModel: ObservableObject {
                 if didStream { messages.removeAll { $0.id == streamID } }
             }
 
+            // V2 — Tier-2 gate: a language outside on-device Tier-1 coverage is Extended Language
+            // Support, gated behind Enterprise + the privacy opt-in. When the gate isn't satisfied,
+            // show an honest, offer-framed message (never a barrier) instead of a best-effort reply
+            // in a language we don't yet support for this user. The real extended cloud service is
+            // wired in V3/V4, behind this same ExtendedLanguageGate.
+            if !langProfile.tier1Supported && !langProfile.isEnglish && !ExtendedLanguageGate.isEnabled {
+                messages.append(AgentMessage(
+                    text: ExtendedLanguageGate.offerMessage(for: langProfile.displayName),
+                    role: .agent,
+                    agentName: agentName
+                ))
+                isTyping = false
+                return
+            }
+
             // 2 — Gateway (when Apple Intelligence isn't available)
             do {
                 let apiResponse = try await MTRXAPIClient.shared.sendAgentMessage(

@@ -364,3 +364,44 @@ final class NaturalLanguageProcessor {
         return phrases
     }
 }
+
+// MARK: - Extended Language Gate (Tier 2)
+
+/// The Tier-2 gate: extended-language support (languages beyond the on-device Tier-1 set) is
+/// available only when BOTH are true — an active Enterprise subscription AND the user has turned
+/// on the Extended Language privacy switch (default OFF). Built BEFORE the cloud service it gates
+/// (V3/V4), so the paywall + privacy posture is in place before the thing it gates.
+enum ExtendedLanguageGate {
+    /// Privacy toggle key — mirrors PrivacyView's @AppStorage. Default OFF.
+    static let toggleKey = "mtrx_extended_language_api"
+
+    /// True only with an active Enterprise subscription.
+    static var hasEnterprise: Bool { FeatureGate.shared.currentTier == .enterprise }
+
+    /// True when the user has opted in (the privacy switch is ON).
+    static var privacyOptIn: Bool { UserDefaults.standard.bool(forKey: toggleKey) }
+
+    /// Extended-language support is active only when BOTH conditions hold.
+    static var isEnabled: Bool { hasEnterprise && privacyOptIn }
+
+    /// Warm, offer-framed message for when the user uses a language only the Tier-2 path covers
+    /// but the gate isn't satisfied — tailored to which condition is missing, so it reads as an
+    /// offer with a clear next step, never a barrier.
+    static func offerMessage(for displayName: String) -> String {
+        // Derive the counts from the actual list so the copy can never drift from tier1Languages.
+        let total = NaturalLanguageProcessor.LanguageProfile.tier1Languages.count
+        let others = total - 1
+        if hasEnterprise {
+            return "I’d love to talk with you in \(displayName) — it’s part of your Enterprise plan. "
+                + "Just turn on **Extended Language Support** in Settings → Privacy and I’ll switch to "
+                + "\(displayName). (It works by sending your messages to a secure language service — your "
+                + "choice, and off by default.) Either way, I’m fully fluent in English and \(others) other "
+                + "languages, completely on your device."
+        } else {
+            return "I’d love to talk with you in \(displayName)! Beyond the \(total) languages I already speak "
+                + "privately on your device, **Extended Language Support** — with a privacy switch you "
+                + "control — comes with **MTRX Enterprise**. Right now I’m fully fluent in English and \(others) "
+                + "other languages, on-device and private."
+        }
+    }
+}
