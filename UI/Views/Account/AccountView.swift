@@ -9,18 +9,22 @@ import SafariServices
 
 // MARK: - App Version
 
-/// Single source of truth for the app version shown in Account → About.
-/// Both the "About MTRX" row and the About sheet read these straight from the
-/// bundle, so they can't drift apart or go stale on a build bump. (They used to
-/// be hardcoded — the row read "2.4.0" while the sheet read "1.0.0 (build 6)";
-/// the bundle truth was 1.0.0 (186).)
-private enum AppVersionInfo {
+/// Single source of truth for the app version, shown app-wide (Account → About
+/// row, Settings → About row, and the About sheet) — all read straight from the
+/// bundle so they can't drift or go stale on a build bump. (They used to be
+/// hardcoded — Account read "2.4.0", Settings read "2.4.0", the sheet read
+/// "1.0.0 (build 6)"; the bundle truth is 1.0.0 (187).) Internal, not private,
+/// so SettingsView shares the same source.
+enum AppVersionInfo {
     private static var info: [String: Any] { Bundle.main.infoDictionary ?? [:] }
     static var short: String { info["CFBundleShortVersionString"] as? String ?? "—" }
     static var build: String { info["CFBundleVersion"] as? String ?? "—" }
-    /// Compact form for the list-row subtitle, e.g. "Version 1.0.0".
-    static var rowSubtitle: String { "Version \(short)" }
-    /// Full form for the About sheet, e.g. "Version 1.0.0 (build 186)".
+    /// Compact "1.0.0 (187)" — for a trailing row value (Settings).
+    static var shortWithBuild: String { "\(short) (\(build))" }
+    /// List-row subtitle — build-inclusive so the build is confirmable WITHOUT
+    /// opening the sheet, e.g. "Version 1.0.0 (187)".
+    static var rowSubtitle: String { "Version \(shortWithBuild)" }
+    /// Full form for the About sheet, e.g. "Version 1.0.0 (build 187)".
     static var fullDisplay: String { "Version \(short) (build \(build))" }
 }
 

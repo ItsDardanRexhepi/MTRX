@@ -172,7 +172,7 @@ struct SettingsView: View {
             Button {
                 showAbout = true
             } label: {
-                settingsRow(icon: "info.circle.fill", iconColor: .labelTertiary, title: "About MTRX", value: "2.4.0")
+                settingsRow(icon: "info.circle.fill", iconColor: .labelTertiary, title: "About MTRX", value: AppVersionInfo.shortWithBuild)
             }
         } header: {
             Text("Account")
