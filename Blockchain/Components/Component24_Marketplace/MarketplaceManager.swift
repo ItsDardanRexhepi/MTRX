@@ -1,7 +1,7 @@
 // MarketplaceManager.swift
 // MTRX Blockchain - Components - Marketplace (C24)
 //
-// 5% NeoSafe / 95% seller, compliance filter, appeal to Dardan via Telegram.
+// 5% NeoSafe / 95% seller, compliance filter, appeal escalated to the platform owner.
 
 import Foundation
 import Combine
@@ -62,8 +62,8 @@ struct MarketAppeal: Identifiable, Codable {
     let reason: String
     var status: AppealStatus
     let filedAt: Date
-    /// Appeals are directed to Dardan via Telegram.
-    let escalationChannel: String  // "telegram:@dardan"
+    /// Appeals are escalated to the platform owner for review.
+    let escalationChannel: String  // e.g. "owner-review"
 }
 
 enum AppealStatus: String, Codable {
@@ -102,8 +102,8 @@ final class MarketplaceManager: ObservableObject {
     static let platformFeePercent: Double = 0.05
     static let sellerSharePercent: Double = 0.95
 
-    /// Appeals go to Dardan via Telegram.
-    static let appealChannel = "telegram:@dardan"
+    /// Appeals are escalated to the platform owner for review (stored locally; no channel wired yet).
+    static let appealChannel = "owner-review"
 
     weak var delegate: MarketplaceDelegate?
 
@@ -261,7 +261,7 @@ final class MarketplaceManager: ObservableObject {
         await updateListingInPublished(listing)
     }
 
-    // MARK: - Appeals (to Dardan via Telegram)
+    // MARK: - Appeals (escalated to the platform owner)
 
     func fileAppeal(listingId: String, appellantAddress: String, reason: String) async throws -> MarketAppeal {
         guard listingStore[listingId] != nil else {
