@@ -24,35 +24,18 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         configureAppearance()
         registerBackgroundTasks()
-        requestNotificationPermissions(application: application)
+        // The MVP build has no APNs entitlement and no notification-driven features,
+        // so prompting on launch would ask for a permission we can't fulfill. Gated
+        // until mvpMode is off (production), when the aps-environment entitlement and
+        // real notification flows are in place.
+        if !FeatureFlags.mvpMode {
+            requestNotificationPermissions(application: application)
+        }
         configureAnalytics()
         // Subscribe to MetricKit so iOS delivers real performance + crash/hang
         // diagnostics; stored locally only (see MetricsCollector).
         MetricsCollector.shared.install()
         return true
-    }
-
-    func application(
-        _ application: UIApplication,
-        configurationForConnecting connectingSceneSession: UISceneSession,
-        options: UIScene.ConnectionOptions
-    ) -> UISceneConfiguration {
-        if connectingSceneSession.role == .carTemplateApplication {
-            let config = UISceneConfiguration(name: "CarPlay", sessionRole: connectingSceneSession.role)
-            config.delegateClass = SceneDelegate.self
-            return config
-        }
-
-        let config = UISceneConfiguration(name: "Default", sessionRole: connectingSceneSession.role)
-        config.delegateClass = SceneDelegate.self
-        return config
-    }
-
-    func application(
-        _ application: UIApplication,
-        didDiscardSceneSessions sceneSessions: Set<UISceneSession>
-    ) {
-        // Clean up resources for discarded scenes
     }
 
     // MARK: - Push Notification Registration

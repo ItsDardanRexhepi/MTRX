@@ -91,7 +91,7 @@ public struct NoopCrashReportUploader: CrashReportUploader {
 /// Installs process-wide crash hooks and manages on-disk crash files.
 ///
 /// Use ``CrashReporter.shared.install()`` once at app startup (in
-/// ``MTRXApp.init`` or ``SceneDelegate.scene(_:willConnectTo:...)``).
+/// ``MTRXApp.init`` or the app delegate's launch handler).
 /// The reporter uses a singleton because signal handlers can't capture
 /// self-referential closures and must reach the state through a
 /// process-global.

@@ -158,14 +158,6 @@ enum PendingCredentials {
         /// Format: 0x + 40 hex.
         /// Where: the address you deployed your recovery module to.
         static let socialRecoveryModuleAddress = ""
-
-        /// CloudKit container identifier used for the encrypted wallet
-        /// backup (recovery blob is encrypted on-device; only ciphertext
-        /// is stored in the user's private CloudKit DB).
-        /// Format: `iCloud.com.opnmatrx.mtrx` (must match an entitlement).
-        /// Where: Apple Developer → Identifiers → iCloud Containers, and add
-        /// it to the app's iCloud entitlement.
-        static let iCloudContainerID = ""
     }
 
     // MARK: - Pricing

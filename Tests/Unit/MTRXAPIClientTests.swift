@@ -133,7 +133,7 @@ final class MTRXAPIClientTests: XCTestCase {
         }
     }
 
-    func test_403_throwsForbidden() async throws {
+    func test_403_throwsSecurityBlocked() async throws {
         let client = makeClient()
         MockURLProtocol.handler = { request in
             let response = HTTPURLResponse(
@@ -144,11 +144,12 @@ final class MTRXAPIClientTests: XCTestCase {
         }
         do {
             let _: MTRXAPIClient.HealthResponse = try await client.get(path: "/health")
-            XCTFail("Expected .forbidden")
-        } catch MTRXAPIError.forbidden {
-            // ok
+            XCTFail("Expected securityBlocked")
+        } catch MTRXAPIError.securityBlocked(_) {
+            // ok — a 403 is the security gate declining the action;
+            // MTRXAPIClient deliberately maps 403 → securityBlocked (see MTRXAPIClient.swift).
         } catch {
-            XCTFail("Expected .forbidden, got \(error)")
+            XCTFail("Expected securityBlocked, got \(error)")
         }
     }
 

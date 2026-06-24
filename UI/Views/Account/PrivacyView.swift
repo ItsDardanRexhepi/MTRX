@@ -341,7 +341,7 @@ struct PrivacyView: View {
         MtrxEmptyState(
             icon: "desktopcomputer",
             title: "Active Sessions",
-            message: "View and manage your active login sessions."
+            message: "You're signed in on this device. Viewing and managing sessions on other devices isn't available in this build yet."
         )
         .background(Color.backgroundPrimary)
         .navigationTitle("Active Sessions")

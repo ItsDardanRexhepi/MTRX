@@ -7,6 +7,24 @@ import SwiftUI
 import SafariServices
 
 
+// MARK: - App Version
+
+/// Single source of truth for the app version shown in Account → About.
+/// Both the "About MTRX" row and the About sheet read these straight from the
+/// bundle, so they can't drift apart or go stale on a build bump. (They used to
+/// be hardcoded — the row read "2.4.0" while the sheet read "1.0.0 (build 6)";
+/// the bundle truth was 1.0.0 (186).)
+private enum AppVersionInfo {
+    private static var info: [String: Any] { Bundle.main.infoDictionary ?? [:] }
+    static var short: String { info["CFBundleShortVersionString"] as? String ?? "—" }
+    static var build: String { info["CFBundleVersion"] as? String ?? "—" }
+    /// Compact form for the list-row subtitle, e.g. "Version 1.0.0".
+    static var rowSubtitle: String { "Version \(short)" }
+    /// Full form for the About sheet, e.g. "Version 1.0.0 (build 186)".
+    static var fullDisplay: String { "Version \(short) (build \(build))" }
+}
+
+
 // MARK: - Account Avatar
 
 /// The Account profile picture: a chosen photo, the Social photo, or
@@ -567,7 +585,7 @@ struct AccountView: View {
                     showAbout = true
                     MtrxHaptics.impact(.light)
                 } label: {
-                    MtrxListRow(icon: Symbols.info, iconColor: .labelTertiary, title: "About MTRX", subtitle: "Version 2.4.0")
+                    MtrxListRow(icon: Symbols.info, iconColor: .labelTertiary, title: "About MTRX", subtitle: AppVersionInfo.rowSubtitle)
                 }
                 .buttonStyle(.plain)
             }
@@ -1203,7 +1221,7 @@ struct AboutSheet: View {
                             .font(.mtrxTitle1)
                             .foregroundStyle(Color.labelPrimary)
 
-                        Text("Version 1.0.0 (build 6)")
+                        Text(AppVersionInfo.fullDisplay)
                             .font(.mtrxCaption1)
                             .foregroundStyle(Color.labelSecondary)
                     }

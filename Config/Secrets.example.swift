@@ -7,9 +7,6 @@
 import Foundation
 
 enum AppSecrets {
-    /// Owner Telegram ID — only account with Neo access
-    static let ownerTelegramID: Int64 = 0
-
     /// NeoSafe wallet address
     static let neoSafeAddress: String = ""
 }

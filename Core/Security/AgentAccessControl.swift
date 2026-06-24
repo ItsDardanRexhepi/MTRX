@@ -17,7 +17,7 @@ import Combine
 /// Two user types:
 /// - Consumer: Trinity primary, Morpheus at pivotal moments, Neo invisible
 /// - Owner (Dardan): Neo primary, enhanced Trinity + Morpheus available
-///   (owner identity is being moved from Telegram to Apple ID + Twilio OTP — Phase 2)
+///   (owner identity is the Apple ID that created this install; OTP verification — Phase 2)
 ///
 /// Three scenarios for unauthorized Neo access (the *server* makes the binding call):
 /// - Scenario 1 (Unintentional): Trinity intercepts silently
@@ -26,12 +26,6 @@ import Combine
 @MainActor
 final class AgentAccessControl: ObservableObject {
     static let shared = AgentAccessControl()
-
-    // MARK: - Owner identity
-
-    /// The owner's Telegram ID — only account with Neo access.
-    /// Value sourced from AppSecrets (Config/Secrets.swift, gitignored).
-    static let ownerTelegramID: Int64 = AppSecrets.ownerTelegramID
 
     // MARK: - Published state
 
@@ -60,10 +54,6 @@ final class AgentAccessControl: ObservableObject {
     }
 
     func userType(for userID: String) -> UserType {
-        // Owner check — only Dardan's account
-        if userID == String(Self.ownerTelegramID) {
-            return .owner
-        }
         // The Apple account that signed in and created this install's
         // demo wallet IS the platform owner on this device.
         if !userID.isEmpty,
@@ -179,13 +169,12 @@ final class AgentAccessControl: ObservableObject {
     // MARK: - Scenario 3: Legitimate need
 
     struct Scenario3State {
-        var telegramApproved = false
         var onChainVerified = false
         var approvalCode: String?
         var generatedCode: String?
 
         var isFullyAuthorized: Bool {
-            telegramApproved && onChainVerified && approvalCode == generatedCode && generatedCode != nil
+            onChainVerified && approvalCode == generatedCode && generatedCode != nil
         }
     }
 
@@ -202,8 +191,6 @@ final class AgentAccessControl: ObservableObject {
         guard var state = scenario3States[userID] else { return false }
 
         switch step {
-        case .telegramApproval:
-            state.telegramApproved = true
         case .onChainVerification:
             state.onChainVerified = true
         case .approvalCode:
@@ -327,7 +314,6 @@ enum AccessScenario {
 }
 
 enum Scenario3Step {
-    case telegramApproval
     case onChainVerification
     case approvalCode
 }

@@ -212,9 +212,9 @@ final class TransactionReminderEngine {
     static let shared = TransactionReminderEngine()
 
     func createReminders(tasks: [String], completion: @escaping (Bool) -> Void) {
-        // No reminder is scheduled or persisted here (the app's NotificationManager /
-        // EventKitManager are never called), so do not report success — that would promise a
-        // reminder that never fires. Fail honestly until scheduling is wired.
+        // No reminder is scheduled or persisted here (no local-notification scheduling is
+        // wired), so do not report success — that would promise a reminder that never fires.
+        // Fail honestly until scheduling is wired.
         completion(false)
     }
 }
