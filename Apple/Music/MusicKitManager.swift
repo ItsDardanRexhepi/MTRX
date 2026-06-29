@@ -191,8 +191,12 @@ final class MusicKitManager {
         Task { await startQueue(songs: queueSongs, at: index) }
     }
 
-    private func startQueue(songs: [Song], at index: Int) async {
+    private func startQueue(songs: [Song], at index: Int, shuffle: Bool = false) async {
         guard !songs.isEmpty else { return }
+        // Shuffle is a per-queue intent, not a sticky global: reset it for every
+        // freshly started queue so a station's shuffle never leaks into the next
+        // ordered album/playlist (and the now-playing toolbar stays honest).
+        shuffleOn = shuffle
         queueSongs = songs
         currentIndex = max(0, min(index, songs.count - 1))
         let song = songs[currentIndex]
@@ -219,12 +223,20 @@ final class MusicKitManager {
         }
     }
 
-    private func startPreviewPlayback(at index: Int) async {
+    private func startPreviewPlayback(at index: Int, attempts: Int = 0) async {
         guard queueSongs.indices.contains(index) else { return }
+        // A bounded walk over preview-less tracks: not every catalog song exposes a
+        // 30-second preview, so skip to the next playable one instead of dead-stopping
+        // mid-queue. The cap guarantees a fully preview-less queue ends in stop().
+        guard attempts < queueSongs.count else { stop(); return }
         currentIndex = index
         let song = queueSongs[index]
         currentSong = song
-        guard let url = song.previewAssets?.first?.url else { isPlaying = false; return }
+        guard let url = song.previewAssets?.first?.url else {
+            if let n = nextIndex() { await startPreviewPlayback(at: n, attempts: attempts + 1) }
+            else { stop() }
+            return
+        }
         configureAudioSession()
         removeEndObserver()
         let item = AVPlayerItem(url: url)
@@ -259,7 +271,12 @@ final class MusicKitManager {
             let p = ApplicationMusicPlayer.shared
             Task {
                 if isPlaying { p.pause(); isPlaying = false }
-                else { try? await p.play(); isPlaying = true }
+                else {
+                    // Reflect the real outcome — don't optimistically claim "playing"
+                    // if the resume actually failed (keeps now-playing honest).
+                    do { try await p.play(); isPlaying = true }
+                    catch { isPlaying = (p.state.playbackStatus == .playing) }
+                }
             }
         }
     }
@@ -351,7 +368,17 @@ final class MusicKitManager {
         guard let entry = p.queue.currentEntry else { return }
         nowPlayingTitle = entry.title
         nowPlayingArtist = entry.subtitle
-        if let s = queueSongs.first(where: { $0.title == entry.title }) {
+        // Resolve the playing entry by stable identity first; fall back to the title
+        // only when the entry carries no song item, so duplicate titles in a queue
+        // never map to the wrong track or index.
+        var matched: Song?
+        if case let .song(playingSong)? = entry.item {
+            matched = queueSongs.first(where: { $0.id == playingSong.id })
+        }
+        if matched == nil {
+            matched = queueSongs.first(where: { $0.title == entry.title })
+        }
+        if let s = matched {
             currentSong = s
             if let d = s.duration { duration = d }
             currentIndex = queueSongs.firstIndex(where: { $0.id == s.id }) ?? currentIndex
@@ -506,8 +533,7 @@ final class MusicKitManager {
             guard !songs.isEmpty else {
                 return PlayOutcome(ok: false, message: "Couldn't find songs for \u{201C}\(term)\u{201D}.")
             }
-            shuffleOn = true
-            await startQueue(songs: songs.shuffled(), at: 0)
+            await startQueue(songs: songs.shuffled(), at: 0, shuffle: true)
             return PlayOutcome(ok: true, message: "Playing \(term).")
         } catch {
             return PlayOutcome(ok: false, message: "I couldn't reach Apple Music just now.")

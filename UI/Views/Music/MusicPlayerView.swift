@@ -574,11 +574,13 @@ struct NowPlayingView: View {
     @StateObject private var volume = SystemVolume()
     @Environment(\.dismiss) private var dismiss
 #if canImport(MusicKit)
-    // "Go to Album" / "Go to Artist" destinations, presented as detail sheets.
+    // The current track's album/artist, resolved eagerly so the "Go to Album" /
+    // "Go to Artist" menu only offers what actually exists — never a dead-end tap.
+    @State private var resolvedAlbum: Album?
+    @State private var resolvedArtist: Artist?
+    // The tapped destination, presented as a detail sheet.
     @State private var goToAlbum: Album?
     @State private var goToArtist: Artist?
-    @State private var loadingDestination = false
-    private enum GoDestination { case album, artist }
 #endif
 
     // Responsive square that always leaves room for every control row below it.
@@ -610,6 +612,7 @@ struct NowPlayingView: View {
             LyricsView(title: music.nowPlayingTitle, artist: music.nowPlayingArtist)
         }
 #if canImport(MusicKit)
+        .task(id: music.currentSong?.id) { await resolveDestinations() }
         .sheet(item: $goToAlbum) { album in
             NavigationStack { LibraryDetailView(source: .album(album)) }
                 .presentationDragIndicator(.visible)
@@ -674,16 +677,16 @@ struct NowPlayingView: View {
     @ViewBuilder private var titleArtistMenu: some View {
 #if canImport(MusicKit)
         Menu {
-            Button { goTo(.album) } label: {
-                Label(albumMenuTitle, systemImage: "square.stack")
+            if let album = resolvedAlbum {
+                Button { goToAlbum = album } label: { Label(albumMenuTitle, systemImage: "square.stack") }
             }
-            Button { goTo(.artist) } label: {
-                Label(artistMenuTitle, systemImage: "music.mic")
+            if let artist = resolvedArtist {
+                Button { goToArtist = artist } label: { Label(artistMenuTitle, systemImage: "music.mic") }
             }
         } label: {
             titleArtist
         }
-        .disabled(music.currentSong == nil)
+        .disabled(resolvedAlbum == nil && resolvedArtist == nil)
 #else
         titleArtist
 #endif
@@ -705,24 +708,21 @@ struct NowPlayingView: View {
 
 #if canImport(MusicKit)
     private var albumMenuTitle: String {
-        music.currentSong?.albumTitle.map { "Go to Album · \($0)" } ?? "Go to Album"
+        resolvedAlbum.map { "Go to Album · \($0.title)" } ?? "Go to Album"
     }
     private var artistMenuTitle: String {
-        music.nowPlayingArtist.map { "Go to Artist · \($0)" } ?? "Go to Artist"
+        resolvedArtist.map { "Go to Artist · \($0.name)" } ?? "Go to Artist"
     }
 
-    private func goTo(_ which: GoDestination) {
+    /// Resolve the current track's album + artist whenever the track changes, so the
+    /// menu only ever offers destinations that actually exist (no dead-end taps).
+    private func resolveDestinations() async {
+        resolvedAlbum = nil
+        resolvedArtist = nil
         guard let song = music.currentSong else { return }
-        MtrxHaptics.impact(.light)
-        loadingDestination = true
-        Task {
-            let (album, artist) = await music.albumAndArtist(of: song)
-            loadingDestination = false
-            switch which {
-            case .album:  goToAlbum = album
-            case .artist: goToArtist = artist
-            }
-        }
+        let (album, artist) = await music.albumAndArtist(of: song)
+        resolvedAlbum = album
+        resolvedArtist = artist
     }
 #endif
 
@@ -775,10 +775,17 @@ struct NowPlayingView: View {
     @ViewBuilder
     private var scrubberCenter: some View {
         if music.isPreviewPlayback {
+            // Keep Apple Music attribution visible even in preview mode — the whole
+            // lockup doubles as the Subscribe affordance.
             Button { showSubscriptionOffer = true } label: {
-                Text("Preview · Subscribe").font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.accentPrimary)
+                HStack(spacing: 5) {
+                    AppleMusicBadge()
+                    Text("· Subscribe").font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                }
             }
+            .buttonStyle(.plain)
+            .fixedSize()
         } else {
             AppleMusicBadge()
         }

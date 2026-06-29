@@ -626,14 +626,20 @@ struct MusicLibraryTab: View {
         }
     }
 
+    // Playlists / Artists / Albums / Songs — "Recently Added" has its own dedicated
+    // grid below, so it's excluded here to avoid a duplicate Recently Added surface.
+    private var categoryRows: [LibraryCategory] {
+        LibraryCategory.allCases.filter { $0 != .recentlyAdded }
+    }
+
     private var categoryList: some View {
         VStack(spacing: 0) {
-            ForEach(Array(LibraryCategory.allCases.enumerated()), id: \.element.id) { idx, category in
+            ForEach(Array(categoryRows.enumerated()), id: \.element.id) { idx, category in
                 NavigationLink { category.destination } label: {
                     MusicLibraryCategoryRow(category: category)
                 }
                 .buttonStyle(.plain)
-                if idx < LibraryCategory.allCases.count - 1 {
+                if idx < categoryRows.count - 1 {
                     Divider().overlay(Color.labelPrimary.opacity(0.08)).padding(.leading, 40)
                 }
             }
