@@ -573,6 +573,13 @@ struct NowPlayingView: View {
     @State private var addedToLibrary = false
     @StateObject private var volume = SystemVolume()
     @Environment(\.dismiss) private var dismiss
+#if canImport(MusicKit)
+    // "Go to Album" / "Go to Artist" destinations, presented as detail sheets.
+    @State private var goToAlbum: Album?
+    @State private var goToArtist: Artist?
+    @State private var loadingDestination = false
+    private enum GoDestination { case album, artist }
+#endif
 
     // Responsive square that always leaves room for every control row below it.
     private var artworkSize: CGFloat { min(UIScreen.main.bounds.width - 110, 300) }
@@ -603,6 +610,14 @@ struct NowPlayingView: View {
             LyricsView(title: music.nowPlayingTitle, artist: music.nowPlayingArtist)
         }
 #if canImport(MusicKit)
+        .sheet(item: $goToAlbum) { album in
+            NavigationStack { LibraryDetailView(source: .album(album)) }
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $goToArtist) { artist in
+            NavigationStack { LibraryArtistDetailView(artist: artist) }
+                .presentationDragIndicator(.visible)
+        }
         .musicSubscriptionOffer(isPresented: $showSubscriptionOffer)
 #endif
     }
@@ -635,15 +650,7 @@ struct NowPlayingView: View {
     // MARK: Title + explicit + artist, with Favorite (star) and More (…)
     private var trackInfoRow: some View {
         HStack(alignment: .center, spacing: Spacing.sm) {
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
-                    Text(music.nowPlayingTitle ?? "Not playing")
-                        .font(.system(size: 22, weight: .bold)).foregroundStyle(Color.labelPrimary).lineLimit(1)
-                    if isExplicit { explicitBadge }
-                }
-                Text(music.nowPlayingArtist ?? "")
-                    .font(.system(size: 20)).foregroundStyle(Color.labelSecondary).lineLimit(1)
-            }
+            titleArtistMenu
             Spacer(minLength: Spacing.sm)
             Button { addCurrentToLibrary() } label: {
                 circleIcon(addedToLibrary ? "star.fill" : "star",
@@ -660,6 +667,64 @@ struct NowPlayingView: View {
             .accessibilityLabel("More")
         }
     }
+
+    /// Tapping the title/artist opens the "Go to Album" / "Go to Artist" menu
+    /// (just like the Apple Music now-playing screen), which pushes a real detail
+    /// screen for the current track's album or artist.
+    @ViewBuilder private var titleArtistMenu: some View {
+#if canImport(MusicKit)
+        Menu {
+            Button { goTo(.album) } label: {
+                Label(albumMenuTitle, systemImage: "square.stack")
+            }
+            Button { goTo(.artist) } label: {
+                Label(artistMenuTitle, systemImage: "music.mic")
+            }
+        } label: {
+            titleArtist
+        }
+        .disabled(music.currentSong == nil)
+#else
+        titleArtist
+#endif
+    }
+
+    private var titleArtist: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 6) {
+                Text(music.nowPlayingTitle ?? "Not playing")
+                    .font(.system(size: 22, weight: .bold)).foregroundStyle(Color.labelPrimary).lineLimit(1)
+                if isExplicit { explicitBadge }
+            }
+            Text(music.nowPlayingArtist ?? "")
+                .font(.system(size: 20)).foregroundStyle(Color.labelSecondary).lineLimit(1)
+        }
+        .multilineTextAlignment(.leading)
+        .contentShape(Rectangle())
+    }
+
+#if canImport(MusicKit)
+    private var albumMenuTitle: String {
+        music.currentSong?.albumTitle.map { "Go to Album · \($0)" } ?? "Go to Album"
+    }
+    private var artistMenuTitle: String {
+        music.nowPlayingArtist.map { "Go to Artist · \($0)" } ?? "Go to Artist"
+    }
+
+    private func goTo(_ which: GoDestination) {
+        guard let song = music.currentSong else { return }
+        MtrxHaptics.impact(.light)
+        loadingDestination = true
+        Task {
+            let (album, artist) = await music.albumAndArtist(of: song)
+            loadingDestination = false
+            switch which {
+            case .album:  goToAlbum = album
+            case .artist: goToArtist = artist
+            }
+        }
+    }
+#endif
 
     private var explicitBadge: some View {
         Text("E")

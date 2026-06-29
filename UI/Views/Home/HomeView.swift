@@ -203,7 +203,7 @@ struct HomeView: View {
                 .environmentObject(walletManager)
         }
         .sheet(isPresented: $showMusicPlayer) {
-            MusicPlayerView()
+            MusicHubView()
         }
     }
 

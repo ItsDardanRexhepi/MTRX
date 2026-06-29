@@ -73,6 +73,14 @@ final class MusicKitManager {
     enum ChartLoad: Equatable { case idle, loading, loaded, failed }
     private(set) var chartLoad: ChartLoad = .idle
 
+    // Top albums chart (the hub's "New" tab) — same single live request as the song chart.
+    private(set) var albumChart: MusicItemCollection<Album> = []
+
+    // The user's recently played songs (the hub's Home tab). Real history, gated by the
+    // same authorization; empty/honest when there's no history or no MusicKit capability.
+    private(set) var recentlyPlayed: MusicItemCollection<Song> = []
+    private(set) var recentlyPlayedLoad: ChartLoad = .idle
+
     private(set) var currentSong: Song?
     private(set) var queueSongs: [Song] = []
     private(set) var currentIndex: Int = 0
@@ -90,7 +98,7 @@ final class MusicKitManager {
         @unknown default:    state = .unavailable
         }
         if MusicAuthorization.currentStatus == .authorized {
-            Task { await updateSubscription(); await loadChart() }
+            Task { await updateSubscription(); await loadChart(); await loadRecentlyPlayed() }
         }
     }
 
@@ -99,7 +107,7 @@ final class MusicKitManager {
         isWorking = true
         defer { isWorking = false }
         switch await MusicAuthorization.request() {
-        case .authorized:          await updateSubscription(); await loadChart()
+        case .authorized:          await updateSubscription(); await loadChart(); await loadRecentlyPlayed()
         case .denied, .restricted: state = .denied
         case .notDetermined:       state = .notConnected
         @unknown default:          state = .unavailable
@@ -118,14 +126,32 @@ final class MusicKitManager {
     private func loadChart() async {
         chartLoad = .loading
         do {
-            var request = MusicCatalogChartsRequest(kinds: [.mostPlayed], types: [Song.self])
+            var request = MusicCatalogChartsRequest(kinds: [.mostPlayed], types: [Song.self, Album.self])
             request.limit = 25
             let response = try await request.response()
             chart = response.songCharts.first?.items ?? []
+            albumChart = response.albumCharts.first?.items ?? []
             chartLoad = .loaded
         } catch {
             chart = []
+            albumChart = []
             chartLoad = .failed
+        }
+    }
+
+    /// The user's recently played songs, for the hub's Home tab. No subscription
+    /// needed to read; honest empty/failed states when there's no history or the
+    /// MusicKit capability isn't enabled.
+    private func loadRecentlyPlayed() async {
+        recentlyPlayedLoad = .loading
+        do {
+            var request = MusicRecentlyPlayedRequest<Song>()
+            request.limit = 25
+            recentlyPlayed = try await request.response().items
+            recentlyPlayedLoad = .loaded
+        } catch {
+            recentlyPlayed = []
+            recentlyPlayedLoad = .failed
         }
     }
 
@@ -458,6 +484,46 @@ final class MusicKitManager {
             artists: response.artists,
             playlists: response.playlists
         )
+    }
+
+    /// Catalog songs matching a term — used for genre browse and the Radio stations.
+    func catalogSongs(matching term: String, limit: Int = 25) async throws -> [Song] {
+        var request = MusicCatalogSearchRequest(term: term, types: [Song.self])
+        request.limit = limit
+        return Array(try await request.response().songs)
+    }
+
+    /// Start a "station": play a shuffled queue of catalog songs for a term (e.g. a
+    /// genre). It's a real, honest shuffle of Apple Music catalog content — not a
+    /// licensed Apple Music radio stream — and plays through the same queue engine.
+    @discardableResult
+    func playStation(term: String) async -> PlayOutcome {
+        guard isConnected else {
+            return PlayOutcome(ok: false, message: "Connect Apple Music in the player first.")
+        }
+        do {
+            let songs = try await catalogSongs(matching: term, limit: 40)
+            guard !songs.isEmpty else {
+                return PlayOutcome(ok: false, message: "Couldn't find songs for \u{201C}\(term)\u{201D}.")
+            }
+            shuffleOn = true
+            await startQueue(songs: songs.shuffled(), at: 0)
+            return PlayOutcome(ok: true, message: "Playing \(term).")
+        } catch {
+            return PlayOutcome(ok: false, message: "I couldn't reach Apple Music just now.")
+        }
+    }
+
+    /// The album and primary artist a song belongs to — for the now-playing
+    /// "Go to Album" / "Go to Artist" menu. Returns whatever resolves; nil when a
+    /// relationship isn't available (the menu hides the missing option honestly).
+    func albumAndArtist(of song: Song) async -> (album: Album?, artist: Artist?) {
+        if let detailed = try? await song.with([.albums, .artists]) {
+            let album = detailed.albums?.first
+            let artist = detailed.artists?.first
+            if album != nil || artist != nil { return (album, artist) }
+        }
+        return (nil, nil)
     }
 
     // MARK: - Add to library (real MusicKit write — operate Apple Music)

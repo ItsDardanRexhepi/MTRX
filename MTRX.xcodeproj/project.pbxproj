@@ -204,6 +204,7 @@
 		A1A1A1A1A1A1A1A1A1A1A101 /* WidgetSharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A102 /* WidgetSharedStore.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A301 /* MusicKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A302 /* MusicKitManager.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A401 /* MusicPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A402 /* MusicPlayerView.swift */; };
+		A1A1A1A1A1A1A1A1A1A1A4C1 /* MusicHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A4C2 /* MusicHubView.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A4B1 /* MusicLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A4B2 /* MusicLibraryView.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A5B1 /* ReplayKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A5B2 /* ReplayKitManager.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A5C1 /* MetricsCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A5C2 /* MetricsCollector.swift */; };
@@ -554,6 +555,7 @@
 		A1A1A1A1A1A1A1A1A1A1A102 /* WidgetSharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WidgetSharedStore.swift"; path = "UI/Widgets/WidgetSharedStore.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A302 /* MusicKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MusicKitManager.swift"; path = "Apple/Music/MusicKitManager.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A402 /* MusicPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MusicPlayerView.swift"; path = "UI/Views/Music/MusicPlayerView.swift"; sourceTree = SOURCE_ROOT; };
+		A1A1A1A1A1A1A1A1A1A1A4C2 /* MusicHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MusicHubView.swift"; path = "UI/Views/Music/MusicHubView.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A4B2 /* MusicLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MusicLibraryView.swift"; path = "UI/Views/Music/MusicLibraryView.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A5B2 /* ReplayKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ReplayKitManager.swift"; path = "Apple/Media/ReplayKitManager.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A5C2 /* MetricsCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MetricsCollector.swift"; path = "Core/Diagnostics/MetricsCollector.swift"; sourceTree = SOURCE_ROOT; };
@@ -1898,6 +1900,7 @@
 				A1A1A1A1A1A1A1A1A1A1A101 /* WidgetSharedStore.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A301 /* MusicKitManager.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A401 /* MusicPlayerView.swift in Sources */,
+				A1A1A1A1A1A1A1A1A1A1A4C1 /* MusicHubView.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A4B1 /* MusicLibraryView.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A5B1 /* ReplayKitManager.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A5C1 /* MetricsCollector.swift in Sources */,
