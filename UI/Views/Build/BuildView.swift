@@ -224,7 +224,7 @@ struct BuildView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    MtrxGlassCircleButton(icon: Symbols.filter) {
+                    MtrxGlassCircleButton(icon: "line.3.horizontal.decrease") {
                         viewModel.showContractFilter = true
                     }
                 }

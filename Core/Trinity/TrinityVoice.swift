@@ -20,8 +20,17 @@ struct VoiceProfile: Sendable {
     let language: String
     let preUtteranceDelay: TimeInterval
     let postUtteranceDelay: TimeInterval
+    /// Exact system-voice identifiers to use when installed, in priority order (e.g.
+    /// the premium "Ava" voice). This is what gives Trinity HER voice rather than
+    /// whatever generic voice happens to be first on the device.
+    var preferredVoiceIdentifiers: [String] = []
+    /// Voice-name fragments to prefer when no exact identifier is installed.
+    var preferredVoiceNames: [String] = []
+    /// The voice gender to keep consistent across devices and languages.
+    var preferredGender: AVSpeechSynthesisVoiceGender = .unspecified
 
-    /// Trinity's default voice: calm, measured, confident.
+    /// Trinity's voice: a calm, measured, confident FEMALE voice. Prefers the premium
+    /// "Ava" voice; otherwise the best available female voice — never a random first pick.
     static let trinity = VoiceProfile(
         identifier: "com.mtrx.trinity",
         name: "Trinity",
@@ -30,7 +39,13 @@ struct VoiceProfile: Sendable {
         volume: 0.85,
         language: "en-US",
         preUtteranceDelay: 0.1,
-        postUtteranceDelay: 0.2
+        postUtteranceDelay: 0.2,
+        preferredVoiceIdentifiers: [
+            "com.apple.voice.premium.en-US.Ava",
+            "com.apple.voice.enhanced.en-US.Ava"
+        ],
+        preferredVoiceNames: ["Ava", "Samantha", "Allison", "Susan", "Nicky", "Zoe"],
+        preferredGender: .female
     )
 }
 
@@ -57,7 +72,11 @@ final class TrinityVoice: NSObject, @unchecked Sendable {
         super.init()
         self.synthesizer.delegate = self
         self.selectedVoice = selectBestVoice(for: profile)
-        configureAudioSession()
+        // Do NOT configure/activate the audio session here. Activating the .playback
+        // session on init would interrupt the user's Apple Music the moment an agent chat
+        // opens — before any voice is used. The session is configured lazily in speak()
+        // (and re-asserted there after the mic), so simply opening a chat leaves other
+        // audio playing untouched.
     }
 
     // MARK: - Audio Session
@@ -140,7 +159,10 @@ final class TrinityVoice: NSObject, @unchecked Sendable {
         let profile = VoiceProfile(
             identifier: base.identifier, name: base.name, rate: base.rate, pitch: base.pitch,
             volume: base.volume, language: Self.ttsLocale(for: languageCode),
-            preUtteranceDelay: base.preUtteranceDelay, postUtteranceDelay: base.postUtteranceDelay
+            preUtteranceDelay: base.preUtteranceDelay, postUtteranceDelay: base.postUtteranceDelay,
+            preferredVoiceIdentifiers: base.preferredVoiceIdentifiers,
+            preferredVoiceNames: base.preferredVoiceNames,
+            preferredGender: base.preferredGender
         )
         await speak(text, with: profile)
     }
@@ -212,18 +234,39 @@ final class TrinityVoice: NSObject, @unchecked Sendable {
     }
 
     private func selectBestVoice(for profile: VoiceProfile) -> AVSpeechSynthesisVoice? {
-        // Prefer enhanced/premium voices
-        let voices = AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language == profile.language }
+        let all = AVSpeechSynthesisVoice.speechVoices()
 
-        // Try to find a premium quality voice first
-        if let premium = voices.first(where: { $0.quality == .premium }) {
-            return premium
+        // 1) An exact preferred voice (e.g. premium "Ava"), if it's installed.
+        for id in profile.preferredVoiceIdentifiers {
+            if let v = all.first(where: { $0.identifier == id }) { return v }
         }
-        if let enhanced = voices.first(where: { $0.quality == .enhanced }) {
-            return enhanced
+
+        let langExact = all.filter { $0.language == profile.language }
+        let langFamily = all.filter { $0.language.hasPrefix(profile.language.prefix(2)) }
+
+        // 2) The best voice matching the profile's gender + name preferences, ranked by
+        //    quality — so Trinity is consistently HER voice, not a random first pick.
+        func best(in pool: [AVSpeechSynthesisVoice]) -> AVSpeechSynthesisVoice? {
+            guard !pool.isEmpty else { return nil }
+            let byGender = profile.preferredGender == .unspecified
+                ? pool : pool.filter { $0.gender == profile.preferredGender }
+            let gendered = byGender.isEmpty ? pool : byGender
+            let named = gendered.filter { v in
+                profile.preferredVoiceNames.contains { v.name.localizedCaseInsensitiveContains($0) }
+            }
+            return (named.isEmpty ? gendered : named)
+                .max { Self.qualityRank($0.quality) < Self.qualityRank($1.quality) }
         }
-        return voices.first
+
+        return best(in: langExact) ?? best(in: langFamily) ?? langExact.first ?? all.first
+    }
+
+    private static func qualityRank(_ q: AVSpeechSynthesisVoiceQuality) -> Int {
+        switch q {
+        case .premium: return 3
+        case .enhanced: return 2
+        default: return 1
+        }
     }
 }
 

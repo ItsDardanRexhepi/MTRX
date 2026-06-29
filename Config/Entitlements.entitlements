@@ -22,5 +22,11 @@
 	     is shown in the agent chat wherever weather is surfaced. -->
 	<key>com.apple.developer.weatherkit</key>
 	<true/>
+	<!-- Game Center: GameKitManager authenticates the local player and posts
+	     leaderboard scores / achievements for the mini-games. REQUIRES the
+	     Game Center capability enabled on the App ID in the Apple Developer
+	     portal; the leaderboards/achievements are configured in App Store Connect. -->
+	<key>com.apple.developer.game-center</key>
+	<true/>
 </dict>
 </plist>

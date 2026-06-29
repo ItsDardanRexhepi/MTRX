@@ -126,11 +126,12 @@ struct HomeView: View {
             withAnimation(Motion.springDefault.delay(0.1)) {
                 appeared = true
             }
-            // One-time: adopt the new quick-action order (Pay, Shop, Invest,
-            // Play, Earn, Events) even for existing installs.
-            if !quickActionsMigratedV2 {
-                quickActionsRaw = "shop,play,events,identity,storage"
-                quickActionsMigratedV2 = true
+            // One-time: seed the home with SIX quick actions in the intended order —
+            // left column Pay / Earn / Invest, right column Shop / Play / Messages (a
+            // 2-column grid fills row-by-row). Re-applied once for existing installs.
+            if !quickActionsMigratedV4 {
+                quickActionsRaw = "pay,shop,earn,play,invest,messages"
+                quickActionsMigratedV4 = true
             }
             // No auto-prompt on launch — Face ID goes straight to Home. The
             // user can set their name any time by tapping it in the greeting.
@@ -784,7 +785,7 @@ struct HomeView: View {
     @AppStorage("com.mtrx.home.quickActions") private var quickActionsRaw =
         "pay,shop,invest,play,earn,events"
     /// One-time reset so existing installs pick up the new default order.
-    @AppStorage("com.mtrx.home.quickActions.v2") private var quickActionsMigratedV2 = false
+    @AppStorage("com.mtrx.home.quickActions.v4") private var quickActionsMigratedV4 = false
     @State private var editingActions = false
     @State private var jiggle = false
     @State private var showActionPicker = false
@@ -1029,7 +1030,7 @@ struct HomeView: View {
                             Text(token.symbol)
                                 .font(.mtrxCaption2)
                                 .foregroundStyle(Color.labelTertiary)
-                            Text(String(format: "%.3f", token.balance))
+                            Text(String(format: (token.symbol == "USDC" || token.symbol == "MTRX") ? "%.2f" : "%.3f", token.balance))
                                 .font(.mtrxCaptionBold)
                                 .foregroundStyle(Color.labelPrimary)
                         }

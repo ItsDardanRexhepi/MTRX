@@ -836,29 +836,24 @@ struct AgentConversationView: View {
 
     private var inputBar: some View {
         HStack(spacing: Spacing.sm) {
-            // Microphone button
+            // Tap to speak — one push-to-talk control that replaces the old separate
+            // mic + speaker buttons. Tap to talk to the agent; when you stop, your
+            // words send and the reply is spoken back in her voice.
             Button {
-                MtrxHaptics.impact(.light)
-                viewModel.toggleVoiceInput()
+                MtrxHaptics.impact(.medium)
+                viewModel.toggleVoiceTurn()
             } label: {
-                Image(systemName: viewModel.isListening ? Symbols.microphoneSlash : Symbols.microphone)
-                    .accessibilityLabel(viewModel.isListening ? "Stop listening" : "Speak to \(agentName)")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(viewModel.isListening ? Color.statusError : Color.labelTertiary)
-                    .frame(width: 36, height: 36)
+                ZStack {
+                    Circle().fill(voiceButtonFill).frame(width: 38, height: 38)
+                    Image(systemName: voiceButtonIcon)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(voiceButtonTint)
+                }
+                .scaleEffect(viewModel.isListening || viewModel.isSpeaking ? 1.06 : 1.0)
+                .animation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true),
+                           value: viewModel.isListening || viewModel.isSpeaking)
             }
-
-            // Speaker toggle — read Trinity's replies aloud (on-device TTS).
-            Button {
-                MtrxHaptics.impact(.light)
-                viewModel.toggleVoiceOutput()
-            } label: {
-                Image(systemName: viewModel.voiceOutputEnabled ? "speaker.wave.2.fill" : "speaker.slash")
-                    .accessibilityLabel(viewModel.voiceOutputEnabled ? "Mute Trinity's voice" : "Hear Trinity's replies")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(viewModel.voiceOutputEnabled ? agentAccent : Color.labelTertiary)
-                    .frame(width: 32, height: 36)
-            }
+            .accessibilityLabel(voiceButtonLabel)
 
             // Text field — addressed to whoever is in the room.
             TextField("Ask \(agentName)...", text: $viewModel.inputText, axis: .vertical)
@@ -899,6 +894,26 @@ struct AgentConversationView: View {
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
+    }
+
+    // Tap-to-speak button appearance, driven by the voice-turn state.
+    private var voiceButtonIcon: String {
+        if viewModel.isListening { return "waveform" }
+        if viewModel.isSpeaking { return "speaker.wave.2.fill" }
+        return "mic.fill"
+    }
+    private var voiceButtonTint: Color {
+        (viewModel.isListening || viewModel.isSpeaking) ? .white : agentAccent
+    }
+    private var voiceButtonFill: Color {
+        if viewModel.isListening { return Color.statusError.opacity(0.9) }
+        if viewModel.isSpeaking { return agentAccent.opacity(0.9) }
+        return Color.surfaceOverlay
+    }
+    private var voiceButtonLabel: String {
+        if viewModel.isListening { return "Listening — tap to stop" }
+        if viewModel.isSpeaking { return "\(agentName) is speaking — tap to stop" }
+        return "Tap to speak to \(agentName)"
     }
 }
 

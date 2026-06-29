@@ -82,21 +82,24 @@ struct MtrxGlassCircleButton: View {
             action()
         }) {
             ZStack {
-                Circle()
-                    .fill(tint.opacity(0.18))
-                    .mtrxLiquidGlass(in: Circle())
+                // A light frosted bubble with a faint brand-cyan wash, so the dark
+                // icon always reads as clean, properly-aligned "black lines" — a clear
+                // menu / filter button (the build-186 reference look).
+                Circle().fill(.regularMaterial)
+                Circle().fill(tint.opacity(0.12))
                 Image(systemName: icon)
-                    .font(.system(size: size * 0.46, weight: .semibold))
-                    .foregroundStyle(tint)
+                    .font(.system(size: size * 0.44, weight: .bold))
+                    .foregroundStyle(Color.black.opacity(0.80))
             }
             .frame(width: size, height: size)
-            // Light falls from above — a lit top rim and a soft, diffuse
-            // drop shadow lift the glass disc off the surface.
+            .clipShape(Circle())
+            // A fully-enclosing rim so the circle reads as a clean, complete disc,
+            // lifted off the surface by a soft drop shadow.
             .overlay(
                 Circle().stroke(
-                    LinearGradient(colors: [.white.opacity(0.28), .white.opacity(0.04)],
+                    LinearGradient(colors: [.white.opacity(0.5), .white.opacity(0.18)],
                                    startPoint: .top, endPoint: .bottom),
-                    lineWidth: 0.8
+                    lineWidth: 1.4
                 )
             )
             .shadow(color: .black.opacity(0.18), radius: 5, y: 2)

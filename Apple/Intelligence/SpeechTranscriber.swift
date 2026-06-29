@@ -20,6 +20,10 @@ final class SpeechTranscriber: NSObject {
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
 
+    // Silence-driven turn ending + a watchdog for the graceful finish.
+    private var silenceWork: DispatchWorkItem?
+    private var finishWatchdog: DispatchWorkItem?
+
     private var onPartialResult: ((String) -> Void)?
     private var onFinalResult: ((TranscriptionResult) -> Void)?
     private var onError: ((Error) -> Void)?
@@ -124,40 +128,10 @@ final class SpeechTranscriber: NSObject {
         let startTime = Date()
 
         recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
-            guard let self = self else { return }
-
-            if let error = error {
-                self.state = .error(error)
-                self.onError?(error)
-                self.stopTranscription()
-                return
-            }
-
-            guard let result = result else { return }
-
-            if result.isFinal {
-                let segments = result.bestTranscription.segments.map { segment in
-                    TranscriptionSegment(
-                        text: segment.substring,
-                        timestamp: segment.timestamp,
-                        duration: segment.duration,
-                        confidence: segment.confidence
-                    )
-                }
-
-                let transcription = TranscriptionResult(
-                    text: result.bestTranscription.formattedString,
-                    confidence: segments.map(\.confidence).reduce(0, +) / Float(max(segments.count, 1)),
-                    segments: segments,
-                    duration: Date().timeIntervalSince(startTime),
-                    isFinal: true
-                )
-
-                self.state = .idle
-                self.onFinalResult?(transcription)
-            } else {
-                self.state = .recording
-                self.onPartialResult?(result.bestTranscription.formattedString)
+            // Route every callback onto the main queue so the engine, timers, and
+            // state are only ever touched from one place.
+            DispatchQueue.main.async {
+                self?.handleRecognition(result: result, error: error, startTime: startTime)
             }
         }
 
@@ -173,11 +147,91 @@ final class SpeechTranscriber: NSObject {
         try audioEngine.start()
 
         state = .recording
+        // Give the user a few seconds to start talking; after that a pause ends the turn.
+        scheduleSilenceFinish(after: 4.0)
+    }
+
+    // MARK: - Recognition handling (always on the main queue)
+
+    private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?, startTime: Date) {
+        if let error = error {
+            // A deliberate cancel (stopTranscription) surfaces here as an error after
+            // we've already gone idle — don't nag the user about that.
+            switch state {
+            case .recording, .processing: onError?(error)
+            default: break
+            }
+            cleanupAfterFinish()
+            return
+        }
+        guard let result = result else { return }
+        if result.isFinal {
+            let segments = result.bestTranscription.segments.map { seg in
+                TranscriptionSegment(text: seg.substring, timestamp: seg.timestamp,
+                                     duration: seg.duration, confidence: seg.confidence)
+            }
+            let transcription = TranscriptionResult(
+                text: result.bestTranscription.formattedString,
+                confidence: segments.map(\.confidence).reduce(0, +) / Float(max(segments.count, 1)),
+                segments: segments,
+                duration: Date().timeIntervalSince(startTime),
+                isFinal: true
+            )
+            onFinalResult?(transcription)
+            cleanupAfterFinish()
+        } else {
+            state = .recording
+            onPartialResult?(result.bestTranscription.formattedString)
+            scheduleSilenceFinish(after: 1.8)   // reset the pause timer on every word
+        }
+    }
+
+    /// End the current turn after `seconds` of no new words.
+    private func scheduleSilenceFinish(after seconds: TimeInterval) {
+        silenceWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.finishTranscription() }
+        silenceWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
+    }
+
+    /// Gracefully end capture so the recognizer delivers a FINAL result (unlike
+    /// stopTranscription, which cancels and yields nothing). Ends a spoken turn.
+    func finishTranscription() {
+        guard recognitionTask != nil, case .recording = state else { return }
+        state = .processing
+        silenceWork?.cancel(); silenceWork = nil
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+        recognitionRequest?.endAudio()
+        // If the recognizer never returns a final, force an (empty) finish so the UI
+        // never hangs in "processing".
+        let watchdog = DispatchWorkItem { [weak self] in
+            guard let self, self.recognitionTask != nil else { return }
+            self.onFinalResult?(TranscriptionResult(text: "", confidence: 0, segments: [], duration: 0, isFinal: true))
+            self.cleanupAfterFinish()
+        }
+        finishWatchdog = watchdog
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0, execute: watchdog)
+    }
+
+    private func cleanupAfterFinish() {
+        silenceWork?.cancel(); silenceWork = nil
+        finishWatchdog?.cancel(); finishWatchdog = nil
+        if audioEngine.isRunning {
+            audioEngine.stop()
+            audioEngine.inputNode.removeTap(onBus: 0)
+        }
+        recognitionRequest = nil
+        recognitionTask = nil
+        state = .idle
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     // MARK: - Stop Transcription
 
     func stopTranscription() {
+        silenceWork?.cancel(); silenceWork = nil
+        finishWatchdog?.cancel(); finishWatchdog = nil
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
 

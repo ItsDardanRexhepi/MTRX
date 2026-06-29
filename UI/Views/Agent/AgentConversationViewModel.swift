@@ -44,24 +44,37 @@ final class AgentConversationViewModel: ObservableObject {
     @Published var voiceError: String?
     private let transcriber = SpeechTranscriber.shared
 
-    /// Toggle the microphone. On-device transcription (SFSpeechRecognizer, requiresOnDeviceRecognition)
-    /// streams into inputText as the user speaks — 100% on-device for Tier-1 languages, nothing leaves
-    /// the device. (Tier-2 extended/auto-detect voice is gated behind ExtendedLanguageGate and wired to
-    /// the cloud STT later — V3.5/V4.) Money-isolated: only mutates chat text.
-    func toggleVoiceInput() {
-        if isListening { stopVoiceInput() } else { startVoiceInput() }
+    /// Armed when the user sends a message by voice; the resulting reply is spoken
+    /// back in Trinity's voice. Set per-send in `sendMessage(viaVoice:)` and consumed
+    /// in `speakIfEnabled`, so typed messages stay silent — voice in, voice out;
+    /// text in, text out.
+    private var speakNextReply = false
+
+    /// The single "tap to speak" control for a voice turn. Tap → listen; then speak and
+    /// PAUSE (the turn ends on its own) or tap again to end it now — either way the heard
+    /// text auto-sends and Trinity speaks her reply aloud. Tap while she's speaking to
+    /// barge in and stop her. On-device transcription (SFSpeechRecognizer,
+    /// requiresOnDeviceRecognition) for Tier-1 languages; nothing leaves the device.
+    func toggleVoiceTurn() {
+        // While listening, a tap ENDS the turn gracefully (finish, not cancel) so the
+        // recognizer delivers the final transcription → it auto-sends and Trinity speaks
+        // the reply. A pause ends the turn the same way (transcriber silence timer), so
+        // it's hands-free. (The old cancel path delivered nothing — hence "only dictation".)
+        if isListening { transcriber.finishTranscription(); return }
+        if isSpeaking { trinityVoice.stop(); isSpeaking = false; return }
+        startVoiceInput()
     }
 
     func startVoiceInput() {
         voiceError = nil
-        // V5 — barge-in + clean handoff: stop any in-progress speech before recording, so the
+        // Barge-in + clean handoff: stop any in-progress speech before recording, so the
         // session moves .playback → .record and the mic never captures Trinity's own voice.
         trinityVoice.stop()
         isSpeaking = false
         transcriber.requestAuthorization { [weak self] granted in
             guard let self else { return }
             guard granted else {
-                self.voiceError = "Speech recognition is off. Turn it on in Settings → Privacy → Speech Recognition to talk to Trinity."
+                self.voiceError = "Voice input needs Microphone and Speech Recognition access. Turn both on in Settings → Privacy to talk to Trinity."
                 return
             }
             do {
@@ -71,8 +84,13 @@ final class AgentConversationViewModel: ObservableObject {
                     },
                     onFinal: { [weak self] result in
                         DispatchQueue.main.async {
-                            self?.inputText = result.text
-                            self?.isListening = false
+                            guard let self else { return }
+                            self.inputText = result.text
+                            self.isListening = false
+                            // Voice turn: auto-send the heard text and speak the reply back.
+                            let heard = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !heard.isEmpty else { return }
+                            self.sendMessage(viaVoice: true)
                         }
                     },
                     onError: { [weak self] _ in
@@ -96,21 +114,19 @@ final class AgentConversationViewModel: ObservableObject {
     }
 
     // MARK: - Voice output (V4 — on-device TTS, Tier 1)
-    @Published var voiceOutputEnabled = false
     @Published var isSpeaking = false
     private let trinityVoice = TrinityVoice()
 
-    func toggleVoiceOutput() {
-        voiceOutputEnabled.toggle()
-        if !voiceOutputEnabled { trinityVoice.stop() }
-    }
-
-    /// Speak an agent reply when voice output is on. On-device, in the reply's OWN language for
-    /// Tier-1 languages; for a language with no on-device voice we stay SILENT (the text reply
-    /// still shows) rather than speak it in the wrong voice — honest, not faked. Tier-2 neural TTS
-    /// is gated behind ExtendedLanguageGate and wired with credentials later. Money-isolated.
+    /// Speak an agent reply when this turn was started by voice (see `speakNextReply`). The
+    /// flag is consumed here so exactly one reply per voice turn is spoken and the next typed
+    /// reply stays silent. On-device, in the reply's OWN language for Tier-1 languages; for a
+    /// language with no on-device voice we stay SILENT (the text reply still shows) rather than
+    /// speak it in the wrong voice — honest, not faked. Tier-2 neural TTS is gated behind
+    /// ExtendedLanguageGate and wired with credentials later. Money-isolated.
     func speakIfEnabled(_ text: String) {
-        guard voiceOutputEnabled else { return }
+        let shouldSpeak = speakNextReply
+        speakNextReply = false
+        guard shouldSpeak else { return }
         let spoken = Self.strippedForSpeech(text)
         guard !spoken.isEmpty else { return }
         let lang = NaturalLanguageProcessor.shared.languageProfile(for: spoken)
@@ -244,9 +260,13 @@ final class AgentConversationViewModel: ObservableObject {
         activeAgent = agent
         pendingAction = nil
         showFirstBoot = false
-        messages = announce
-            ? [AgentMessage(text: Self.openingLine(for: agent), role: .agent, agentName: Self.displayName(of: agent))]
-            : []
+        // Start every new chat empty so the user's own first message is the first
+        // bubble in the thread. The agent's greeting lives in the centered overlay
+        // (which fades the moment they start typing) — never as a pre-seeded agent
+        // bubble that would push the user's first line down. `announce` is retained
+        // for call-site compatibility but no longer seeds a message.
+        _ = announce
+        messages = []
     }
 
     /// Jump straight into an agent's chat (most recent, or fresh) —
@@ -268,7 +288,18 @@ final class AgentConversationViewModel: ObservableObject {
         activeAgent = convo.agent
         pendingAction = nil
         showFirstBoot = false
-        messages = convo.messages
+        // Older builds seeded an agent "greeting" as the first bubble. Drop any leading
+        // non-user messages so the user's own message is always first — the greeting
+        // lives in the centred splash now, never in the thread. The cleaned thread is
+        // re-persisted on the next change, so the stale greeting heals itself.
+        messages = Self.withoutLeadingGreeting(convo.messages)
+    }
+
+    /// Strip any leading agent/system messages (a stale seeded greeting) so the first
+    /// bubble is the user's. A greeting-only chat opens empty.
+    private static func withoutLeadingGreeting(_ msgs: [AgentMessage]) -> [AgentMessage] {
+        guard let firstUser = msgs.firstIndex(where: { $0.role == .user }) else { return [] }
+        return firstUser == 0 ? msgs : Array(msgs[firstUser...])
     }
 
     /// "Talk to Morpheus" opens that agent's own chat — the most recent
@@ -313,14 +344,6 @@ final class AgentConversationViewModel: ObservableObject {
         case .trinity: return "Trinity"
         case .morpheus: return "Morpheus"
         case .neo: return "Neo"
-        }
-    }
-
-    private static func openingLine(for agent: AgentAccessControl.ActiveAgent) -> String {
-        switch agent {
-        case .trinity: return "New conversation — what do you need?"
-        case .morpheus: return "You have my attention. Speak."
-        case .neo: return "Channel open. Report."
         }
     }
 
@@ -369,9 +392,12 @@ final class AgentConversationViewModel: ObservableObject {
 
     // MARK: - Send Message
 
-    func sendMessage() {
+    func sendMessage(viaVoice: Bool = false) {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+
+        // Voice turns speak the reply back in Trinity's voice; typed turns stay silent.
+        speakNextReply = viaVoice
 
         // The user actually talked to an agent — that completes the goal.
         DailyFlow.shared.mark(.agent)

@@ -9,25 +9,142 @@
 
 import SwiftUI
 import Observation
+import MediaPlayer   // MPVolumeView — writes the system volume behind the SwiftUI slider
+import AVKit         // AVRoutePickerView — AirPlay / output-route selection
+import Combine       // ObservableObject for the system-volume bridge
 #if canImport(MusicKit)
 import MusicKit
 #endif
 
-// MARK: - Apple Music attribution (text only — never recreate the Apple logo)
+// MARK: - Apple Music attribution lockup (single-line, never wraps)
 
-/// Plain "Apple Music" text attribution. Per the SF Symbols license and the Apple
-/// Music Identity Guidelines we must NOT build a custom lockup from the Apple logo —
-/// the old version did exactly that (`applelogo` symbol + "Music"). Text attribution
-/// is the compliant form for in-app use; if a branded badge is ever wanted, use
-/// Apple's official Apple Music badge artwork (a supplied asset), never a hand-rolled mark.
+/// Apple Music attribution: the Apple logo glyph + "Music", per the product owner's
+/// design decision — build 186 displayed it this way and that is the desired presentation.
 struct AppleMusicBadge: View {
     var body: some View {
-        Text("Apple Music")
-            .font(.system(size: 12, weight: .semibold))
-            .fixedSize()
-            .foregroundStyle(Color.labelSecondary)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Apple Music")
+        // Two text runs on one baseline. The glyph is a touch smaller than the word
+        // and gets a small upward baseline offset — a bare inline Apple logo renders
+        // slightly large and low — leaving it optically centred with "Music"
+        // everywhere the badge appears (toolbar, Home card, now-playing, attribution).
+        (
+            Text("\(Image(systemName: "applelogo"))")
+                .font(.system(size: 11, weight: .semibold)).baselineOffset(1.0)
+            + Text(" Music").font(.system(size: 13, weight: .semibold))
+        )
+        .fixedSize()
+        .foregroundStyle(Color.labelSecondary)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Apple Music")
+    }
+}
+
+// MARK: - System volume + AirPlay (UIKit bridges)
+
+/// A real system-output volume slider. Wraps `MPVolumeView`, so it reflects and
+/// drives the SAME volume the hardware buttons control — exactly how any music
+/// player behaves. (Renders empty in the Simulator; live on a device.)
+/// Reads + writes the system output volume. The VISIBLE control is a plain SwiftUI
+/// Slider (so the layout can never be forced off-screen the way an in-flow MPVolumeView
+/// was); a 1×1 off-screen MPVolumeView, hosted via `HiddenVolumeHost`, is used only to
+/// write the value, and KVO on the audio session reflects the hardware buttons live.
+final class SystemVolume: ObservableObject {
+    @Published var level: Float = AVAudioSession.sharedInstance().outputVolume
+    let mpView = MPVolumeView(frame: .zero)
+    private var observation: NSKeyValueObservation?
+    private var ignoreEchoUntil = Date.distantPast
+
+    init() {
+        observation = AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.new]) { [weak self] _, change in
+            guard let self, let v = change.newValue else { return }
+            DispatchQueue.main.async {
+                if Date() > self.ignoreEchoUntil { self.level = v }   // ignore our own writes
+            }
+        }
+    }
+
+    func set(_ v: Float) {
+        level = v
+        ignoreEchoUntil = Date().addingTimeInterval(0.3)
+        if let slider = mpView.subviews.compactMap({ $0 as? UISlider }).first {
+            slider.value = v   // an in-hierarchy MPVolumeView slider drives the system volume
+        }
+    }
+}
+
+/// Hosts the 1×1 off-screen MPVolumeView so its slider can write the system volume.
+struct HiddenVolumeHost: UIViewRepresentable {
+    let view: MPVolumeView
+    func makeUIView(context: Context) -> MPVolumeView { view }
+    func updateUIView(_ uiView: MPVolumeView, context: Context) {}
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: MPVolumeView, context: Context) -> CGSize? {
+        CGSize(width: 1, height: 1)
+    }
+}
+
+/// The AirPlay / output-route button — send playback to AirPods, a HomePod,
+/// AirPlay speakers, etc., just like the Apple Music now-playing screen.
+struct AirPlayRoutePicker: UIViewRepresentable {
+    var tint: UIColor = UIColor(Color.labelSecondary)
+    var activeTint: UIColor = UIColor(Color.accentPrimary)
+    func makeUIView(context: Context) -> AVRoutePickerView {
+        let v = AVRoutePickerView()
+        v.tintColor = tint
+        v.activeTintColor = activeTint
+        v.prioritizesVideoDevices = false
+        v.backgroundColor = .clear
+        return v
+    }
+    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
+    // Pin to a fixed size so the UIKit view can never widen the controls row.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: AVRoutePickerView, context: Context) -> CGSize? {
+        CGSize(width: 28, height: 28)
+    }
+}
+
+// MARK: - Lyrics (honest placeholder until a licensed provider is wired)
+
+/// Lyrics aren't exposed by MusicKit's public API, and reproducing licensed lyric
+/// text would be a copyright problem — so until a licensed lyrics provider is wired
+/// up, this surfaces an honest, never-faked state instead of inventing words.
+struct LyricsView: View {
+    let title: String?
+    let artist: String?
+    @Environment(\.dismiss) private var dismiss
+
+    private var unavailableMessage: String {
+        let track = title.map { "\u{201C}\($0)\u{201D}" } ?? "this track"
+        let by = artist.map { " by \($0)" } ?? ""
+        return "Time-synced lyrics need a licensed lyrics provider. Once one is connected, \(track)\(by) will scroll here in time with the music."
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                MtrxGradientBackground(style: .primary)
+                VStack(spacing: Spacing.md) {
+                    Spacer()
+                    Image(systemName: "quote.bubble")
+                        .font(.system(size: 46, weight: .light)).foregroundStyle(Color.labelTertiary)
+                    Text("Lyrics aren't available yet")
+                        .font(.mtrxTitle3.weight(.bold)).foregroundStyle(Color.labelPrimary)
+                    Text(unavailableMessage)
+                        .font(.mtrxBody).foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center).padding(.horizontal, Spacing.xl)
+                    Spacer()
+                }
+            }
+            .navigationTitle("Lyrics")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) { AppleMusicBadge() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: {
+                        Image(systemName: Symbols.close).accessibilityLabel("Close")
+                            .font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.labelPrimary)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -54,10 +171,7 @@ struct HomeMusicWidget: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(primaryText)
-                        .font(.mtrxHeadline)
-                        .foregroundStyle(Color.labelPrimary)
-                        .lineLimit(1).minimumScaleFactor(0.8)
+                    titleView
                     HStack(spacing: 6) {
                         Text(secondaryText)
                             .font(.mtrxCaption1)
@@ -89,7 +203,8 @@ struct HomeMusicWidget: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(music.isPlaying ? "Pause" : "Play")
                 } else {
-                    AppleMusicBadge()
+                    // The Apple Music brand now lives in the card's title (the logo
+                    // lockup), so the trailing chip is just the disclosure chevron.
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.labelTertiary)
@@ -132,6 +247,23 @@ struct HomeMusicWidget: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(Color.accentPrimary)
                 .symbolEffect(.variableColor, isActive: music.isPlaying)
+        }
+    }
+
+    /// The card title: the song title when one is playing, otherwise the Apple Music
+    /// LOGO lockup (the glyph + word) rather than the plain words "Apple Music".
+    @ViewBuilder private var titleView: some View {
+        if music.nowPlayingTitle != nil {
+            Text(primaryText)
+                .font(.mtrxHeadline)
+                .foregroundStyle(Color.labelPrimary)
+                .lineLimit(1).minimumScaleFactor(0.8)
+        } else {
+            (Text("\(Image(systemName: "applelogo"))")
+                .font(.system(size: 15, weight: .semibold)).baselineOffset(1)
+             + Text(" Music").font(.system(size: 17, weight: .semibold)))
+                .foregroundStyle(Color.labelPrimary)
+                .lineLimit(1)
         }
     }
 
@@ -357,6 +489,13 @@ struct MusicPlayerView: View {
                     Text(music.nowPlayingArtist ?? "").font(.mtrxCaption2).foregroundStyle(Color.labelSecondary).lineLimit(1)
                 }
                 Spacer()
+                Button { music.skipPrevious() } label: {
+                    Image(systemName: "backward.fill")
+                        .font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.labelPrimary)
+                        .accessibilityLabel("Previous")
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, Spacing.sm)
                 Button { music.togglePlayPause() } label: {
                     Image(systemName: music.isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 20, weight: .semibold)).foregroundStyle(Color.labelPrimary)
@@ -372,14 +511,15 @@ struct MusicPlayerView: View {
                 .padding(.leading, Spacing.sm)
             }
             .padding(.horizontal, Spacing.md).padding(.vertical, Spacing.sm)
-            // Docked bar: top-rounded so the glass rim frames the visible top edge,
-            // not the left / right / bottom screen edges.
-            .mtrxLiquidGlass(in: UnevenRoundedRectangle(
-                topLeadingRadius: Spacing.CornerRadius.lg,
-                topTrailingRadius: Spacing.CornerRadius.lg, style: .continuous))
+            // Floating pill: fully rounded on all four corners (was top-rounded only, which
+            // left the bottom corners square and read as clipped), and lifted off the bottom
+            // edge below so the home indicator never cuts it off.
+            .mtrxLiquidGlass(in: RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityHint("Opens the full player")
+        .padding(.horizontal, Spacing.md)
+        .padding(.bottom, Spacing.sm)
     }
 #else
     private var browseList: some View { unavailableState }
@@ -426,63 +566,48 @@ struct SongRow: View {
 struct NowPlayingView: View {
     @State private var music = MusicKitManager.shared
     @State private var showQueue = false
+    @State private var showLyrics = false
     @State private var showSubscriptionOffer = false
     @State private var isScrubbing = false
     @State private var scrubValue: Double = 0
+    @State private var addedToLibrary = false
+    @StateObject private var volume = SystemVolume()
     @Environment(\.dismiss) private var dismiss
 
-    private var artworkSize: CGFloat { min(UIScreen.main.bounds.width - 96, 330) }
+    // Responsive square that always leaves room for every control row below it.
+    private var artworkSize: CGFloat { min(UIScreen.main.bounds.width - 110, 300) }
+    private var displayedTime: TimeInterval { isScrubbing ? scrubValue : music.currentTime }
 
     var body: some View {
         ZStack {
             MtrxGradientBackground(style: .primary)
-            VStack(spacing: Spacing.lg) {
-                grabber
-                Spacer(minLength: 0)
+            // Every row is pure SwiftUI and only as wide as the padded content area —
+            // nothing can push the layout past the screen. Sized to fit; never scrolls.
+            VStack(spacing: 0) {
+                Spacer(minLength: Spacing.sm)
                 artwork
-                trackInfo
-                VStack(spacing: Spacing.md) {
-                    scrubber
-                    transport
-                }
-                .padding(Spacing.md)
-                .background(Color.trinityPrimary.opacity(0.035))
-                .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous)
-                        .stroke(LinearGradient(
-                            colors: [Color.trinityPrimary.opacity(0.35), Color.trinityPrimary.opacity(0.06)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
-                .shadow(color: Color.trinityPrimary.opacity(0.08), radius: 14, y: 6)
                 Spacer(minLength: 0)
-                bottomBar
+                trackInfoRow.padding(.top, Spacing.md)
+                scrubber.padding(.top, Spacing.md)
+                transport.padding(.vertical, Spacing.xs)
+                volumeRow
+                bottomToolbar.padding(.top, Spacing.md)
             }
-            .padding(.horizontal, Spacing.xl)
-            .padding(.vertical, Spacing.md)
+            .padding(.horizontal, Spacing.lg)
+            .padding(.top, Spacing.sm)
+            .padding(.bottom, Spacing.md)
         }
-        .presentationDragIndicator(.hidden)
+        .presentationDragIndicator(.visible)
         .sheet(isPresented: $showQueue) { QueueListView() }
+        .sheet(isPresented: $showLyrics) {
+            LyricsView(title: music.nowPlayingTitle, artist: music.nowPlayingArtist)
+        }
 #if canImport(MusicKit)
         .musicSubscriptionOffer(isPresented: $showSubscriptionOffer)
 #endif
     }
 
-    private var grabber: some View {
-        HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.down").font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.labelSecondary).accessibilityLabel("Minimize")
-            }
-            Spacer()
-            AppleMusicBadge()
-            Spacer()
-            Button { showQueue = true } label: {
-                Image(systemName: "list.bullet").font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.labelSecondary).accessibilityLabel("Up next")
-            }
-        }
-    }
-
+    // MARK: Artwork — shrinks when paused, like Apple Music
     private var artwork: some View {
         Group {
 #if canImport(MusicKit)
@@ -494,108 +619,184 @@ struct NowPlayingView: View {
 #endif
         }
         .frame(width: artworkSize, height: artworkSize)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.45), radius: 22, y: 12)
-        .scaleEffect(music.isPlaying ? 1.0 : 0.85)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.5), radius: 24, y: 14)
+        .scaleEffect(music.isPlaying ? 1.0 : 0.82)
         .animation(.spring(response: 0.45, dampingFraction: 0.82), value: music.isPlaying)
     }
 
     private var artworkPlaceholder: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.surfaceOverlay)
+            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.surfaceOverlay)
             Image(systemName: "music.note").font(.system(size: 64)).foregroundStyle(Color.labelTertiary)
         }
     }
 
-    private var trackInfo: some View {
-        VStack(spacing: 4) {
-            Text(music.nowPlayingTitle ?? "Not playing")
-                .font(.mtrxTitle3.weight(.bold)).foregroundStyle(Color.labelPrimary).lineLimit(1)
-            Text(music.nowPlayingArtist ?? "")
-                .font(.mtrxBody).foregroundStyle(Color.accentPrimary).lineLimit(1)
-            if music.isPreviewPlayback {
-                Button { showSubscriptionOffer = true } label: {
-                    Text("Preview · Subscribe for full songs")
-                        .font(.mtrxCaption2).foregroundStyle(Color.labelTertiary)
+    // MARK: Title + explicit + artist, with Favorite (star) and More (…)
+    private var trackInfoRow: some View {
+        HStack(alignment: .center, spacing: Spacing.sm) {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(music.nowPlayingTitle ?? "Not playing")
+                        .font(.system(size: 22, weight: .bold)).foregroundStyle(Color.labelPrimary).lineLimit(1)
+                    if isExplicit { explicitBadge }
                 }
+                Text(music.nowPlayingArtist ?? "")
+                    .font(.system(size: 20)).foregroundStyle(Color.labelSecondary).lineLimit(1)
             }
+            Spacer(minLength: Spacing.sm)
+            Button { addCurrentToLibrary() } label: {
+                circleIcon(addedToLibrary ? "star.fill" : "star",
+                           tint: addedToLibrary ? Color.accentPrimary : Color.labelPrimary)
+            }
+            .accessibilityLabel(addedToLibrary ? "Added to Library" : "Add to Library")
+            Menu {
+                Button { addCurrentToLibrary() } label: { Label("Add to Library", systemImage: "plus") }
+                Button { showQueue = true } label: { Label("View Up Next", systemImage: "list.bullet") }
+                Button { showLyrics = true } label: { Label("Lyrics", systemImage: "quote.bubble") }
+            } label: {
+                circleIcon("ellipsis", tint: Color.labelPrimary)
+            }
+            .accessibilityLabel("More")
         }
-        .frame(maxWidth: .infinity)
     }
 
-    private var displayedTime: TimeInterval { isScrubbing ? scrubValue : music.currentTime }
+    private var explicitBadge: some View {
+        Text("E")
+            .font(.system(size: 10, weight: .heavy)).foregroundStyle(Color.labelSecondary)
+            .frame(width: 17, height: 17)
+            .background(Color.labelQuaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+    }
 
+    private var isExplicit: Bool {
+#if canImport(MusicKit)
+        return music.currentSong?.contentRating == .explicit
+#else
+        return false
+#endif
+    }
+
+    private func circleIcon(_ icon: String, tint: Color) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 16, weight: .semibold)).foregroundStyle(tint)
+            .frame(width: 40, height: 40)
+            .background(Color.labelQuaternary.opacity(0.25), in: Circle())
+    }
+
+    // MARK: Scrubber + elapsed / attribution / remaining
     private var scrubber: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 6) {
             Slider(
-                value: Binding(
-                    get: { displayedTime },
-                    set: { scrubValue = $0 }
-                ),
+                value: Binding(get: { displayedTime }, set: { scrubValue = $0 }),
                 in: 0...max(music.duration, 1),
                 onEditingChanged: { editing in
                     if editing { scrubValue = music.currentTime; isScrubbing = true }
                     else { music.seek(to: scrubValue); isScrubbing = false }
                 }
             )
-            .tint(Color.accentPrimary)
+            .tint(Color.labelSecondary)
             HStack {
                 Text(mmss(displayedTime))
                 Spacer()
+                scrubberCenter
+                Spacer()
                 Text("-" + mmss(max(music.duration - displayedTime, 0)))
             }
-            .font(.system(size: 11, weight: .medium).monospacedDigit())
+            .font(.system(size: 12, weight: .medium).monospacedDigit())
             .foregroundStyle(Color.labelTertiary)
         }
     }
 
+    @ViewBuilder
+    private var scrubberCenter: some View {
+        if music.isPreviewPlayback {
+            Button { showSubscriptionOffer = true } label: {
+                Text("Preview · Subscribe").font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.accentPrimary)
+            }
+        } else {
+            AppleMusicBadge()
+        }
+    }
+
+    // MARK: Transport — previous · play/pause · next
     private var transport: some View {
         HStack {
-            transportButton("shuffle", active: music.shuffleOn, size: 20,
-                            label: music.shuffleOn ? "Shuffle on" : "Shuffle off") { music.toggleShuffle() }
             Spacer()
-            transportButton("backward.fill", size: 28, label: "Previous") { music.skipPrevious() }
+            transportButton("backward.fill", size: 32, label: "Previous") { music.skipPrevious() }
             Spacer()
             Button { MtrxHaptics.impact(.medium); music.togglePlayPause() } label: {
                 Image(systemName: music.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 44, weight: .medium)).foregroundStyle(Color.labelPrimary)
-                    .frame(width: 64, height: 64)
+                    .font(.system(size: 50, weight: .medium)).foregroundStyle(Color.labelPrimary)
+                    .frame(width: 72, height: 72)
                     .accessibilityLabel(music.isPlaying ? "Pause" : "Play")
             }
             Spacer()
-            transportButton("forward.fill", size: 28, label: "Next") { music.skipNext() }
+            transportButton("forward.fill", size: 32, label: "Next") { music.skipNext() }
             Spacer()
-            transportButton(music.repeatMode == .one ? "repeat.1" : "repeat",
-                            active: music.repeatMode != .off, size: 20, label: repeatLabel) { music.cycleRepeat() }
         }
     }
 
-    private var repeatLabel: String {
-        switch music.repeatMode {
-        case .off: return "Repeat off"
-        case .all: return "Repeat all"
-        case .one: return "Repeat one"
-        }
-    }
-
-    private func transportButton(_ name: String, active: Bool = false, size: CGFloat, label: String, _ action: @escaping () -> Void) -> some View {
+    private func transportButton(_ name: String, size: CGFloat, label: String, _ action: @escaping () -> Void) -> some View {
         Button { MtrxHaptics.impact(.light); action() } label: {
             Image(systemName: name)
-                .font(.system(size: size, weight: .medium))
-                .foregroundStyle(active ? Color.accentPrimary : Color.labelPrimary)
-                .frame(width: 44, height: 44)
+                .font(.system(size: size, weight: .medium)).foregroundStyle(Color.labelPrimary)
+                .frame(width: 60, height: 60)
                 .accessibilityLabel(label)
         }
     }
 
-    private var bottomBar: some View {
-        HStack {
-            AppleMusicBadge()
-            Spacer()
-            Button { music.stop(); dismiss() } label: {
-                Text("Stop").font(.mtrxCaption1).foregroundStyle(Color.labelTertiary)
-            }
+    // MARK: Volume — system slider; the MPVolumeView that writes the volume is hosted
+    // off-layout (1×1 background) so it can never affect sizing.
+    private var volumeRow: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: "speaker.fill").font(.system(size: 13)).foregroundStyle(Color.labelTertiary)
+            Slider(value: Binding(get: { Double(volume.level) }, set: { volume.set(Float($0)) }), in: 0...1)
+                .tint(Color.labelSecondary)
+            Image(systemName: "speaker.wave.3.fill").font(.system(size: 13)).foregroundStyle(Color.labelTertiary)
         }
+        .background(
+            HiddenVolumeHost(view: volume.mpView)
+                .frame(width: 1, height: 1).opacity(0.02).allowsHitTesting(false)
+        )
+    }
+
+    // MARK: Bottom toolbar — lyrics · airplay · shuffle · repeat · up-next
+    private var bottomToolbar: some View {
+        HStack {
+            toolbarButton("quote.bubble", active: false, label: "Lyrics") { showLyrics = true }
+            Spacer()
+            AirPlayRoutePicker().frame(width: 26, height: 26).accessibilityLabel("AirPlay")
+            Spacer()
+            toolbarButton("shuffle", active: music.shuffleOn,
+                          label: music.shuffleOn ? "Shuffle on" : "Shuffle off") { music.toggleShuffle() }
+            Spacer()
+            toolbarButton(music.repeatMode == .one ? "repeat.1" : "repeat",
+                          active: music.repeatMode != .off, label: "Repeat") { music.cycleRepeat() }
+            Spacer()
+            toolbarButton("list.bullet", active: false, label: "Up next") { showQueue = true }
+        }
+        .padding(.horizontal, Spacing.xs)
+    }
+
+    private func toolbarButton(_ icon: String, active: Bool, label: String, _ action: @escaping () -> Void) -> some View {
+        Button { MtrxHaptics.impact(.light); action() } label: {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(active ? Color.accentPrimary : Color.labelSecondary)
+                .frame(width: 44, height: 34)
+                .accessibilityLabel(label)
+        }
+    }
+
+    private func addCurrentToLibrary() {
+        MtrxHaptics.impact(.light)
+#if canImport(MusicKit)
+        guard let song = music.currentSong else { return }
+        Task {
+            if case .added = await music.addToLibrary(song) { addedToLibrary = true }
+        }
+#endif
     }
 }
 

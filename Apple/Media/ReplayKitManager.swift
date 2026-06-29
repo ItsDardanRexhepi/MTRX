@@ -15,6 +15,7 @@
 import SwiftUI
 import Observation
 import AVKit
+import Photos
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -40,6 +41,11 @@ final class ReplayKitManager {
     private(set) var elapsed: TimeInterval = 0
     /// The most recently saved clip, awaiting preview/share. Cleared on discard.
     private(set) var lastClipURL: URL?
+    /// True when the most recent clip was written to the camera roll (Photos).
+    private(set) var savedToPhotos = false
+    /// Honest one-liner about the camera-roll save, shown inside the clip preview
+    /// (not as an alert, so it never collides with the preview sheet). nil = none.
+    private(set) var photosMessage: String?
     /// Honest, user-facing message for a real failure/unavailability. nil = none.
     var notice: String?
 
@@ -76,6 +82,8 @@ final class ReplayKitManager {
         }
         // A new recording supersedes any un-previewed clip; reap stale temp files.
         lastClipURL = nil
+        savedToPhotos = false
+        photosMessage = nil
         sweepStaleClips()
         // Privacy: capture the screen + app audio only — no microphone.
         recorder.isMicrophoneEnabled = false
@@ -107,6 +115,8 @@ final class ReplayKitManager {
             elapsed = 0
             state = .idle
             MtrxHaptics.success()
+            // Save the finished clip straight to the user's camera roll (Photos).
+            await saveToPhotos(url)
             return true
         } catch {
             // A failed stop can leave a partial movie behind — clean it up.
@@ -115,6 +125,31 @@ final class ReplayKitManager {
             state = .idle
             notice = "Couldn’t save the clip: \(error.localizedDescription)"
             return false
+        }
+    }
+
+    /// Save the finished clip to the user's Photos (camera roll). Add-only access —
+    /// MTRX only ever writes the clip, never reads the library. Honest: a real
+    /// permission denial or save error is reflected in `photosMessage` (shown in the
+    /// preview), and success sets `savedToPhotos`.
+    private func saveToPhotos(_ url: URL) async {
+        let status = await withCheckedContinuation { (cont: CheckedContinuation<PHAuthorizationStatus, Never>) in
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { cont.resume(returning: $0) }
+        }
+        guard status == .authorized || status == .limited else {
+            savedToPhotos = false
+            photosMessage = "Not added to your camera roll — Photos access is off. Turn it on in Settings ▸ Privacy ▸ Photos to save clips automatically."
+            return
+        }
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetCreationRequest.creationRequestForAssetFromVideo(atFileURL: url)
+            }
+            savedToPhotos = true
+            photosMessage = nil
+        } catch {
+            savedToPhotos = false
+            photosMessage = "Couldn’t save to your camera roll: \(error.localizedDescription)"
         }
     }
 
@@ -289,6 +324,15 @@ struct ClipPreviewView: View {
                             }
 
                         VStack(spacing: Spacing.sm) {
+                            if rk.savedToPhotos {
+                                Label("Saved to your camera roll", systemImage: "checkmark.circle.fill")
+                                    .font(.mtrxCaption1).foregroundStyle(Color.labelSecondary)
+                            } else if let msg = rk.photosMessage {
+                                Text(msg)
+                                    .font(.mtrxCaption2).foregroundStyle(Color.labelTertiary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, Spacing.md)
+                            }
                             Button {
                                 player?.pause()
                                 ClipSharing.present(url: url)

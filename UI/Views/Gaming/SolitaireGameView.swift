@@ -69,6 +69,24 @@ final class SolitaireEngine: ObservableObject {
     @Published var seconds = 0
     @Published var won = false
 
+    // MARK: Undo (limited do-overs)
+
+    /// A full board snapshot, captured before each move so the player can take a
+    /// move back. The game grants a fixed budget of do-overs per deal.
+    private struct Snapshot {
+        let stock: [SolitaireCard]
+        let waste: [SolitaireCard]
+        let foundations: [[SolitaireCard]]
+        let tableau: [[SolitaireCard]]
+        let moves: Int
+        let score: Int
+    }
+    private var undoStack: [Snapshot] = []
+    /// Do-overs left this game. Starts at 3 and counts down as the player undoes.
+    @Published private(set) var undosRemaining = 3
+    /// True when there's a move to take back and budget left to spend on it.
+    var canUndo: Bool { undosRemaining > 0 && !undoStack.isEmpty }
+
     private var timer: Timer?
     private let move = Animation.spring(response: 0.34, dampingFraction: 0.82)
 
@@ -87,6 +105,7 @@ final class SolitaireEngine: ObservableObject {
         foundations = [[], [], [], []]
         tableau = Array(repeating: [], count: 7)
         moves = 0; score = 0; seconds = 0; won = false; selection = nil
+        undoStack = []; undosRemaining = 3
 
         var idx = 0
         for col in 0..<7 {
@@ -158,9 +177,10 @@ final class SolitaireEngine: ObservableObject {
     }
 
     @discardableResult
-    private func moveSelection(toTableau col: Int) -> Bool {
+    private func moveSelection(toTableau col: Int, recordUndo: Bool = true) -> Bool {
         guard let group = selectedGroup(), let bottom = group.first,
               canPlaceOnTableau(bottom, col) else { return false }
+        if recordUndo { pushUndo() }
         withAnimation(move) {
             removeSelectedFromSource()
             tableau[col].append(contentsOf: group)
@@ -171,9 +191,10 @@ final class SolitaireEngine: ObservableObject {
     }
 
     @discardableResult
-    private func moveSelection(toFoundation f: Int) -> Bool {
+    private func moveSelection(toFoundation f: Int, recordUndo: Bool = true) -> Bool {
         guard let group = selectedGroup(), group.count == 1, let card = group.first,
               canPlaceOnFoundation(card, f) else { return false }
+        if recordUndo { pushUndo() }
         withAnimation(move) {
             removeSelectedFromSource()
             foundations[f].append(card)
@@ -204,6 +225,7 @@ final class SolitaireEngine: ObservableObject {
         selection = nil
         if stock.isEmpty {
             guard !waste.isEmpty else { return }
+            pushUndo()
             withAnimation(move) {
                 stock = waste.reversed().map { var c = $0; c.faceUp = false; return c }
                 waste = []
@@ -212,6 +234,7 @@ final class SolitaireEngine: ObservableObject {
             MtrxHaptics.impact(.light)
             return
         }
+        pushUndo()
         withAnimation(move) {
             var c = stock.removeLast()
             c.faceUp = true
@@ -280,11 +303,20 @@ final class SolitaireEngine: ObservableObject {
 
     /// Sweep every card that can go up to a foundation, one cascading step at a
     /// time — great for finishing a solved board.
+    /// The whole sweep counts as a single do-over: one snapshot up front, then
+    /// the cascade runs without recording further undo steps.
     func autoCollect() {
-        if autoStep() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) { [weak self] in self?.autoCollect() }
-        } else {
-            selection = nil
+        let pre = snapshot()
+        guard autoStep() else { selection = nil; return }   // nothing to collect
+        undoStack.append(pre)
+        continueAutoCollect()
+    }
+
+    private func continueAutoCollect() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) { [weak self] in
+            guard let self else { return }
+            if self.autoStep() { self.continueAutoCollect() }
+            else { self.selection = nil }
         }
     }
 
@@ -292,18 +324,45 @@ final class SolitaireEngine: ObservableObject {
         if let c = waste.last {
             for f in 0..<4 where canPlaceOnFoundation(c, f) {
                 selection = Selection(source: .waste, cardIndex: waste.count - 1)
-                return moveSelection(toFoundation: f)
+                return moveSelection(toFoundation: f, recordUndo: false)
             }
         }
         for col in 0..<7 {
             if let c = tableau[col].last, c.faceUp {
                 for f in 0..<4 where canPlaceOnFoundation(c, f) {
                     selection = Selection(source: .tableau(col), cardIndex: tableau[col].count - 1)
-                    return moveSelection(toFoundation: f)
+                    return moveSelection(toFoundation: f, recordUndo: false)
                 }
             }
         }
         return false
+    }
+
+    // MARK: Undo
+
+    private func snapshot() -> Snapshot {
+        Snapshot(stock: stock, waste: waste, foundations: foundations,
+                 tableau: tableau, moves: moves, score: score)
+    }
+
+    private func pushUndo() { undoStack.append(snapshot()) }
+
+    private func restore(_ s: Snapshot) {
+        stock = s.stock; waste = s.waste
+        foundations = s.foundations; tableau = s.tableau
+        moves = s.moves; score = s.score
+    }
+
+    /// Take the last move back, spending one do-over. A no-op once the budget is
+    /// gone or there's nothing left to revert.
+    func undo() {
+        guard canUndo else { return }
+        let s = undoStack.removeLast()
+        withAnimation(move) {
+            restore(s)
+            selection = nil
+        }
+        undosRemaining -= 1
     }
 
     var timeLabel: String {
@@ -447,6 +506,7 @@ struct SolitaireGameView: View {
             stat("MOVES", "\(engine.moves)")
             stat("SCORE", "\(engine.score)")
             Spacer()
+            undoButton
             Button {
                 MtrxHaptics.impact(.medium)
                 engine.autoCollect()
@@ -474,6 +534,31 @@ struct SolitaireGameView: View {
             Text(label).font(.system(size: 8, weight: .bold)).kerning(0.8).foregroundStyle(Color.labelTertiary)
             Text(value).font(.system(size: 15, weight: .heavy, design: .rounded)).foregroundStyle(.white)
         }
+    }
+
+    // Take-back button: shows how many do-overs remain this deal and greys out
+    // once they're spent or there's nothing left to undo.
+    private var undoButton: some View {
+        Button {
+            MtrxHaptics.impact(.medium)
+            engine.undo()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "arrow.uturn.backward").font(.system(size: 12, weight: .bold))
+                Text("\(engine.undosRemaining)")
+                    .font(.system(size: 13, weight: .bold, design: .rounded)).lineLimit(1)
+            }
+            .foregroundStyle(engine.canUndo ? .white : Color.labelTertiary)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Color.white.opacity(engine.canUndo ? 0.12 : 0.04))
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(.white.opacity(engine.canUndo ? 0.20 : 0.08), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .disabled(!engine.canUndo)
+        .fixedSize()
+        .accessibilityLabel("Undo move")
+        .accessibilityValue("\(engine.undosRemaining) do-overs remaining")
     }
 
     // MARK: Board

@@ -64,14 +64,6 @@ struct OnboardingView: View {
                         )
                 }
 
-                Text("Ownership. Yours.")
-                    .font(.mtrxTitle1)
-                    .foregroundStyle(
-                        LinearGradient(colors: [.accentPrimary, .accentSecondary],
-                                       startPoint: .leading, endPoint: .trailing)
-                    )
-                    .padding(.top, Spacing.xs)
-
                 Spacer()
 
                 // Sign in with Apple — or progress while finishing setup.

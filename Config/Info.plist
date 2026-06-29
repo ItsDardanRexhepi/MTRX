@@ -36,7 +36,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>187</string>
+	<string>189</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
@@ -71,6 +71,8 @@
 	<string>MTRX uses your location to show nearby properties, merchants, and supply chain assets on the map.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>MTRX uses your microphone for voice commands with Trinity, Morpheus, and Oracle.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>MTRX saves your game-clip screen recordings to your camera roll.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>MTRX accesses your photos to scan documents and contracts for blockchain registration.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>

@@ -1199,75 +1199,80 @@ struct AboutSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: Spacing.lg) {
-                    // Logo + version
-                    VStack(spacing: Spacing.md) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color.accentPrimary, Color.accentSecondary],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
+            // Sized to fit on a single screen — no scrolling. The credits anchor to
+            // the bottom; everything above is compacted to leave headroom.
+            VStack(spacing: Spacing.md) {
+                // Logo + version
+                VStack(spacing: Spacing.sm) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.accentPrimary, Color.accentSecondary],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
                                 )
-                                .frame(width: 96, height: 96)
-                                .shadow(color: Color.accentPrimary.opacity(0.4), radius: 18, y: 8)
+                            )
+                            .frame(width: 72, height: 72)
+                            .shadow(color: Color.accentPrimary.opacity(0.4), radius: 14, y: 6)
 
-                            Text("M")
-                                .font(.system(size: 56, weight: .black, design: .rounded))
-                                .foregroundStyle(.white)
-                        }
-                        .padding(.top, Spacing.lg)
-
-                        Text("MTRX")
-                            .font(.mtrxTitle1)
-                            .foregroundStyle(Color.labelPrimary)
-
-                        Text(AppVersionInfo.fullDisplay)
-                            .font(.mtrxCaption1)
-                            .foregroundStyle(Color.labelSecondary)
+                        Text("M")
+                            .font(.system(size: 42, weight: .black, design: .rounded))
+                            .foregroundStyle(.white)
                     }
+                    .padding(.top, Spacing.xs)
 
-                    // About paragraph
-                    MtrxCard(style: .glass) {
-                        VStack(alignment: .leading, spacing: Spacing.sm) {
-                            Text("About")
-                                .font(.mtrxHeadline)
-                                .foregroundStyle(Color.labelPrimary)
-                            Text("MTRX is the flagship mobile client for the 0pnMatrx platform — a privacy-first, on-chain operating system for smart contracts, decentralized governance, and AI-assisted finance. Trinity, your private AI agent, runs on-device so your data never leaves your phone.")
-                                .font(.mtrxBody)
-                                .foregroundStyle(Color.labelSecondary)
-                                .lineSpacing(3)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                    Text("MTRX")
+                        .font(.mtrxTitle2)
+                        .foregroundStyle(Color.labelPrimary)
 
-                    // Legal links
-                    MtrxCard(style: .standard) {
-                        VStack(spacing: 0) {
-                            legalLink(title: "Privacy Policy", urlString: "https://openmatrix-ai.com/privacy")
-                            MtrxDivider()
-                            legalLink(title: "Terms of Service", urlString: "https://openmatrix-ai.com/terms")
-                        }
-                    }
-
-                    // Credits
-                    VStack(spacing: Spacing.sm) {
-                        Text("Built by Dardan Rexhepi")
-                            .font(.mtrxCalloutBold)
-                            .foregroundStyle(Color.labelPrimary)
-                        Text("Powered by 0pnMatrx")
-                            .font(.mtrxCaption1)
-                            .foregroundStyle(Color.labelTertiary)
-                    }
-                    .padding(.top, Spacing.md)
+                    Text(AppVersionInfo.fullDisplay)
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelSecondary)
                 }
-                .padding(Spacing.contentPadding)
-                .padding(.bottom, Spacing.xxl)
+
+                // About paragraph
+                MtrxCard(style: .glass) {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text("About")
+                            .font(.mtrxHeadline)
+                            .foregroundStyle(Color.labelPrimary)
+                        Text("MTRX is the flagship mobile client for the 0pnMatrx platform — a privacy-first, on-chain operating system for smart contracts, decentralized governance, and AI-assisted finance. Trinity, your private AI agent, runs on-device so your data never leaves your phone.")
+                            .font(.mtrxSubheadline)
+                            .foregroundStyle(Color.labelSecondary)
+                            .lineSpacing(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                // Legal links
+                MtrxCard(style: .standard) {
+                    VStack(spacing: 0) {
+                        legalLink(title: "Privacy Policy", urlString: "https://openmatrix-ai.com/privacy")
+                        MtrxDivider()
+                        legalLink(title: "Terms of Service", urlString: "https://openmatrix-ai.com/terms")
+                    }
+                }
+
+                Spacer(minLength: Spacing.sm)
+
+                // Credits
+                VStack(spacing: Spacing.xs) {
+                    Text("Built by Dardan Rexhepi")
+                        .font(.mtrxCalloutBold)
+                        .foregroundStyle(Color.labelPrimary)
+                    Text("With love, to my mother")
+                        .font(.mtrxCallout)
+                        .italic()
+                        .foregroundStyle(Color.labelSecondary)
+                    Text("Powered by 0pnMatrx")
+                        .font(.mtrxCaption1)
+                        .foregroundStyle(Color.labelTertiary)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .padding(Spacing.contentPadding)
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("About MTRX")
             .navigationBarTitleDisplayMode(.inline)
