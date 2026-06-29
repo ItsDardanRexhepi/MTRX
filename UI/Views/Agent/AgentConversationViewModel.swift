@@ -32,11 +32,15 @@ struct AgentMessage: Identifiable, Codable {
 
     /// Replace em dashes (with any surrounding spaces) with a comma + space, then tidy up.
     /// Leaves en dashes in numeric ranges (e.g. "2–5") untouched.
-    private static func humanizedReply(_ s: String) -> String {
-        var out = s.replacingOccurrences(of: #"\s*—\s*"#, with: ", ", options: .regularExpression)
+    static func humanizedReply(_ s: String) -> String {
+        // Convert only em dashes that sit BETWEEN content (e.g. "open — you're") into a
+        // comma. Match horizontal spaces only (never newlines) so lists and line breaks
+        // survive, and require non-space on both sides so a line-leading dash bullet and
+        // code indentation are left untouched.
+        var out = s.replacingOccurrences(
+            of: #"(?<=\S)[ \t]*—[ \t]*(?=\S)"#, with: ", ", options: .regularExpression)
         out = out.replacingOccurrences(of: ", ,", with: ",")
         out = out.replacingOccurrences(of: " ,", with: ",")
-        out = out.replacingOccurrences(of: "  ", with: " ")
         return out
     }
 }
@@ -419,6 +423,9 @@ final class AgentConversationViewModel: ObservableObject {
         // Add user message
         messages.append(AgentMessage(text: text, role: .user))
         inputText = ""
+        // A focused multiline TextField can keep showing its text when cleared
+        // mid-autocomplete; re-clear on the next runloop so the field reliably empties.
+        DispatchQueue.main.async { [weak self] in self?.inputText = "" }
 
         // Manual agent switching — "talk to morpheus", "bring trinity".
         // Each agent keeps its own separate chat; switching opens theirs.
@@ -835,13 +842,15 @@ final class AgentConversationViewModel: ObservableObject {
                             self.messages.append(streamMsg)
                         }
                         if let idx = self.messages.firstIndex(where: { $0.id == streamID }) {
-                            self.messages[idx].text = partial
+                            // Streamed text bypasses AgentMessage.init, so sanitize here
+                            // too (drop em dashes) to keep model replies reading natural.
+                            self.messages[idx].text = AgentMessage.humanizedReply(partial)
                         }
                     }
                 )
                 if let onDevice {
                     if didStream, let idx = messages.firstIndex(where: { $0.id == streamID }) {
-                        messages[idx].text = onDevice
+                        messages[idx].text = AgentMessage.humanizedReply(onDevice)
                     } else {
                         messages.append(AgentMessage(text: onDevice, role: .agent, agentName: agentName))
                     }

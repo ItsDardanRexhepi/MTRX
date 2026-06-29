@@ -308,7 +308,7 @@ final class NaturalLanguageProcessor {
         /// language. Empty for English (no nudge needed).
         var mirrorInstruction: String {
             guard !isEnglish else { return "" }
-            return "The user is communicating in \(displayName). Respond naturally and fluently in \(displayName)."
+            return "The user is communicating in \(displayName). Respond in \(displayName) by default, unless they have asked you to use, switch to, or translate into a different language, in which case follow that request."
         }
     }
 

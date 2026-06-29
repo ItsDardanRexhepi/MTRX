@@ -1025,6 +1025,11 @@ struct SocialView: View {
             .environmentObject(appState)
             .environmentObject(walletManager)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .mtrxSwitchTab)) { _ in
+            // Trinity navigated and folds into the floating orb — close the full chat
+            // so it can't re-present when the user returns to this tab.
+            showTrinityChat = false
+        }
         .sheet(isPresented: $showHistory) {
             SocialHistorySheet()
         }

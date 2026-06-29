@@ -280,6 +280,14 @@ struct MainTabView: View {
                let tab = AppTab(rawValue: index) {
                 selectedTab = tab
             }
+            // Agent-driven navigation folds the app-level chat surfaces away so neither
+            // re-takes the screen; the floating orb (presence.docked) stays. The
+            // model-driven openTab tool posts this notification but never sets the
+            // chat's dismissRequested, so the cover/popup won't close on their own.
+            withAnimation(Motion.springSnappy) {
+                expandedAgent = nil
+                miniAgent = nil
+            }
         }
         // A small banner each time a daily-flow action is checked off.
         .onReceive(NotificationCenter.default.publisher(for: .mtrxDailyFlowProgress)) { note in
@@ -614,9 +622,9 @@ struct FloatingAgentOrb: View {
 
             // Transparent liquid glass with a drifting iridescent
             // refraction — reflective and clear, the app's signature orb.
+            // No glow — the docked orb is clean liquid glass, nothing
+            // radiating around it.
             GlassOrb(size: 54, tint: agentGlassTint(agent))
-                .shadow(color: .white.opacity(0.18), radius: 12)
-                .shadow(color: Color(red: 0.72, green: 0.78, blue: 0.98).opacity(0.22), radius: 24)
                 .position(current)
                 .gesture(
                     DragGesture()

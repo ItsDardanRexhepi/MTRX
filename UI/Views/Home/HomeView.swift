@@ -146,6 +146,15 @@ struct HomeView: View {
             .environmentObject(appState)
             .environmentObject(walletManager)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .mtrxSwitchTab)) { _ in
+            // Trinity navigated (and folds into the floating orb): force the full chat
+            // and the inline home chat closed so neither re-presents when the user
+            // returns to Home. Fires on every navigation, synced with the tab switch —
+            // the chat's own dismiss() races with that switch and can leave the
+            // presentation state set, which is what re-took the whole screen.
+            presentedChat = nil
+            if homeChatOpen { closeHomeChat() }
+        }
         // The Home feed is fully interactive — open a post or a profile in place.
         .sheet(item: $homeDetailPost) { post in
             PostDetailSheet(postID: post.id)
@@ -482,6 +491,9 @@ struct HomeView: View {
         let text = homeChatInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         homeChatInput = ""
+        // A focused multiline TextField can keep showing its text when cleared
+        // mid-autocomplete; re-clear on the next runloop so the field reliably empties.
+        DispatchQueue.main.async { homeChatInput = "" }
         submitHomeChat(text)
     }
 

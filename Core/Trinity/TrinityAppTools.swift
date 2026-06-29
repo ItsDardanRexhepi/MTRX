@@ -90,9 +90,15 @@ struct TrinityNavigateTool: Tool {
     func call(arguments: Arguments) async throws -> String {
         let map = ["discover": 0, "build": 1, "home": 2, "social": 3, "account": 4]
         guard let index = map[arguments.tab.lowercased()] else {
-            return "I can open Discover, Build, Home, Social, or Account — which one?"
+            return "I can open Discover, Build, Home, Social, or Account. Which one?"
         }
-        NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": index])
+        // Keep Trinity docked as the floating orb after she navigates, and switch the
+        // tab after a short beat so her confirmation reply streams in first, then the
+        // chat folds into the orb. Mirrors the scripted navigate(to:) path.
+        AgentPresence.shared.dock(.trinity)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": index])
+        }
         return "Opened the \(arguments.tab.capitalized) tab."
     }
 }

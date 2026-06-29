@@ -1038,8 +1038,19 @@ final class MTRXAPIClient: @unchecked Sendable {
             let message: String
             let agent: String
             let session_id: String
+            // Carry the per-turn system/language context and recent history through to
+            // the gateway so the language directive (and conversation memory) survive on
+            // the non-Apple-Intelligence path instead of being silently dropped.
+            let context: String?
+            let history: [[String: String]]?
         }
-        let body = BridgeChatBody(message: message, agent: agent, session_id: bridgeSessionId ?? "default")
+        let body = BridgeChatBody(
+            message: message,
+            agent: agent,
+            session_id: bridgeSessionId ?? "default",
+            context: context.isEmpty ? nil : context,
+            history: conversationHistory.isEmpty ? nil : conversationHistory
+        )
         let result: BridgeResponse<BridgeChatData> = try await post(
             path: "/bridge/v1/chat", body: body
         )
