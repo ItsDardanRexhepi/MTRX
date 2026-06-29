@@ -221,13 +221,11 @@ struct AgentConversationView: View {
                     }
                 }
 
-                // Quick action chips
-                // Chips + input share one continuous material band that
-                // bleeds past the bottom edge, so the keyboard's rounded
-                // corners never expose dark notches at the seam.
+                // Input band — one continuous material band that bleeds past the
+                // bottom edge, so the keyboard's rounded corners never expose dark
+                // notches at the seam.
                 VStack(spacing: 0) {
                     AppleWeatherAttributionView()
-                    quickActionChips
                     inputBar
                 }
                 .background {
@@ -791,70 +789,10 @@ struct AgentConversationView: View {
         .mtrxAccentBorder(cornerRadius: Spacing.CornerRadius.lg)
     }
 
-    // MARK: - Quick Action Chips
-
-    private var quickActionChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Spacing.sm) {
-                MtrxChip(label: "Check balance", icon: Symbols.wallet) {
-                    insertQuickAction("Check my balance")
-                }
-
-                MtrxChip(label: "Send", icon: Symbols.send) {
-                    insertQuickAction("Send")
-                }
-
-                MtrxChip(label: "Swap", icon: Symbols.swap) {
-                    insertQuickAction("Swap tokens")
-                }
-
-                MtrxChip(label: "Deploy contract", icon: Symbols.contractCreate) {
-                    insertQuickAction("Deploy a smart contract")
-                }
-
-                MtrxChip(label: "Marketplace", icon: Symbols.marketplace) {
-                    insertQuickAction("Browse the marketplace")
-                }
-
-                MtrxChip(label: "Portfolio", icon: Symbols.portfolio) {
-                    insertQuickAction("View my portfolio")
-                }
-            }
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-        }
-        .background(Color.surfaceCard.opacity(0.4))
-    }
-
-    private func insertQuickAction(_ text: String) {
-        MtrxHaptics.impact(.light)
-        viewModel.inputText = text
-        viewModel.sendMessage()
-    }
-
     // MARK: - Input Bar
 
     private var inputBar: some View {
         HStack(spacing: Spacing.sm) {
-            // Tap to speak — one push-to-talk control that replaces the old separate
-            // mic + speaker buttons. Tap to talk to the agent; when you stop, your
-            // words send and the reply is spoken back in her voice.
-            Button {
-                MtrxHaptics.impact(.medium)
-                viewModel.toggleVoiceTurn()
-            } label: {
-                ZStack {
-                    Circle().fill(voiceButtonFill).frame(width: 38, height: 38)
-                    Image(systemName: voiceButtonIcon)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(voiceButtonTint)
-                }
-                .scaleEffect(viewModel.isListening || viewModel.isSpeaking ? 1.06 : 1.0)
-                .animation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true),
-                           value: viewModel.isListening || viewModel.isSpeaking)
-            }
-            .accessibilityLabel(voiceButtonLabel)
-
             // Text field — addressed to whoever is in the room.
             TextField("Ask \(agentName)...", text: $viewModel.inputText, axis: .vertical)
                 .font(.mtrxBody)
@@ -894,26 +832,6 @@ struct AgentConversationView: View {
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
-    }
-
-    // Tap-to-speak button appearance, driven by the voice-turn state.
-    private var voiceButtonIcon: String {
-        if viewModel.isListening { return "waveform" }
-        if viewModel.isSpeaking { return "speaker.wave.2.fill" }
-        return "mic.fill"
-    }
-    private var voiceButtonTint: Color {
-        (viewModel.isListening || viewModel.isSpeaking) ? .white : agentAccent
-    }
-    private var voiceButtonFill: Color {
-        if viewModel.isListening { return Color.statusError.opacity(0.9) }
-        if viewModel.isSpeaking { return agentAccent.opacity(0.9) }
-        return Color.surfaceOverlay
-    }
-    private var voiceButtonLabel: String {
-        if viewModel.isListening { return "Listening — tap to stop" }
-        if viewModel.isSpeaking { return "\(agentName) is speaking — tap to stop" }
-        return "Tap to speak to \(agentName)"
     }
 }
 

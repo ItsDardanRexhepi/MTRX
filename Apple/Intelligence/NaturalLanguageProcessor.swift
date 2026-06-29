@@ -317,10 +317,29 @@ final class NaturalLanguageProcessor {
     /// empty/too-short input — 1–2 words carry too little signal to detect reliably.
     func languageProfile(for text: String) -> LanguageProfile {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wordCount = trimmed.split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" }).count
+
         languageRecognizer.reset()
+        // Only ever consider on-device-supported languages, never an exotic guess.
+        languageRecognizer.languageConstraints = Array(LanguageProfile.tier1Languages)
         languageRecognizer.processString(trimmed)
-        let dominant = (trimmed.count >= 4 ? languageRecognizer.dominantLanguage : nil) ?? .english
-        let confidence = Double(languageRecognizer.languageHypotheses(withMaximum: 1)[dominant] ?? 0)
+
+        let raw = languageRecognizer.dominantLanguage
+        let confidence = raw.map { Double(languageRecognizer.languageHypotheses(withMaximum: 1)[$0] ?? 0) } ?? 0
+
+        // Short or low-confidence input carries too little signal to mirror reliably:
+        // Apple's recognizer confidently MISreads 1–2 word English commands ("Open
+        // social", "Check balance", "Swap") as Romance languages. Only switch the reply
+        // to a NON-English language when the message is clearly substantial AND confidently
+        // detected; otherwise stay in English (the app's primary language). This is what
+        // keeps Trinity from answering an English command in Italian.
+        let dominant: NLLanguage
+        if let raw, raw != .english, wordCount >= 3, confidence >= 0.72 {
+            dominant = raw
+        } else {
+            dominant = .english
+        }
+
         let code = dominant.rawValue
         let name = Locale.current.localizedString(forLanguageCode: code) ?? code
         return LanguageProfile(language: dominant, code: code, displayName: name,

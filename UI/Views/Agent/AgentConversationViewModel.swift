@@ -19,11 +19,25 @@ struct AgentMessage: Identifiable, Codable {
 
     init(text: String, role: MessageRole, agentName: String? = nil, suggestedActions: [SuggestedAction] = []) {
         self.id = UUID()
-        self.text = text
+        // Soften agent copy so replies read warmer and less "AI": the user's #1 gripe
+        // is em dashes, so swap them for natural punctuation everywhere a reply is shown
+        // (covers both the live model and the local canned responses). The user's own
+        // message is never altered.
+        self.text = (role == .user) ? text : Self.humanizedReply(text)
         self.role = role
         self.agentName = agentName
         self.timestamp = Date()
         self.suggestedActions = suggestedActions
+    }
+
+    /// Replace em dashes (with any surrounding spaces) with a comma + space, then tidy up.
+    /// Leaves en dashes in numeric ranges (e.g. "2–5") untouched.
+    private static func humanizedReply(_ s: String) -> String {
+        var out = s.replacingOccurrences(of: #"\s*—\s*"#, with: ", ", options: .regularExpression)
+        out = out.replacingOccurrences(of: ", ,", with: ",")
+        out = out.replacingOccurrences(of: " ,", with: ",")
+        out = out.replacingOccurrences(of: "  ", with: " ")
+        return out
     }
 }
 
