@@ -151,6 +151,17 @@ final class StoryStore: ObservableObject {
         didSet { UserDefaults.standard.set(Array(closeFriends), forKey: "com.mtrx.social.closeFriends") }
     }
 
+    /// Authors whose current story stack you've already opened → their ring goes
+    /// gray (Instagram/iMessage convention). Keyed by author name → the number of
+    /// active stories you'd seen, so a brand-new story (count grows) re-brightens it.
+    /// Count-based, not timestamp-based, so a saved "seen" mark survives relaunch
+    /// even though sample stories are re-seeded with fresh timestamps each launch.
+    @Published private var viewedCounts: [String: Int] = [:]
+    private let viewedKey = "com.mtrx.social.viewedStoryCounts"
+
+    /// How a contact's story ring renders in Messages.
+    enum StoryRing: Equatable { case none, everyone, closeFriends, seen }
+
     /// The follower roster offered when picking close friends.
     static let followers: [String] = [
         "@elena.eth", "@ravi_dao", "@sofia.base", "@nomad_anon",
@@ -167,6 +178,7 @@ final class StoryStore: ObservableObject {
 
     private init() {
         closeFriends = Set(UserDefaults.standard.stringArray(forKey: "com.mtrx.social.closeFriends") ?? [])
+        viewedCounts = (UserDefaults.standard.dictionary(forKey: "com.mtrx.social.viewedStoryCounts") as? [String: Int]) ?? [:]
         let now = Date()
         stories = [
             SocialStory(author: "Elena Vasquez", initials: "EV", color: .accentPrimary, image: nil,
@@ -177,6 +189,13 @@ final class StoryStore: ObservableObject {
                         caption: "Vote on Proposal #47 before Friday", timestamp: now.addingTimeInterval(-9000)),
             SocialStory(author: "Sofia Nakamura", initials: "SN", color: .accentTertiary, image: nil,
                         caption: "8.7% APY on the 90-day vault", timestamp: now.addingTimeInterval(-12600)),
+            SocialStory(author: "Marcus Chen", initials: "MC", color: .statusInfo, image: nil,
+                        caption: "Proposal draft is ready for review", timestamp: now.addingTimeInterval(-3000)),
+            SocialStory(author: "Aisha Patel", initials: "AP", color: .statusSuccess, image: nil,
+                        caption: "Close-friends staking alpha 👀", timestamp: now.addingTimeInterval(-2000),
+                        audience: .closeFriends),
+            SocialStory(author: "Priya Sharma", initials: "PS", color: .trinityPrimary, image: nil,
+                        caption: "Escrow funded — receipts in the thread", timestamp: now.addingTimeInterval(-1500)),
         ]
         restoreMyStories()
     }
@@ -266,6 +285,37 @@ final class StoryStore: ObservableObject {
             result.insert(mine, at: 0)
         }
         return result
+    }
+
+    // MARK: - Story ring state (for Messages avatars)
+
+    /// A contact's active (unexpired) stories — what powers the Messages ring.
+    func activeStories(forAuthor name: String) -> [SocialStory] {
+        let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+        return stories.filter { !$0.isMine && $0.author == name && $0.timestamp > cutoff }
+    }
+
+    /// The ring to draw around a contact's avatar in Messages.
+    func ring(forAuthor name: String) -> StoryRing {
+        let active = activeStories(forAuthor: name)
+        guard !active.isEmpty else { return .none }
+        if let seen = viewedCounts[name], seen >= active.count { return .seen }
+        let representative = active.max { $0.timestamp < $1.timestamp }
+        return representative?.audience == .closeFriends ? .closeFriends : .everyone
+    }
+
+    /// Index of a contact's story group in `groups`, for opening the viewer.
+    func groupIndex(forAuthor name: String) -> Int? {
+        groups.firstIndex { $0.first?.isMine != true && $0.first?.author == name }
+    }
+
+    /// Record that you've opened a contact's current story stack → ring goes gray
+    /// until they post another story (which grows the active count and re-brightens it).
+    func markViewed(author name: String) {
+        let count = activeStories(forAuthor: name).count
+        guard count > 0 else { return }
+        viewedCounts[name] = count
+        UserDefaults.standard.set(viewedCounts, forKey: viewedKey)
     }
 }
 
@@ -382,6 +432,7 @@ struct StoriesRail: View {
         let isCloseFriends = story.audience == .closeFriends
         return Button {
             MtrxHaptics.impact(.light)
+            if !story.isMine { store.markViewed(author: story.author) }
             viewerStart = StoryViewerStart(groupIndex: groupIndex)
         } label: {
             VStack(spacing: 6) {

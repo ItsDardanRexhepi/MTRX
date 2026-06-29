@@ -229,6 +229,7 @@
 		A455A1D698D2068D602842A1 /* SubscriptionTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762A7AE3A563F4D2DCE3AACF /* SubscriptionTier.swift */; };
 		CB0F67F0CE7E8FF7E3AF19BB /* TrialManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FA70838C8C6F1CBC1F85B4 /* TrialManager.swift */; };
 		5B031DA597A70E826A01EA36 /* MtrxComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020D53A9EC3924EDB2BC9913 /* MtrxComponents.swift */; };
+		A1A1A1A1A1A1A1A1A1A1A6D1 /* StoryAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A6D2 /* StoryAvatar.swift */; };
 		72C79D53328FA2323F5E3028 /* SubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06E34845F543EEDE7B91C1C /* SubscriptionView.swift */; };
 		6FA529066511A5865FD08CA9 /* LaunchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 981C9E1F936DA94C2599780D /* LaunchView.swift */; };
 		F51012B3159498482F002A6A /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2A724376917CF6778A0D91 /* NotificationCenterView.swift */; };
@@ -586,6 +587,7 @@
 		762A7AE3A563F4D2DCE3AACF /* SubscriptionTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SubscriptionTier.swift"; path = "Core/Subscription/SubscriptionTier.swift"; sourceTree = SOURCE_ROOT; };
 		88FA70838C8C6F1CBC1F85B4 /* TrialManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TrialManager.swift"; path = "Core/Subscription/TrialManager.swift"; sourceTree = SOURCE_ROOT; };
 		020D53A9EC3924EDB2BC9913 /* MtrxComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MtrxComponents.swift"; path = "UI/Components/MtrxComponents.swift"; sourceTree = SOURCE_ROOT; };
+		A1A1A1A1A1A1A1A1A1A1A6D2 /* StoryAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "StoryAvatar.swift"; path = "UI/Components/StoryAvatar.swift"; sourceTree = SOURCE_ROOT; };
 		F06E34845F543EEDE7B91C1C /* SubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SubscriptionView.swift"; path = "UI/Views/Account/SubscriptionView.swift"; sourceTree = SOURCE_ROOT; };
 		981C9E1F936DA94C2599780D /* LaunchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LaunchView.swift"; path = "UI/Views/Launch/LaunchView.swift"; sourceTree = SOURCE_ROOT; };
 		9E2A724376917CF6778A0D91 /* NotificationCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "NotificationCenterView.swift"; path = "UI/Views/Notifications/NotificationCenterView.swift"; sourceTree = SOURCE_ROOT; };
@@ -1919,6 +1921,7 @@
 				A455A1D698D2068D602842A1 /* SubscriptionTier.swift in Sources */,
 				CB0F67F0CE7E8FF7E3AF19BB /* TrialManager.swift in Sources */,
 				5B031DA597A70E826A01EA36 /* MtrxComponents.swift in Sources */,
+				A1A1A1A1A1A1A1A1A1A1A6D1 /* StoryAvatar.swift in Sources */,
 				72C79D53328FA2323F5E3028 /* SubscriptionView.swift in Sources */,
 				6FA529066511A5865FD08CA9 /* LaunchView.swift in Sources */,
 				F51012B3159498482F002A6A /* NotificationCenterView.swift in Sources */,

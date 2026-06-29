@@ -1483,7 +1483,7 @@ enum HomeService: String, CaseIterable, Identifiable {
         case .domains: DomainView()
         case .storage: StorageView()
         case .bridge: BridgeView()
-        case .messages: MessagingView()
+        case .messages: MessagingView(style: .hostProvidedStack)
         case .nfts: NFTGalleryView()
         }
     }

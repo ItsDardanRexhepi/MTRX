@@ -240,67 +240,136 @@ final class MessagingViewModel: ObservableObject {
 
 struct MessagingView: View {
 
+    /// How this instance fits into navigation, so each entry point gets exactly one
+    /// NavigationStack and the right chrome:
+    /// • standalone — owns a stack, large title + search (Account sheet, preview)
+    /// • hostProvidedStack — the caller already supplies a stack (Home's sheet)
+    /// • embeddedSection — inside the Social shell; owns a stack (the thread needs a
+    ///   visible bar since Social hides its own) but drops the redundant large title
+    ///   + search that would otherwise stack under Social's header.
+    enum Style { case standalone, hostProvidedStack, embeddedSection }
+    let style: Style
+    init(style: Style = .standalone) { self.style = style }
+
     @StateObject private var viewModel = MessagingViewModel()
+    @ObservedObject private var storyStore = StoryStore.shared
     @State private var showNewMessage = false
     @State private var pendingConversation: ChatConversation?
+    @State private var searchText = ""
+    @State private var storyStart: StoryStart?
 
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                MtrxGradientBackground(style: .primary)
+    struct StoryStart: Identifiable { let id = UUID(); let groupIndex: Int }
 
-                if viewModel.conversations.isEmpty {
-                    MtrxEmptyState(
-                        icon: "envelope",
-                        title: "No Messages",
-                        message: "Start a conversation with someone in your network to begin messaging securely.",
-                        actionLabel: "New Message"
-                    ) {
-                        showNewMessage = true
-                    }
-                } else {
-                    conversationList
-                }
-            }
-            .navigationTitle("Messages")
-            .task { await viewModel.loadConversations() }
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    if viewModel.isDemo { DemoBadge() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showNewMessage = true
-                        MtrxHaptics.selection()
-                    } label: {
-                        Image(systemName: Symbols.add)
-                            .accessibilityLabel("New message")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.accentPrimary)
-                    }
-                }
-            }
-            .navigationDestination(item: $pendingConversation) { conversation in
-                ConversationDetailView(viewModel: viewModel, conversation: conversation)
-            }
-            .sheet(isPresented: $showNewMessage) {
-                newMessageSheet
-            }
+    private var filteredConversations: [ChatConversation] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return viewModel.conversations }
+        return viewModel.conversations.filter {
+            $0.contactName.lowercased().contains(q) || $0.lastMessageText.lowercased().contains(q)
         }
     }
 
-    // MARK: - Conversation List
+    var body: some View {
+        if style == .hostProvidedStack {
+            chrome
+        } else {
+            NavigationStack { chrome }
+        }
+    }
+
+    @ViewBuilder private var chrome: some View {
+        if style == .embeddedSection {
+            content
+        } else {
+            content.searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
+        }
+    }
+
+    private var content: some View {
+        ZStack {
+            MtrxGradientBackground(style: .primary)
+
+            if viewModel.conversations.isEmpty {
+                MtrxEmptyState(
+                    icon: "envelope",
+                    title: "No Messages",
+                    message: "Start a conversation with someone in your network to begin messaging securely.",
+                    actionLabel: "New Message"
+                ) {
+                    showNewMessage = true
+                }
+            } else {
+                conversationList
+            }
+        }
+        .navigationTitle(style == .embeddedSection ? "" : "Messages")
+        .navigationBarTitleDisplayMode(style == .embeddedSection ? .inline : .large)
+        .task { await viewModel.loadConversations() }
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                if viewModel.isDemo { DemoBadge() }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showNewMessage = true
+                    MtrxHaptics.selection()
+                } label: {
+                    Image(systemName: Symbols.add)
+                        .accessibilityLabel("New message")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
+        }
+        .navigationDestination(item: $pendingConversation) { conversation in
+            ConversationDetailView(viewModel: viewModel, conversation: conversation)
+        }
+        .sheet(isPresented: $showNewMessage) {
+            newMessageSheet
+        }
+        .fullScreenCover(item: $storyStart) { start in
+            StoryViewer(groups: storyStore.groups, startGroup: start.groupIndex)
+        }
+    }
+
+    // MARK: - Navigation helpers
+
+    private func openChat(_ conversation: ChatConversation) {
+        MtrxHaptics.selection()
+        pendingConversation = conversation
+    }
+
+    /// Tapping a contact's story ring opens their story (and marks it watched,
+    /// dimming the ring), instead of opening the chat.
+    private func openStory(_ conversation: ChatConversation) {
+        guard let index = storyStore.groupIndex(forAuthor: conversation.contactName) else { return }
+        MtrxHaptics.impact(.light)
+        storyStore.markViewed(author: conversation.contactName)
+        storyStart = StoryStart(groupIndex: index)
+    }
+
+    // MARK: - Conversation List (iMessage-style)
 
     private var conversationList: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(viewModel.conversations) { conversation in
-                    NavigationLink {
-                        ConversationDetailView(viewModel: viewModel, conversation: conversation)
-                    } label: {
+        List {
+            if filteredConversations.isEmpty && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("No Results")
+                    .font(.mtrxCallout)
+                    .foregroundStyle(Color.labelSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, Spacing.xxl)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            } else {
+                ForEach(filteredConversations) { conversation in
+                    Button { openChat(conversation) } label: {
                         conversationRow(conversation)
                     }
                     .buttonStyle(.plain)
+                    .listRowInsets(EdgeInsets(top: 0, leading: Spacing.md, bottom: 0, trailing: Spacing.md))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparatorTint(Color.labelPrimary.opacity(0.14))
+                    // Inset the hairline to the text column (dot + gap + avatar + gap), like iMessage.
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 9 + Spacing.avatarContentGap + 52 + Spacing.avatarContentGap }
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
                             viewModel.deleteConversation(conversation)
@@ -308,55 +377,50 @@ struct MessagingView: View {
                             Label("Delete", systemImage: Symbols.delete)
                         }
                     }
-
-                    MtrxDivider()
-                        .padding(.leading, 76)
                 }
             }
-            .padding(.top, Spacing.xs)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     // MARK: - Conversation Row
 
     private func conversationRow(_ conversation: ChatConversation) -> some View {
-        HStack(spacing: Spacing.avatarContentGap) {
-            MtrxAvatar(
-                text: conversation.contactInitials,
+        let ring = storyStore.ring(forAuthor: conversation.contactName)
+        return HStack(spacing: Spacing.avatarContentGap) {
+            // Leading unread dot, like iMessage.
+            Circle()
+                .fill(conversation.unreadCount > 0 ? Color.accentPrimary : Color.clear)
+                .frame(width: 9, height: 9)
+
+            StoryAvatar(
+                initials: conversation.contactInitials,
                 color: conversation.contactColor,
-                size: 44
+                size: 52,
+                ring: ring
             )
+            .storyTap(ring != .none) { openStory(conversation) }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(conversation.contactName)
-                    .font(.mtrxBodyBold)
-                    .foregroundStyle(Color.labelPrimary)
-
-                Text(conversation.lastMessageText)
-                    .font(.mtrxCaption1)
-                    .foregroundStyle(Color.labelSecondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: Spacing.xs) {
-                Text(formattedTimestamp(conversation.timestamp))
-                    .font(.mtrxCaption2)
-                    .foregroundStyle(Color.labelTertiary)
-
-                if conversation.unreadCount > 0 {
-                    Text("\(conversation.unreadCount)")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .frame(minWidth: 20, minHeight: 20)
-                        .background(Color.accentPrimary)
-                        .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                    Text(conversation.contactName)
+                        .font(.mtrxBodyBold)
+                        .foregroundStyle(Color.labelPrimary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    Text(formattedTimestamp(conversation.timestamp))
+                        .font(.mtrxCaption2)
+                        .foregroundStyle(Color.labelTertiary)
                 }
+                Text(conversation.lastMessageText)
+                    .font(.mtrxCallout)
+                    .foregroundStyle(Color.labelSecondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.listRowVertical)
+        .padding(.vertical, 9)
         .contentShape(Rectangle())
     }
 
@@ -406,6 +470,7 @@ struct MessagingView: View {
 struct ConversationDetailView: View {
 
     @ObservedObject var viewModel: MessagingViewModel
+    @ObservedObject private var storyStore = StoryStore.shared
     let conversation: ChatConversation
     @FocusState private var isInputFocused: Bool
     @State private var appeared = false
@@ -417,9 +482,23 @@ struct ConversationDetailView: View {
             inputBar
         }
         .background(Color.black)
-        .navigationTitle(conversation.contactName)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: Spacing.xs) {
+                    StoryAvatar(
+                        initials: conversation.contactInitials,
+                        color: conversation.contactColor,
+                        size: 30,
+                        ring: storyStore.ring(forAuthor: conversation.contactName)
+                    )
+                    Text(conversation.contactName)
+                        .font(.mtrxCalloutBold)
+                        .foregroundStyle(Color.labelPrimary)
+                        .lineLimit(1)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: Spacing.ms) {
                     // Incognito switch — chat goes ephemeral while on.
@@ -473,9 +552,10 @@ struct ConversationDetailView: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: Spacing.sm) {
+                LazyVStack(spacing: 2) {
                     encryptionBanner
                         .padding(.top, Spacing.md)
+                        .padding(.bottom, Spacing.sm)
 
                     ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
                         let showTimeLabel = shouldShowTimeLabel(at: index)
@@ -484,8 +564,16 @@ struct ConversationDetailView: View {
                             timeLabel(for: message.timestamp)
                         }
 
-                        messageBubble(message)
-                            .id(message.id)
+                        messageBubble(
+                            message,
+                            isFirstInRun: isFirstInRun(at: index, timeBreak: showTimeLabel),
+                            isLastInRun: isLastInRun(at: index)
+                        )
+                        .id(message.id)
+
+                        if message.isFromUser && index == viewModel.messages.count - 1 {
+                            deliveredLabel
+                        }
                     }
                 }
                 .padding(.horizontal, Spacing.md)
@@ -534,6 +622,34 @@ struct ConversationDetailView: View {
         return current.timeIntervalSince(previous) > 600
     }
 
+    // MARK: - Bubble grouping (iMessage runs)
+
+    /// First message of a run = the tail/spacing starts here.
+    private func isFirstInRun(at index: Int, timeBreak: Bool) -> Bool {
+        guard index > 0 else { return true }
+        if timeBreak { return true }
+        return viewModel.messages[index - 1].isFromUser != viewModel.messages[index].isFromUser
+    }
+
+    /// Last message of a run = the one that wears the tail.
+    private func isLastInRun(at index: Int) -> Bool {
+        let messages = viewModel.messages
+        guard index < messages.count - 1 else { return true }
+        if messages[index + 1].isFromUser != messages[index].isFromUser { return true }
+        return shouldShowTimeLabel(at: index + 1)
+    }
+
+    private var deliveredLabel: some View {
+        HStack {
+            Spacer()
+            Text("Delivered")
+                .font(.system(size: 11))
+                .foregroundStyle(Color.labelTertiary)
+        }
+        .padding(.top, 1)
+        .padding(.trailing, 2)
+    }
+
     private func timeLabel(for date: Date) -> some View {
         Text(formattedTimeLabel(date))
             .font(.mtrxCaption2)
@@ -559,29 +675,37 @@ struct ConversationDetailView: View {
 
     // MARK: - Message Bubble
 
-    private func messageBubble(_ message: ChatMessage) -> some View {
-        HStack(alignment: .bottom, spacing: 0) {
+    private func messageBubble(_ message: ChatMessage, isFirstInRun: Bool, isLastInRun: Bool) -> some View {
+        // iMessage corner logic: every corner rounded except the bottom corner on the
+        // sender's side of the LAST bubble in a run, which squares off to form the tail.
+        let r: CGFloat = 18
+        let tail: CGFloat = 5
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: r,
+            bottomLeadingRadius: (!message.isFromUser && isLastInRun) ? tail : r,
+            bottomTrailingRadius: (message.isFromUser && isLastInRun) ? tail : r,
+            topTrailingRadius: r,
+            style: .continuous
+        )
+        let fill: Color = message.isEphemeral
+            ? Color.purple.opacity(0.75)
+            : (message.isFromUser ? Color.accentPrimary : Color.surfaceCard)
+
+        return HStack(alignment: .bottom, spacing: 0) {
             if message.isFromUser { Spacer(minLength: Spacing.xxl) }
 
             VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: 3) {
                 Text(message.text)
                     .font(.mtrxBody)
                     .foregroundStyle(message.isFromUser ? .white : Color.labelPrimary)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.sm)
-                    .background(
-                        message.isEphemeral
-                            ? AnyShapeStyle(Color.purple.opacity(0.75))
-                            : AnyShapeStyle(message.isFromUser ? Color.accentPrimary : Color.surfaceCard)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(
-                                message.isEphemeral ? Color.purple : Color.clear,
-                                style: StrokeStyle(lineWidth: 1, dash: [5, 4])
-                            )
-                    )
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background { shape.fill(fill) }
+                    .overlay {
+                        if message.isEphemeral {
+                            shape.strokeBorder(Color.purple, style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+                        }
+                    }
 
                 if message.isEphemeral {
                     HStack(spacing: 3) {
@@ -596,6 +720,7 @@ struct ConversationDetailView: View {
 
             if !message.isFromUser { Spacer(minLength: Spacing.xxl) }
         }
+        .padding(.top, isFirstInRun ? 7 : 0)
     }
 
     // MARK: - Input Bar
@@ -614,12 +739,15 @@ struct ConversationDetailView: View {
             Button {
                 viewModel.sendMessage()
             } label: {
-                Image(systemName: Symbols.send)
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(
                         viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             ? Color.labelTertiary
-                            : Color.accentPrimary
+                            : Color.accentPrimary,
+                        in: Circle()
                     )
                     .accessibilityLabel("Send message")
             }

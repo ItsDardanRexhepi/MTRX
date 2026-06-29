@@ -770,7 +770,9 @@ struct SocialView: View {
                 }
                 .background(MtrxGradientBackground(style: .primary))
 
-                composeButton
+                // No "New post" FAB on Messages — MessagingView has its own
+                // "New message" button, so a second compose affordance would double up.
+                if viewModel.selectedTab != .messaging { composeButton }
 
                 if let feedback = actionFeedback {
                     VStack {
@@ -795,6 +797,9 @@ struct SocialView: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 24)
                     .onEnded { value in
+                        // Let the Messages list own horizontal swipes (swipe-to-delete);
+                        // tab paging stays available on the other tabs.
+                        guard viewModel.selectedTab != .messaging else { return }
                         let w = value.translation.width
                         let h = value.translation.height
                         // Only act on a clearly horizontal swipe so vertical
@@ -1988,7 +1993,7 @@ struct SocialView: View {
     /// The full messaging experience — thread list, conversations you
     /// can open, and a working send box — not a static preview.
     private var messagingSection: some View {
-        MessagingView()
+        MessagingView(style: .embeddedSection)
     }
 }
 
@@ -2565,10 +2570,11 @@ struct MessageThreadRow: View {
     var body: some View {
         HStack(spacing: Spacing.avatarContentGap) {
             ZStack(alignment: .bottomTrailing) {
-                MtrxAvatar(
-                    text: thread.avatarInitials,
+                StoryAvatar(
+                    initials: thread.avatarInitials,
                     color: thread.avatarColor,
-                    size: Spacing.Size.avatarMedium
+                    size: Spacing.Size.avatarLarge,
+                    ring: StoryStore.shared.ring(forAuthor: thread.name)
                 )
 
                 if thread.isEncrypted {
