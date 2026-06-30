@@ -28,6 +28,9 @@ struct SendView: View {
     @State private var isSending: Bool = false
     @State private var sendError: String?
     @State private var sentHash: String?
+    // M-GUARDIAN piece 2: advisory observations shown on the review screen BEFORE the
+    // gate. Read-only display — they NEVER change whether the send proceeds.
+    @State private var guardianObservations: [MorpheusGuardian.Observation] = []
 
     private var selectedToken: AppTokenBalance {
         guard walletManager.tokens.indices.contains(selectedTokenIndex) else {
@@ -426,6 +429,16 @@ struct SendView: View {
     private var sendButton: some View {
         Button {
             MtrxHaptics.impact(.medium)
+            // Gather Morpheus's advisory observations (read-only) to SHOW on the review
+            // screen. This gates nothing — the Confirm & Send button below runs
+            // sendNative's existing biometric / preflight / broadcast gates regardless.
+            guardianObservations = isNativeSend
+                ? MorpheusGuardian.reviewSend(
+                    recipient: recipientAddress,
+                    amountUSD: usdEquivalent > 0 ? usdEquivalent : nil,
+                    todayOutgoingUSD: 0,   // running daily total isn't tracked here; daily-soft fires only on a single >threshold send (under-fires the cumulative case — it never over-claims)
+                    kind: .nativeSend)
+                : []
             withAnimation(Motion.springDefault) {
                 showReview = true
             }
@@ -457,6 +470,12 @@ struct SendView: View {
                 }
             }
             .padding(.horizontal, Spacing.contentPadding)
+
+            // Morpheus's advisory observations — read-only, shown BEFORE the gate. They
+            // never change whether the send proceeds; Confirm & Send below runs the same
+            // biometric → preflight → broadcast gates regardless (sendNative is untouched).
+            GuardianReviewPanel(observations: guardianObservations)
+                .padding(.horizontal, Spacing.contentPadding)
 
             VStack(spacing: Spacing.ms) {
                 Button {
