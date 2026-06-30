@@ -23,7 +23,7 @@ final class SecureEnclaveManager {
     /// tests — which use ungated keys — stay green). Flip to `true` at go-live so the weak path is
     /// REFUSED and a legacy ungated owner key can never move funds. Identity-proof signing is
     /// unaffected — it goes through `sign()`, not `signForValue()`.
-    static var enforceGatedOwnerKeyForValue = false
+    static private(set) var enforceGatedOwnerKeyForValue = false
 
     enum KeyError: Error, LocalizedError {
         case keychainStatus(OSStatus)
