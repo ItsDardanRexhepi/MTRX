@@ -326,7 +326,6 @@ struct NowPlayingView: View {
     @State private var showSubscriptionOffer = false
     @State private var isScrubbing = false
     @State private var scrubValue: Double = 0
-    @State private var addedToLibrary = false
     @StateObject private var volume = SystemVolume()
     @Environment(\.dismiss) private var dismiss
 #if canImport(MusicKit)
@@ -411,11 +410,14 @@ struct NowPlayingView: View {
         HStack(alignment: .center, spacing: Spacing.sm) {
             titleArtistMenu
             Spacer(minLength: Spacing.sm)
-            Button { addCurrentToLibrary() } label: {
-                circleIcon(addedToLibrary ? "star.fill" : "star",
-                           tint: addedToLibrary ? Color.accentPrimary : Color.labelPrimary)
+            // Favorite (love) the current track — a real, persisted toggle that
+            // works on every build, independent of subscription or library writes.
+            Button { toggleFavorite() } label: {
+                circleIcon(isFavorited ? "star.fill" : "star",
+                           tint: isFavorited ? Color.accentPrimary : Color.labelPrimary)
             }
-            .accessibilityLabel(addedToLibrary ? "Added to Library" : "Add to Library")
+            .disabled(music.currentSong == nil)
+            .accessibilityLabel(isFavorited ? "Remove from Favorites" : "Favorite")
             Menu {
                 Button { addCurrentToLibrary() } label: { Label("Add to Library", systemImage: "plus") }
                 Button { showQueue = true } label: { Label("View Up Next", systemImage: "list.bullet") }
@@ -621,9 +623,24 @@ struct NowPlayingView: View {
         MtrxHaptics.impact(.light)
 #if canImport(MusicKit)
         guard let song = music.currentSong else { return }
-        Task {
-            if case .added = await music.addToLibrary(song) { addedToLibrary = true }
-        }
+        Task { _ = await music.addToLibrary(song) }
+#endif
+    }
+
+    /// Whether the current track is one of the user's favorites (loved).
+    private var isFavorited: Bool {
+#if canImport(MusicKit)
+        return music.isFavorite(music.currentSong)
+#else
+        return false
+#endif
+    }
+
+    private func toggleFavorite() {
+        MtrxHaptics.impact(.light)
+#if canImport(MusicKit)
+        guard let song = music.currentSong else { return }
+        _ = music.toggleFavorite(song)
 #endif
     }
 }

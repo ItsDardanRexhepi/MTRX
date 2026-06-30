@@ -333,13 +333,29 @@ struct LibraryDetailView: View {
     @State private var songs: [Song] = []
     @State private var load: LibraryLoadState = .idle
 
+    // Album metadata, resolved for the Apple-style header (one extra catalog fetch).
+    @State private var detailedAlbum: Album?
+    @State private var resolvedArtist: Artist?
+    @State private var notesExpanded = false
+
+    // Whole album / playlist add-to-library state for the header control.
+    private enum AddState { case idle, adding, added, failed }
+    @State private var addState: AddState = .idle
+
+    // Per-track add state, held HERE (not inside the row) so a tapped checkmark
+    // survives the LazyVStack recycling rows as they scroll off and back on.
+    @State private var trackAdd: [String: TrackAddPhase] = [:]
+
+    private var isAlbum: Bool { if case .album = source { return true }; return false }
+
     private var title: String {
         switch source {
         case .playlist(let p): return p.name
         case .album(let a):    return a.title
         }
     }
-    private var subtitle: String? {
+    /// The accent-coloured line under the title — artist (album) or curator (playlist).
+    private var accentSubtitle: String? {
         switch source {
         case .playlist(let p): return p.curatorName
         case .album(let a):    return a.artistName
@@ -351,87 +367,396 @@ struct LibraryDetailView: View {
         case .album(let a):    return a.artwork
         }
     }
+    private var artSize: CGFloat { min(UIScreen.main.bounds.width * 0.62, 300) }
 
     var body: some View {
         ScrollView {
             VStack(spacing: Spacing.md) {
                 header
-                if songs.isEmpty {
-                    libraryPlaceholder(load, empty: "No playable songs here.")
-                } else {
-                    LazyVStack(spacing: Spacing.xs) {
-                        ForEach(Array(songs.enumerated()), id: \.element.id) { idx, song in
-                            Button { Task { await music.playSongs(songs, startAt: idx) } } label: {
-                                SongRow(song: song, isCurrent: music.currentSong?.id == song.id, isPlaying: music.isPlaying)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
+                tracks
             }
-            .padding(.horizontal, Spacing.md).padding(.vertical, Spacing.sm)
+            .padding(.horizontal, Spacing.md)
+            .padding(.top, Spacing.sm)
+            .padding(.bottom, Spacing.sm)
         }
         .background(MtrxGradientBackground(style: .primary).ignoresSafeArea())
-        .navigationTitle(title)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { shareControl }
+            ToolbarItem(placement: .topBarTrailing) { moreMenu }
+        }
         .appleMusicAttributed()
-        .task { if load == .idle { await loadSongs() } }
+        .task { if load == .idle { await loadEverything() } }
     }
+
+    // MARK: Header — artwork · title · artist · meta · controls · notes
 
     private var header: some View {
         VStack(spacing: Spacing.sm) {
-            Group {
-                if let artwork {
-                    ArtworkImage(artwork, width: 200, height: 200)
-                } else {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.surfaceOverlay)
-                        .frame(width: 200, height: 200)
-                        .overlay(Image(systemName: "music.note").font(.system(size: 44)).foregroundStyle(Color.labelTertiary))
-                }
-            }
-            .frame(width: 200, height: 200)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            artworkView
+                .frame(width: artSize, height: artSize)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .shadow(color: .black.opacity(0.55), radius: 18, y: 10)
+                .padding(.top, Spacing.xs)
 
-            Text(title).font(.mtrxTitle3).foregroundStyle(Color.labelPrimary)
-                .multilineTextAlignment(.center).lineLimit(2)
-            if let subtitle, !subtitle.isEmpty {
-                Text(subtitle).font(.mtrxCallout).foregroundStyle(Color.labelSecondary).lineLimit(1)
+            VStack(spacing: 3) {
+                Text(title)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(Color.labelPrimary)
+                    .multilineTextAlignment(.center).lineLimit(2)
+                artistLine
+                if metaText != nil || losslessBadgeText != nil { metaLine(metaText ?? "") }
             }
+            .padding(.horizontal, Spacing.sm)
 
-            HStack(spacing: Spacing.sm) {
-                Button { Task { await music.playSongs(songs, startAt: 0) } } label: {
-                    Label("Play", systemImage: "play.fill")
-                }
-                .buttonStyle(MtrxButtonStyle(variant: .primary, size: .regular))
-                .disabled(songs.isEmpty)
+            controls.padding(.top, Spacing.xs)
 
-                Button { Task { await playShuffled() } } label: {
-                    Label("Shuffle", systemImage: "shuffle")
-                }
-                .buttonStyle(MtrxButtonStyle(variant: .secondary, size: .regular))
-                .disabled(songs.isEmpty)
+            if let notes = editorialText {
+                Text(notes)
+                    .font(.mtrxFootnote)
+                    .foregroundStyle(Color.labelSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(notesExpanded ? nil : 3)
+                    .multilineTextAlignment(.leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { notesExpanded.toggle() } }
+                    .padding(.top, Spacing.xs)
             }
-            .padding(.top, Spacing.xs)
         }
     }
+
+    @ViewBuilder private var artworkView: some View {
+        if let artwork {
+            ArtworkImage(artwork, width: artSize, height: artSize)
+        } else {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.surfaceOverlay)
+                .overlay(Image(systemName: "music.note").font(.system(size: 54)).foregroundStyle(Color.labelTertiary))
+        }
+    }
+
+    @ViewBuilder private var artistLine: some View {
+        if let artist = resolvedArtist {
+            NavigationLink { LibraryArtistDetailView(artist: artist) } label: {
+                Text(accentSubtitle ?? artist.name)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.accentPrimary).lineLimit(1)
+            }
+            .buttonStyle(.plain)
+        } else if let sub = accentSubtitle, !sub.isEmpty {
+            Text(sub).font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Color.accentPrimary).lineLimit(1)
+        }
+    }
+
+    private func metaLine(_ text: String) -> some View {
+        HStack(spacing: 6) {
+            if !text.isEmpty {
+                Text(text)
+                    .font(.mtrxFootnote)
+                    .foregroundStyle(Color.labelTertiary)
+            }
+            if let badge = losslessBadgeText {
+                Text(badge)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.labelSecondary)
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .stroke(Color.labelQuaternary, lineWidth: 1)
+                    )
+            }
+        }
+        .lineLimit(1)
+    }
+
+    // Genre · Year (album) / "N songs" (playlist)
+    private var metaText: String? {
+        if isAlbum {
+            var parts: [String] = []
+            if let g = detailedAlbum?.genreNames.first, !g.isEmpty { parts.append(g) }
+            if let y = releaseYear { parts.append(y) }
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        } else {
+            return songs.isEmpty ? nil : "\(songs.count) song\(songs.count == 1 ? "" : "s")"
+        }
+    }
+    private var releaseYear: String? {
+        guard let date = detailedAlbum?.releaseDate else { return nil }
+        return Calendar.current.dateComponents([.year], from: date).year.map(String.init)
+    }
+    /// Apple's lossless wordmark, distinguishing Hi-Res Lossless like Apple Music does.
+    private var losslessBadgeText: String? {
+        guard let variants = detailedAlbum?.audioVariants else { return nil }
+        if variants.contains(.highResolutionLossless) { return "Hi-Res Lossless" }
+        if variants.contains(.lossless) { return "Lossless" }
+        return nil
+    }
+    private var editorialText: String? {
+        let notes = detailedAlbum?.editorialNotes
+        let text = (notes?.standard ?? notes?.short)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (text?.isEmpty == false) ? text : nil
+    }
+
+    // MARK: Controls — Shuffle (circle) · Play (white pill) · Add (circle)
+
+    private var controls: some View {
+        HStack(spacing: Spacing.md) {
+            Button { Task { await playShuffled() } } label: {
+                Image(systemName: "shuffle")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(songs.isEmpty ? Color.labelTertiary : Color.labelPrimary)
+                    .frame(width: 52, height: 52)
+                    .background(Color.labelQuaternary.opacity(0.25), in: Circle())
+            }
+            .buttonStyle(.plain).disabled(songs.isEmpty).accessibilityLabel("Shuffle")
+
+            Button { Task { await music.playSongs(songs, startAt: 0) } } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "play.fill")
+                    Text("Play").fontWeight(.semibold)
+                }
+                .font(.system(size: 18))
+                .foregroundStyle(.black)
+                .frame(maxWidth: .infinity).frame(height: 52)
+                .background(Color.white, in: Capsule())
+                .opacity(songs.isEmpty ? 0.5 : 1)
+            }
+            .buttonStyle(.plain).disabled(songs.isEmpty).accessibilityLabel("Play")
+
+            Button { triggerAdd() } label: {
+                Group {
+                    switch addState {
+                    case .adding: ProgressView()
+                    case .added:  Image(systemName: "checkmark")
+                    case .failed: Image(systemName: "exclamationmark")
+                    case .idle:   Image(systemName: "plus")
+                    }
+                }
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(addState == .added ? Color.statusSuccess :
+                                 addState == .failed ? Color.statusWarning : Color.labelPrimary)
+                .frame(width: 52, height: 52)
+                .background(Color.labelQuaternary.opacity(0.25), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(songs.isEmpty || addState == .adding || addState == .added)
+            .accessibilityLabel(addState == .added ? "Added to Library" : "Add to Library")
+        }
+    }
+
+    // MARK: Tracks — Apple-style numbered rows (no thumbnails)
+
+    @ViewBuilder private var tracks: some View {
+        if songs.isEmpty {
+            libraryPlaceholder(load, empty: "No playable songs here.")
+        } else {
+            LazyVStack(spacing: 0) {
+                ForEach(Array(songs.enumerated()), id: \.element.id) { idx, song in
+                    AlbumTrackRow(
+                        number: idx + 1,
+                        song: song,
+                        isCurrent: music.currentSong?.id == song.id,
+                        isPlaying: music.isPlaying,
+                        addPhase: trackAdd[song.id.rawValue] ?? .idle,
+                        onPlay: { Task { await music.playSongs(songs, startAt: idx) } },
+                        onAdd:  { addTrack(song) }
+                    )
+                    if idx < songs.count - 1 {
+                        Divider().overlay(Color.white.opacity(0.08)).padding(.leading, 38)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Toolbar — Share · More
+
+    @ViewBuilder private var shareControl: some View {
+        if let url = shareURL {
+            ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
+                .accessibilityLabel("Share")
+        } else {
+            ShareLink(item: shareText) { Image(systemName: "square.and.arrow.up") }
+                .accessibilityLabel("Share")
+        }
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            Button { Task { await music.playSongs(songs, startAt: 0) } } label: { Label("Play", systemImage: "play.fill") }
+            Button { Task { await playShuffled() } } label: { Label("Shuffle", systemImage: "shuffle") }
+            Button { triggerAdd() } label: { Label("Add to Library", systemImage: "plus") }
+            shareControl
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+        .disabled(songs.isEmpty)
+        .accessibilityLabel("More")
+    }
+
+    private var shareURL: URL? {
+        switch source {
+        case .album(let a):    return a.url
+        case .playlist(let p): return p.url
+        }
+    }
+    private var shareText: String {
+        accentSubtitle.map { "\(title) — \($0)" } ?? title
+    }
+
+    // MARK: Actions / loading
 
     private func playShuffled() async {
         guard !songs.isEmpty else { return }
         await music.playSongs(songs.shuffled(), startAt: 0)
     }
 
-    private func loadSongs() async {
+    private func triggerAdd() {
+        guard addState == .idle || addState == .failed else { return }
+        MtrxHaptics.impact(.light)
+        addState = .adding
+        Task {
+            let outcome: MusicKitManager.AddOutcome
+            switch source {
+            case .album(let a):    outcome = await music.addToLibrary(album: a)
+            case .playlist(let p): outcome = await music.addToLibrary(playlist: p)
+            }
+            addState = (outcome == .added) ? .added : .failed
+        }
+    }
+
+    private func addTrack(_ song: Song) {
+        let key = song.id.rawValue
+        let cur = trackAdd[key] ?? .idle
+        guard cur == .idle || cur == .failed else { return }
+        MtrxHaptics.impact(.light)
+        trackAdd[key] = .adding
+        Task {
+            let outcome = await music.addToLibrary(song)
+            trackAdd[key] = (outcome == .added) ? .added : .failed
+        }
+    }
+
+    private func loadEverything() async {
         load = .loading
         do {
             switch source {
-            case .playlist(let p): songs = try await music.songs(of: p)
-            case .album(let a):    songs = try await music.songs(of: a)
+            case .playlist(let p):
+                songs = try await music.songs(of: p)
+            case .album(let a):
+                let detail = try await music.loadAlbumDetail(a)
+                songs = detail.songs
+                detailedAlbum = detail.album
+                resolvedArtist = detail.album.artists?.first
             }
             load = .loaded
         } catch {
             load = .failed
         }
+    }
+}
+
+// MARK: - Apple-style album/playlist track row
+
+/// Add-to-library state for one track. Owned by LibraryDetailView (keyed by song
+/// id) rather than the row, so a tapped checkmark persists while the LazyVStack
+/// recycles rows during scrolling.
+enum TrackAddPhase { case idle, adding, added, failed }
+
+/// One track row in the album/playlist view: number (or a now-playing waveform),
+/// the title with an Explicit badge, a real add-to-library control, and a More
+/// menu. Tapping the row plays from this track. No thumbnail — the album art
+/// already sits in the header, exactly like the Apple Music album screen.
+struct AlbumTrackRow: View {
+    let number: Int
+    let song: Song
+    let isCurrent: Bool
+    let isPlaying: Bool
+    let addPhase: TrackAddPhase
+    let onPlay: () -> Void
+    let onAdd: () -> Void
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Button(action: onPlay) {
+                HStack(spacing: Spacing.sm) {
+                    leading.frame(width: 26)
+                    HStack(spacing: 6) {
+                        Text(song.title)
+                            .font(.mtrxCallout)
+                            .foregroundStyle(isCurrent ? Color.accentPrimary : Color.labelPrimary)
+                            .lineLimit(1)
+                        if song.contentRating == .explicit { explicitBadge }
+                    }
+                    Spacer(minLength: Spacing.sm)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            addButton
+            menu
+        }
+        .padding(.vertical, 11)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(number). \(song.title)")
+        .accessibilityHint("Plays this track")
+    }
+
+    @ViewBuilder private var leading: some View {
+        if isCurrent && isPlaying {
+            Image(systemName: "waveform")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.accentPrimary)
+                .symbolEffect(.variableColor, isActive: true)
+        } else {
+            Text("\(number)")
+                .font(.system(size: 15).monospacedDigit())
+                .foregroundStyle(Color.labelTertiary)
+        }
+    }
+
+    private var explicitBadge: some View {
+        Text("E")
+            .font(.system(size: 9, weight: .heavy)).foregroundStyle(Color.labelSecondary)
+            .frame(width: 15, height: 15)
+            .background(Color.labelQuaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+    }
+
+    private var addButton: some View {
+        Button { onAdd() } label: {
+            Group {
+                switch addPhase {
+                case .idle:   Image(systemName: "plus.circle")
+                case .adding: ProgressView()
+                case .added:  Image(systemName: "checkmark.circle.fill")
+                case .failed: Image(systemName: "exclamationmark.circle")
+                }
+            }
+            .font(.system(size: 18))
+            .foregroundStyle(addPhase == .added ? Color.statusSuccess :
+                             addPhase == .failed ? Color.statusWarning : Color.labelSecondary)
+            .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .disabled(addPhase == .adding || addPhase == .added)
+        .accessibilityLabel(addPhase == .added ? "Added to Library" : "Add to Library")
+    }
+
+    private var menu: some View {
+        Menu {
+            Button(action: onPlay) { Label("Play", systemImage: "play.fill") }
+            Button(action: onAdd) { Label("Add to Library", systemImage: "plus") }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.labelTertiary)
+                .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("More")
     }
 }
 

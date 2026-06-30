@@ -66,6 +66,27 @@ final class MusicKitManager {
         refreshState()
     }
 
+    // MARK: - Favorites (local "loved" tracks)
+    //
+    // A real, working favorite toggle that does NOT depend on an Apple Music
+    // subscription or a catalog write: the user's loved track IDs, persisted
+    // locally. MusicKit exposes no public favorite/rating write, so this is the
+    // honest way to make the player's star actually do something on every build
+    // (it toggles on AND off, reflects per-track state, and survives relaunch).
+    private static let favoritesKey = "com.mtrx.music.favoriteTrackIDs"
+    private(set) var favoriteIDs: Set<String> =
+        Set(UserDefaults.standard.stringArray(forKey: MusicKitManager.favoritesKey) ?? [])
+
+    func isFavorite(id: String) -> Bool { favoriteIDs.contains(id) }
+
+    /// Toggle a track's favorite state and persist it. Returns the new state.
+    @discardableResult
+    func toggleFavorite(id: String) -> Bool {
+        if favoriteIDs.contains(id) { favoriteIDs.remove(id) } else { favoriteIDs.insert(id) }
+        UserDefaults.standard.set(Array(favoriteIDs), forKey: Self.favoritesKey)
+        return favoriteIDs.contains(id)
+    }
+
 #if canImport(MusicKit)
 
     // Real catalog content (top songs) — populated only from a live response.
@@ -470,6 +491,16 @@ final class MusicKitManager {
         return Self.songs(from: detailed.tracks)
     }
 
+    /// One catalog fetch that returns an album's playable songs AND a fully
+    /// detailed album (artists, audio variants, editorial notes) for the
+    /// Apple-style album header — avoids a second round-trip.
+    func loadAlbumDetail(_ album: Album) async throws -> (songs: [Song], album: Album) {
+        // editorialNotes isn't a requestable relationship; it rides along on the
+        // catalog object when present, so we just read it off the result below.
+        let detailed = try await album.with([.tracks, .artists, .audioVariants])
+        return (Self.songs(from: detailed.tracks), detailed)
+    }
+
     func albums(of artist: Artist) async throws -> MusicItemCollection<Album> {
         let detailed = try await artist.with([.albums])
         return detailed.albums ?? []
@@ -575,6 +606,14 @@ final class MusicKitManager {
         do { try await MusicLibrary.shared.add(playlist); return .added }
         catch { return .failed }
     }
+
+    // Favorite convenience over the local store, keyed by the track's catalog ID.
+    func isFavorite(_ song: Song?) -> Bool {
+        guard let song else { return false }
+        return isFavorite(id: song.id.rawValue)
+    }
+    @discardableResult
+    func toggleFavorite(_ song: Song) -> Bool { toggleFavorite(id: song.id.rawValue) }
 
 #else
     // MusicKit unavailable at compile time — keep the app honest & buildable.
