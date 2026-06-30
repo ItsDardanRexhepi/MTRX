@@ -238,6 +238,7 @@
 		5B031DA597A70E826A01EA36 /* MtrxComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020D53A9EC3924EDB2BC9913 /* MtrxComponents.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A6D1 /* StoryAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A6D2 /* StoryAvatar.swift */; };
 		D7D7D7D7D7D7D7D7D7D7D7A1 /* GuardianReviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7D7D7D7D7D7D7D7D7D7D7A2 /* GuardianReviewPanel.swift */; };
+		D9D9D9D9D9D9D9D9D9D9D9A1 /* SecurityNarrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9D9D9D9D9D9D9D9D9D9D9A2 /* SecurityNarrationView.swift */; };
 		72C79D53328FA2323F5E3028 /* SubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06E34845F543EEDE7B91C1C /* SubscriptionView.swift */; };
 		6FA529066511A5865FD08CA9 /* LaunchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 981C9E1F936DA94C2599780D /* LaunchView.swift */; };
 		F51012B3159498482F002A6A /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2A724376917CF6778A0D91 /* NotificationCenterView.swift */; };
@@ -604,6 +605,7 @@
 		020D53A9EC3924EDB2BC9913 /* MtrxComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MtrxComponents.swift"; path = "UI/Components/MtrxComponents.swift"; sourceTree = SOURCE_ROOT; };
 		A1A1A1A1A1A1A1A1A1A1A6D2 /* StoryAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "StoryAvatar.swift"; path = "UI/Components/StoryAvatar.swift"; sourceTree = SOURCE_ROOT; };
 		D7D7D7D7D7D7D7D7D7D7D7A2 /* GuardianReviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GuardianReviewPanel.swift"; path = "UI/Components/GuardianReviewPanel.swift"; sourceTree = SOURCE_ROOT; };
+		D9D9D9D9D9D9D9D9D9D9D9A2 /* SecurityNarrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SecurityNarrationView.swift"; path = "UI/Components/SecurityNarrationView.swift"; sourceTree = SOURCE_ROOT; };
 		F06E34845F543EEDE7B91C1C /* SubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SubscriptionView.swift"; path = "UI/Views/Account/SubscriptionView.swift"; sourceTree = SOURCE_ROOT; };
 		981C9E1F936DA94C2599780D /* LaunchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LaunchView.swift"; path = "UI/Views/Launch/LaunchView.swift"; sourceTree = SOURCE_ROOT; };
 		9E2A724376917CF6778A0D91 /* NotificationCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "NotificationCenterView.swift"; path = "UI/Views/Notifications/NotificationCenterView.swift"; sourceTree = SOURCE_ROOT; };
@@ -1949,6 +1951,7 @@
 				5B031DA597A70E826A01EA36 /* MtrxComponents.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A6D1 /* StoryAvatar.swift in Sources */,
 				D7D7D7D7D7D7D7D7D7D7D7A1 /* GuardianReviewPanel.swift in Sources */,
+				D9D9D9D9D9D9D9D9D9D9D9A1 /* SecurityNarrationView.swift in Sources */,
 				72C79D53328FA2323F5E3028 /* SubscriptionView.swift in Sources */,
 				6FA529066511A5865FD08CA9 /* LaunchView.swift in Sources */,
 				F51012B3159498482F002A6A /* NotificationCenterView.swift in Sources */,

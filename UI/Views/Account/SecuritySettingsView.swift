@@ -10,6 +10,9 @@ import SwiftUI
 struct SecuritySettingsView: View {
     @State private var prefs = SecurityPreferences.shared
     @State private var showResetConfirm = false
+    // M-NARRATOR piece 2: read-only security narration shown at the top. Display only —
+    // it gates nothing and changes no wall.
+    @State private var narration: [MorpheusNarrator.Statement] = []
 
     var body: some View {
         @Bindable var prefs = prefs
@@ -21,6 +24,14 @@ struct SecuritySettingsView: View {
                      + "moves your funds; only your device can sign.")
                     .font(.mtrxCaption1)
                     .foregroundStyle(Color.labelSecondary)
+            }
+
+            // Morpheus security narration — read-only display of what's protecting the
+            // user. Each row is a single grounded fact; there is no aggregate "all secure".
+            if !narration.isEmpty {
+                Section("What's protecting you") {
+                    SecurityNarrationView(statements: narration)
+                }
             }
 
             // Phone verification (SMS OTP, Phase 2)
@@ -119,6 +130,7 @@ struct SecuritySettingsView: View {
             }
         }
         .navigationTitle("Security")
+        .onAppear { narration = MorpheusNarrator.narrate() }
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Reset all security settings to the recommended defaults?",
                             isPresented: $showResetConfirm, titleVisibility: .visible) {
