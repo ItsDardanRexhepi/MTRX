@@ -96,16 +96,10 @@ enum MorpheusSecurityState {
     static func wallet() -> WalletSecuritySnapshot {
         let record = WalletRecordStore.load()
         let tag = record?.keyTag
-        let biometry: String
-        switch BiometricAuth.shared.biometryType {
-        case .faceID: biometry = "Face ID"
-        case .touchID: biometry = "Touch ID"
-        default:      biometry = "biometrics"
-        }
         return WalletSecuritySnapshot(
             secureEnclaveAvailable: SecureEnclaveManager.shared.isSecureEnclaveAvailable,
             biometricsAvailable: BiometricAuth.shared.canUseBiometrics,
-            biometryLabel: biometry,
+            biometryLabel: biometryLabel(),
             hasActiveWallet: record != nil,
             hasLocalSigningKey: hasLocalSigningKey(tag: tag),
             ownerKeyBiometricGated: ownerKeyGated(tag: tag),
@@ -115,6 +109,17 @@ enum MorpheusSecurityState {
             appAttestSupported: AppAttestManager.shared.isSupported,
             appAttestRegistered: AppAttestManager.shared.hasKey
         )
+    }
+
+    /// "Face ID" / "Touch ID" / "biometrics" — which biometric this device uses, from
+    /// the real `BiometricAuth.biometryType` probe. Grounds honest narration of which
+    /// gate runs (never assume Face ID on a Touch ID device).
+    static func biometryLabel() -> String {
+        switch BiometricAuth.shared.biometryType {
+        case .faceID: return "Face ID"
+        case .touchID: return "Touch ID"
+        default:      return "biometrics"
+        }
     }
 
     /// Whether the active wallet record points to a real LOCAL signing key (a
