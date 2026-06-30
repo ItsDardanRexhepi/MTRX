@@ -812,6 +812,16 @@ extension WalletCreation {
         guard status == errSecSuccess else { throw WalletCreationError.cloudBackupFailed }
         return item as? Data
     }
+
+    /// Read-only, non-secret presence probe: is a recovery backup present in iCloud
+    /// Keychain? Probes the REAL synchronizable keychain item — not the in-memory
+    /// `cloudBackupID`, which is only set after a backup performed THIS launch — so
+    /// it reflects durable truth across relaunches. Performs no writes. Exposed for
+    /// the read-only security-state layer (the private `cloudBackupID` isn't readable
+    /// from outside this type).
+    static func hasCloudBackup() -> Bool {
+        ((try? iCloudKeychainLoad(account: backupCiphertextAccount)) ?? nil) != nil
+    }
 }
 
 // MARK: - Supporting Types
