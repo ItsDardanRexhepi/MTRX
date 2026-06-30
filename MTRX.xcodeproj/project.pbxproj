@@ -97,6 +97,8 @@
 		C7E75EEAFCDB324F0F27D1F6 /* MorpheusInterventions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F5B53CEB20A0AC6890C68DA /* MorpheusInterventions.swift */; };
 		D5D5D5D5D5D5D5D5D5D5D5A1 /* MorpheusSecurityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5D5D5D5D5D5D5D5D5D5D5A2 /* MorpheusSecurityState.swift */; };
 		D6D6D6D6D6D6D6D6D6D6D6A1 /* MorpheusGuardian.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D6D6D6D6D6D6D6D6D6D6A2 /* MorpheusGuardian.swift */; };
+		D8D8D8D8D8D8D8D8D8D8D8A1 /* MorpheusNarrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D8D8D8D8D8D8D8D8D8D8A2 /* MorpheusNarrator.swift */; };
+		D8D8D8D8D8D8D8D8D8D8D8B1 /* MorpheusNarratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D8D8D8D8D8D8D8D8D8D8B2 /* MorpheusNarratorTests.swift */; };
 		D6D6D6D6D6D6D6D6D6D6D6B1 /* MorpheusGuardianTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D6D6D6D6D6D6D6D6D6D6B2 /* MorpheusGuardianTests.swift */; };
 		D5D5D5D5D5D5D5D5D5D5D5B1 /* MorpheusSecurityStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5D5D5D5D5D5D5D5D5D5D5B2 /* MorpheusSecurityStateTests.swift */; };
 		D5D5D5D5D5D5D5D5D5D5D5C1 /* SigningWallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5D5D5D5D5D5D5D5D5D5D5C2 /* SigningWallTests.swift */; };
@@ -462,6 +464,8 @@
 		1F5B53CEB20A0AC6890C68DA /* MorpheusInterventions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MorpheusInterventions.swift"; sourceTree = "<group>"; };
 		D5D5D5D5D5D5D5D5D5D5D5A2 /* MorpheusSecurityState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MorpheusSecurityState.swift"; sourceTree = "<group>"; };
 		D6D6D6D6D6D6D6D6D6D6D6A2 /* MorpheusGuardian.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MorpheusGuardian.swift"; sourceTree = "<group>"; };
+		D8D8D8D8D8D8D8D8D8D8D8A2 /* MorpheusNarrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MorpheusNarrator.swift"; sourceTree = "<group>"; };
+		D8D8D8D8D8D8D8D8D8D8D8B2 /* MorpheusNarratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MorpheusNarratorTests.swift"; sourceTree = "<group>"; };
 		D6D6D6D6D6D6D6D6D6D6D6B2 /* MorpheusGuardianTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MorpheusGuardianTests.swift"; sourceTree = "<group>"; };
 		D5D5D5D5D5D5D5D5D5D5D5B2 /* MorpheusSecurityStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MorpheusSecurityStateTests.swift"; sourceTree = "<group>"; };
 		D5D5D5D5D5D5D5D5D5D5D5C2 /* SigningWallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SigningWallTests.swift"; sourceTree = "<group>"; };
@@ -1360,6 +1364,7 @@
 				D09EAFA22D01A5382487DC54,
 				D5D5D5D5D5D5D5D5D5D5D5A2,
 				D6D6D6D6D6D6D6D6D6D6D6A2,
+				D8D8D8D8D8D8D8D8D8D8D8A2,
 			);
 			path = "Morpheus";
 			name = "Morpheus";
@@ -1525,6 +1530,7 @@
 				79115443B6ADCE2298D66886,
 				D5D5D5D5D5D5D5D5D5D5D5B2,
 				D6D6D6D6D6D6D6D6D6D6D6B2,
+				D8D8D8D8D8D8D8D8D8D8D8B2,
 				D5D5D5D5D5D5D5D5D5D5D5C2,
 			);
 			path = "Unit";
@@ -1802,6 +1808,7 @@
 				BA2BE38A5FE71D6BF04B301C /* TrinityTools.swift in Sources */,
 				D5D5D5D5D5D5D5D5D5D5D5A1 /* MorpheusSecurityState.swift in Sources */,
 				D6D6D6D6D6D6D6D6D6D6D6A1 /* MorpheusGuardian.swift in Sources */,
+				D8D8D8D8D8D8D8D8D8D8D8A1 /* MorpheusNarrator.swift in Sources */,
 				72DA692B2BC4452FA776E3D2 /* GlassOrb.swift in Sources */,
 				C05327F172E04FF8804BF566 /* GameRunnerView.swift in Sources */,
 				BD5750C44F7A44FEBB61EEB1 /* AsteroidStormView.swift in Sources */,
@@ -2134,6 +2141,7 @@
 				FE57FACE0000000000000A0B /* WalletTests.swift in Sources */,
 				D5D5D5D5D5D5D5D5D5D5D5B1 /* MorpheusSecurityStateTests.swift in Sources */,
 				D6D6D6D6D6D6D6D6D6D6D6B1 /* MorpheusGuardianTests.swift in Sources */,
+				D8D8D8D8D8D8D8D8D8D8D8B1 /* MorpheusNarratorTests.swift in Sources */,
 				D5D5D5D5D5D5D5D5D5D5D5C1 /* SigningWallTests.swift in Sources */,
 				7A1B0C0D0E0F1020304050B1 /* BridgeSmokeTest.swift in Sources */,
 				7A1B0C0D0E0F1020304050B3 /* InferenceRouterTests.swift in Sources */,
