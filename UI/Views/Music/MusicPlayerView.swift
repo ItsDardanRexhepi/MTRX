@@ -54,6 +54,12 @@ final class SystemVolume: ObservableObject {
     private var ignoreEchoUntil = Date.distantPast
 
     init() {
+        // MPVolumeView doesn't clip its own slider, so its thumb leaks onto the
+        // screen as a faint oval that tracks the volume. Clip it to its 1×1
+        // footprint and blank the thumb image so nothing renders — it still
+        // writes the system volume through the in-hierarchy slider (see set()).
+        mpView.clipsToBounds = true
+        mpView.setVolumeThumbImage(UIImage(), for: .normal)
         observation = AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.new]) { [weak self] _, change in
             guard let self, let v = change.newValue else { return }
             DispatchQueue.main.async {
