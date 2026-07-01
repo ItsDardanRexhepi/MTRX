@@ -44,20 +44,24 @@ final class BridgeGatewayService {
 
     private init() {}
 
+    // P2-10: remapped off the colliding /bridge/* namespace (the mobile bridge is
+    // /bridge/v1/*) onto the gateway's real cross-chain DeFi routes under /api/v1.
     func getBridgeRoutes(fromChain: String, toChain: String, token: String, amount: String) async throws -> [BridgeRoute] {
-        try await api.get(path: "/bridge/routes", queryItems: [
-            URLQueryItem(name: "fromChain", value: fromChain),
-            URLQueryItem(name: "toChain", value: toChain),
-            URLQueryItem(name: "token", value: token),
-            URLQueryItem(name: "amount", value: amount)
+        try await api.post(path: "/api/v1/defi/bridge/quote", body: [
+            "from_chain": fromChain,
+            "to_chain": toChain,
+            "token": token,
+            "amount": amount,
         ])
     }
 
     func executeBridge(route: BridgeRoute) async throws -> SvcBridgeTransaction {
-        try await api.post(path: "/bridge/execute", body: route)
+        try await api.post(path: "/api/v1/defi/bridge/execute", body: route)
     }
 
     func getBridgeStatus(txId: String) async throws -> SvcBridgeTransaction {
-        try await api.get(path: "/bridge/status/\(txId)")
+        // No dedicated bridge-status route exists server-side; poll the generic
+        // transaction lookup the app uses elsewhere rather than a fabricated status.
+        try await api.get(path: "/api/v1/portfolio/history/\(txId)")
     }
 }
