@@ -2278,8 +2278,8 @@ extension MTRXAPIClient {
 
 // MARK: - Security: App Attest (Package D) + biometric owner factor (Package E)
 //
-// Client interface to the Matrix-Security-System App Attest verifier
-// (matrix_security/attest/app_attest.py). Endpoint PATHS follow the existing
+// Client interface to the Morpheus-Security-System App Attest verifier
+// (morpheus_security/attest/app_attest.py). Endpoint PATHS follow the existing
 // `/security/...` convention used by the phone-OTP routes above; the deployed
 // gateway must expose these (the server module defines the verifier methods,
 // new_challenge / verify_attestation / verify_assertion — the HTTP wiring is the

@@ -1,8 +1,8 @@
 // AppAttestManager.swift
 // MTRX Apple Integration — Security
 //
-// CLIENT half of two server-side layers in Matrix-Security-System:
-//   • App Attest (server Package D — matrix_security/attest/app_attest.py): proves a
+// CLIENT half of two server-side layers in Morpheus-Security-System:
+//   • App Attest (server Package D — morpheus_security/attest/app_attest.py): proves a
 //     request comes from a genuine, unmodified MTRX build on a real Apple device,
 //     using a Secure-Enclave-backed key Apple manages.
 //   • Biometric Secure-Enclave owner factor (server Package E — owner.py): the owner

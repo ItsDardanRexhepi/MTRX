@@ -189,7 +189,7 @@ enum PendingCredentials {
 
     // MARK: - Security (App Attest + biometric owner factor)
     //
-    // Client half of two server-side layers in Matrix-Security-System:
+    // Client half of two server-side layers in Morpheus-Security-System:
     //   • App Attest (server Package D / AppAttestVerifier) — proves a request comes
     //     from a genuine, unmodified MTRX build on a real Apple device.
     //   • Biometric Secure-Enclave owner factor (server Package E / owner.py) — the

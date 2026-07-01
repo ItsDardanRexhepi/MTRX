@@ -1,7 +1,7 @@
 # Voice features — DEVICE-TEST sign-off gate (standing)
 
 The voice track (Trinity STT/TTS) carries its **own device-sign-off requirement**, the same
-standing-gate pattern as the Phase-3 key biometric gate (§14.8c in `Matrix-Security-System/
+standing-gate pattern as the Phase-3 key biometric gate (§14.8c in `Morpheus-Security-System/
 SECURITY_REVIEW_CHECKLIST.md`). **A green Simulator build is necessary but NOT sufficient** —
 mic capture, audio output, and the real iOS permission prompts only fully exercise on a **real
 device** (the Simulator routes the Mac mic/speakers and does not reproduce the iOS permission flow

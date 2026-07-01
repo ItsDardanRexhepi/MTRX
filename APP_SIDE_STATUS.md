@@ -1,8 +1,8 @@
 # App-Side Status — App Attest (D) + Biometric Secure-Enclave Owner Factor (E)
 
 This is the **client (iOS / Swift) half** of two security layers whose server half
-already lives in `Matrix-Security-System`. It was built against the real server
-contract (`matrix_security/attest/app_attest.py` + `attest/CLIENT_INTEGRATION.md`),
+already lives in `Morpheus-Security-System`. It was built against the real server
+contract (`morpheus_security/attest/app_attest.py` + `attest/CLIENT_INTEGRATION.md`),
 behind flags that **default OFF**.
 
 > **"Done" here means: the client code is written, it compiles, and it matches the
@@ -168,7 +168,7 @@ verified working attestation. That is the honest status.
 
 ## 6. Exact steps to turn it on later (lockstep with the server)
 
-Per `Matrix-Security-System/SECURITY_REVIEW_CHECKLIST.md` §14.4:
+Per `Morpheus-Security-System/SECURITY_REVIEW_CHECKLIST.md` §14.4:
 
 1. Apple side: enable App Attest on the App ID, add the entitlement, regenerate the
    profile (§2 steps 1–3).
