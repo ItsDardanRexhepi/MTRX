@@ -1,6 +1,7 @@
 // MTRXAPIClient.swift
 // Central networking layer for the MTRX iOS app.
-// Connects to the MTRX Runtime FastAPI backend (30 blockchain components + Phase 3 subsystems).
+// Connects to the 0pnMatrx gateway (aiohttp) — REST routes under /api/v1 + the
+// mobile bridge under /bridge/v1. (Endpoint alignment tracked in ENDPOINT_MAP.md.)
 
 import Foundation
 

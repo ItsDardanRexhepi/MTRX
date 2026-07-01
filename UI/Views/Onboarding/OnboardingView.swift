@@ -588,13 +588,23 @@ struct OnboardingView: View {
                 let identityToken = result.identityTokenString ?? ""
                 let authCode = result.authorizationCodeString ?? ""
                 let userEmail = result.email
-                Task.detached {
-                    _ = try? await MTRXAPIClient.shared.authenticateWithApple(
-                        identityToken: identityToken,
-                        authorizationCode: authCode,
-                        fullName: signInName,
-                        email: userEmail
-                    )
+                // Only attempt the exchange when a backend is actually configured;
+                // firing a doomed request against an empty gateway URL just wastes
+                // a round-trip. When configured, surface a real failure to the log
+                // instead of silently swallowing it (P1-8).
+                if PendingCredentials.isBackendConfigured {
+                    Task.detached {
+                        do {
+                            _ = try await MTRXAPIClient.shared.authenticateWithApple(
+                                identityToken: identityToken,
+                                authorizationCode: authCode,
+                                fullName: signInName,
+                                email: userEmail
+                            )
+                        } catch {
+                            print("⚠️ Apple auth backend exchange failed: \(error)")
+                        }
+                    }
                 }
 
                 await MainActor.run {

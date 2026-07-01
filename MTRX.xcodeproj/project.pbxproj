@@ -1734,6 +1734,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 92CF0BDA3A7742D5453609D3;
 			buildPhases = (
+				A5EC7E75B0114A5E00000001 /* Generate Secrets.swift if missing */,
 				E7209FB05162B7572F88D05E /* Sources */,
 				29B2D46AA747A59804D46E1F /* Frameworks */,
 				66F8606E9F0A136E2228EBCB /* Resources */,
@@ -1801,6 +1802,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A5EC7E75B0114A5E00000001 /* Generate Secrets.swift if missing */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 0;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Config/Secrets.example.swift",
+			);
+			name = "Generate Secrets.swift if missing";
+			outputPaths = (
+				"$(SRCROOT)/Config/Secrets.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "SECRETS=\"${SRCROOT}/Config/Secrets.swift\"\nEXAMPLE=\"${SRCROOT}/Config/Secrets.example.swift\"\nif [ ! -f \"$SECRETS\" ]; then\n  if [ -f \"$EXAMPLE\" ]; then\n    cp \"$EXAMPLE\" \"$SECRETS\"\n    echo \"warning: Config/Secrets.swift was missing \\u2014 copied from Secrets.example.swift (placeholder values).\"\n  else\n    echo \"error: Neither Secrets.swift nor Secrets.example.swift found.\"; exit 1\n  fi\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		E7209FB05162B7572F88D05E /* Sources */ = {
