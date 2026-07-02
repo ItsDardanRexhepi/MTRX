@@ -103,13 +103,17 @@ final class GovernanceService {
     }
 
     func vote(proposalId: String, support: VoteSupport, reason: String?) async throws -> SvcTransactionResult {
+        // Gateway contract: POST /api/v1/governance/vote {proposal_id, voter,
+        // support} (enveloped response).
         struct VoteBody: Codable {
             let proposalId: String
+            let voter: String
             let support: VoteSupport
             let reason: String?
         }
-        let body = VoteBody(proposalId: proposalId, support: support, reason: reason)
-        return try await api.post(path: "/governance/proposals/\(proposalId)/vote", body: body)
+        let voter = await api.walletPathIdentity()
+        let body = VoteBody(proposalId: proposalId, voter: voter, support: support, reason: reason)
+        return try await api.postEnveloped(path: "/api/v1/governance/vote", body: body)
     }
 
     func createProposal(daoId: String, proposal: ProposalDraft) async throws -> SvcTransactionResult {

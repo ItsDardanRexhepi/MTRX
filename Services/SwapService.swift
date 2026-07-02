@@ -46,40 +46,36 @@ final class SwapService {
     // MARK: - Quote
 
     func getQuote(fromToken: String, toToken: String, amount: String) async throws -> SwapQuote {
+        // Gateway contract: POST /api/v1/defi/swap/route {token_in, token_out,
+        // amount}; result arrives in the {status,data} envelope. A shape
+        // mismatch throws and the UI keeps its honest fallback.
         struct QuoteRequest: Encodable {
-            let fromToken: String
-            let toToken: String
+            let tokenIn: String
+            let tokenOut: String
             let amount: String
         }
-        let quote: SwapQuote = try await client.post(
-            path: "/api/v1/swap/quote",
-            body: QuoteRequest(fromToken: fromToken, toToken: toToken, amount: amount)
+        let quote: SwapQuote = try await client.postEnveloped(
+            path: "/api/v1/defi/swap/route",
+            body: QuoteRequest(tokenIn: fromToken, tokenOut: toToken, amount: amount)
         )
         return quote
     }
 
-    // MARK: - Execute Swap
+    // MARK: - Execute Swap (post-deploy wiring unit)
 
-    func executeSwap(quote: SwapQuote) async throws -> SvcTransactionResult {
+    /// Gateway contract: POST /api/v1/defi/swap/execute {wallet, route_id} —
+    /// route_id is the SERVER-issued id from the route response, never a
+    /// client-invented UUID. Execution stays unreachable from the UI until the
+    /// post-deploy wiring unit lands (Confirm Swap shows an honest notice).
+    func executeSwap(routeId: String) async throws -> SvcTransactionResult {
         struct SwapExecuteRequest: Encodable {
-            let quoteId: String
-            let fromToken: String
-            let toToken: String
-            let fromAmount: String
-            let toAmount: String
-            let route: String
+            let wallet: String
+            let routeId: String
         }
-        let result: SvcTransactionResult = try await client.post(
-            path: "/api/v1/swap/execute",
-            body: SwapExecuteRequest(
-                quoteId: quote.id.uuidString,
-                fromToken: quote.fromToken,
-                toToken: quote.toToken,
-                fromAmount: quote.fromAmount,
-                toAmount: quote.toAmount,
-                route: quote.route
-            )
+        let wallet = await client.walletPathIdentity()
+        return try await client.postEnveloped(
+            path: "/api/v1/defi/swap/execute",
+            body: SwapExecuteRequest(wallet: wallet, routeId: routeId)
         )
-        return result
     }
 }
