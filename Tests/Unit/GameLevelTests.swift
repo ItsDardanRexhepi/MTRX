@@ -46,4 +46,53 @@ final class GameLevelTests: XCTestCase {
         XCTAssertEqual(ColorBurstLevels.level(0).target, ColorBurstLevels.level(1).target)
         XCTAssertEqual(ColorBurstLevels.level(99).target, ColorBurstLevels.level(50).target)
     }
+
+    // MARK: - 2048 Gauntlet (#3)
+
+    func test2048_allLevelsWellFormed() {
+        let validTargets: Set<Int> = [64, 128, 256, 512, 1024]
+        for n in 1...50 {
+            let l = Game2048Levels.level(n)
+            XCTAssertTrue(validTargets.contains(l.targetTile), "level \(n) target \(l.targetTile) must be a supported tile")
+            XCTAssertGreaterThanOrEqual(l.moves, 20, "level \(n) needs a usable move budget")
+            XCTAssertLessThanOrEqual(l.blockers.count, 2, "level \(n) blockers capped for a 4x4 board")
+            for (r, c) in l.blockers {
+                XCTAssertTrue((0..<4).contains(r) && (0..<4).contains(c), "blocker off-board at level \(n)")
+            }
+            // Blockers must be distinct and not overlap each other.
+            let keys = Set(l.blockers.map { $0.0 * 4 + $0.1 })
+            XCTAssertEqual(keys.count, l.blockers.count, "duplicate blocker at level \(n)")
+        }
+    }
+
+    func test2048_earlyLevelsHaveNoBlockers() {
+        // Tiers 1–2 (levels 1–20) stay blocker-free so newcomers ramp gently.
+        for n in 1...20 {
+            XCTAssertTrue(Game2048Levels.level(n).blockers.isEmpty, "level \(n) should have no blockers")
+        }
+    }
+
+    func test2048_targetTileNonDecreasingWithinBlockerFreeLevels() {
+        // Ignoring blocker-eased levels, target must never regress.
+        var prev = 0
+        for n in 1...50 where Game2048Levels.level(n).blockers.isEmpty {
+            let t = Game2048Levels.level(n).targetTile
+            XCTAssertGreaterThanOrEqual(t, prev, "target regressed at level \(n)")
+            prev = t
+        }
+    }
+
+    func test2048_blockedLevelsEaseHighTargets() {
+        // A blocked level in tiers 4–5 (would be 512/1024) is eased one tier
+        // down so the cramped board stays winnable.
+        for n in 31...50 where !Game2048Levels.level(n).blockers.isEmpty {
+            let l = Game2048Levels.level(n)
+            XCTAssertLessThanOrEqual(l.targetTile, 512, "blocked high level \(n) should be eased")
+        }
+    }
+
+    func test2048_clampsOutOfRange() {
+        XCTAssertEqual(Game2048Levels.level(0).targetTile, Game2048Levels.level(1).targetTile)
+        XCTAssertEqual(Game2048Levels.level(99).targetTile, Game2048Levels.level(50).targetTile)
+    }
 }
