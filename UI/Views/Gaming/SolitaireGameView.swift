@@ -69,6 +69,10 @@ final class SolitaireEngine: ObservableObject {
     @Published var seconds = 0
     @Published var won = false
 
+    // Level system — each level is a solver-verified (winnable) deal.
+    @Published var level = 1
+    private(set) var startLevel = 1
+
     // MARK: Undo (limited do-overs)
 
     /// A full board snapshot, captured before each move so the player can take a
@@ -90,16 +94,23 @@ final class SolitaireEngine: ObservableObject {
     private var timer: Timer?
     private let move = Animation.spring(response: 0.34, dampingFraction: 0.82)
 
-    init() { newGame() }
-
     // MARK: Setup
 
-    func newGame() {
-        var deck: [SolitaireCard] = []
-        for suit in CardSuit.allCases {
-            for rank in 1...13 { deck.append(SolitaireCard(rank: rank, suit: suit)) }
+    /// Begin a level. Each level deals a specific SOLVER-VERIFIED seed, so every
+    /// deal is guaranteed winnable. Winning records completion + unlocks the next.
+    func start(at level: Int) {
+        startLevel = max(1, level); self.level = max(1, level)
+        deal(seed: SolitaireSeeds.seed(forLevel: self.level))
+    }
+
+    func retry() { start(at: startLevel) }
+
+    private func deal(seed: UInt64) {
+        // Deterministic deck for this seed (same ordering the solver verified).
+        let codes = SolitaireDeck.shuffled(seed: seed)
+        let deck: [SolitaireCard] = codes.map {
+            SolitaireCard(rank: $0.rank, suit: CardSuit.allCases[$0.suit])
         }
-        deck.shuffle()
 
         stock = []; waste = []
         foundations = [[], [], [], []]
@@ -215,6 +226,7 @@ final class SolitaireEngine: ObservableObject {
         if foundations.allSatisfy({ $0.count == 13 }) {
             won = true
             stop()
+            GameProgress.shared.recordCompletion(level: level, in: .solitaire)
             MtrxHaptics.success()
         }
     }
@@ -446,7 +458,34 @@ struct SolitaireGameView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var engine = SolitaireEngine()
 
+    @State private var playingLevel: Int?
+
+    private var totalLevels: Int { GameProgress.shared.totalLevels(for: .solitaire) }
+
     var body: some View {
+        Group {
+            if playingLevel == nil {
+                GameLevelSelectView(
+                    game: .solitaire, title: "Solitaire", accent: accent,
+                    onSelect: { level in
+                        playingLevel = level
+                        engine.start(at: level)
+                    },
+                    onClose: { dismiss() }
+                )
+            } else {
+                gameBody
+            }
+        }
+        .onDisappear { engine.stop() }
+        .onChange(of: engine.won) { _, won in
+            if won { GameKitManager.shared.recordGameOver(.solitaire, score: engine.score, won: true) }
+        }
+    }
+
+    private func backToLevels() { engine.stop(); playingLevel = nil }
+
+    private var gameBody: some View {
         ZStack {
             LinearGradient(colors: [Color.backgroundPrimary, Color(red: 0.04, green: 0.12, blue: 0.10), Color.black],
                            startPoint: .top, endPoint: .bottom)
@@ -464,25 +503,21 @@ struct SolitaireGameView: View {
 
             if engine.won { winOverlay }
         }
-        .onDisappear { engine.stop() }
-        .onChange(of: engine.won) { _, won in
-            if won { GameKitManager.shared.recordGameOver(.solitaire, score: engine.score, won: true) }
-        }
     }
 
     // MARK: Chrome
 
     private var header: some View {
         HStack {
-            roundButton("xmark") { dismiss() }
+            roundButton("square.grid.2x2") { backToLevels() }
             Spacer()
-            Text("Solitaire")
-                .font(.system(size: 19, weight: .heavy, design: .rounded))
+            Text("Solitaire · Lvl \(engine.level)")
+                .font(.system(size: 18, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
             Spacer()
             GameRecordControl()
             roundButton("arrow.clockwise") {
-                withAnimation(.easeInOut(duration: 0.25)) { engine.newGame() }
+                withAnimation(.easeInOut(duration: 0.25)) { engine.retry() }
             }
         }
         .padding(.horizontal, Spacing.xs)
@@ -701,19 +736,26 @@ struct SolitaireGameView: View {
             Color.black.opacity(0.55).ignoresSafeArea()
             VStack(spacing: Spacing.md) {
                 Image(systemName: "trophy.fill").font(.system(size: 54)).foregroundStyle(accent)
-                Text("You won!").font(.system(size: 30, weight: .heavy, design: .rounded)).foregroundStyle(.white)
+                Text(engine.level >= totalLevels ? "All Levels Cleared" : "Level \(engine.level) Cleared")
+                    .font(.system(size: 28, weight: .heavy, design: .rounded)).foregroundStyle(.white)
                 Text("\(engine.moves) moves · \(engine.timeLabel) · \(engine.score) pts")
                     .font(.mtrxCallout).foregroundStyle(Color.labelSecondary)
                 Button {
                     MtrxHaptics.impact(.medium)
-                    withAnimation(.easeInOut(duration: 0.25)) { engine.newGame() }
+                    if engine.level >= totalLevels {
+                        backToLevels()
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.25)) { engine.start(at: engine.level + 1) }
+                    }
                 } label: {
-                    Text("New Game")
+                    Text(engine.level >= totalLevels ? "Back to Levels" : "Next Level")
                         .font(.mtrxCalloutBold).foregroundStyle(Color.backgroundPrimary)
                         .padding(.horizontal, Spacing.xl).padding(.vertical, Spacing.ms)
                         .background(accent).clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                Button("Levels") { MtrxHaptics.impact(.light); backToLevels() }
+                    .font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary).padding(.top, Spacing.xs)
                 Button("Leave") { dismiss() }
                     .font(.mtrxCalloutBold).foregroundStyle(Color.labelSecondary).padding(.top, Spacing.xs)
             }
