@@ -27,6 +27,10 @@ final class AsteroidStormEngine: ObservableObject {
     @Published var lives = 3
     @Published var level = 1
     @Published var gameOver = false
+    @Published var victory = false          // cleared level 50
+
+    /// The level this run started on — a game-over retries THIS level, not 1.
+    private(set) var startLevel = 1
 
     // Game objects (plain vars; the Canvas reads them on each frame).
     var shipX: CGFloat = 0, shipY: CGFloat = 0, shipAngle: CGFloat = 0
@@ -44,20 +48,35 @@ final class AsteroidStormEngine: ObservableObject {
     var firing = false
     private var timer: Timer?
 
+    private var pendingStart = false
+
     func configure(_ s: CGSize) {
-        let fresh = size == .zero
         size = s
-        if fresh { newGame() }
+        // The level is chosen before the board lays out, so the actual start is
+        // deferred until we have a real size.
+        if pendingStart && s != .zero {
+            pendingStart = false
+            start(at: startLevel)
+        }
     }
 
-    func newGame() {
+    /// Begin a run at the chosen (unlocked) level. Each cleared level records
+    /// completion to the shared GameProgress store; clearing level 50 wins.
+    func start(at level: Int) {
         stop()
-        score = 0; lives = 3; level = 1; gameOver = false
+        startLevel = max(1, level)
+        self.level = max(1, level)
+        guard size != .zero else { pendingStart = true; return }
+        score = 0; lives = 3
+        gameOver = false; victory = false
         bullets = []
         resetShip()
         spawnWave()
         startTimer()
     }
+
+    /// Retry the level this run started on.
+    func retry() { start(at: startLevel) }
 
     private func resetShip() {
         shipX = size.width / 2; shipY = size.height / 2
@@ -174,8 +193,16 @@ final class AsteroidStormEngine: ObservableObject {
             }
         }
 
-        // Wave cleared.
-        if rocks.isEmpty && !gameOver { level += 1; spawnWave(); resetShip() }
+        // Level cleared. Record completion (unlocks the next), then either
+        // advance to the next level or — at 50 — win.
+        if rocks.isEmpty && !gameOver && !victory {
+            GameProgress.shared.recordCompletion(level: level, in: .asteroids)
+            if level >= GameProgress.shared.totalLevels(for: .asteroids) {
+                victory = true; stop(); MtrxHaptics.success()
+            } else {
+                level += 1; spawnWave(); resetShip(); MtrxHaptics.impact(.rigid)
+            }
+        }
 
         frame &+= 1
     }
@@ -189,12 +216,47 @@ struct AsteroidStormView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var engine = AsteroidStormEngine()
 
+    /// nil until the player picks a level from the shared level-select.
+    @State private var playingLevel: Int?
+
     // A static starfield, generated once.
     private let stars: [(CGFloat, CGFloat, CGFloat)] = (0..<60).map { _ in
         (CGFloat.random(in: 0...1), CGFloat.random(in: 0...1), CGFloat.random(in: 0.6...1.8))
     }
 
+    private var totalLevels: Int { GameProgress.shared.totalLevels(for: .asteroids) }
+
     var body: some View {
+        Group {
+            if playingLevel == nil {
+                GameLevelSelectView(
+                    game: .asteroids, title: "Asteroid Storm", accent: accent,
+                    onSelect: { level in
+                        playingLevel = level
+                        engine.start(at: level)
+                    },
+                    onClose: { dismiss() }
+                )
+            } else {
+                gameBody
+            }
+        }
+        .onDisappear { engine.stop() }
+        .onChange(of: engine.gameOver) { _, over in
+            if over { GameKitManager.shared.recordGameOver(.asteroids, score: engine.score) }
+        }
+        .onChange(of: engine.victory) { _, won in
+            if won { GameKitManager.shared.recordGameOver(.asteroids, score: engine.score, won: true) }
+        }
+    }
+
+    /// Return to the level grid (progress is already persisted per cleared level).
+    private func backToLevels() {
+        engine.stop()
+        playingLevel = nil
+    }
+
+    private var gameBody: some View {
         ZStack {
             LinearGradient(colors: [Color.black, Color(red: 0.04, green: 0.05, blue: 0.12), Color.black],
                            startPoint: .top, endPoint: .bottom)
@@ -211,26 +273,27 @@ struct AsteroidStormView: View {
             }
             .padding(.top, Spacing.xs)
 
-            if engine.gameOver {
-                overlay("Game Over", "xmark.octagon.fill", Color.statusError) { engine.newGame() }
+            if engine.victory {
+                overlay("All Sectors Cleared", "trophy.fill", accent,
+                        primaryTitle: "Back to Levels", primary: backToLevels)
+            } else if engine.gameOver {
+                overlay("Game Over", "xmark.octagon.fill", Color.statusError,
+                        primaryTitle: "Retry Level \(engine.level)", primary: { engine.retry() },
+                        secondaryTitle: "Levels", secondary: backToLevels)
             }
-        }
-        .onDisappear { engine.stop() }
-        .onChange(of: engine.gameOver) { _, over in
-            if over { GameKitManager.shared.recordGameOver(.asteroids, score: engine.score) }
         }
     }
 
     private var header: some View {
         HStack {
-            roundButton("xmark") { dismiss() }
+            roundButton("square.grid.2x2") { backToLevels() }
             Spacer()
             Text("Asteroid Storm")
                 .font(.system(size: 19, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
             Spacer()
             GameRecordControl()
-            roundButton("arrow.clockwise") { engine.newGame() }
+            roundButton("arrow.clockwise") { engine.retry() }
         }
         .padding(.horizontal, Spacing.md)
     }
@@ -250,7 +313,7 @@ struct AsteroidStormView: View {
     private var statBar: some View {
         HStack(spacing: Spacing.lg) {
             stat("SCORE", "\(engine.score)")
-            stat("LEVEL", "\(engine.level)")
+            stat("LEVEL", "\(engine.level)/\(totalLevels)")
             HStack(spacing: 3) {
                 ForEach(0..<3, id: \.self) { i in
                     Image(systemName: i < engine.lives ? "airplane" : "airplane")
@@ -374,7 +437,9 @@ struct AsteroidStormView: View {
             )
     }
 
-    private func overlay(_ title: String, _ symbol: String, _ tint: Color, _ action: @escaping () -> Void) -> some View {
+    private func overlay(_ title: String, _ symbol: String, _ tint: Color,
+                         primaryTitle: String, primary: @escaping () -> Void,
+                         secondaryTitle: String? = nil, secondary: (() -> Void)? = nil) -> some View {
         ZStack {
             Color.black.opacity(0.55).ignoresSafeArea()
             VStack(spacing: Spacing.md) {
@@ -383,14 +448,18 @@ struct AsteroidStormView: View {
                 Text("Score \(engine.score)").font(.mtrxCallout).foregroundStyle(Color.labelSecondary)
                 Button {
                     MtrxHaptics.impact(.medium)
-                    action()
+                    primary()
                 } label: {
-                    Text("Play Again")
+                    Text(primaryTitle)
                         .font(.mtrxCalloutBold).foregroundStyle(Color.backgroundPrimary)
                         .padding(.horizontal, Spacing.xl).padding(.vertical, Spacing.ms)
                         .background(accent).clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                if let secondaryTitle, let secondary {
+                    Button(secondaryTitle) { MtrxHaptics.impact(.light); secondary() }
+                        .font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary).padding(.top, Spacing.xs)
+                }
                 Button("Leave") { dismiss() }
                     .font(.mtrxCalloutBold).foregroundStyle(Color.labelSecondary).padding(.top, Spacing.xs)
             }
