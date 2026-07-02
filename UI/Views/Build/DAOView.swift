@@ -23,6 +23,7 @@ final class DAOViewModel: ObservableObject {
     @Published var selectedVoteChoice: GovernanceVoteChoice?
     @Published var isVoting: Bool = false
     @Published var showPastProposals: Bool = false
+    @Published var voteNotice: String?
 
     // Delegation
     @Published var currentDelegateAddress: String = "Self"
@@ -96,14 +97,40 @@ final class DAOViewModel: ObservableObject {
     }
 
     func castVote() {
-        guard selectedVoteChoice != nil else { return }
+        guard let choice = selectedVoteChoice, let proposal = selectedProposal else { return }
+
+        // Demo data or no backend: honest notice — no vote is recorded anywhere.
+        guard !isDemo, PendingCredentials.isBackendConfigured else {
+            showVoteSheet = false
+            voteNotice = "Voting isn't available in this build yet — no vote was recorded."
+            MtrxHaptics.warning()
+            return
+        }
+        // The gateway vote route only takes for/against.
+        guard choice != .abstain else {
+            voteNotice = "Abstain isn't supported by the server yet — no vote was recorded."
+            MtrxHaptics.warning()
+            return
+        }
+
         isVoting = true
         MtrxHaptics.impact(.heavy)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            self?.isVoting = false
-            self?.showVoteSheet = false
-            MtrxHaptics.success()
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                _ = try await MTRXAPIClient.shared.vote(VoteRequest(
+                    proposalId: String(proposal.number),
+                    support: choice == .forVote,
+                    reason: nil))
+                self.isVoting = false
+                self.showVoteSheet = false
+                MtrxHaptics.success()
+                await self.refresh()   // fresh tallies from the server, never invented
+            } catch {
+                self.isVoting = false
+                self.voteNotice = "The vote could not be submitted — no vote was recorded."
+                MtrxHaptics.warning()
+            }
         }
     }
 
@@ -286,6 +313,14 @@ struct DAOView: View {
                     VoteSheet(proposal: proposal, viewModel: viewModel)
                         .presentationDetents([.large])
                 }
+            }
+            .alert("Governance Vote", isPresented: Binding(
+                get: { viewModel.voteNotice != nil },
+                set: { if !$0 { viewModel.voteNotice = nil } }
+            )) {
+                Button("OK", role: .cancel) { viewModel.voteNotice = nil }
+            } message: {
+                Text(viewModel.voteNotice ?? "")
             }
             .task {
                 guard !appeared else { return }
