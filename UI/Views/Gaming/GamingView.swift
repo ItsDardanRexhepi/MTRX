@@ -28,6 +28,24 @@ enum GameKind {
     case merge2048  // 2048 sliding-tile merge puzzle
     case breakout   // paddle-and-ball brick breaker
     case asteroids  // ship-and-rocks space shooter
+
+    /// The leaderboard/progress identity for this kind. The three arcade
+    /// mechanics (targets/reflex/sequence) share `.arcade` and have no level
+    /// progression; the six standalone games each map to their own GameID.
+    var progressGameID: GameKitManager.GameID {
+        switch self {
+        case .solitaire: return .solitaire
+        case .blocks:    return .blocks
+        case .match3:    return .colorburst
+        case .merge2048: return .merge2048
+        case .breakout:  return .breakout
+        case .asteroids: return .asteroids
+        case .targets, .reflex, .sequence: return .arcade
+        }
+    }
+
+    /// Whether this kind has the 50-level progression layer (arcade does not).
+    var hasLevels: Bool { progressGameID != .arcade }
 }
 
 struct TournamentItem: Identifiable {

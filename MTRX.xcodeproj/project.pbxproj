@@ -342,6 +342,9 @@
 		7A1B0C0D0E0F1020304050A1 /* TransactionIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F1020304050A2 /* TransactionIndexer.swift */; };
 		7BA4A0A8EC45F85DD7C5E33B /* BiometricAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F0C10543A3899A4D41B2BCE /* BiometricAuth.swift */; };
 		B9521CFFF743D951E60FE2C5 /* WalletSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D87F42BA86A106D90185132 /* WalletSync.swift */; };
+		2D38C4BC58E4599B3A5C8F46 /* GameProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2DFB64609278C78D7639C5B /* GameProgress.swift */; };
+		B7BAFE4692CF0F5CF311C4C8 /* GameLevelSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92292762229B8EF3C287DD55 /* GameLevelSelectView.swift */; };
+		A382D02CAD507B2C07B8C7CC /* GameProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04EAB0B59E854FA70A0FC56B /* GameProgressTests.swift */; };
 		E89DA464BAA3574A5A5D44F3 /* LedgerBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E76603E0373DA6297E6253 /* LedgerBridge.swift */; };
 		D72833AE066FB976BF316C47 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF571B31F424F56C472006AA /* HomeView.swift */; };
 		CC3B624628414AE19FD22533 /* GreetingPopupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6703C9BD1C943B0B2196D00 /* GreetingPopupsView.swift */; };
@@ -709,6 +712,9 @@
 		7A1B0C0D0E0F1020304050A2 /* TransactionIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TransactionIndexer.swift"; path = "Blockchain/Wallet/TransactionIndexer.swift"; sourceTree = SOURCE_ROOT; };
 		4F0C10543A3899A4D41B2BCE /* BiometricAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "BiometricAuth.swift"; path = "Core/Wallet/BiometricAuth.swift"; sourceTree = SOURCE_ROOT; };
 		2D87F42BA86A106D90185132 /* WalletSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "WalletSync.swift"; path = "Core/Wallet/WalletSync.swift"; sourceTree = SOURCE_ROOT; };
+		A2DFB64609278C78D7639C5B /* GameProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameProgress.swift"; path = "Core/Gaming/GameProgress.swift"; sourceTree = SOURCE_ROOT; };
+		92292762229B8EF3C287DD55 /* GameLevelSelectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameLevelSelectView.swift"; path = "UI/Views/Gaming/GameLevelSelectView.swift"; sourceTree = SOURCE_ROOT; };
+		04EAB0B59E854FA70A0FC56B /* GameProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameProgressTests.swift"; path = "Tests/Unit/GameProgressTests.swift"; sourceTree = SOURCE_ROOT; };
 		C9E76603E0373DA6297E6253 /* LedgerBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LedgerBridge.swift"; path = "Core/Wallet/LedgerBridge.swift"; sourceTree = SOURCE_ROOT; };
 		DF571B31F424F56C472006AA /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "HomeView.swift"; path = "UI/Views/Home/HomeView.swift"; sourceTree = SOURCE_ROOT; };
 		F6703C9BD1C943B0B2196D00 /* GreetingPopupsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GreetingPopupsView.swift"; path = "UI/Views/Home/GreetingPopupsView.swift"; sourceTree = SOURCE_ROOT; };
@@ -1900,6 +1906,8 @@
 				7A1B0C0D0E0F1020304050A1 /* TransactionIndexer.swift in Sources */,
 				7BA4A0A8EC45F85DD7C5E33B /* BiometricAuth.swift in Sources */,
 				B9521CFFF743D951E60FE2C5 /* WalletSync.swift in Sources */,
+				2D38C4BC58E4599B3A5C8F46 /* GameProgress.swift in Sources */,
+				B7BAFE4692CF0F5CF311C4C8 /* GameLevelSelectView.swift in Sources */,
 				E89DA464BAA3574A5A5D44F3 /* LedgerBridge.swift in Sources */,
 				D72833AE066FB976BF316C47 /* HomeView.swift in Sources */,
 				CC3B624628414AE19FD22533 /* GreetingPopupsView.swift in Sources */,
@@ -2163,6 +2171,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FE57FACE0000000000000A0B /* WalletTests.swift in Sources */,
+				A382D02CAD507B2C07B8C7CC /* GameProgressTests.swift in Sources */,
 				D5D5D5D5D5D5D5D5D5D5D5B1 /* MorpheusSecurityStateTests.swift in Sources */,
 				D6D6D6D6D6D6D6D6D6D6D6B1 /* MorpheusGuardianTests.swift in Sources */,
 				D8D8D8D8D8D8D8D8D8D8D8B1 /* MorpheusNarratorTests.swift in Sources */,
