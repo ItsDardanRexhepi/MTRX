@@ -346,6 +346,7 @@
 		A702B3B49AC2B87019852ACB /* SolitaireSolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A186806BA71B94F0936916F0 /* SolitaireSolver.swift */; };
 		D9640FDF5101B1173A0BAE6F /* SolitaireSeeds.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB2BC9E64116353B1E252BF /* SolitaireSeeds.swift */; };
 		DBA7E43CC0F35B954C6F8951 /* SolitaireRedoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E5D2F25F0366968E1AEAE /* SolitaireRedoStore.swift */; };
+		E253EB2793A240BB8EA69B30 /* IAPServerReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDA6924F651D4DD2A04CA75A /* IAPServerReporter.swift */; };
 		B7BAFE4692CF0F5CF311C4C8 /* GameLevelSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92292762229B8EF3C287DD55 /* GameLevelSelectView.swift */; };
 		A382D02CAD507B2C07B8C7CC /* GameProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04EAB0B59E854FA70A0FC56B /* GameProgressTests.swift */; };
 		116631B215936CEC9D4FAF83 /* GameLevelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DDBB32DBA73E1672DA98E3 /* GameLevelTests.swift */; };
@@ -722,6 +723,7 @@
 		A186806BA71B94F0936916F0 /* SolitaireSolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SolitaireSolver.swift"; path = "Core/Gaming/SolitaireSolver.swift"; sourceTree = SOURCE_ROOT; };
 		ACB2BC9E64116353B1E252BF /* SolitaireSeeds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SolitaireSeeds.swift"; path = "Core/Gaming/SolitaireSeeds.swift"; sourceTree = SOURCE_ROOT; };
 		D81E5D2F25F0366968E1AEAE /* SolitaireRedoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SolitaireRedoStore.swift"; path = "Core/Gaming/SolitaireRedoStore.swift"; sourceTree = SOURCE_ROOT; };
+		EDA6924F651D4DD2A04CA75A /* IAPServerReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IAPServerReporter.swift"; path = "Core/Subscription/IAPServerReporter.swift"; sourceTree = SOURCE_ROOT; };
 		92292762229B8EF3C287DD55 /* GameLevelSelectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameLevelSelectView.swift"; path = "UI/Views/Gaming/GameLevelSelectView.swift"; sourceTree = SOURCE_ROOT; };
 		04EAB0B59E854FA70A0FC56B /* GameProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameProgressTests.swift"; path = "Tests/Unit/GameProgressTests.swift"; sourceTree = SOURCE_ROOT; };
 		91DDBB32DBA73E1672DA98E3 /* GameLevelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameLevelTests.swift"; path = "Tests/Unit/GameLevelTests.swift"; sourceTree = SOURCE_ROOT; };
@@ -1922,6 +1924,7 @@
 				A702B3B49AC2B87019852ACB /* SolitaireSolver.swift in Sources */,
 				D9640FDF5101B1173A0BAE6F /* SolitaireSeeds.swift in Sources */,
 				DBA7E43CC0F35B954C6F8951 /* SolitaireRedoStore.swift in Sources */,
+				E253EB2793A240BB8EA69B30 /* IAPServerReporter.swift in Sources */,
 				B7BAFE4692CF0F5CF311C4C8 /* GameLevelSelectView.swift in Sources */,
 				E89DA464BAA3574A5A5D44F3 /* LedgerBridge.swift in Sources */,
 				D72833AE066FB976BF316C47 /* HomeView.swift in Sources */,

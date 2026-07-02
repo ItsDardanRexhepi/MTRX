@@ -102,6 +102,9 @@ final class SolitaireRedoStore: ObservableObject {
             case .verified(let transaction):
                 grant(transaction)            // grant BEFORE finish
                 await transaction.finish()
+                // Server-side record (fire-and-forget; never gates the grant).
+                IAPServerReporter.report(jws: verification.jwsRepresentation,
+                                         context: "redos.purchase")
             case .unverified:
                 throw RedoPurchaseError.unverified   // fail-closed — no grant, don't finish
             }

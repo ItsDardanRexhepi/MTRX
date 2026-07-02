@@ -149,6 +149,10 @@ final class StoreKitManager {
             let transaction = try checkVerified(verification)
             await transaction.finish()
             await refreshEntitlements()
+            // Server-side record of the verified purchase (fire-and-forget;
+            // local StoreKit stays the entitlement source of truth).
+            IAPServerReporter.report(jws: verification.jwsRepresentation,
+                                     context: "subscription.purchase")
             return transaction
 
         case .userCancelled:
@@ -367,6 +371,11 @@ final class StoreKitManager {
                 }
                 await transaction.finish()
                 await self.refreshEntitlements()
+                // Server-side record for updates-path deliveries too (renewals,
+                // Ask-to-Buy approvals). Fire-and-forget; the server end is
+                // idempotent on transactionId, so double delivery is harmless.
+                IAPServerReporter.report(jws: result.jwsRepresentation,
+                                         context: "transaction.updates")
             }
         }
     }
