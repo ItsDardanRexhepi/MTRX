@@ -69,6 +69,10 @@ final class SolitaireEngine: ObservableObject {
     @Published var seconds = 0
     @Published var won = false
 
+    // Level system — each level is a solver-verified (winnable) deal.
+    @Published var level = 1
+    private(set) var startLevel = 1
+
     // MARK: Undo (limited do-overs)
 
     /// A full board snapshot, captured before each move so the player can take a
@@ -84,22 +88,32 @@ final class SolitaireEngine: ObservableObject {
     private var undoStack: [Snapshot] = []
     /// Do-overs left this game. Starts at 3 and counts down as the player undoes.
     @Published private(set) var undosRemaining = 3
-    /// True when there's a move to take back and budget left to spend on it.
-    var canUndo: Bool { undosRemaining > 0 && !undoStack.isEmpty }
+    /// True when there's a move to take back and a do-over to spend on it —
+    /// either a free one or a purchased one.
+    var canUndo: Bool {
+        !undoStack.isEmpty && (undosRemaining > 0 || SolitaireRedoStore.shared.balance > 0)
+    }
 
     private var timer: Timer?
     private let move = Animation.spring(response: 0.34, dampingFraction: 0.82)
 
-    init() { newGame() }
-
     // MARK: Setup
 
-    func newGame() {
-        var deck: [SolitaireCard] = []
-        for suit in CardSuit.allCases {
-            for rank in 1...13 { deck.append(SolitaireCard(rank: rank, suit: suit)) }
+    /// Begin a level. Each level deals a specific SOLVER-VERIFIED seed, so every
+    /// deal is guaranteed winnable. Winning records completion + unlocks the next.
+    func start(at level: Int) {
+        startLevel = max(1, level); self.level = max(1, level)
+        deal(seed: SolitaireSeeds.seed(forLevel: self.level))
+    }
+
+    func retry() { start(at: startLevel) }
+
+    private func deal(seed: UInt64) {
+        // Deterministic deck for this seed (same ordering the solver verified).
+        let codes = SolitaireDeck.shuffled(seed: seed)
+        let deck: [SolitaireCard] = codes.map {
+            SolitaireCard(rank: $0.rank, suit: CardSuit.allCases[$0.suit])
         }
-        deck.shuffle()
 
         stock = []; waste = []
         foundations = [[], [], [], []]
@@ -215,6 +229,7 @@ final class SolitaireEngine: ObservableObject {
         if foundations.allSatisfy({ $0.count == 13 }) {
             won = true
             stop()
+            GameProgress.shared.recordCompletion(level: level, in: .solitaire)
             MtrxHaptics.success()
         }
     }
@@ -362,7 +377,13 @@ final class SolitaireEngine: ObservableObject {
             restore(s)
             selection = nil
         }
-        undosRemaining -= 1
+        // Spend a free do-over first; only dip into purchased ones after the
+        // free budget is gone.
+        if undosRemaining > 0 {
+            undosRemaining -= 1
+        } else {
+            SolitaireRedoStore.shared.consumeOne()
+        }
     }
 
     var timeLabel: String {
@@ -445,8 +466,46 @@ struct SolitaireGameView: View {
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var engine = SolitaireEngine()
+    @ObservedObject private var redoStore = SolitaireRedoStore.shared
+
+    @State private var playingLevel: Int?
+    @State private var purchaseNotice: String?
+
+    private var totalLevels: Int { GameProgress.shared.totalLevels(for: .solitaire) }
 
     var body: some View {
+        Group {
+            if playingLevel == nil {
+                GameLevelSelectView(
+                    game: .solitaire, title: "Solitaire", accent: accent,
+                    onSelect: { level in
+                        playingLevel = level
+                        engine.start(at: level)
+                    },
+                    onClose: { dismiss() }
+                )
+            } else {
+                gameBody
+            }
+        }
+        .onDisappear { engine.stop() }
+        .task { await redoStore.loadProduct() }
+        .onChange(of: engine.won) { _, won in
+            if won { GameKitManager.shared.recordGameOver(.solitaire, score: engine.score, won: true) }
+        }
+        .alert("Do-Overs", isPresented: Binding(
+            get: { purchaseNotice != nil },
+            set: { if !$0 { purchaseNotice = nil } }
+        )) {
+            Button("OK", role: .cancel) { purchaseNotice = nil }
+        } message: {
+            Text(purchaseNotice ?? "")
+        }
+    }
+
+    private func backToLevels() { engine.stop(); playingLevel = nil }
+
+    private var gameBody: some View {
         ZStack {
             LinearGradient(colors: [Color.backgroundPrimary, Color(red: 0.04, green: 0.12, blue: 0.10), Color.black],
                            startPoint: .top, endPoint: .bottom)
@@ -464,25 +523,21 @@ struct SolitaireGameView: View {
 
             if engine.won { winOverlay }
         }
-        .onDisappear { engine.stop() }
-        .onChange(of: engine.won) { _, won in
-            if won { GameKitManager.shared.recordGameOver(.solitaire, score: engine.score, won: true) }
-        }
     }
 
     // MARK: Chrome
 
     private var header: some View {
         HStack {
-            roundButton("xmark") { dismiss() }
+            roundButton("square.grid.2x2") { backToLevels() }
             Spacer()
-            Text("Solitaire")
-                .font(.system(size: 19, weight: .heavy, design: .rounded))
+            Text("Solitaire · Lvl \(engine.level)")
+                .font(.system(size: 18, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
             Spacer()
             GameRecordControl()
             roundButton("arrow.clockwise") {
-                withAnimation(.easeInOut(duration: 0.25)) { engine.newGame() }
+                withAnimation(.easeInOut(duration: 0.25)) { engine.retry() }
             }
         }
         .padding(.horizontal, Spacing.xs)
@@ -506,6 +561,7 @@ struct SolitaireGameView: View {
             stat("MOVES", "\(engine.moves)")
             stat("SCORE", "\(engine.score)")
             Spacer()
+            buyDoOversButton
             undoButton
             Button {
                 MtrxHaptics.impact(.medium)
@@ -536,8 +592,11 @@ struct SolitaireGameView: View {
         }
     }
 
-    // Take-back button: shows how many do-overs remain this deal and greys out
-    // once they're spent or there's nothing left to undo.
+    /// Total do-overs available: the free per-deal budget plus any purchased.
+    private var totalDoOvers: Int { engine.undosRemaining + redoStore.balance }
+
+    // Take-back button: shows how many do-overs remain (free + purchased) and
+    // greys out once they're spent or there's nothing left to undo.
     private var undoButton: some View {
         Button {
             MtrxHaptics.impact(.medium)
@@ -545,7 +604,7 @@ struct SolitaireGameView: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "arrow.uturn.backward").font(.system(size: 12, weight: .bold))
-                Text("\(engine.undosRemaining)")
+                Text("\(totalDoOvers)")
                     .font(.system(size: 13, weight: .bold, design: .rounded)).lineLimit(1)
             }
             .foregroundStyle(engine.canUndo ? .white : Color.labelTertiary)
@@ -558,7 +617,38 @@ struct SolitaireGameView: View {
         .disabled(!engine.canUndo)
         .fixedSize()
         .accessibilityLabel("Undo move")
-        .accessibilityValue("\(engine.undosRemaining) do-overs remaining")
+        .accessibilityValue("\(totalDoOvers) do-overs remaining")
+    }
+
+    /// A "+5 do-overs" purchase entry, shown once the free budget is spent.
+    /// Real money: fail-closed with honest copy on any non-success outcome.
+    @ViewBuilder
+    private var buyDoOversButton: some View {
+        if engine.undosRemaining == 0 {
+            Button {
+                MtrxHaptics.impact(.light)
+                Task {
+                    do { try await redoStore.purchase() }
+                    catch SolitaireRedoStore.RedoPurchaseError.cancelled { /* silent — user chose to cancel */ }
+                    catch { purchaseNotice = "The purchase didn't go through. You were not charged, and no do-overs were added." }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: redoStore.isPurchasing ? "hourglass" : "plus.circle.fill")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Do-overs").font(.system(size: 12, weight: .bold, design: .rounded)).lineLimit(1)
+                }
+                .foregroundStyle(accent)
+                .padding(.horizontal, 10).padding(.vertical, 7)
+                .background(accent.opacity(0.14))
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(accent.opacity(0.4), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(redoStore.isPurchasing)
+            .fixedSize()
+            .accessibilityLabel("Buy 5 do-overs")
+        }
     }
 
     // MARK: Board
@@ -701,19 +791,26 @@ struct SolitaireGameView: View {
             Color.black.opacity(0.55).ignoresSafeArea()
             VStack(spacing: Spacing.md) {
                 Image(systemName: "trophy.fill").font(.system(size: 54)).foregroundStyle(accent)
-                Text("You won!").font(.system(size: 30, weight: .heavy, design: .rounded)).foregroundStyle(.white)
+                Text(engine.level >= totalLevels ? "All Levels Cleared" : "Level \(engine.level) Cleared")
+                    .font(.system(size: 28, weight: .heavy, design: .rounded)).foregroundStyle(.white)
                 Text("\(engine.moves) moves · \(engine.timeLabel) · \(engine.score) pts")
                     .font(.mtrxCallout).foregroundStyle(Color.labelSecondary)
                 Button {
                     MtrxHaptics.impact(.medium)
-                    withAnimation(.easeInOut(duration: 0.25)) { engine.newGame() }
+                    if engine.level >= totalLevels {
+                        backToLevels()
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.25)) { engine.start(at: engine.level + 1) }
+                    }
                 } label: {
-                    Text("New Game")
+                    Text(engine.level >= totalLevels ? "Back to Levels" : "Next Level")
                         .font(.mtrxCalloutBold).foregroundStyle(Color.backgroundPrimary)
                         .padding(.horizontal, Spacing.xl).padding(.vertical, Spacing.ms)
                         .background(accent).clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                Button("Levels") { MtrxHaptics.impact(.light); backToLevels() }
+                    .font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary).padding(.top, Spacing.xs)
                 Button("Leave") { dismiss() }
                     .font(.mtrxCalloutBold).foregroundStyle(Color.labelSecondary).padding(.top, Spacing.xs)
             }

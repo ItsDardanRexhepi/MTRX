@@ -16,9 +16,58 @@ struct Tile2048: Identifiable, Equatable {
     var row: Int
     var col: Int
     var absorbed = false   // merged into another tile this move; removed after the slide
+    var isBlocker = false  // immovable wall (gauntlet mode) — never slides or merges
 }
 
 enum SlideDir { case up, down, left, right }
+
+/// 2048 ships two modes: classic endless (reach 2048, keep going for a high
+/// score) and a 50-level Gauntlet (reach a target tile within a move budget,
+/// past board blockers). The user's locked decision keeps BOTH.
+enum Game2048Mode { case endless, gauntlet }
+
+// MARK: - Gauntlet levels
+
+struct Game2048Level {
+    let targetTile: Int
+    let moves: Int
+    let blockers: [(Int, Int)]   // immovable cells (row, col)
+}
+
+enum Game2048Levels {
+    /// Authored tiered table. Difficulty climbs by target tile, tightens the
+    /// move budget within each tier, and introduces board blockers on the back
+    /// half of the higher tiers. On a 4×4 board blockers are brutal, so a
+    /// blocked level eases its target one tier down to stay winnable.
+    static func level(_ n: Int) -> Game2048Level {
+        let lvl = max(1, min(50, n))
+        let tier = (lvl - 1) / 10          // 0…4
+        let within = (lvl - 1) % 10        // 0…9
+        let targets = [64, 128, 256, 512, 1024]
+        let baseBudget = [42, 74, 132, 260, 520]
+        let budgetDrop = [1, 2, 3, 5, 8]
+
+        var target = targets[tier]
+        var moves = baseBudget[tier] - within * budgetDrop[tier]
+
+        var blockers: [(Int, Int)] = []
+        if tier >= 2 && within >= 5 {
+            blockers = blockerPattern(lvl)
+            if tier >= 3 { target = targets[tier - 1] }  // ease a cramped board
+        }
+        return Game2048Level(targetTile: target, moves: max(20, moves), blockers: blockers)
+    }
+
+    /// Deterministic small blocker layouts (1–2 cells) that keep the 4×4 board
+    /// playable: a single centre-ish wall, or a diagonal pair.
+    private static func blockerPattern(_ lvl: Int) -> [(Int, Int)] {
+        switch lvl % 3 {
+        case 0:  return [(1, 1)]
+        case 1:  return [(2, 2)]
+        default: return [(1, 1), (2, 2)]
+        }
+    }
+}
 
 // MARK: - Engine
 
@@ -29,17 +78,50 @@ final class Game2048Engine: ObservableObject {
     @Published var tiles: [Tile2048] = []
     @Published var score = 0
     @Published var best = 0
-    @Published var won = false
+    @Published var won = false          // endless: reached 2048
     @Published var keepGoing = false
     @Published var gameOver = false
     @Published private(set) var busy = false
 
-    init() { newGame() }
+    // Gauntlet state.
+    @Published var mode: Game2048Mode = .endless
+    @Published var level = 1
+    @Published var targetTile = 0
+    @Published var moveBudget = 0
+    @Published var moves = 0
+    @Published var levelCleared = false
+    private(set) var startLevel = 1
 
-    func newGame() {
-        tiles = []; score = 0; won = false; keepGoing = false; gameOver = false; busy = false
+    /// Bumped on every (re)start so a pending post-move closure from the prior
+    /// game can't fire against a freshly-dealt board.
+    private var gen = 0
+
+    /// Classic endless: reach 2048, then keep going for a high score.
+    func startEndless() {
+        gen &+= 1
+        mode = .endless
+        tiles = []; score = 0; won = false; keepGoing = false
+        gameOver = false; busy = false; levelCleared = false; moves = 0
         spawnTile(); spawnTile()
     }
+
+    /// Gauntlet level: reach the target tile within the move budget, past any
+    /// board blockers.
+    func startGauntlet(at level: Int) {
+        gen &+= 1
+        mode = .gauntlet
+        startLevel = max(1, level); self.level = max(1, level)
+        let def = Game2048Levels.level(self.level)
+        targetTile = def.targetTile; moveBudget = def.moves
+        tiles = []; score = 0; won = false; keepGoing = false
+        gameOver = false; busy = false; levelCleared = false; moves = 0
+        for (r, c) in def.blockers {
+            tiles.append(Tile2048(value: 0, row: r, col: c, isBlocker: true))
+        }
+        spawnTile(); spawnTile()
+    }
+
+    func retry() { mode == .gauntlet ? startGauntlet(at: startLevel) : startEndless() }
 
     private func emptyCells() -> [(Int, Int)] {
         var occupied = Set<Int>()
@@ -58,45 +140,34 @@ final class Game2048Engine: ObservableObject {
         tiles.append(Tile2048(value: value, row: r, col: c))
     }
 
-    private func indexGrid() -> [[Int]] {
-        var g = Array(repeating: Array(repeating: -1, count: Self.size), count: Self.size)
-        for (i, t) in tiles.enumerated() where !t.absorbed { g[t.row][t.col] = i }
-        return g
-    }
-
     func move(_ dir: SlideDir) {
-        guard !busy, !gameOver else { return }
-        let g = indexGrid()
+        guard !busy, !gameOver, !levelCleared, !(won && !keepGoing && mode == .endless) else { return }
         var moved = false
 
         withAnimation(.spring(response: 0.2, dampingFraction: 0.86)) {
             for line in 0..<Self.size {
-                // Gather tile indices in the order they travel toward the wall.
-                var order: [Int] = []
-                switch dir {
-                case .left:  for c in 0..<Self.size { if g[line][c] >= 0 { order.append(g[line][c]) } }
-                case .right: for c in stride(from: Self.size - 1, through: 0, by: -1) { if g[line][c] >= 0 { order.append(g[line][c]) } }
-                case .up:    for r in 0..<Self.size { if g[r][line] >= 0 { order.append(g[r][line]) } }
-                case .down:  for r in stride(from: Self.size - 1, through: 0, by: -1) { if g[r][line] >= 0 { order.append(g[r][line]) } }
-                }
-                moved = processLine(order, line: line, dir: dir) || moved
+                moved = processLine(line: line, dir: dir) || moved
             }
         }
 
         guard moved else { return }
+        moves += 1
         busy = true
         MtrxHaptics.impact(.light)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.17) { [weak self] in
             guard let self else { return }
             self.tiles.removeAll { $0.absorbed }
             withAnimation(.spring(response: 0.22, dampingFraction: 0.7)) { self.spawnTile() }
-            self.evaluateEnd()
+            if self.mode == .gauntlet { self.evaluateGauntlet() } else { self.evaluateEndless() }
             self.busy = false
         }
     }
 
-    /// Slot 0 is the wall side. Returns true if anything moved or merged.
-    private func processLine(_ order: [Int], line: Int, dir: SlideDir) -> Bool {
+    /// Blocker-aware line slide. Slot 0 is the wall side. A line is split into
+    /// segments by immovable blockers; movable tiles pack + merge within their
+    /// own segment only (they cannot pass a blocker). Returns true if anything
+    /// moved or merged.
+    private func processLine(line: Int, dir: SlideDir) -> Bool {
         func coord(_ slot: Int) -> (Int, Int) {
             switch dir {
             case .left:  return (line, slot)
@@ -105,13 +176,42 @@ final class Game2048Engine: ObservableObject {
             case .down:  return (Self.size - 1 - slot, line)
             }
         }
+        // Slot contents: -1 empty, -2 blocker, >=0 movable tile index.
+        var content = Array(repeating: -1, count: Self.size)
+        for slot in 0..<Self.size {
+            let (r, c) = coord(slot)
+            if let idx = tiles.firstIndex(where: { !$0.absorbed && $0.row == r && $0.col == c }) {
+                content[slot] = tiles[idx].isBlocker ? -2 : idx
+            }
+        }
+
         var moved = false
-        var slot = 0
+        var seg: [Int] = []
+        var segStart = 0
+        func flush(_ start: Int) {
+            if packSegment(seg, startSlot: start, coord: coord) { moved = true }
+            seg = []
+        }
+        for slot in 0..<Self.size {
+            if content[slot] == -2 {          // blocker ends the current segment
+                flush(segStart)
+                segStart = slot + 1
+            } else if content[slot] >= 0 {
+                seg.append(content[slot])
+            }
+        }
+        flush(segStart)
+        return moved
+    }
+
+    /// Pack + merge one segment of movable tile indices toward `startSlot`.
+    private func packSegment(_ order: [Int], startSlot: Int, coord: (Int) -> (Int, Int)) -> Bool {
+        var moved = false
+        var slot = startSlot
         var i = 0
         while i < order.count {
             let idx = order[i]
             if i + 1 < order.count, tiles[idx].value == tiles[order[i + 1]].value {
-                // Merge idx + next into one doubled tile at `slot`.
                 let nextIdx = order[i + 1]
                 let (r, c) = coord(slot)
                 tiles[idx].row = r; tiles[idx].col = c
@@ -119,8 +219,8 @@ final class Game2048Engine: ObservableObject {
                 tiles[nextIdx].absorbed = true
                 tiles[idx].value *= 2
                 score += tiles[idx].value
-                if tiles[idx].value >= best { best = tiles[idx].value }
-                if tiles[idx].value == 2048 && !won { won = true }
+                if tiles[idx].value > best { best = tiles[idx].value }
+                if tiles[idx].value == 2048 && !won && mode == .endless { won = true }
                 moved = true
                 i += 2
             } else {
@@ -134,19 +234,39 @@ final class Game2048Engine: ObservableObject {
         return moved
     }
 
-    private func evaluateEnd() {
-        guard emptyCells().isEmpty else { return }
-        // No empty cells — game over only if no adjacent equal pair exists.
+    private func evaluateEndless() {
+        if noMovesLeft() { gameOver = true; MtrxHaptics.error() }
+    }
+
+    private func evaluateGauntlet() {
+        let maxTile = tiles.filter { !$0.absorbed && !$0.isBlocker }.map { $0.value }.max() ?? 0
+        if maxTile >= targetTile {
+            levelCleared = true
+            GameProgress.shared.recordCompletion(level: level, in: .merge2048)
+            MtrxHaptics.success()
+            return
+        }
+        if moves >= moveBudget || noMovesLeft() {
+            gameOver = true
+            MtrxHaptics.error()
+        }
+    }
+
+    /// Deadlock check, blocker-aware: an empty non-blocker cell, or any pair of
+    /// adjacent equal movable tiles, means a move is still possible.
+    private func noMovesLeft() -> Bool {
+        if !emptyCells().isEmpty { return false }
         var grid = Array(repeating: Array(repeating: 0, count: Self.size), count: Self.size)
-        for t in tiles where !t.absorbed { grid[t.row][t.col] = t.value }
+        for t in tiles where !t.absorbed { grid[t.row][t.col] = t.isBlocker ? -1 : t.value }
         for r in 0..<Self.size {
             for c in 0..<Self.size {
-                if c + 1 < Self.size && grid[r][c] == grid[r][c + 1] { return }
-                if r + 1 < Self.size && grid[r][c] == grid[r + 1][c] { return }
+                let v = grid[r][c]
+                if v == -1 { continue }   // blocker never merges
+                if c + 1 < Self.size && grid[r][c + 1] == v { return false }
+                if r + 1 < Self.size && grid[r + 1][c] == v { return false }
             }
         }
-        gameOver = true
-        MtrxHaptics.error()
+        return true
     }
 }
 
@@ -158,7 +278,91 @@ struct Game2048View: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var engine = Game2048Engine()
 
+    private enum Stage { case choosing, levelSelect, playing }
+    @State private var stage: Stage = .choosing
+
+    private var totalLevels: Int { GameProgress.shared.totalLevels(for: .merge2048) }
+
     var body: some View {
+        Group {
+            switch stage {
+            case .choosing:    modeChooser
+            case .levelSelect:
+                GameLevelSelectView(
+                    game: .merge2048, title: "2048 · Gauntlet", accent: accent,
+                    onSelect: { level in
+                        engine.startGauntlet(at: level)
+                        withAnimation(.easeInOut(duration: 0.2)) { stage = .playing }
+                    },
+                    onClose: { stage = .choosing }
+                )
+            case .playing:     gameBody
+            }
+        }
+        .onChange(of: engine.gameOver) { _, over in
+            if over { GameKitManager.shared.recordGameOver(.merge2048, score: engine.score, won: engine.won) }
+        }
+        .onChange(of: engine.levelCleared) { _, cleared in
+            if cleared { GameKitManager.shared.recordGameOver(.merge2048, score: engine.score, won: true) }
+        }
+    }
+
+    private var modeChooser: some View {
+        ZStack {
+            LinearGradient(colors: [Color.black, Color(red: 0.10, green: 0.08, blue: 0.04), Color.black],
+                           startPoint: .top, endPoint: .bottom).ignoresSafeArea()
+            RadialGradient(colors: [accent.opacity(0.16), .clear], center: .top, startRadius: 4, endRadius: 480)
+                .ignoresSafeArea()
+            VStack(spacing: Spacing.lg) {
+                HStack {
+                    roundButton("xmark") { dismiss() }
+                    Spacer()
+                }
+                .padding(.horizontal, Spacing.md)
+                Spacer()
+                Text("2048").font(.system(size: 40, weight: .heavy, design: .rounded)).foregroundStyle(.white)
+                Text("Choose a mode").font(.mtrxCallout).foregroundStyle(Color.labelSecondary)
+
+                modeCard("Gauntlet", "50 levels · target tile in a move budget, past blockers",
+                         symbol: "flag.checkered") {
+                    stage = .levelSelect
+                }
+                modeCard("Endless", "Classic — reach 2048, then chase a high score",
+                         symbol: "infinity") {
+                    engine.startEndless()
+                    stage = .playing
+                }
+                Spacer(); Spacer()
+            }
+            .padding(Spacing.xl)
+        }
+    }
+
+    private func modeCard(_ title: String, _ subtitle: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button {
+            MtrxHaptics.impact(.medium)
+            withAnimation(.easeInOut(duration: 0.2)) { action() }
+        } label: {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: symbol).font(.system(size: 26, weight: .bold)).foregroundStyle(accent).frame(width: 40)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.mtrxTitle3).foregroundStyle(Color.labelPrimary)
+                    Text(subtitle).font(.mtrxCaption1).foregroundStyle(Color.labelSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(Color.labelTertiary)
+            }
+            .padding(Spacing.md)
+            .frame(maxWidth: .infinity)
+            .mtrxLiquidGlass(cornerRadius: Spacing.CornerRadius.lg)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func backToModes() { engine.won = false; stage = .choosing }
+
+    private var gameBody: some View {
         ZStack {
             LinearGradient(colors: [Color.black, Color(red: 0.10, green: 0.08, blue: 0.04), Color.black],
                            startPoint: .top, endPoint: .bottom)
@@ -178,26 +382,37 @@ struct Game2048View: View {
             }
             .padding(.top, Spacing.xs)
 
-            if engine.gameOver { overlay(title: "Game Over", symbol: "xmark.octagon.fill", tint: Color.statusError, primary: "Play Again") { engine.newGame() } }
-            else if engine.won && !engine.keepGoing {
+            if engine.mode == .gauntlet && engine.levelCleared {
+                overlay(title: engine.level >= totalLevels ? "Gauntlet Complete" : "Level \(engine.level) Cleared",
+                        symbol: "checkmark.seal.fill", tint: accent,
+                        primary: "Levels", action: backToLevels)
+            } else if engine.gameOver {
+                let t = engine.mode == .gauntlet ? "Out of Moves" : "Game Over"
+                overlay(title: t, symbol: "xmark.octagon.fill", tint: Color.statusError,
+                        primary: engine.mode == .gauntlet ? "Retry Level \(engine.level)" : "Play Again",
+                        action: { withAnimation { engine.retry() } },
+                        secondary: engine.mode == .gauntlet ? "Levels" : "Modes",
+                        secondaryAction: engine.mode == .gauntlet ? backToLevels : backToModes)
+            } else if engine.mode == .endless && engine.won && !engine.keepGoing {
                 overlay(title: "2048!", symbol: "crown.fill", tint: accent, primary: "Keep Going") { engine.keepGoing = true }
             }
         }
-        .onChange(of: engine.gameOver) { _, over in
-            if over { GameKitManager.shared.recordGameOver(.merge2048, score: engine.score, won: engine.won) }
-        }
     }
+
+    private func backToLevels() { stage = .levelSelect }
 
     private var header: some View {
         HStack {
-            roundButton("xmark") { dismiss() }
+            roundButton(engine.mode == .gauntlet ? "square.grid.2x2" : "arrow.left") {
+                engine.mode == .gauntlet ? backToLevels() : backToModes()
+            }
             Spacer()
-            Text("2048")
+            Text(engine.mode == .gauntlet ? "2048 · Gauntlet" : "2048")
                 .font(.system(size: 20, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
             Spacer()
             GameRecordControl()
-            roundButton("arrow.clockwise") { withAnimation(.easeInOut(duration: 0.2)) { engine.newGame() } }
+            roundButton("arrow.clockwise") { withAnimation(.easeInOut(duration: 0.2)) { engine.retry() } }
         }
         .padding(.horizontal, Spacing.md)
     }
@@ -214,12 +429,23 @@ struct Game2048View: View {
         .buttonStyle(.plain)
     }
 
+    @ViewBuilder
     private var statBar: some View {
-        HStack(spacing: Spacing.lg) {
-            statChip("SCORE", "\(engine.score)")
-            statChip("BEST", "\(engine.best)")
+        if engine.mode == .gauntlet {
+            HStack(spacing: Spacing.sm) {
+                statChip("LEVEL", "\(engine.level)/\(totalLevels)")
+                statChip("TARGET", "\(engine.targetTile)")
+                statChip("MOVES", "\(max(0, engine.moveBudget - engine.moves))")
+                statChip("SCORE", "\(engine.score)")
+            }
+            .padding(.horizontal, Spacing.lg)
+        } else {
+            HStack(spacing: Spacing.lg) {
+                statChip("SCORE", "\(engine.score)")
+                statChip("BEST", "\(engine.best)")
+            }
+            .padding(.horizontal, Spacing.lg)
         }
-        .padding(.horizontal, Spacing.lg)
     }
 
     private func statChip(_ label: String, _ value: String) -> some View {
@@ -281,7 +507,24 @@ struct Game2048View: View {
         pad + CGFloat(i) * (cell + pad) + cell / 2
     }
 
+    @ViewBuilder
     private func tileView(_ tile: Tile2048, cell: CGFloat) -> some View {
+        if tile.isBlocker {
+            RoundedRectangle(cornerRadius: cell * 0.18, style: .continuous)
+                .fill(Color(white: 0.16))
+                .overlay(RoundedRectangle(cornerRadius: cell * 0.18, style: .continuous)
+                    .stroke(.white.opacity(0.14), lineWidth: 1))
+                .overlay(
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: cell * 0.30, weight: .bold))
+                        .foregroundStyle(Color.labelTertiary)
+                )
+        } else {
+            valueTileView(tile, cell: cell)
+        }
+    }
+
+    private func valueTileView(_ tile: Tile2048, cell: CGFloat) -> some View {
         let color = tileColor(tile.value)
         let digits = "\(tile.value)".count
         let fontSize = cell * (digits <= 2 ? 0.40 : digits == 3 ? 0.32 : 0.26)
@@ -319,7 +562,9 @@ struct Game2048View: View {
         }
     }
 
-    private func overlay(title: String, symbol: String, tint: Color, primary: String, action: @escaping () -> Void) -> some View {
+    private func overlay(title: String, symbol: String, tint: Color, primary: String,
+                         action: @escaping () -> Void,
+                         secondary: String? = nil, secondaryAction: (() -> Void)? = nil) -> some View {
         ZStack {
             Color.black.opacity(0.55).ignoresSafeArea()
             VStack(spacing: Spacing.md) {
@@ -336,6 +581,10 @@ struct Game2048View: View {
                         .background(accent).clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                if let secondary, let secondaryAction {
+                    Button(secondary) { MtrxHaptics.impact(.light); withAnimation { secondaryAction() } }
+                        .font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary).padding(.top, Spacing.xs)
+                }
                 Button("Leave") { dismiss() }
                     .font(.mtrxCalloutBold).foregroundStyle(Color.labelSecondary).padding(.top, Spacing.xs)
             }

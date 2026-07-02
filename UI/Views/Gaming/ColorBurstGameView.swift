@@ -33,6 +33,41 @@ enum ColorBurst {
     }
 }
 
+// MARK: - Levels
+
+/// A ColorBurst level: reach `target` points within `moves` swaps.
+struct ColorBurstLevel {
+    let target: Int
+    let moves: Int
+}
+
+enum ColorBurstLevels {
+    /// Hybrid: a smooth difficulty formula with a few milestone "boss" overrides
+    /// so 25 and 50 feel like a real step up. Move budget tightens as levels
+    /// climb, so late levels demand cascades, not just more taps.
+    static func level(_ n: Int) -> ColorBurstLevel {
+        let lvl = max(1, min(50, n))
+        // Move budget: generous early, tighter late (difficulty from efficiency).
+        let moves: Int
+        switch lvl {
+        case 1...10:  moves = 26
+        case 11...20: moves = 24
+        case 21...30: moves = 22
+        case 31...40: moves = 20
+        default:      moves = 18
+        }
+        // Target: linear base + a gentle acceleration past the midpoint.
+        var target = 200 + (lvl - 1) * 80 + max(0, lvl - 25) * 30
+        // Sparse milestone overrides.
+        switch lvl {
+        case 25: target = 2600   // mid boss
+        case 50: target = 5200   // final boss
+        default: break
+        }
+        return ColorBurstLevel(target: target, moves: moves)
+    }
+}
+
 // MARK: - Engine
 
 @MainActor
@@ -47,10 +82,22 @@ final class ColorBurstEngine: ObservableObject {
     @Published var selected: UUID?
     @Published private(set) var busy = false
 
-    init() { newGame() }
+    @Published var level = 1
+    @Published var targetScore = 0
+    @Published var moveBudget = 0
+    @Published var won = false
+    @Published var gameOver = false
+    private(set) var startLevel = 1
 
-    func newGame() {
+    /// Begin a run at the chosen (unlocked) level.
+    func start(at level: Int) {
+        startLevel = max(1, level)
+        self.level = max(1, level)
+        let def = ColorBurstLevels.level(self.level)
+        targetScore = def.target
+        moveBudget = def.moves
         score = 0; moves = 0; selected = nil; busy = false
+        won = false; gameOver = false
         gems = []
         for r in 0..<Self.rows {
             for c in 0..<Self.cols {
@@ -60,6 +107,22 @@ final class ColorBurstEngine: ObservableObject {
                 }
                 gems.append(Gem(color: color, row: r, col: c))
             }
+        }
+    }
+
+    /// Retry the level this run started on.
+    func retry() { start(at: startLevel) }
+
+    /// Win/lose check, called once a move's cascades have fully settled.
+    private func checkOutcome() {
+        guard !won, !gameOver else { return }
+        if score >= targetScore {
+            won = true
+            GameProgress.shared.recordCompletion(level: level, in: .colorburst)
+            MtrxHaptics.success()
+        } else if moves >= moveBudget {
+            gameOver = true
+            MtrxHaptics.error()
         }
     }
 
@@ -75,7 +138,7 @@ final class ColorBurstEngine: ObservableObject {
     // MARK: Input
 
     func tap(_ id: UUID) {
-        guard !busy, let g = gems.first(where: { $0.id == id }) else { return }
+        guard !busy, !won, !gameOver, let g = gems.first(where: { $0.id == id }) else { return }
         guard let selID = selected, let sel = gems.first(where: { $0.id == selID }) else {
             selected = id
             MtrxHaptics.selection()
@@ -138,7 +201,7 @@ final class ColorBurstEngine: ObservableObject {
 
     private func resolve(chain: Int) {
         let m = matches()
-        if m.isEmpty { busy = false; return }
+        if m.isEmpty { busy = false; checkOutcome(); return }
         score += m.count * 10 * chain
         MtrxHaptics.impact(chain > 1 ? .medium : .light)
         withAnimation(.easeOut(duration: 0.18)) {
@@ -177,7 +240,38 @@ struct ColorBurstGameView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var engine = ColorBurstEngine()
 
+    /// nil until a level is chosen from the shared level-select.
+    @State private var playingLevel: Int?
+
+    private var totalLevels: Int { GameProgress.shared.totalLevels(for: .colorburst) }
+
     var body: some View {
+        Group {
+            if playingLevel == nil {
+                GameLevelSelectView(
+                    game: .colorburst, title: "Color Burst", accent: accent,
+                    onSelect: { level in
+                        playingLevel = level
+                        withAnimation(.easeInOut(duration: 0.2)) { engine.start(at: level) }
+                    },
+                    onClose: { dismiss() }
+                )
+            } else {
+                gameBody
+            }
+        }
+        // Submit the session's score on exit (best-score board is honest either way).
+        .onDisappear {
+            GameKitManager.shared.recordGameOver(.colorburst, score: engine.score)
+        }
+        .onChange(of: engine.won) { _, won in
+            if won { GameKitManager.shared.recordGameOver(.colorburst, score: engine.score, won: true) }
+        }
+    }
+
+    private func backToLevels() { playingLevel = nil }
+
+    private var gameBody: some View {
         ZStack {
             LinearGradient(colors: [Color.black, Color(red: 0.05, green: 0.10, blue: 0.07), Color.black],
                            startPoint: .top, endPoint: .bottom)
@@ -193,16 +287,23 @@ struct ColorBurstGameView: View {
                 Spacer(minLength: 0)
             }
             .padding(.top, Spacing.xs)
-        }
-        // Endless match-3: submit the session's final score on exit.
-        .onDisappear {
-            GameKitManager.shared.recordGameOver(.colorburst, score: engine.score)
+
+            if engine.won {
+                outcomeOverlay(engine.level >= totalLevels ? "All Levels Cleared" : "Level \(engine.level) Cleared",
+                               "checkmark.seal.fill", accent,
+                               primaryTitle: engine.level >= totalLevels ? "Back to Levels" : "Next Levels",
+                               primary: backToLevels)
+            } else if engine.gameOver {
+                outcomeOverlay("Out of Moves", "hourglass.bottomhalf.filled", Color.statusError,
+                               primaryTitle: "Retry Level \(engine.level)", primary: { engine.retry() },
+                               secondaryTitle: "Levels", secondary: backToLevels)
+            }
         }
     }
 
     private var header: some View {
         HStack {
-            roundButton("xmark") { dismiss() }
+            roundButton("square.grid.2x2") { backToLevels() }
             Spacer()
             Text("Color Burst")
                 .font(.system(size: 19, weight: .heavy, design: .rounded))
@@ -210,7 +311,7 @@ struct ColorBurstGameView: View {
             Spacer()
             GameRecordControl()
             roundButton("arrow.clockwise") {
-                withAnimation(.easeInOut(duration: 0.25)) { engine.newGame() }
+                withAnimation(.easeInOut(duration: 0.25)) { engine.retry() }
             }
         }
         .padding(.horizontal, Spacing.md)
@@ -229,9 +330,11 @@ struct ColorBurstGameView: View {
     }
 
     private var statBar: some View {
-        HStack(spacing: Spacing.xl) {
+        HStack(spacing: Spacing.lg) {
+            stat("LEVEL", "\(engine.level)/\(totalLevels)")
             stat("SCORE", "\(engine.score)")
-            stat("MOVES", "\(engine.moves)")
+            stat("TARGET", "\(engine.targetScore)")
+            stat("MOVES", "\(max(0, engine.moveBudget - engine.moves))")
         }
         .padding(.vertical, 2)
     }
@@ -298,5 +401,38 @@ struct ColorBurstGameView: View {
             .padding(size * 0.08)
             .scaleEffect(selected ? 1.12 : 1)
             .animation(.spring(response: 0.2, dampingFraction: 0.7), value: selected)
+    }
+
+    private func outcomeOverlay(_ title: String, _ symbol: String, _ tint: Color,
+                                primaryTitle: String, primary: @escaping () -> Void,
+                                secondaryTitle: String? = nil, secondary: (() -> Void)? = nil) -> some View {
+        ZStack {
+            Color.black.opacity(0.55).ignoresSafeArea()
+            VStack(spacing: Spacing.md) {
+                Image(systemName: symbol).font(.system(size: 52)).foregroundStyle(tint)
+                Text(title).font(.system(size: 28, weight: .heavy, design: .rounded)).foregroundStyle(.white)
+                Text("Score \(engine.score) / \(engine.targetScore)")
+                    .font(.mtrxCallout).foregroundStyle(Color.labelSecondary)
+                Button {
+                    MtrxHaptics.impact(.medium)
+                    primary()
+                } label: {
+                    Text(primaryTitle)
+                        .font(.mtrxCalloutBold).foregroundStyle(Color.backgroundPrimary)
+                        .padding(.horizontal, Spacing.xl).padding(.vertical, Spacing.ms)
+                        .background(accent).clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                if let secondaryTitle, let secondary {
+                    Button(secondaryTitle) { MtrxHaptics.impact(.light); secondary() }
+                        .font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary).padding(.top, Spacing.xs)
+                }
+                Button("Leave") { dismiss() }
+                    .font(.mtrxCalloutBold).foregroundStyle(Color.labelSecondary).padding(.top, Spacing.xs)
+            }
+            .padding(Spacing.xl)
+            .mtrxLiquidGlass(cornerRadius: 28)
+            .padding(Spacing.xl)
+        }
     }
 }

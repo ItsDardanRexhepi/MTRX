@@ -9,6 +9,51 @@
 
 import SwiftUI
 
+// MARK: - Brand
+
+/// The single source of truth for this game's user-facing name. Renaming later
+/// is a one-line change here; internal identifiers (GameKind.blocks, the
+/// `mtrx.leaderboard.blocks` ASC leaderboard ID) intentionally do NOT change.
+/// Original name — deliberately not "Tetris" (an aggressively-enforced mark).
+enum BlockBrand {
+    static let name = "Stackfall"
+}
+
+// MARK: - Levels
+
+/// A Stackfall level: clear a line quota under a difficulty profile (gravity
+/// speed + pre-filled garbage rows). Topping out before the quota is a loss.
+struct BlockLevel {
+    let lineQuota: Int
+    let gravity: Double     // tick interval in seconds (smaller = faster)
+    let garbageRows: Int    // pre-filled junk rows at the bottom
+}
+
+enum BlockLevels {
+    /// Hybrid: a smooth formula (quota climbs, gravity quickens to a floor) with
+    /// a short authored table pinning the milestone levels so 10/25/40/50 feel
+    /// like real difficulty steps.
+    static func level(_ n: Int) -> BlockLevel {
+        let lvl = max(1, min(50, n))
+        // Line quota climbs monotonically 5 -> 30 (a later level is never
+        // easier than an earlier one).
+        let quota = 5 + lvl / 2
+        // Gravity quickens to a ~0.08s floor around level 36.
+        let gravity = max(0.08, 0.80 - Double(lvl) * 0.02)
+        // Authored garbage tiers — the board starts under more junk pressure as
+        // the run climbs (monotonic).
+        let garbage: Int
+        switch lvl {
+        case 1...12:  garbage = 0
+        case 13...24: garbage = 1
+        case 25...34: garbage = 2
+        case 35...44: garbage = 3
+        default:      garbage = 4
+        }
+        return BlockLevel(lineQuota: quota, gravity: gravity, garbageRows: garbage)
+    }
+}
+
 // MARK: - Shapes
 
 enum BlockShape: Int, CaseIterable {
@@ -77,30 +122,58 @@ final class BlockEngine: ObservableObject {
     @Published var piece: ActivePiece?
     @Published var nextShape: BlockShape = .t
     @Published var score = 0
-    @Published var lines = 0
+    @Published var lines = 0             // total lines this run
     @Published var level = 1
     @Published var gameOver = false
     @Published var paused = false
     @Published var clearing: Set<Int> = []
 
+    // Level system.
+    @Published var levelCleared = false
+    @Published var lineQuota = 0
+    @Published var linesThisLevel = 0
+    private(set) var startLevel = 1
+    private var gravity = 0.8
+
     private var timer: Timer?
 
-    init() { start() }
-
-    func start() {
+    /// Begin a run at the chosen level: clear the level's line quota under its
+    /// gravity + garbage profile before topping out.
+    func start(at level: Int) {
+        stop()
+        startLevel = max(1, level); self.level = max(1, level)
+        let def = BlockLevels.level(self.level)
+        lineQuota = def.lineQuota
+        gravity = def.gravity
         grid = Array(repeating: Array(repeating: 0, count: Self.cols), count: Self.rows)
-        score = 0; lines = 0; level = 1; gameOver = false; paused = false; clearing = []
+        score = 0; lines = 0; linesThisLevel = 0
+        gameOver = false; paused = false; levelCleared = false; clearing = []
+        seedGarbage(def.garbageRows)
         nextShape = BlockShape.allCases.randomElement() ?? .t
         spawn()
         restartTimer()
+    }
+
+    func retry() { start(at: startLevel) }
+
+    /// Fill the bottom `count` rows with junk, each with a single (varied) gap
+    /// so the rows are clearable but the board starts under pressure.
+    private func seedGarbage(_ count: Int) {
+        guard count > 0 else { return }
+        for i in 0..<min(count, Self.rows - 4) {
+            let r = Self.rows - 1 - i
+            let gap = Int.random(in: 0..<Self.cols)
+            for c in 0..<Self.cols where c != gap {
+                grid[r][c] = Int.random(in: 1...BlockShape.palette.count)
+            }
+        }
     }
 
     func stop() { timer?.invalidate(); timer = nil }
 
     private func restartTimer() {
         timer?.invalidate()
-        let interval = max(0.09, 0.85 - Double(level - 1) * 0.07)
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: gravity, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
     }
@@ -122,7 +195,7 @@ final class BlockEngine: ObservableObject {
     }
 
     private func tick() {
-        guard !paused, !gameOver, var p = piece else { return }
+        guard !paused, !gameOver, !levelCleared, var p = piece else { return }
         p.row += 1
         if valid(p) { withAnimation(.linear(duration: 0.05)) { piece = p } }
         else { lockPiece() }
@@ -154,9 +227,16 @@ final class BlockEngine: ObservableObject {
             }
             self.score += [0, 100, 300, 500, 800][min(count, 4)] * self.level
             self.lines += count
-            let lvl = self.lines / 10 + 1
-            if lvl != self.level { self.level = lvl; self.restartTimer() }
+            self.linesThisLevel += count
             MtrxHaptics.success()
+            // Level cleared when the quota is met.
+            if self.linesThisLevel >= self.lineQuota && !self.levelCleared {
+                self.levelCleared = true
+                self.stop()
+                GameProgress.shared.recordCompletion(level: self.level, in: .blocks)
+                MtrxHaptics.success()
+                return   // do not spawn the next piece; the level is done
+            }
             completion()
         }
     }
@@ -164,13 +244,13 @@ final class BlockEngine: ObservableObject {
     // MARK: Controls
 
     func move(_ dx: Int) {
-        guard var p = piece, !paused, !gameOver else { return }
+        guard var p = piece, !paused, !gameOver, !levelCleared else { return }
         p.col += dx
         if valid(p) { piece = p; MtrxHaptics.selection() }
     }
 
     func rotate() {
-        guard let base = piece, !paused, !gameOver, base.shape != .o else {
+        guard let base = piece, !paused, !gameOver, !levelCleared, base.shape != .o else {
             if piece?.shape == .o { MtrxHaptics.selection() }
             return
         }
@@ -183,14 +263,14 @@ final class BlockEngine: ObservableObject {
     }
 
     func softDrop() {
-        guard var p = piece, !paused, !gameOver else { return }
+        guard var p = piece, !paused, !gameOver, !levelCleared else { return }
         p.row += 1
         if valid(p) { piece = p; score += 1 }
         else { lockPiece() }
     }
 
     func hardDrop() {
-        guard var p = piece, !paused, !gameOver else { return }
+        guard var p = piece, !paused, !gameOver, !levelCleared else { return }
         var dropped = 0
         while true {
             var q = p; q.row += 1
@@ -226,7 +306,37 @@ struct BlockGameView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var engine = BlockEngine()
 
+    @State private var playingLevel: Int?
+
+    private var totalLevels: Int { GameProgress.shared.totalLevels(for: .blocks) }
+
     var body: some View {
+        Group {
+            if playingLevel == nil {
+                GameLevelSelectView(
+                    game: .blocks, title: BlockBrand.name, accent: accent,
+                    onSelect: { level in
+                        playingLevel = level
+                        engine.start(at: level)
+                    },
+                    onClose: { dismiss() }
+                )
+            } else {
+                gameBody
+            }
+        }
+        .onDisappear { engine.stop() }
+        .onChange(of: engine.gameOver) { _, over in
+            if over { GameKitManager.shared.recordGameOver(.blocks, score: engine.score) }
+        }
+        .onChange(of: engine.levelCleared) { _, cleared in
+            if cleared { GameKitManager.shared.recordGameOver(.blocks, score: engine.score, won: true) }
+        }
+    }
+
+    private func backToLevels() { engine.stop(); playingLevel = nil }
+
+    private var gameBody: some View {
         ZStack {
             LinearGradient(colors: [Color.black, Color(red: 0.06, green: 0.04, blue: 0.12), Color.black],
                            startPoint: .top, endPoint: .bottom)
@@ -252,12 +362,19 @@ struct BlockGameView: View {
             }
             .padding(.top, Spacing.xs)
 
-            if engine.gameOver { overlay(title: "Game Over", symbol: "xmark.octagon.fill", tint: Color.statusError) }
-            else if engine.paused { overlay(title: "Paused", symbol: "pause.circle.fill", tint: accent) }
-        }
-        .onDisappear { engine.stop() }
-        .onChange(of: engine.gameOver) { _, over in
-            if over { GameKitManager.shared.recordGameOver(.blocks, score: engine.score) }
+            if engine.levelCleared {
+                overlay(title: engine.level >= totalLevels ? "All Levels Cleared" : "Level \(engine.level) Cleared",
+                        symbol: "checkmark.seal.fill", tint: accent,
+                        primaryTitle: "Levels", primary: backToLevels)
+            } else if engine.gameOver {
+                overlay(title: "Topped Out", symbol: "xmark.octagon.fill", tint: Color.statusError,
+                        primaryTitle: "Retry Level \(engine.level)", primary: { engine.retry() },
+                        secondaryTitle: "Levels", secondary: backToLevels)
+            } else if engine.paused {
+                overlay(title: "Paused", symbol: "pause.circle.fill", tint: accent,
+                        primaryTitle: "Resume", primary: { engine.togglePause() },
+                        secondaryTitle: "Levels", secondary: backToLevels)
+            }
         }
     }
 
@@ -265,15 +382,15 @@ struct BlockGameView: View {
 
     private var header: some View {
         HStack {
-            roundButton("xmark") { dismiss() }
+            roundButton("square.grid.2x2") { backToLevels() }
             Spacer()
-            Text("Tetris")
+            Text(BlockBrand.name)
                 .font(.system(size: 19, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
             Spacer()
             GameRecordControl()
-            roundButton(engine.gameOver ? "arrow.clockwise" : (engine.paused ? "play.fill" : "pause.fill")) {
-                if engine.gameOver { engine.start() } else { engine.togglePause() }
+            roundButton(engine.paused ? "play.fill" : "pause.fill") {
+                engine.togglePause()
             }
         }
         .padding(.horizontal, Spacing.md)
@@ -293,9 +410,9 @@ struct BlockGameView: View {
 
     private var statColumn: some View {
         HStack(spacing: Spacing.lg) {
+            stat("LEVEL", "\(engine.level)/\(totalLevels)")
+            stat("LINES", "\(engine.linesThisLevel)/\(engine.lineQuota)")
             stat("SCORE", "\(engine.score)")
-            stat("LINES", "\(engine.lines)")
-            stat("LEVEL", "\(engine.level)")
         }
     }
 
@@ -455,24 +572,30 @@ struct BlockGameView: View {
 
     // MARK: Overlay
 
-    private func overlay(title: String, symbol: String, tint: Color) -> some View {
+    private func overlay(title: String, symbol: String, tint: Color,
+                         primaryTitle: String, primary: @escaping () -> Void,
+                         secondaryTitle: String? = nil, secondary: (() -> Void)? = nil) -> some View {
         ZStack {
             Color.black.opacity(0.55).ignoresSafeArea()
             VStack(spacing: Spacing.md) {
                 Image(systemName: symbol).font(.system(size: 52)).foregroundStyle(tint)
                 Text(title).font(.system(size: 28, weight: .heavy, design: .rounded)).foregroundStyle(.white)
-                Text("\(engine.score) pts · \(engine.lines) lines")
+                Text("\(engine.score) pts · \(engine.linesThisLevel)/\(engine.lineQuota) lines")
                     .font(.mtrxCallout).foregroundStyle(Color.labelSecondary)
                 Button {
                     MtrxHaptics.impact(.medium)
-                    if engine.gameOver { engine.start() } else { engine.togglePause() }
+                    primary()
                 } label: {
-                    Text(engine.gameOver ? "Play Again" : "Resume")
+                    Text(primaryTitle)
                         .font(.mtrxCalloutBold).foregroundStyle(Color.backgroundPrimary)
                         .padding(.horizontal, Spacing.xl).padding(.vertical, Spacing.ms)
                         .background(accent).clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                if let secondaryTitle, let secondary {
+                    Button(secondaryTitle) { MtrxHaptics.impact(.light); secondary() }
+                        .font(.mtrxCalloutBold).foregroundStyle(Color.labelPrimary).padding(.top, Spacing.xs)
+                }
                 Button("Leave") { dismiss() }
                     .font(.mtrxCalloutBold).foregroundStyle(Color.labelSecondary).padding(.top, Spacing.xs)
             }

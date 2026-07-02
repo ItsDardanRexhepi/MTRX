@@ -28,6 +28,24 @@ enum GameKind {
     case merge2048  // 2048 sliding-tile merge puzzle
     case breakout   // paddle-and-ball brick breaker
     case asteroids  // ship-and-rocks space shooter
+
+    /// The leaderboard/progress identity for this kind. The three arcade
+    /// mechanics (targets/reflex/sequence) share `.arcade` and have no level
+    /// progression; the six standalone games each map to their own GameID.
+    var progressGameID: GameKitManager.GameID {
+        switch self {
+        case .solitaire: return .solitaire
+        case .blocks:    return .blocks
+        case .match3:    return .colorburst
+        case .merge2048: return .merge2048
+        case .breakout:  return .breakout
+        case .asteroids: return .asteroids
+        case .targets, .reflex, .sequence: return .arcade
+        }
+    }
+
+    /// Whether this kind has the 50-level progression layer (arcade does not).
+    var hasLevels: Bool { progressGameID != .arcade }
 }
 
 struct TournamentItem: Identifiable {
@@ -65,7 +83,7 @@ class GamingViewModel: ObservableObject {
 
     static let sampleGames: [GameItem] = [
         GameItem(name: "Solitaire", assetCount: 2_450, playerCount: 18_300, kind: .solitaire, accent: Color(red: 0.13, green: 0.83, blue: 0.93)),
-        GameItem(name: "Tetris", assetCount: 8_120, playerCount: 42_600, kind: .blocks, accent: Color(red: 0.62, green: 0.40, blue: 0.96)),
+        GameItem(name: BlockBrand.name, assetCount: 8_120, playerCount: 42_600, kind: .blocks, accent: Color(red: 0.62, green: 0.40, blue: 0.96)),
         GameItem(name: "Color Burst", assetCount: 5_680, playerCount: 31_200, kind: .match3, accent: Color(red: 0.98, green: 0.37, blue: 0.45)),
         GameItem(name: "2048", assetCount: 1_890, playerCount: 12_400, kind: .merge2048, accent: Color(red: 0.98, green: 0.65, blue: 0.15)),
         GameItem(name: "Brick Breaker", assetCount: 3_340, playerCount: 9_800, kind: .breakout, accent: Color(red: 0.97, green: 0.30, blue: 0.55)),
