@@ -14,6 +14,7 @@ final class FundraiserViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var selectedCampaign: Campaign?
     @Published var showDetail: Bool = false
+    @Published var isDemo: Bool = true
 
     // MARK: - Filtered Campaigns
 
@@ -38,6 +39,7 @@ final class FundraiserViewModel: ObservableObject {
 
         try? await Task.sleep(nanoseconds: 800_000_000)
         campaigns = Campaign.sampleData
+        isDemo = true
         isLoading = false
     }
 
@@ -289,6 +291,7 @@ struct FundraiserView: View {
                     }
                 } else {
                     campaignList
+                        .demoBadge(viewModel.isDemo)
                 }
             }
             .navigationTitle("Fundraisers")

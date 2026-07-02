@@ -21,6 +21,9 @@ final class BuildViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var selectedSegment: BuildSegment = .contracts
+    /// True while the hub renders bundled sample contracts/templates/subscriptions.
+    /// Flips to false once a real backend supplies the displayed data.
+    @Published var isDemo: Bool = true
     @Published var showCreateContract: Bool = false
     @Published var contentAppeared: Bool = false
     @Published var showContractFilter: Bool = false
@@ -183,6 +186,7 @@ struct BuildView: View {
                             }
                         }
                     }
+                    .demoBadge(viewModel.isDemo)
                 }
                 // Swipe between Templates / Create / My Contracts, the same way
                 // the Social tab moves between its top tabs.

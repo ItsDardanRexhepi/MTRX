@@ -139,6 +139,8 @@ enum NotificationFilter: String, CaseIterable {
 final class NotificationCenterViewModel: ObservableObject {
     @Published var notifications: [MtrxNotification] = MtrxNotification.sampleData
     @Published var selectedFilter: NotificationFilter = .all
+    /// True while showing bundled sample data; set false when a real backend supplies notifications.
+    @Published var isDemo: Bool = true
 
     var filteredNotifications: [MtrxNotification] {
         switch selectedFilter {
@@ -212,6 +214,7 @@ struct NotificationCenterView: View {
                     )
                 }
             }
+            .demoBadge(viewModel.isDemo)
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)

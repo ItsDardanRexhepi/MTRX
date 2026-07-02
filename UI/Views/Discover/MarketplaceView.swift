@@ -14,6 +14,7 @@ final class MarketplaceViewModel: ObservableObject {
     @Published var selectedCategory: MarketCategory = .all
     @Published var sortOption: MarketSortOption = .popularity
     @Published var isLoading: Bool = false
+    @Published var isDemo: Bool = true
     @Published var showSortPicker: Bool = false
     @Published var selectedListing: MarketplaceItem?
     @Published var showDetail: Bool = false
@@ -70,12 +71,14 @@ final class MarketplaceViewModel: ObservableObject {
                     specifications: []
                 )
             }
+            isDemo = false
             isLoading = false
             return
         }
 
         try? await Task.sleep(nanoseconds: 800_000_000)
         listings = MarketplaceItem.sampleData
+        isDemo = true
         isLoading = false
     }
 
@@ -313,6 +316,7 @@ struct MarketplaceView: View {
         .refreshable {
             await viewModel.refresh()
         }
+        .demoBadge(viewModel.isDemo)
     }
 
     // MARK: - Search + Sort

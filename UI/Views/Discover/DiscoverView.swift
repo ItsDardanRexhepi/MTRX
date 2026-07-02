@@ -18,6 +18,9 @@ final class DiscoverViewModel: ObservableObject {
     @Published var activeFundraisers: [FundraiserItem] = []
     @Published var partners: [PartnerItem] = []
     @Published var isLoading: Bool = false
+    /// True while the tab is showing bundled `.sampleData` rather than
+    /// live service data. Stays true until a real backend supplies data.
+    @Published var isDemo: Bool = true
     @Published var errorMessage: String?
     @Published var searchText: String = ""
     @Published var selectedCategory: DiscoverCategory = .all
@@ -77,6 +80,8 @@ final class DiscoverViewModel: ObservableObject {
         trendingListings = MarketplaceListing.sampleData
         activeFundraisers = FundraiserItem.sampleData
         partners = PartnerItem.sampleData
+        // Bundled sample content — mark it so it's never passed off as live.
+        isDemo = true
 
         isLoading = false
 
@@ -341,6 +346,7 @@ struct DiscoverView: View {
         .refreshable {
             await viewModel.refresh()
         }
+        .demoBadge(viewModel.isDemo)
     }
 
     // MARK: - Search Bar
