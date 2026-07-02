@@ -181,3 +181,24 @@ Postcondition: MTRX **BUILD SUCCEEDED** with all 11 edits. Result: ~43 views now
 badge sample data; grep for a `.sampleData`-into-live-viewmodel without a badge
 returns zero (Preview-only `.sampleData` uses are correctly left unbadged —
 `#Preview` blocks never ship).
+
+## OUT-OF-SCOPE — FOUND (Phase-1 sleep-adjacent-success review)
+
+The GATE-1 line-by-line sleep review surfaced three fake-success theaters NOT in
+the original D/M list — same *action-theater* class as D2/M5/M7 (a success haptic
+/ success flag fired after a `Task.sleep`/`asyncAfter` with no real action):
+
+- **FundraiserView "Contribute"** (`UI/Views/Discover/FundraiserView.swift` ~554, ~848):
+  success haptic → 1.5s → `showContributed = true`, no contribution / no money moved.
+- **DAOView "castVote"** (`UI/Views/Build/DAOView.swift` ~98): 1.5s → `MtrxHaptics.success()`, no vote.
+- **BuildView "Sign Contract" / "Execute Milestone"** (`UI/Views/Build/BuildView.swift` ~869/~884):
+  1.5s → `MtrxHaptics.success()`, no signing / no execution.
+
+These join the **Phase-1 return pass** (with D2/M1/M5/M6/M7/D3/D4) for honest gating
++ real wiring onto the Phase-4 infrastructure. **GATE-1 status:** the two provable
+slices (demo-honesty badge sweep + M3/M4 fence) are DONE and green; the "zero
+sleep-adjacent-success in Views" clause is **NOT yet satisfied** — it clears in the
+return pass. Phase 1 does not merge to `main` until it is.
+
+R4 held across all Phase-1 edits so far: MTRX BUILD + TEST SUCCEEDED (144 exec, 0
+fail; SigningWallTests + MorpheusSecurityStateTests passing).
