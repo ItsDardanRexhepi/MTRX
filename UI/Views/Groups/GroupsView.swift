@@ -17,6 +17,11 @@ final class GroupsViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isEmpty: Bool = false
 
+    /// True while the view is showing sample/demo data. Flips to false once a
+    /// real backend supplies groups. Defaults to true because `loadGroups()`
+    /// currently populates the lists from `CommunityGroup.sample*`.
+    @Published var isDemo: Bool = true
+
     // Group Detail
     @Published var selectedGroup: CommunityGroup?
     @Published var showDetail: Bool = false
@@ -196,6 +201,7 @@ struct GroupsView: View {
             VStack(spacing: 0) {
                 tabPicker
                 tabContent
+                    .demoBadge(viewModel.isDemo)
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Groups")

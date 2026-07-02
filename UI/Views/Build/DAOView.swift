@@ -15,6 +15,7 @@ final class DAOViewModel: ObservableObject {
     @Published var delegates: [DelegateInfo] = []
     @Published var selectedTab: GovernanceTab = .proposals
     @Published var isLoading: Bool = false
+    @Published var isDemo: Bool = true
 
     // Voting
     @Published var selectedProposal: DAOGovernanceProposal?
@@ -53,6 +54,7 @@ final class DAOViewModel: ObservableObject {
 
         // Live proposals from the gateway; fall back to samples if it isn't up.
         if let live = try? await MTRXAPIClient.shared.daoProposals(), !live.proposals.isEmpty {
+            isDemo = false
             proposals = live.proposals.map { p in
                 DAOGovernanceProposal(
                     number: p.number, title: p.title, description_: p.description ?? "",
@@ -64,6 +66,7 @@ final class DAOViewModel: ObservableObject {
                 )
             }
         } else {
+            isDemo = true
             try? await Task.sleep(nanoseconds: 800_000_000)
             proposals = DAOGovernanceProposal.sampleData
         }
@@ -311,6 +314,7 @@ struct DAOView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
         }
+        .demoBadge(viewModel.isDemo)
     }
 
     // MARK: - Segment Pills

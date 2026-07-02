@@ -17,6 +17,7 @@ final class LicensingViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isEmpty: Bool = false
+    @Published var isDemo: Bool = true
 
     // Register IP
     @Published var registerName: String = ""
@@ -223,6 +224,7 @@ struct LicensingView: View {
                 tabPicker
                 tabContent
             }
+            .demoBadge(viewModel.isDemo)
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Licensing")
             .navigationBarTitleDisplayMode(.large)

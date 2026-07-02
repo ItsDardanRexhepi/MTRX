@@ -19,6 +19,7 @@ final class MultiSigViewModel: ObservableObject {
     @Published var showCreateWallet: Bool = false
     @Published var showProposeTransaction: Bool = false
     @Published var contentAppeared: Bool = false
+    @Published var isDemo: Bool = true
 
     // Create wallet form
     @Published var walletName: String = ""
@@ -62,6 +63,7 @@ final class MultiSigViewModel: ObservableObject {
         try? await Task.sleep(nanoseconds: 800_000_000)
 
         wallets = MultiSigWallet.sampleData
+        isDemo = true
         isLoading = false
 
         withAnimation(Motion.springDefault) {
@@ -171,6 +173,7 @@ struct MultiSigView: View {
                     walletsListView
                 }
             }
+            .demoBadge(viewModel.isDemo)
             .navigationTitle(viewModel.selectedWallet != nil ? viewModel.selectedWallet!.name : "Multi-Sig")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -22,6 +22,11 @@ struct TokenDetailView: View {
     private let contractAddress = "0x4F9e...8B2c7D1a3E5f"
     private let avgBuyPrice = "$3,102.45"
 
+    /// True while the recent-transaction list is populated from sample data
+    /// (no live backend). Flips to false automatically once a backend gateway
+    /// supplies real transaction history.
+    private var isDemo: Bool { !PendingCredentials.isBackendConfigured }
+
     // MARK: - Body
 
     var body: some View {
@@ -316,6 +321,7 @@ struct TokenDetailView: View {
                 Text("Recent Transactions")
                     .font(.mtrxHeadline)
                     .foregroundStyle(Color.labelPrimary)
+                if isDemo { DemoBadge() }
                 Spacer()
                 NavigationLink {
                     TokenTransactionHistoryView(token: token)

@@ -242,6 +242,9 @@ struct MainTabView: View {
         // whole tab container swallows NavigationLink pushes inside
         // tabs. The tint still shifts green→cyan per selected tab.
         .tint(tabTint)
+        // Honestly flag the curated `.sampleData` wallet holdings until the
+        // gateway overlays real data (WalletManager.loadPortfolio flips isDemo).
+        .demoBadge(walletManager.isDemo)
         .task {
             // Warm Trinity's on-device model at launch so the very first chat
             // isn't a cold start. Non-blocking + availability-gated; no-op when
@@ -921,6 +924,10 @@ class WalletManager: ObservableObject {
     @Published var transactions: [TransactionItem] = TransactionItem.sampleData
     @Published var defiPositions: [DeFiPositionItem] = DeFiPositionItem.sampleData
     @Published var needsRefresh: Bool = false
+    /// True while the wallet is showing the curated `.sampleData` holdings above.
+    /// Flips to false the moment `loadPortfolio()` overlays real holdings from the
+    /// gateway, so the UI can honestly badge the demo state until then.
+    @Published var isDemo: Bool = true
 
     /// Banks and external crypto wallets the user has linked. Their balances
     /// fold into the total portfolio so it reflects everywhere (Home,
@@ -1169,6 +1176,11 @@ class WalletManager: ObservableObject {
     @MainActor
     func loadPortfolio() async {
         guard let p = try? await MTRXAPIClient.shared.getPortfolio() else { return }
+        // Real holdings arrived from the gateway — the wallet is no longer showing
+        // the curated sample list, so drop the demo badge.
+        if !p.tokens.isEmpty || !p.defiPositions.isEmpty || !p.nfts.isEmpty {
+            isDemo = false
+        }
         if !p.tokens.isEmpty {
             tokens = p.tokens.map { t in
                 AppTokenBalance(
