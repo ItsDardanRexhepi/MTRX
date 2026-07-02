@@ -194,11 +194,36 @@ the original D/M list — same *action-theater* class as D2/M5/M7 (a success hap
 - **BuildView "Sign Contract" / "Execute Milestone"** (`UI/Views/Build/BuildView.swift` ~869/~884):
   1.5s → `MtrxHaptics.success()`, no signing / no execution.
 
-These join the **Phase-1 return pass** (with D2/M1/M5/M6/M7/D3/D4) for honest gating
-+ real wiring onto the Phase-4 infrastructure. **GATE-1 status:** the two provable
-slices (demo-honesty badge sweep + M3/M4 fence) are DONE and green; the "zero
-sleep-adjacent-success in Views" clause is **NOT yet satisfied** — it clears in the
-return pass. Phase 1 does not merge to `main` until it is.
+**RETURN PASS 2026-07-02 — all three theaters CLEARED (+1 found in passing):**
 
-R4 held across all Phase-1 edits so far: MTRX BUILD + TEST SUCCEEDED (144 exec, 0
-fail; SigningWallTests + MorpheusSecurityStateTests passing).
+- **FundraiserView "Contribute"** — both duplicated sites route through one
+  honest-gated `contribute()`: live path requires `isBackendConfigured` AND a
+  server-known campaign (`Campaign.serverId`, nil for all sample data) and calls
+  `contributeToCampaign`; otherwise an honest "sample data — nothing was
+  contributed" alert. Success haptic/toast fire only on a real 2xx.
+- **DAOView "castVote"** — vote SUBMISSION is wired to the real gateway
+  contract via `GovernanceService.vote` (`proposal_id/voter/support` →
+  `/api/v1/governance/vote`; the server's `support`→`choice` kwarg mismatch,
+  which would have 500'd every live vote, is fixed). Demo / abstain-unsupported
+  / error paths show honest "no vote was recorded" notices, each dismissing the
+  sheet first so the notice can actually present. The DAO proposals **live-read**
+  is BLOCKED: the gateway has no proposals route whose shape matches
+  `DAOProposalsResponse` (no votesFor/votesAgainst/proposer/quorum split), so
+  `daoProposals()` decode-fails → `isDemo` stays true → castVote correctly stays
+  honest-demo until a shape-matching read route exists (tracked in
+  POST_DEPLOY_WIRING_UNIT.md). Delegation buttons are honest local-preview
+  notices (no fake success).
+- **BuildView "Sign Contract" / "Execute Milestone"** — no endpoint exists;
+  both are honest "isn't available in this build yet" notices (no sleep, no
+  success haptic, no spinner theater).
+- **FOUND IN PASSING, ALSO CLEARED: BuildView "Raise Dispute"** — faked a filed
+  dispute with an `Int.random` case number; now the same honest notice.
+
+**GATE-1 "zero sleep-adjacent-success in Views" clause: SATISFIED.**
+
+Chain-blocked items D2/D3/M5/M6/M7/D4 are bundled as the **POST-DEPLOY WIRING
+UNIT** (`POST_DEPLOY_WIRING_UNIT.md`) — request builders, dispute server routes
+and config slots pre-written; wiring fires when deployed addresses are pasted.
+
+R4 held: MTRX BUILD + TEST SUCCEEDED after the return pass (RP-1 theaters,
+RP-2 twin deletion, RP-3 remaps, RP-5 pre-writes).

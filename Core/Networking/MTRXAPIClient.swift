@@ -936,6 +936,39 @@ final class MTRXAPIClient: @unchecked Sendable {
         return try await execute(request)
     }
 
+    // MARK: - Gateway Envelope + Wallet-Scoped Paths
+
+    /// Gateway service routes wrap results as {"status":"ok","data":<payload>}
+    /// (server.py core routes and /api/v1/price/eth-usd return bare JSON).
+    struct GatewayEnvelope<T: Decodable>: Decodable {
+        let status: String
+        let data: T
+    }
+
+    /// GET a service route and unwrap its {status,data} envelope. A shape
+    /// mismatch throws — callers fall back to their demo state, never to an
+    /// invented payload.
+    func getEnveloped<T: Decodable>(
+        path: String, queryItems: [URLQueryItem]? = nil
+    ) async throws -> T {
+        let envelope: GatewayEnvelope<T> = try await get(path: path, queryItems: queryItems)
+        return envelope.data
+    }
+
+    /// POST to a service route and unwrap its {status,data} envelope.
+    func postEnveloped<Body: Encodable, T: Decodable>(
+        path: String, body: Body
+    ) async throws -> T {
+        let envelope: GatewayEnvelope<T> = try await post(path: path, body: body)
+        return envelope.data
+    }
+
+    /// Wallet address for wallet-scoped gateway paths ("" when no wallet is
+    /// active yet — the resulting request 404s, an honest failure).
+    func walletPathIdentity() async -> String {
+        await MainActor.run { WalletCore.shared.address ?? "" }
+    }
+
     // MARK: - Debug Logging
 
     #if DEBUG
@@ -1073,7 +1106,8 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func getPortfolio() async throws -> PortfolioResponse {
-        try await get(path: "/api/v1/portfolio")
+        let wallet = await walletPathIdentity()
+        return try await getEnveloped(path: "/api/v1/portfolio/complete/\(wallet)")
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1096,17 +1130,33 @@ final class MTRXAPIClient: @unchecked Sendable {
     // MARK: - C2: DeFi Lending
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+    /// NOT REMAPPED: the gateway has no lend-side route — /api/v1/defi/loan/create
+    /// is borrow-side; representing a lend as a borrow would be wrong. This path
+    /// stays unregistered (honest 404 → demo fallback) until a lend route exists.
     func defiLend(_ request: DeFiLendRequest) async throws -> [String: AnyCodableValue] {
         try await post(path: "/api/v1/defi/lend", body: request)
     }
 
     func defiBorrow(_ request: DeFiBorrowRequest) async throws -> [String: AnyCodableValue] {
-        try await post(path: "/api/v1/defi/borrow", body: request)
+        struct Body: Encodable {
+            let borrower: String
+            let collateralToken: String
+            let collateralAmount: Double
+            let borrowToken: String
+            let borrowAmount: Double
+        }
+        let borrower = await walletPathIdentity()
+        return try await post(path: "/api/v1/defi/loan/create", body: Body(
+            borrower: borrower,
+            collateralToken: request.collateralAsset,
+            collateralAmount: request.collateralAmount,
+            borrowToken: request.borrowAsset,
+            borrowAmount: request.borrowAmount))
     }
 
     func defiRepay(loanId: String, amount: Double) async throws -> [String: AnyCodableValue] {
         struct DefiRepayBody: Encodable { let loan_id: String; let amount: Double }
-        return try await post(path: "/api/v1/defi/repay", body: DefiRepayBody(loan_id: loanId, amount: amount))
+        return try await post(path: "/api/v1/defi/loan/repay", body: DefiRepayBody(loan_id: loanId, amount: amount))
     }
 
     func defiListPools() async throws -> [DeFiPoolResponse] {
@@ -1205,8 +1255,10 @@ final class MTRXAPIClient: @unchecked Sendable {
         try await postRaw(path: "/api/v1/attestation/create", body: ["schema": AnyCodableValue.string(schema), "data": AnyCodableValue.dictionary(data)])
     }
 
+    /// The only registered attestation GET is the verify route — a raw-record
+    /// read does not exist server-side, so this returns a verification result.
     func getAttestation(uid: String) async throws -> [String: AnyCodableValue] {
-        try await get(path: "/api/v1/attestation/\(uid)")
+        try await get(path: "/api/v1/attestation/verify/\(uid)")
     }
 
     func verifyAttestation(uid: String) async throws -> [String: AnyCodableValue] {
@@ -1218,7 +1270,10 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func registerAgent(name: String, capabilities: [String]) async throws -> [String: AnyCodableValue] {
-        try await postRaw(path: "/api/v1/agent-identity/register", body: ["name": name, "capabilities": capabilities.joined(separator: ",")])
+        struct Body: Encodable { let owner: String; let agentType: String; let capabilities: [String] }
+        let owner = await walletPathIdentity()
+        return try await post(path: "/api/v1/agent/register",
+                              body: Body(owner: owner, agentType: name, capabilities: capabilities))
     }
 
     func getAgentIdentity(id: String) async throws -> [String: AnyCodableValue] {
@@ -1241,8 +1296,17 @@ final class MTRXAPIClient: @unchecked Sendable {
     // MARK: - C11: Oracles
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+    /// ETH/USD uses the dedicated price route (bare JSON — Chainlink primary,
+    /// Coinbase fallback, honest 503 when no source). Other pairs go through
+    /// the singular oracle service route (enveloped).
     func getOraclePrice(feed: String) async throws -> [String: AnyCodableValue] {
-        try await get(path: "/api/v1/oracles/price/\(feed)")
+        let pair = feed.lowercased()
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: "_", with: "-")
+        if pair == "eth-usd" {
+            return try await get(path: "/api/v1/price/eth-usd")
+        }
+        return try await get(path: "/api/v1/oracle/price/\(pair)")
     }
 
     func listOracleFeeds() async throws -> [String: AnyCodableValue] {
@@ -1254,7 +1318,10 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func createShipment(data: [String: AnyCodableValue]) async throws -> [String: AnyCodableValue] {
-        try await postRaw(path: "/api/v1/supply-chain/shipment", body: data)
+        struct Body: Encodable { let manufacturer: String; let productData: [String: AnyCodableValue] }
+        let manufacturer = await walletPathIdentity()
+        return try await postRaw(path: "/api/v1/supply-chain/register",
+                                 body: Body(manufacturer: manufacturer, productData: data))
     }
 
     func trackShipment(id: String) async throws -> [String: AnyCodableValue] {
@@ -1294,7 +1361,9 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func submitGame(_ request: GameSubmitRequest) async throws -> [String: AnyCodableValue] {
-        try await post(path: "/api/v1/gaming/submit", body: request)
+        struct Body: Encodable { let developer: String; let gameData: GameSubmitRequest }
+        return try await post(path: "/api/v1/gaming/register",
+                              body: Body(developer: request.developer, gameData: request))
     }
 
     func getGame(id: String) async throws -> [String: AnyCodableValue] {
@@ -1340,7 +1409,8 @@ final class MTRXAPIClient: @unchecked Sendable {
     }
 
     func getStakingPositions() async throws -> [String: AnyCodableValue] {
-        try await get(path: "/api/v1/staking/positions")
+        let wallet = await walletPathIdentity()
+        return try await get(path: "/api/v1/portfolio/positions/\(wallet)")
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1348,11 +1418,16 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func sendPayment(to: String, amount: Double, currency: String, memo: String? = nil) async throws -> [String: AnyCodableValue] {
-        var body: [String: String] = ["to": to, "amount": "\(amount)", "currency": currency]
-        if let memo { body["memo"] = memo }
+        struct Body: Encodable {
+            let payer: String; let payee: String; let amount: Double
+            let token: String; let memo: String?
+        }
+        let payer = await walletPathIdentity()
         // Fund-moving: routes through the App Attest attach path. INERT (identical to a
         // plain postRaw) until PendingCredentials.Security.appAttestEnabled is flipped on.
-        return try await postFundMovingAttested(path: "/api/v1/payments/send", body: body)
+        return try await postFundMovingAttested(path: "/api/v1/payments/create",
+                                                body: Body(payer: payer, payee: to, amount: amount,
+                                                           token: currency, memo: memo))
     }
 
     func getPayment(id: String) async throws -> [String: AnyCodableValue] {
@@ -1368,7 +1443,11 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func issueSecurity(data: [String: AnyCodableValue]) async throws -> [String: AnyCodableValue] {
-        try await postRaw(path: "/api/v1/securities/issue", body: data)
+        var body = data
+        if body["issuer"] == nil {
+            body["issuer"] = .string(await walletPathIdentity())
+        }
+        return try await postRaw(path: "/api/v1/securities/create", body: body)
     }
 
     func getSecurity(id: String) async throws -> [String: AnyCodableValue] {
@@ -1384,7 +1463,14 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func createProposal(_ request: ProposalCreateRequest) async throws -> [String: AnyCodableValue] {
-        try await post(path: "/api/v1/governance/proposals", body: request)
+        struct Body: Encodable {
+            let proposer: String; let title: String; let description: String
+            let actions: [[String: AnyCodableValue]]?
+        }
+        let proposer = await walletPathIdentity()
+        return try await post(path: "/api/v1/governance/proposal/create",
+                              body: Body(proposer: proposer, title: request.title,
+                                         description: request.description, actions: request.actions))
     }
 
     func getProposal(id: String) async throws -> [String: AnyCodableValue] {
@@ -1404,11 +1490,15 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func getDashboard() async throws -> [String: AnyCodableValue] {
-        try await get(path: "/api/v1/dashboard")
+        let wallet = await walletPathIdentity()
+        return try await get(path: "/api/v1/dashboard/\(wallet)")
     }
 
+    /// The gateway has no separate metrics route — the per-wallet overview IS
+    /// the metrics payload. (The old /dashboard/metrics path silently pattern-
+    /// matched /dashboard/{address} with address="metrics", a bogus wallet.)
     func getDashboardMetrics() async throws -> [String: AnyCodableValue] {
-        try await get(path: "/api/v1/dashboard/metrics")
+        try await getDashboard()
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1423,11 +1513,9 @@ final class MTRXAPIClient: @unchecked Sendable {
     }
 
     func dexQuote(fromToken: String, toToken: String, amount: Double) async throws -> [String: AnyCodableValue] {
-        try await get(path: "/api/v1/dex/quote", queryItems: [
-            URLQueryItem(name: "from_token", value: fromToken),
-            URLQueryItem(name: "to_token", value: toToken),
-            URLQueryItem(name: "amount", value: "\(amount)"),
-        ])
+        struct Body: Encodable { let tokenIn: String; let tokenOut: String; let amount: Double }
+        return try await post(path: "/api/v1/defi/swap/route",
+                              body: Body(tokenIn: fromToken, tokenOut: toToken, amount: amount))
     }
 
     func dexListPools() async throws -> [String: AnyCodableValue] {
@@ -1439,7 +1527,15 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func createCampaign(_ request: CampaignCreateRequest) async throws -> [String: AnyCodableValue] {
-        try await post(path: "/api/v1/fundraising/campaigns", body: request)
+        struct Body: Encodable {
+            let creator: String; let title: String; let description: String
+            let goal: Double; let milestones: [[String: AnyCodableValue]]?
+        }
+        let creator = await walletPathIdentity()
+        return try await post(path: "/api/v1/fundraising/campaign/create",
+                              body: Body(creator: creator, title: request.title,
+                                         description: request.description,
+                                         goal: request.goalAmount, milestones: request.milestones))
     }
 
     func getCampaign(id: String) async throws -> [String: AnyCodableValue] {
@@ -1475,7 +1571,16 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func createListing(_ request: ListingCreateRequest) async throws -> [String: AnyCodableValue] {
-        try await post(path: "/api/v1/marketplace/listings", body: request)
+        struct Metadata: Encodable { let assetId: String; let currency: String; let description: String? }
+        struct Body: Encodable {
+            let seller: String; let itemType: String; let price: Double; let metadata: Metadata
+        }
+        let seller = await walletPathIdentity()
+        return try await post(path: "/api/v1/marketplace/list",
+                              body: Body(seller: seller, itemType: request.assetType, price: request.price,
+                                         metadata: Metadata(assetId: request.assetId,
+                                                            currency: request.currency,
+                                                            description: request.description)))
     }
 
     func getListing(id: String) async throws -> [String: AnyCodableValue] {
@@ -1489,7 +1594,9 @@ final class MTRXAPIClient: @unchecked Sendable {
     }
 
     func purchaseListing(id: String) async throws -> [String: AnyCodableValue] {
-        try await postRaw(path: "/api/v1/marketplace/listings/\(id)/purchase", body: EmptyBody())
+        struct Body: Encodable { let listingId: String; let buyer: String }
+        let buyer = await walletPathIdentity()
+        return try await postRaw(path: "/api/v1/marketplace/buy", body: Body(listingId: id, buyer: buyer))
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1525,7 +1632,12 @@ final class MTRXAPIClient: @unchecked Sendable {
     }
 
     func createSubscription(planId: String) async throws -> [String: AnyCodableValue] {
-        try await postRaw(path: "/api/v1/subscriptions/create", body: ["plan_id": planId])
+        struct Body: Encodable { let user: String; let planId: String; let paymentToken: String }
+        let user = await walletPathIdentity()
+        // paymentToken is empty until a payment method exists client-side; the
+        // server validates and rejects rather than creating a bogus subscription.
+        return try await postRaw(path: "/api/v1/subscriptions/subscribe",
+                                 body: Body(user: user, planId: planId, paymentToken: ""))
     }
 
     func cancelSubscription(id: String) async throws -> [String: AnyCodableValue] {
@@ -1537,7 +1649,11 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func createPost(_ request: PostCreateRequest) async throws -> [String: AnyCodableValue] {
-        try await post(path: "/api/v1/social/posts", body: request)
+        struct Body: Encodable { let author: String; let content: String; let media: [String]? }
+        let author = await walletPathIdentity()
+        return try await post(path: "/api/v1/social/post",
+                              body: Body(author: author, content: request.content,
+                                         media: request.attachments))
     }
 
     func getPost(id: String) async throws -> [String: AnyCodableValue] {
@@ -1545,13 +1661,16 @@ final class MTRXAPIClient: @unchecked Sendable {
     }
 
     func listFeed() async throws -> [String: AnyCodableValue] {
-        try await get(path: "/api/v1/social/feed")
+        let wallet = await walletPathIdentity()
+        return try await get(path: "/api/v1/social/feed/\(wallet)")
     }
 
     /// Typed social feed — decodes into `FeedResponse`. Used by the Social tab
-    /// and the Home feed window.
+    /// and the Home feed window. A shape mismatch with the live gateway throws
+    /// and the caller falls back to demo — never an invented feed.
     func feed() async throws -> FeedResponse {
-        try await get(path: "/api/v1/social/feed")
+        let wallet = await walletPathIdentity()
+        return try await getEnveloped(path: "/api/v1/social/feed/\(wallet)")
     }
 
     /// Typed governance proposals.
@@ -1561,7 +1680,7 @@ final class MTRXAPIClient: @unchecked Sendable {
 
     /// Typed real-world assets.
     func rwaAssets() async throws -> RWAAssetsResponse {
-        try await get(path: "/api/v1/rwa")
+        try await getEnveloped(path: "/api/v1/rwa/listings")
     }
 
     /// Typed insurance policies.
@@ -1574,9 +1693,11 @@ final class MTRXAPIClient: @unchecked Sendable {
         try await get(path: "/api/v1/loyalty")
     }
 
-    /// Typed staking pools + positions.
+    /// Typed staking pools + positions — nearest registered read is the
+    /// aggregator's per-wallet positions; a shape mismatch throws (demo fallback).
     func staking() async throws -> StakingResponse {
-        try await get(path: "/api/v1/staking")
+        let wallet = await walletPathIdentity()
+        return try await getEnveloped(path: "/api/v1/portfolio/positions/\(wallet)")
     }
 
     /// Typed liquidity pools.
@@ -1615,11 +1736,17 @@ final class MTRXAPIClient: @unchecked Sendable {
     }
 
     func followUser(userId: String) async throws -> [String: AnyCodableValue] {
-        try await postRaw(path: "/api/v1/social/follow", body: ["user_id": userId])
+        // Core route (bare JSON, no /api/v1 prefix); the server reads the
+        // follower from the X-Wallet-Address header and the target from `address`.
+        let follower = await walletPathIdentity()
+        let headers = follower.isEmpty ? nil : ["X-Wallet-Address": follower]
+        return try await postRaw(path: "/social/follow", body: ["address": userId], headers: headers)
     }
 
+    /// Nearest registered profile read: the actor activity route (bare JSON,
+    /// {actor, events, count}) — a profile document route does not exist yet.
     func getProfile(userId: String) async throws -> [String: AnyCodableValue] {
-        try await get(path: "/api/v1/social/profile/\(userId)")
+        try await get(path: "/social/actor/\(userId)")
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1627,7 +1754,13 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func generatePrivacyProof(_ request: PrivacyProofRequest) async throws -> [String: AnyCodableValue] {
-        try await post(path: "/api/v1/privacy/proof", body: request)
+        struct Body: Encodable {
+            let prover: String; let proofType: String; let claim: [String: AnyCodableValue]
+        }
+        let prover = await walletPathIdentity()
+        return try await post(path: "/api/v1/identity/zk-proof/generate",
+                              body: Body(prover: prover, proofType: request.proofType,
+                                         claim: request.claims))
     }
 
     func verifyPrivacyProof(proofId: String) async throws -> [String: AnyCodableValue] {
@@ -1647,7 +1780,23 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func createDispute(_ request: DisputeCreateRequest) async throws -> [String: AnyCodableValue] {
-        try await post(path: "/api/v1/disputes/create", body: request)
+        struct Body: Encodable {
+            let complainant: String
+            let respondent: String
+            let disputeType: String
+            let description: String
+            let contractId: String
+            let evidence: [String: AnyCodableValue]
+        }
+        let complainant = await walletPathIdentity()
+        // respondent isn't known client-side yet — the server validates and
+        // rejects rather than filing an incomplete dispute (honest failure).
+        return try await post(path: "/api/v1/dispute/file",
+                              body: Body(complainant: complainant, respondent: "",
+                                         disputeType: "contract",
+                                         description: request.description,
+                                         contractId: request.contractId,
+                                         evidence: request.evidence))
     }
 
     func getDispute(id: String) async throws -> [String: AnyCodableValue] {
@@ -1666,14 +1815,16 @@ final class MTRXAPIClient: @unchecked Sendable {
     // MARK: - Phase 3: Memory
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    func getMemory() async throws -> [String: AnyCodableValue] {
-        try await get(path: "/api/v1/memory")
+    /// Core memory routes (bare JSON, no /api/v1 prefix), keyed by agent name.
+    func getMemory(agent: String = "neo") async throws -> [String: AnyCodableValue] {
+        try await postRaw(path: "/memory/read", body: ["agent": agent])
     }
 
-    func storeMemory(content: String, importance: Double? = nil) async throws -> [String: AnyCodableValue] {
-        var body: [String: String] = ["content": content]
+    func storeMemory(content: String, importance: Double? = nil,
+                     agent: String = "neo", key: String = "ios-note") async throws -> [String: AnyCodableValue] {
+        var body: [String: String] = ["agent": agent, "key": key, "value": content]
         if let importance { body["importance"] = "\(importance)" }
-        return try await postRaw(path: "/api/v1/memory/store", body: body)
+        return try await postRaw(path: "/memory/write", body: body)
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1822,20 +1973,26 @@ final class MTRXAPIClient: @unchecked Sendable {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     func getWalletBalance() async throws -> [String: AnyCodableValue] {
-        try await get(path: "/api/v1/wallet/balance")
+        let wallet = await walletPathIdentity()
+        return try await get(path: "/api/v1/portfolio/complete/\(wallet)")
     }
 
     func getWalletTransactions(page: Int = 1, perPage: Int = 20) async throws -> [String: AnyCodableValue] {
-        try await get(path: "/api/v1/wallet/transactions", queryItems: [
-            URLQueryItem(name: "page", value: "\(page)"),
-            URLQueryItem(name: "per_page", value: "\(perPage)"),
-        ])
+        // Pagination isn't supported by the aggregator history route yet.
+        let wallet = await walletPathIdentity()
+        return try await get(path: "/api/v1/portfolio/history/\(wallet)")
     }
 
     func walletSend(to: String, amount: Double, asset: String) async throws -> [String: AnyCodableValue] {
-        try await postRaw(path: "/api/v1/wallet/send", body: [
-            "to": to, "amount": "\(amount)", "asset": asset,
-        ])
+        struct Body: Encodable {
+            let payer: String; let payee: String; let amount: Double; let token: String
+        }
+        let payer = await walletPathIdentity()
+        // Fund-moving: adopts the App Attest attach path like sendPayment
+        // (inert until PendingCredentials.Security.appAttestEnabled).
+        return try await postFundMovingAttested(path: "/api/v1/payments/create",
+                                                body: Body(payer: payer, payee: to,
+                                                           amount: amount, token: asset))
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

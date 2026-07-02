@@ -755,7 +755,7 @@ struct ContractCardRow: View {
                     .buttonStyle(.plain)
 
                     Button {
-                        MtrxHaptics.success()
+                        MtrxHaptics.impact(.light)
                         showActionConfirm = true
                     } label: {
                         Text(contract.actionLabel)
@@ -765,17 +765,19 @@ struct ContractCardRow: View {
             }
         }
         .alert("\(contract.actionLabel) — \(contract.title)", isPresented: $showActionConfirm) {
-            Button("Done", role: .cancel) {}
+            Button("OK", role: .cancel) {}
         } message: {
-            Text("Executed on the MTRX network. Gas covered by the platform — the updated contract state is reflected on-chain.")
+            // Honest: no contract action is wired to a chain yet. Nothing was
+            // signed, resolved, or executed — no fabricated on-chain confirmation.
+            Text("Contract actions aren't available in this build yet. Nothing was signed or executed.")
         }
-        .alert("Shared to Social", isPresented: $sharedToSocial) {
+        .alert("Shared to Your Feed", isPresented: $sharedToSocial) {
             Button("View", role: .none) {
                 NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": 3])
             }
             Button("OK", role: .cancel) {}
         } message: {
-            Text("“\(contract.title)” was posted to your feed for others to discover.")
+            Text("“\(contract.title)” was added to your local feed. Posts aren't published to other users in this build yet.")
         }
     }
 
@@ -792,12 +794,10 @@ struct ContractCardRow: View {
 // MARK: - Contract Detail View
 
 struct ContractDetailView: View {
-    @State private var disputeFiled = false
     let contract: ContractListItem
-    @State private var isSigningContract: Bool = false
-    @State private var isExecuting: Bool = false
     @State private var showDisputeConfirm: Bool = false
     @State private var explorerURL: URL? = nil
+    @State private var actionNotice: String?
 
     var body: some View {
         ScrollView {
@@ -867,34 +867,22 @@ struct ContractDetailView: View {
                 VStack(spacing: Spacing.sm) {
                     if contract.status == .pending {
                         Button {
-                            isSigningContract = true
-                            MtrxHaptics.impact(.medium)
-                            Task {
-                                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                                isSigningContract = false
-                                MtrxHaptics.success()
-                            }
+                            MtrxHaptics.warning()
+                            actionNotice = "Contract signing isn't available in this build yet. Nothing was signed."
                         } label: {
                             Label("Sign Contract", systemImage: Symbols.contractSign)
                         }
-                        .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, isLoading: isSigningContract, fullWidth: true))
-                        .disabled(isSigningContract)
+                        .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, fullWidth: true))
                     }
 
                     if contract.status == .active {
                         Button {
-                            isExecuting = true
-                            MtrxHaptics.impact(.medium)
-                            Task {
-                                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                                isExecuting = false
-                                MtrxHaptics.success()
-                            }
+                            MtrxHaptics.warning()
+                            actionNotice = "Milestone execution isn't available in this build yet. Nothing was executed."
                         } label: {
                             Label("Execute Milestone", systemImage: Symbols.milestone)
                         }
-                        .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, isLoading: isExecuting, fullWidth: true))
-                        .disabled(isExecuting)
+                        .buttonStyle(MtrxButtonStyle(variant: .primary, size: .large, fullWidth: true))
                     }
 
                     Button {
@@ -923,16 +911,19 @@ struct ContractDetailView: View {
         .alert("Raise Dispute?", isPresented: $showDisputeConfirm) {
             Button("Raise Dispute", role: .destructive) {
                 MtrxHaptics.warning()
-                disputeFiled = true
+                actionNotice = "Filing a dispute isn't available in this build yet. Nothing was filed and no funds were escrowed."
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This will initiate a formal dispute process on-chain.")
+            Text("This would initiate a formal dispute process on-chain.")
         }
-        .alert("Dispute Filed", isPresented: $disputeFiled) {
-            Button("OK", role: .cancel) {}
+        .alert("Not Available Yet", isPresented: Binding(
+            get: { actionNotice != nil },
+            set: { if !$0 { actionNotice = nil } }
+        )) {
+            Button("OK", role: .cancel) { actionNotice = nil }
         } message: {
-            Text("Case #DSP-\(Int.random(in: 1000...9999)) opened. An arbiter reviews the contract within 48 hours; funds stay escrowed until resolution.")
+            Text(actionNotice ?? "")
         }
         .sheet(item: $explorerURL) { url in
             BuildSafariView(url: url)

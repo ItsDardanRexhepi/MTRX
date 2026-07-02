@@ -91,6 +91,8 @@ enum FundraiserCampaignStatus: String {
 
 struct Campaign: Identifiable {
     let id = UUID()
+    /// Gateway campaign id — nil for sample data; contributions require it.
+    var serverId: String? = nil
     let title: String
     let creatorName: String
     let creatorInitials: String
@@ -518,6 +520,38 @@ struct CampaignDetailSheet: View {
     @State private var contributionAmount: String = ""
     @State private var isContributing = false
     @State private var showContributed = false
+    @State private var showUnavailable = false
+    @State private var showContributeError = false
+
+    /// Live path only: a configured backend AND a server-known campaign.
+    /// Sample-data campaigns get an honest notice — nothing is submitted.
+    @MainActor
+    private func contribute() {
+        guard let val = Double(contributionAmount), val > 0 else { return }
+        guard PendingCredentials.isBackendConfigured, let serverId = campaign.serverId else {
+            MtrxHaptics.warning()
+            showUnavailable = true
+            return
+        }
+        isContributing = true
+        MtrxHaptics.impact(.medium)
+        Task {
+            do {
+                _ = try await MTRXAPIClient.shared.contributeToCampaign(
+                    ContributeRequest(campaignId: serverId, amount: val))
+                isContributing = false
+                MtrxHaptics.success()
+                withAnimation(Motion.springDefault) {
+                    showContributed = true
+                }
+                contributionAmount = ""
+            } catch {
+                isContributing = false
+                MtrxHaptics.warning()
+                showContributeError = true
+            }
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -548,14 +582,7 @@ struct CampaignDetailSheet: View {
                         Spacer()
 
                         Button {
-                            guard let val = Double(contributionAmount), val > 0 else { return }
-                            isContributing = true
-                            MtrxHaptics.success()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                isContributing = false
-                                showContributed = true
-                                contributionAmount = ""
-                            }
+                            contribute()
                         } label: {
                             Text("Contribute")
                         }
@@ -581,6 +608,16 @@ struct CampaignDetailSheet: View {
                 if showContributed {
                     contributedToast
                 }
+            }
+            .alert("Contributions Unavailable", isPresented: $showUnavailable) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("This campaign is sample data — contributions aren't available in this build yet. Nothing was contributed.")
+            }
+            .alert("Contribution Failed", isPresented: $showContributeError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("The contribution could not be submitted. Nothing was charged.")
             }
         }
     }
@@ -841,16 +878,7 @@ struct CampaignDetailSheet: View {
                         .foregroundStyle(Color.labelTertiary)
 
                         Button {
-                            guard let val = Double(contributionAmount), val > 0 else { return }
-                            isContributing = true
-                            MtrxHaptics.success()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                isContributing = false
-                                withAnimation(Motion.springDefault) {
-                                    showContributed = true
-                                }
-                                contributionAmount = ""
-                            }
+                            contribute()
                         } label: {
                             Text("Contribute")
                         }

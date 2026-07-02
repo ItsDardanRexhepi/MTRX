@@ -612,10 +612,12 @@ final class SocialViewModel: ObservableObject {
             avatarInitials: initials.isEmpty ? "ME" : initials,
             avatarColor: .trinityPrimary,
             timestamp: Date(),
-            body: "Just shipped \(title) — a \(kind) built and deployed on MTRX. 🛠️ On-chain and ready.",
-            isVerified: true,
-            hasOnChainProof: address != nil,
-            proofHash: address,
+            // Honest: a personal share to the local feed, NOT a verified on-chain
+            // deployment. Sample/draft contracts were never deployed anywhere.
+            body: "Sharing my build: \(title) — a \(kind). 🛠️",
+            isVerified: false,
+            hasOnChainProof: false,
+            proofHash: nil,
             governanceTag: nil,
             likeCount: 0,
             repostCount: 0,

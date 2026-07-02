@@ -160,6 +160,20 @@ enum PendingCredentials {
         static let socialRecoveryModuleAddress = ""
     }
 
+    // MARK: - Attestation (EAS)
+
+    enum Attestation {
+
+        /// EAS schema UID the client attests against (M6/D4 post-deploy
+        /// wiring unit). Format: 0x + 64 hex — a chain-specific keccak256
+        /// SchemaRegistry hash, NOT an easscan display number like "348".
+        /// Where: register with 0pnMatrx scripts/register_eas_schemas.py and
+        /// paste the SAME UID the server carries in blockchain.schemas.primary
+        /// — client and server must attest against the same schema. Empty
+        /// fails closed (no attestation against a placeholder).
+        static let schemaUID = ""
+    }
+
     // MARK: - Pricing
 
     enum Pricing {
