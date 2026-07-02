@@ -88,8 +88,11 @@ final class SolitaireEngine: ObservableObject {
     private var undoStack: [Snapshot] = []
     /// Do-overs left this game. Starts at 3 and counts down as the player undoes.
     @Published private(set) var undosRemaining = 3
-    /// True when there's a move to take back and budget left to spend on it.
-    var canUndo: Bool { undosRemaining > 0 && !undoStack.isEmpty }
+    /// True when there's a move to take back and a do-over to spend on it —
+    /// either a free one or a purchased one.
+    var canUndo: Bool {
+        !undoStack.isEmpty && (undosRemaining > 0 || SolitaireRedoStore.shared.balance > 0)
+    }
 
     private var timer: Timer?
     private let move = Animation.spring(response: 0.34, dampingFraction: 0.82)
@@ -374,7 +377,13 @@ final class SolitaireEngine: ObservableObject {
             restore(s)
             selection = nil
         }
-        undosRemaining -= 1
+        // Spend a free do-over first; only dip into purchased ones after the
+        // free budget is gone.
+        if undosRemaining > 0 {
+            undosRemaining -= 1
+        } else {
+            SolitaireRedoStore.shared.consumeOne()
+        }
     }
 
     var timeLabel: String {
@@ -457,8 +466,10 @@ struct SolitaireGameView: View {
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var engine = SolitaireEngine()
+    @ObservedObject private var redoStore = SolitaireRedoStore.shared
 
     @State private var playingLevel: Int?
+    @State private var purchaseNotice: String?
 
     private var totalLevels: Int { GameProgress.shared.totalLevels(for: .solitaire) }
 
@@ -478,8 +489,17 @@ struct SolitaireGameView: View {
             }
         }
         .onDisappear { engine.stop() }
+        .task { await redoStore.loadProduct() }
         .onChange(of: engine.won) { _, won in
             if won { GameKitManager.shared.recordGameOver(.solitaire, score: engine.score, won: true) }
+        }
+        .alert("Do-Overs", isPresented: Binding(
+            get: { purchaseNotice != nil },
+            set: { if !$0 { purchaseNotice = nil } }
+        )) {
+            Button("OK", role: .cancel) { purchaseNotice = nil }
+        } message: {
+            Text(purchaseNotice ?? "")
         }
     }
 
@@ -541,6 +561,7 @@ struct SolitaireGameView: View {
             stat("MOVES", "\(engine.moves)")
             stat("SCORE", "\(engine.score)")
             Spacer()
+            buyDoOversButton
             undoButton
             Button {
                 MtrxHaptics.impact(.medium)
@@ -571,8 +592,11 @@ struct SolitaireGameView: View {
         }
     }
 
-    // Take-back button: shows how many do-overs remain this deal and greys out
-    // once they're spent or there's nothing left to undo.
+    /// Total do-overs available: the free per-deal budget plus any purchased.
+    private var totalDoOvers: Int { engine.undosRemaining + redoStore.balance }
+
+    // Take-back button: shows how many do-overs remain (free + purchased) and
+    // greys out once they're spent or there's nothing left to undo.
     private var undoButton: some View {
         Button {
             MtrxHaptics.impact(.medium)
@@ -580,7 +604,7 @@ struct SolitaireGameView: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "arrow.uturn.backward").font(.system(size: 12, weight: .bold))
-                Text("\(engine.undosRemaining)")
+                Text("\(totalDoOvers)")
                     .font(.system(size: 13, weight: .bold, design: .rounded)).lineLimit(1)
             }
             .foregroundStyle(engine.canUndo ? .white : Color.labelTertiary)
@@ -593,7 +617,38 @@ struct SolitaireGameView: View {
         .disabled(!engine.canUndo)
         .fixedSize()
         .accessibilityLabel("Undo move")
-        .accessibilityValue("\(engine.undosRemaining) do-overs remaining")
+        .accessibilityValue("\(totalDoOvers) do-overs remaining")
+    }
+
+    /// A "+5 do-overs" purchase entry, shown once the free budget is spent.
+    /// Real money: fail-closed with honest copy on any non-success outcome.
+    @ViewBuilder
+    private var buyDoOversButton: some View {
+        if engine.undosRemaining == 0 {
+            Button {
+                MtrxHaptics.impact(.light)
+                Task {
+                    do { try await redoStore.purchase() }
+                    catch SolitaireRedoStore.RedoPurchaseError.cancelled { /* silent — user chose to cancel */ }
+                    catch { purchaseNotice = "The purchase didn't go through. You were not charged, and no do-overs were added." }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: redoStore.isPurchasing ? "hourglass" : "plus.circle.fill")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Do-overs").font(.system(size: 12, weight: .bold, design: .rounded)).lineLimit(1)
+                }
+                .foregroundStyle(accent)
+                .padding(.horizontal, 10).padding(.vertical, 7)
+                .background(accent.opacity(0.14))
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(accent.opacity(0.4), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(redoStore.isPurchasing)
+            .fixedSize()
+            .accessibilityLabel("Buy 5 do-overs")
+        }
     }
 
     // MARK: Board

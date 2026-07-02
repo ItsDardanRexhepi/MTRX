@@ -357,6 +357,14 @@ final class StoreKitManager {
         Task.detached {
             for await result in Transaction.updates {
                 guard let transaction = try? self.checkVerified(result) else { continue }
+                // The solitaire do-over Consumable can also be delivered here
+                // (not only via purchase()). Grant it (idempotently) BEFORE we
+                // finish — finishing first would lose a paid purchase. Grants
+                // for our own product id only; tierForProductId ignores it, so
+                // it can never be mistaken for a subscription entitlement.
+                if transaction.productID == SolitaireRedoStore.productId {
+                    await SolitaireRedoStore.shared.grant(transaction)
+                }
                 await transaction.finish()
                 await self.refreshEntitlements()
             }
