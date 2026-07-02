@@ -201,10 +201,18 @@ the original D/M list — same *action-theater* class as D2/M5/M7 (a success hap
   server-known campaign (`Campaign.serverId`, nil for all sample data) and calls
   `contributeToCampaign`; otherwise an honest "sample data — nothing was
   contributed" alert. Success haptic/toast fire only on a real 2xx.
-- **DAOView "castVote"** — live path (`!isDemo` + backend configured) submits
-  `VoteRequest(proposalId: String(number), support:)` to the registered
-  `/api/v1/governance/vote` then re-pulls tallies from the server; demo /
-  abstain-unsupported / error paths show honest "no vote was recorded" notices.
+- **DAOView "castVote"** — vote SUBMISSION is wired to the real gateway
+  contract via `GovernanceService.vote` (`proposal_id/voter/support` →
+  `/api/v1/governance/vote`; the server's `support`→`choice` kwarg mismatch,
+  which would have 500'd every live vote, is fixed). Demo / abstain-unsupported
+  / error paths show honest "no vote was recorded" notices, each dismissing the
+  sheet first so the notice can actually present. The DAO proposals **live-read**
+  is BLOCKED: the gateway has no proposals route whose shape matches
+  `DAOProposalsResponse` (no votesFor/votesAgainst/proposer/quorum split), so
+  `daoProposals()` decode-fails → `isDemo` stays true → castVote correctly stays
+  honest-demo until a shape-matching read route exists (tracked in
+  POST_DEPLOY_WIRING_UNIT.md). Delegation buttons are honest local-preview
+  notices (no fake success).
 - **BuildView "Sign Contract" / "Execute Milestone"** — no endpoint exists;
   both are honest "isn't available in this build yet" notices (no sleep, no
   success haptic, no spinner theater).

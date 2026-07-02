@@ -755,7 +755,7 @@ struct ContractCardRow: View {
                     .buttonStyle(.plain)
 
                     Button {
-                        MtrxHaptics.success()
+                        MtrxHaptics.impact(.light)
                         showActionConfirm = true
                     } label: {
                         Text(contract.actionLabel)
@@ -765,17 +765,19 @@ struct ContractCardRow: View {
             }
         }
         .alert("\(contract.actionLabel) — \(contract.title)", isPresented: $showActionConfirm) {
-            Button("Done", role: .cancel) {}
+            Button("OK", role: .cancel) {}
         } message: {
-            Text("Executed on the MTRX network. Gas covered by the platform — the updated contract state is reflected on-chain.")
+            // Honest: no contract action is wired to a chain yet. Nothing was
+            // signed, resolved, or executed — no fabricated on-chain confirmation.
+            Text("Contract actions aren't available in this build yet. Nothing was signed or executed.")
         }
-        .alert("Shared to Social", isPresented: $sharedToSocial) {
+        .alert("Shared to Your Feed", isPresented: $sharedToSocial) {
             Button("View", role: .none) {
                 NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": 3])
             }
             Button("OK", role: .cancel) {}
         } message: {
-            Text("“\(contract.title)” was posted to your feed for others to discover.")
+            Text("“\(contract.title)” was added to your local feed. Posts aren't published to other users in this build yet.")
         }
     }
 

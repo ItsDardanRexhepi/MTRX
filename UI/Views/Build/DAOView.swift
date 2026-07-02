@@ -23,7 +23,7 @@ final class DAOViewModel: ObservableObject {
     @Published var selectedVoteChoice: GovernanceVoteChoice?
     @Published var isVoting: Bool = false
     @Published var showPastProposals: Bool = false
-    @Published var voteNotice: String?
+    @Published var governanceNotice: String?
 
     // Delegation
     @Published var currentDelegateAddress: String = "Self"
@@ -102,13 +102,16 @@ final class DAOViewModel: ObservableObject {
         // Demo data or no backend: honest notice — no vote is recorded anywhere.
         guard !isDemo, PendingCredentials.isBackendConfigured else {
             showVoteSheet = false
-            voteNotice = "Voting isn't available in this build yet — no vote was recorded."
+            governanceNotice = "Voting isn't available in this build yet — no vote was recorded."
             MtrxHaptics.warning()
             return
         }
-        // The gateway vote route only takes for/against.
+        // The gateway vote route only takes for/against. Dismiss the sheet first
+        // so the honest notice can actually present (it can't display over the
+        // sheet it's attached behind).
         guard choice != .abstain else {
-            voteNotice = "Abstain isn't supported by the server yet — no vote was recorded."
+            showVoteSheet = false
+            governanceNotice = "Abstain isn't supported by the server yet — no vote was recorded."
             MtrxHaptics.warning()
             return
         }
@@ -118,17 +121,20 @@ final class DAOViewModel: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             do {
-                _ = try await MTRXAPIClient.shared.vote(VoteRequest(
+                // GovernanceService builds the full gateway contract (includes
+                // voter + envelope); never invents a tally.
+                _ = try await GovernanceService.shared.vote(
                     proposalId: String(proposal.number),
-                    support: choice == .forVote,
-                    reason: nil))
+                    support: choice == .forVote ? .for_ : .against,
+                    reason: nil)
                 self.isVoting = false
                 self.showVoteSheet = false
                 MtrxHaptics.success()
                 await self.refresh()   // fresh tallies from the server, never invented
             } catch {
                 self.isVoting = false
-                self.voteNotice = "The vote could not be submitted — no vote was recorded."
+                self.showVoteSheet = false
+                self.governanceNotice = "The vote could not be submitted — no vote was recorded."
                 MtrxHaptics.warning()
             }
         }
@@ -314,13 +320,13 @@ struct DAOView: View {
                         .presentationDetents([.large])
                 }
             }
-            .alert("Governance Vote", isPresented: Binding(
-                get: { viewModel.voteNotice != nil },
-                set: { if !$0 { viewModel.voteNotice = nil } }
+            .alert("Governance", isPresented: Binding(
+                get: { viewModel.governanceNotice != nil },
+                set: { if !$0 { viewModel.governanceNotice = nil } }
             )) {
-                Button("OK", role: .cancel) { viewModel.voteNotice = nil }
+                Button("OK", role: .cancel) { viewModel.governanceNotice = nil }
             } message: {
-                Text(viewModel.voteNotice ?? "")
+                Text(viewModel.governanceNotice ?? "")
             }
             .task {
                 guard !appeared else { return }
@@ -580,10 +586,12 @@ struct DAOView: View {
 
                         MtrxDivider()
 
-                        // Self-delegate option
+                        // Self-delegate option — local preview only; delegation
+                        // isn't recorded anywhere yet, so no success signal.
                         Button {
                             viewModel.currentDelegateAddress = "Self"
-                            MtrxHaptics.success()
+                            MtrxHaptics.impact(.light)
+                            viewModel.governanceNotice = "Delegation isn't recorded in this build yet — this is a local preview only."
                         } label: {
                             HStack(spacing: Spacing.sm) {
                                 Image(systemName: "person.crop.circle.badge.checkmark")
@@ -607,7 +615,8 @@ struct DAOView: View {
                         withAnimation(Motion.springDefault) {
                             viewModel.currentDelegateAddress = delegate.name
                         }
-                        MtrxHaptics.success()
+                        MtrxHaptics.impact(.light)
+                        viewModel.governanceNotice = "Delegation isn't recorded in this build yet — this is a local preview only."
                     }
                     .padding(.horizontal, Spacing.contentPadding)
                 }

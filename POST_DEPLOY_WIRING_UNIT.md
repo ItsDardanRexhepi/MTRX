@@ -15,7 +15,8 @@ once the gateway is deployed) · **M6** (batch EAS attestation writes) ·
 | Piece | Where | State |
 |---|---|---|
 | Swap route/execute request builders on the real gateway contract (`token_in/token_out/amount`, `wallet/route_id`) | `Services/SwapService.swift` | done, envelope-decoded; execute unreachable from UI until this unit fires |
-| Governance vote builder (`proposal_id, voter, support`) | `Services/GovernanceService.swift` + `DAOView.castVote` | done; DAO vote goes live automatically when proposals load live |
+| Governance vote builder (`proposal_id, voter, support`) + server `support`→`choice` kwarg fix | `Services/GovernanceService.swift` + `DAOView.castVote`; 0pnMatrx `gateway/service_routes.py` | vote SUBMISSION correct; DAO proposals **live-read BLOCKED** on a shape-matching route (see below) |
+| Adversarial-verify remediation: paymaster `ReentrancyGuard` + NaN-stake guard + appeal-clears-claims + juror party-exclusion + 4 client fake-success theaters killed | multiple | done, gated |
 | Dispute file/vote/claim builders on the real contracts | `Services/DisputeService.swift` | done, envelope-decoded |
 | Dispute **server** routes `POST /api/v1/dispute/vote` + `/claim` + service methods (juror-panel-enforced vote; idempotent post-resolution claim; platform holds no funds) | 0pnMatrx `gateway/service_routes.py`, `runtime/.../dispute_resolution/service.py` | done, 8 tests green |
 | Dispute file handler kwarg fix (was a guaranteed TypeError 500) | 0pnMatrx `gateway/service_routes.py` | done |
@@ -78,6 +79,24 @@ once the gateway is deployed) · **M6** (batch EAS attestation writes) ·
 | `blockchain.eas_contract` (Base predeploy `0x4200…0021`) + `blockchain.schemas.primary/identity/payments` | server EAS writes; **must match the client schemaUID** |
 | `blockchain.paymaster.{address, signer_key, bundler_url, entry_point, account_factory, policy}` | `/api/v1/paymaster/sign` (503 until set) |
 | `blockchain.price_feeds.eth_usd` | Chainlink-primary price route |
+
+## Known-open items surfaced by adversarial verify (2026-07-02)
+
+- **DAO proposals live-read (M5 read side) — BLOCKED.** The gateway has no
+  proposals list route whose response shape matches the client's
+  `DAOProposalsResponse` (which needs number/proposer/votesFor/votesAgainst/
+  quorumRequired). `list_proposals` in the governance service returns a
+  different summary shape. Owed: a `GET /api/v1/dao/proposals` (or governance
+  proposals) route that emits the client shape, OR a client model change to the
+  service's shape. Until then `daoProposals()` decode-fails and the DAO tab
+  stays honest-demo. Vote *submission* is already correct.
+- **`sponsoredCallWithValue` (contract) — design decision owed.** Any
+  `onlyAuthorized` agent can send arbitrary ETH to an arbitrary target; the
+  `onlyOwner` `withdraw` guard is moot against a compromised/malicious agent
+  key. Not exploitable at rest (OBSERVE/testnet, no agents authorized) and now
+  `nonReentrant`, but before mainnet this needs a per-agent daily cap and/or a
+  target allowlist (mirror the server paymaster `policy.allowed_actions`). Left
+  as a policy decision, not silently changed.
 
 ## Proof plan at wiring time
 Byte-exact digest cross-test stays green; forge suites green; a testnet
