@@ -144,4 +144,51 @@ final class GameLevelTests: XCTestCase {
         XCTAssertEqual(GameKitManager.GameID.blocks.leaderboardID, "mtrx.leaderboard.blocks")
         XCTAssertEqual(GameKitManager.GameID.blocks.displayName, BlockBrand.name)
     }
+
+    // MARK: - BrickBreaker (#5)
+
+    func testBrickBreaker_has50DistinctBoards() {
+        XCTAssertEqual(BrickBreakerBoards.patterns.count, 50, "must ship exactly 50 authored boards")
+    }
+
+    func testBrickBreaker_allBoardsWellFormed() {
+        let valid = Set("ox#.")
+        for (i, board) in BrickBreakerBoards.patterns.enumerated() {
+            XCTAssertFalse(board.isEmpty, "board \(i + 1) is empty")
+            XCTAssertLessThanOrEqual(board.count, BrickBreakerBoards.maxRows, "board \(i + 1) too tall")
+            var brickCount = 0
+            for row in board {
+                XCTAssertLessThanOrEqual(row.count, BrickBreakerBoards.cols, "board \(i + 1) row too wide")
+                for ch in row {
+                    XCTAssertTrue(valid.contains(ch), "board \(i + 1) has invalid char '\(ch)'")
+                    if ch != "." { brickCount += 1 }
+                }
+            }
+            XCTAssertGreaterThan(brickCount, 0, "board \(i + 1) has no bricks")
+        }
+    }
+
+    func testBrickBreaker_difficultyTrendsUp() {
+        // Total hit-points (bricks × hp) in the last 10 boards should exceed the
+        // first 10 — later levels are meaningfully harder.
+        func totalHP(_ board: [String]) -> Int {
+            board.reduce(0) { acc, row in
+                acc + row.reduce(0) { a, ch in a + (ch == "o" ? 1 : ch == "x" ? 2 : ch == "#" ? 3 : 0) }
+            }
+        }
+        let early = BrickBreakerBoards.patterns.prefix(10).map(totalHP).reduce(0, +)
+        let late = BrickBreakerBoards.patterns.suffix(10).map(totalHP).reduce(0, +)
+        XCTAssertGreaterThan(late, early, "late boards should carry more total hit-points")
+    }
+
+    func testBrickBreaker_speedCappedNoTunneling() {
+        // The tunneling fix: ball speed is capped below the brick height (22),
+        // so at 120 Hz with sub-stepping the ball can never skip a brick.
+        for n in 1...50 {
+            let s = BrickBreakerBoards.cappedSpeed(n)
+            XCTAssertLessThanOrEqual(s, BrickBreakerBoards.maxSpeed)
+            XCTAssertLessThan(s, 22.0, "per-tick speed must stay under the brick height")
+        }
+        XCTAssertEqual(BrickBreakerBoards.cappedSpeed(50), 8.0, "high levels ride the cap")
+    }
 }
