@@ -2430,4 +2430,27 @@ extension MTRXAPIClient {
             return true
         }
     }
+
+    /// P4: request a verifying-paymaster gas-sponsorship signature for a UserOperation.
+    /// POSTs the userOp fields to `/api/v1/paymaster/sign`; returns the 0x-hex
+    /// `paymasterAndData` (paymaster(20) || abi.encode(validUntil,validAfter) || sig(65))
+    /// the client splices into the userOp. Returns nil when gas sponsorship isn't
+    /// configured (honest: the send proceeds WITHOUT sponsorship, never a fake one) or
+    /// the server declines by policy. Matches gateway/paymaster.py + the contract's
+    /// digest. The async userOp-build integration (fetch → splice → eth_sendUserOperation)
+    /// is the send-path wiring completed in the return pass, once the paymaster contract
+    /// is deployed and `isGasSponsorshipConfigured`.
+    func requestPaymasterAndData(_ body: [String: AnyCodableValue]) async -> String? {
+        guard PendingCredentials.isGasSponsorshipConfigured else { return nil }
+        struct PaymasterSignResponse: Decodable { let paymasterAndData: String }
+        do {
+            let resp: PaymasterSignResponse = try await post(
+                path: "/api/v1/paymaster/sign", body: body)
+            return resp.paymasterAndData
+        } catch {
+            // No sponsorship rather than a fabricated one — the send can still proceed
+            // paying its own gas.
+            return nil
+        }
+    }
 }
