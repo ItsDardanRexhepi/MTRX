@@ -373,11 +373,22 @@ final class SocialViewModel: ObservableObject {
         pastProposals = mapped.filter { $0.status != .active }
     }
 
+    /// Live SSE subscription (Phase 6). Started after the first successful
+    /// live feed load; each `social.post` event triggers a refetch of the
+    /// typed feed endpoint (event payloads are a refresh signal, never merged
+    /// raw). `feedStream.isLive` is honest — true only while attached.
+    private(set) lazy var feedStream = FeedEventStream(types: ["social.post"]) { [weak self] _ in
+        Task { await self?.loadLiveFeed() }
+    }
+
     /// Overlay the live feed from the gateway. Falls back silently to the
     /// sample posts if the backend isn't reachable, so the feed never blanks.
     @MainActor
     func loadLiveFeed() async {
         guard let live = try? await MTRXAPIClient.shared.feed(), !live.posts.isEmpty else { return }
+        // First successful live load proves the gateway is real — attach the
+        // push stream so new posts arrive without polling (no-op if running).
+        feedStream.start()
         posts = live.posts.map { p in
             SocialPostDisplay(
                 id: p.id,

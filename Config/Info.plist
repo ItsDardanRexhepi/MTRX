@@ -79,6 +79,8 @@
 	<string>MTRX keeps a checklist of your MTRX activity in its own dedicated MTRX reminders list. It doesn't read your personal reminders.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>MTRX uses speech recognition for voice commands with Trinity.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

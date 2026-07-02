@@ -57,6 +57,10 @@ final class AgentConversationViewModel: ObservableObject {
     @Published var showFirstBoot = false
     @Published var isOffline: Bool = false
 
+    /// Gateway /ws streaming session — one per chat thread, regenerated on a
+    /// fresh chat so server-side conversation memory tracks the local thread.
+    private var gatewaySessionId = UUID().uuidString
+
     // MARK: - Voice input (V3 — on-device STT, Tier 1)
     @Published var isListening = false
     @Published var voiceError: String?
@@ -285,6 +289,9 @@ final class AgentConversationViewModel: ObservableObject {
         // for call-site compatibility but no longer seeds a message.
         _ = announce
         messages = []
+        // Fresh chat = fresh gateway streaming session, so the server-side
+        // conversation memory on /ws starts clean alongside the local thread.
+        gatewaySessionId = UUID().uuidString
     }
 
     /// Jump straight into an agent's chat (most recent, or fresh) —
@@ -879,11 +886,58 @@ final class AgentConversationViewModel: ObservableObject {
             }
 
             // 2 — Gateway (when Apple Intelligence isn't available)
+            let gatewayContext = temporal + "\n" + conversationContext + (langProfile.mirrorInstruction.isEmpty ? "" : "\n" + langProfile.mirrorInstruction)
+
+            // 2a — WS streaming (Phase 6): render the reply token-by-token in a
+            // live bubble, exactly like the on-device path above. Any stream
+            // failure falls through to the REST path — a partial stream is
+            // discarded, never presented as a finished reply.
+            if PendingCredentials.isBackendConfigured {
+                let streamMsg = AgentMessage(text: "", role: .agent, agentName: agentName)
+                let streamID = streamMsg.id
+                var didStream = false
+                do {
+                    let final = try await GatewayChatStream.stream(
+                        message: text,
+                        agent: agentName.lowercased(),
+                        sessionId: gatewaySessionId,
+                        context: gatewayContext,
+                        onToken: { [weak self] partial in
+                            guard let self, !partial.isEmpty else { return }
+                            if !didStream {
+                                didStream = true
+                                self.isTyping = false
+                                self.messages.append(streamMsg)
+                            }
+                            if let idx = self.messages.firstIndex(where: { $0.id == streamID }) {
+                                self.messages[idx].text = AgentMessage.humanizedReply(partial)
+                            }
+                        }
+                    )
+                    if !final.isEmpty {
+                        if didStream, let idx = messages.firstIndex(where: { $0.id == streamID }) {
+                            messages[idx].text = AgentMessage.humanizedReply(final)
+                        } else {
+                            messages.append(AgentMessage(text: final, role: .agent, agentName: agentName))
+                        }
+                        speakIfEnabled(final)
+                        isTyping = false
+                        return
+                    }
+                    // Empty final — treat as a failed stream, use REST.
+                    if didStream { messages.removeAll { $0.id == streamID } }
+                } catch {
+                    // Honest degradation: drop any partial bubble, log, REST answers.
+                    if didStream { messages.removeAll { $0.id == streamID } }
+                    print("GatewayChatStream: falling back to REST — \(error)")
+                }
+            }
+
             do {
                 let apiResponse = try await MTRXAPIClient.shared.sendAgentMessage(
                     agent: agentName.lowercased(),
                     message: text,
-                    context: temporal + "\n" + conversationContext + (langProfile.mirrorInstruction.isEmpty ? "" : "\n" + langProfile.mirrorInstruction),
+                    context: gatewayContext,
                     conversationHistory: buildHistoryPayload()
                 )
 
