@@ -95,4 +95,53 @@ final class GameLevelTests: XCTestCase {
         XCTAssertEqual(Game2048Levels.level(0).targetTile, Game2048Levels.level(1).targetTile)
         XCTAssertEqual(Game2048Levels.level(99).targetTile, Game2048Levels.level(50).targetTile)
     }
+
+    // MARK: - Block / Stackfall (#4)
+
+    func testBlock_allLevelsWellFormed() {
+        for n in 1...50 {
+            let l = BlockLevels.level(n)
+            XCTAssertGreaterThanOrEqual(l.lineQuota, 5, "level \(n) needs a real quota")
+            XCTAssertLessThanOrEqual(l.lineQuota, 30)
+            XCTAssertGreaterThanOrEqual(l.gravity, 0.08, "gravity must not drop below the floor")
+            XCTAssertLessThanOrEqual(l.gravity, 0.80)
+            XCTAssertGreaterThanOrEqual(l.garbageRows, 0)
+            XCTAssertLessThanOrEqual(l.garbageRows, 4)
+        }
+    }
+
+    func testBlock_quotaNonDecreasing_and_gravityNonIncreasing() {
+        var prevQuota = 0
+        var prevGravity = Double.greatestFiniteMagnitude
+        for n in 1...50 {
+            let l = BlockLevels.level(n)
+            XCTAssertGreaterThanOrEqual(l.lineQuota, prevQuota, "quota regressed at level \(n)")
+            XCTAssertLessThanOrEqual(l.gravity, prevGravity + 1e-9, "gravity slowed at level \(n)")
+            prevQuota = l.lineQuota
+            prevGravity = l.gravity
+        }
+    }
+
+    func testBlock_earlyLevelsHaveNoGarbage() {
+        for n in 1...10 {
+            XCTAssertEqual(BlockLevels.level(n).garbageRows, 0, "level \(n) should start clean")
+        }
+    }
+
+    func testBlock_milestoneValues() {
+        XCTAssertEqual(BlockLevels.level(50).lineQuota, 30)   // 5 + 50/2
+        XCTAssertEqual(BlockLevels.level(50).garbageRows, 4)
+        XCTAssertEqual(BlockLevels.level(25).lineQuota, 17)   // 5 + 25/2
+        XCTAssertEqual(BlockLevels.level(25).garbageRows, 2)
+        XCTAssertEqual(BlockLevels.level(1).lineQuota, 5)
+    }
+
+    func testBlock_brandIsNotTrademarked() {
+        // The user-facing name must be the original brand, never "Tetris".
+        XCTAssertFalse(BlockBrand.name.isEmpty)
+        XCTAssertNotEqual(BlockBrand.name.lowercased(), "tetris")
+        // The leaderboard ID intentionally stays 'blocks' regardless of the brand.
+        XCTAssertEqual(GameKitManager.GameID.blocks.leaderboardID, "mtrx.leaderboard.blocks")
+        XCTAssertEqual(GameKitManager.GameID.blocks.displayName, BlockBrand.name)
+    }
 }

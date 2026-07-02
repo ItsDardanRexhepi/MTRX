@@ -40,7 +40,7 @@ final class GameKitManager {
         var displayName: String {
             switch self {
             case .solitaire: return "Solitaire"
-            case .blocks:    return "Tetris"
+            case .blocks:    return BlockBrand.name   // user-facing brand; the leaderboard ID stays mtrx.leaderboard.blocks
             case .colorburst: return "Color Burst"
             case .merge2048: return "2048"
             case .breakout:  return "Brick Breaker"

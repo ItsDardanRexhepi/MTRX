@@ -83,7 +83,7 @@ class GamingViewModel: ObservableObject {
 
     static let sampleGames: [GameItem] = [
         GameItem(name: "Solitaire", assetCount: 2_450, playerCount: 18_300, kind: .solitaire, accent: Color(red: 0.13, green: 0.83, blue: 0.93)),
-        GameItem(name: "Tetris", assetCount: 8_120, playerCount: 42_600, kind: .blocks, accent: Color(red: 0.62, green: 0.40, blue: 0.96)),
+        GameItem(name: BlockBrand.name, assetCount: 8_120, playerCount: 42_600, kind: .blocks, accent: Color(red: 0.62, green: 0.40, blue: 0.96)),
         GameItem(name: "Color Burst", assetCount: 5_680, playerCount: 31_200, kind: .match3, accent: Color(red: 0.98, green: 0.37, blue: 0.45)),
         GameItem(name: "2048", assetCount: 1_890, playerCount: 12_400, kind: .merge2048, accent: Color(red: 0.98, green: 0.65, blue: 0.15)),
         GameItem(name: "Brick Breaker", assetCount: 3_340, playerCount: 9_800, kind: .breakout, accent: Color(red: 0.97, green: 0.30, blue: 0.55)),
