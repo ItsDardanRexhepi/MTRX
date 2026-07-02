@@ -216,11 +216,15 @@ final class BrickBreakerEngine: ObservableObject {
 
         // Sub-step the movement so the ball can never skip over a brick between
         // frames (the tunneling bug). Each sub-step advances at most ~0.7·ballR.
+        // Step count is fixed for the tick (|velocity| == speed is preserved by
+        // every reflection), but the per-step delta is RECOMPUTED each iteration
+        // from the CURRENT velocity — otherwise a bounce mid-tick would keep
+        // driving the ball along the old heading and double-hit the same brick.
         let steps = max(1, Int(ceil(max(abs(vx), abs(vy)) / (ballR * 0.7))))
-        let svx = vx / CGFloat(steps)
-        let svy = vy / CGFloat(steps)
 
         for _ in 0..<steps {
+            let svx = vx / CGFloat(steps)
+            let svy = vy / CGFloat(steps)
             ballX += svx; ballY += svy
 
             if ballX < ballR { ballX = ballR; vx = abs(vx) }

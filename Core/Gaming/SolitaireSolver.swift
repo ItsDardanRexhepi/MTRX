@@ -250,11 +250,13 @@ enum SolitaireSolver {
             for start in faceUpStart..<state.piles[from].count {
                 if !isValidRun(state.piles[from], from: start) { continue }
                 let moving = state.piles[from][start]
-                // Skip pointless full-pile King moves from an already-empty base.
-                let movingWholePile = (start == faceUpStart)
+                // A whole-pile move is only pointless when the base is ALREADY
+                // empty (no face-down cards beneath) — then King→empty is a
+                // no-op cycle. If face-down cards remain, moving the run off is
+                // productive (it exposes one), so it must NOT be pruned.
+                let movingWholePile = (start == faceUpStart && state.down[from] == 0)
                 for to in 0..<7 where to != from {
                     if canTableau(moving, onto: state.piles[to], down: state.down[to]) {
-                        // Moving a whole King-run onto an empty column is a no-op cycle.
                         if movingWholePile && moving.rank == 13 &&
                             state.piles[to].count == state.down[to] { continue }
                         var s = state

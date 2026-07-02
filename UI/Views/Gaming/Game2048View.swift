@@ -92,8 +92,13 @@ final class Game2048Engine: ObservableObject {
     @Published var levelCleared = false
     private(set) var startLevel = 1
 
+    /// Bumped on every (re)start so a pending post-move closure from the prior
+    /// game can't fire against a freshly-dealt board.
+    private var gen = 0
+
     /// Classic endless: reach 2048, then keep going for a high score.
     func startEndless() {
+        gen &+= 1
         mode = .endless
         tiles = []; score = 0; won = false; keepGoing = false
         gameOver = false; busy = false; levelCleared = false; moves = 0
@@ -103,6 +108,7 @@ final class Game2048Engine: ObservableObject {
     /// Gauntlet level: reach the target tile within the move budget, past any
     /// board blockers.
     func startGauntlet(at level: Int) {
+        gen &+= 1
         mode = .gauntlet
         startLevel = max(1, level); self.level = max(1, level)
         let def = Game2048Levels.level(self.level)
