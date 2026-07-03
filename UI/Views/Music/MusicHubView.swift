@@ -174,12 +174,13 @@ private struct MusicAttributionFooter: View {
     }
 }
 
-/// The mini-player pinned above the tab bar on every tab, in Apple Music's own
-/// shape: a FULL-WIDTH bar flush against the tab bar (no floating pill, no
-/// side gutters), on an opaque system material so scroll content never bleeds
-/// through, with the whole bar hit-testable — a tap anywhere that isn't a
-/// transport button opens the full player, and nothing underneath can receive
-/// the touch. Tap opens Now Playing; transports act without leaving the tab.
+/// The floating oval mini-player bubble above the tab bar on every tab — the
+/// product owner's chosen shape (liquid-glass pill with side gutters, NOT the
+/// full-width Apple Music bar). The whole bubble is one hit target: a tap
+/// anywhere on it that isn't a transport button opens the full player, and no
+/// touch on the bubble ever falls through to the content underneath; the
+/// transport buttons carry full-height 44pt targets and act without leaving
+/// the tab.
 struct MusicMiniPlayer: View {
     @State private var music = MusicKitManager.shared
     let onTap: () -> Void
@@ -189,9 +190,9 @@ struct MusicMiniPlayer: View {
             HStack(spacing: Spacing.sm) {
                 Group {
                     if let art = music.nowPlayingArtwork {
-                        ArtworkImage(art, width: 44, height: 44)
+                        ArtworkImage(art, width: 40, height: 40)
                     } else {
-                        RoundedRectangle(cornerRadius: 6).fill(Color.surfaceOverlay).frame(width: 44, height: 44)
+                        RoundedRectangle(cornerRadius: 6).fill(Color.surfaceOverlay).frame(width: 40, height: 40)
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
@@ -210,7 +211,7 @@ struct MusicMiniPlayer: View {
                 .buttonStyle(.plain)
                 Button { music.togglePlayPause() } label: {
                     Image(systemName: music.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 20, weight: .semibold)).foregroundStyle(Color.labelPrimary)
+                        .font(.system(size: 19, weight: .semibold)).foregroundStyle(Color.labelPrimary)
                         .accessibilityLabel(music.isPlaying ? "Pause" : "Play")
                         .frame(width: 40, height: 44).contentShape(Rectangle())
                 }
@@ -223,20 +224,16 @@ struct MusicMiniPlayer: View {
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.xs)
-            .frame(maxWidth: .infinity)
-            // The whole bar is a single hit target — no dead gutters that let
-            // taps fall through to the list underneath.
+            .padding(.vertical, Spacing.sm)
+            // The whole bubble is a single hit target — no dead spots between
+            // the artwork, text, and transports that let taps fall through.
             .contentShape(Rectangle())
+            .mtrxLiquidGlass(in: RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityHint("Opens the full player")
-        // Opaque-enough system material (Apple Music's own treatment) with a
-        // hairline on top — scroll content scrolls UNDER it, never through it.
-        .background(.regularMaterial)
-        .overlay(alignment: .top) {
-            Divider().overlay(Color.labelPrimary.opacity(0.10))
-        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.bottom, Spacing.xs)
     }
 }
 

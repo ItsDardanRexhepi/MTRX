@@ -51,6 +51,7 @@ final class SystemVolume: ObservableObject {
     @Published var level: Float = AVAudioSession.sharedInstance().outputVolume
     let mpView = MPVolumeView(frame: .zero)
     private var observation: NSKeyValueObservation?
+    private var poll: Timer?
     private var ignoreEchoUntil = Date.distantPast
 
     init() {
@@ -60,19 +61,28 @@ final class SystemVolume: ObservableObject {
         // writes the system volume through the in-hierarchy slider (see set()).
         mpView.clipsToBounds = true
         mpView.setVolumeThumbImage(UIImage(), for: .normal)
-        // outputVolume KVO only delivers while the app's audio session is
-        // active — make sure it is, so hardware volume-button presses reflect
-        // into the UI slider even before our own playback engine activates it.
-        // (Already-active is a harmless no-op; failure just means the ticker
-        // below catches up on the next read.)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        // NEVER activate the audio session here: NowPlayingView creates this
+        // object when the player opens, and setActive(true) mid-playback is an
+        // audio-focus grab that PAUSES the very music being played (the
+        // "tap the mini player and the song stops" bug). KVO on outputVolume
+        // delivers while our session is active (i.e. while we're the one
+        // playing); the poll below covers hardware-button presses the KVO
+        // misses, with zero session side effects — reading outputVolume never
+        // touches audio focus.
         observation = AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.new]) { [weak self] _, change in
             guard let self, let v = change.newValue else { return }
             DispatchQueue.main.async {
                 if Date() > self.ignoreEchoUntil { self.level = v }   // ignore our own writes
             }
         }
+        poll = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let v = AVAudioSession.sharedInstance().outputVolume
+            if Date() > self.ignoreEchoUntil, abs(v - self.level) > 0.001 { self.level = v }
+        }
     }
+
+    deinit { poll?.invalidate() }
 
     /// The MPVolumeView's writable UISlider. On current iOS it is NOT a direct
     /// subview (it sits a level or two down), so a flat `subviews` scan finds
