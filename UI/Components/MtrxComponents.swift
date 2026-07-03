@@ -997,6 +997,18 @@ struct DemoBadge: View {
 }
 
 extension View {
+    /// Presents an honest "not available in this build" alert. Use it on a demo
+    /// action button so the action tells the truth instead of faking a success
+    /// (never a fake 'Success'). Demo DATA on the screen is unaffected — only
+    /// the consequential action is gated honestly.
+    func honestActionAlert(_ presented: Binding<Bool>, message: String) -> some View {
+        alert("Not available", isPresented: presented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(message)
+        }
+    }
+
     /// Overlays a demo badge (top-trailing) when `isDemo` is true.
     @ViewBuilder
     func demoBadge(_ isDemo: Bool, label: String = "Demo data") -> some View {

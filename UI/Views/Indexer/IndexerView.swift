@@ -33,6 +33,7 @@ class IndexerViewModel: ObservableObject {
     @Published var isTranslating: Bool = false
     @Published var isRunning: Bool = false
     @Published var isDemo: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short; return f
@@ -79,62 +80,15 @@ class IndexerViewModel: ObservableObject {
 
     func translateToGraphQL() async {
         guard !queryInput.isEmpty else { return }
-        isTranslating = true
-        do {
-            try await Task.sleep(for: .seconds(1))
-            queryResult = """
-            {
-              swaps(
-                first: 10,
-                orderBy: timestamp,
-                orderDirection: desc,
-                where: { amountUSD_gt: "10000" }
-              ) {
-                id
-                timestamp
-                amountUSD
-                token0 { symbol }
-                token1 { symbol }
-              }
-            }
-            """
-            isTranslating = false
-        } catch {
-            isTranslating = false
-        }
+        // Honest failure: no NL→GraphQL translation backend is wired. Never
+        // return a canned query that ignores the input as if it were translated.
+        actionUnavailable = true
     }
 
     func runQuery() async {
-        guard queryResult != nil else { return }
-        isRunning = true
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            queryResult = """
-            {
-              "data": {
-                "swaps": [
-                  {
-                    "id": "0xabc...123",
-                    "timestamp": "1718400000",
-                    "amountUSD": "42150.00",
-                    "token0": { "symbol": "WETH" },
-                    "token1": { "symbol": "USDC" }
-                  },
-                  {
-                    "id": "0xdef...456",
-                    "timestamp": "1718399500",
-                    "amountUSD": "18720.00",
-                    "token0": { "symbol": "WBTC" },
-                    "token1": { "symbol": "DAI" }
-                  }
-                ]
-              }
-            }
-            """
-            isRunning = false
-        } catch {
-            isRunning = false
-        }
+        // Honest failure: no indexer query backend is wired. Never fabricate
+        // query results as if a real query had run.
+        actionUnavailable = true
     }
 
     func loadSavedQuery(_ query: QueryItem) {
@@ -179,6 +133,7 @@ struct IndexerView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Indexer")
             .navigationBarTitleDisplayMode(.large)
+            .honestActionAlert($viewModel.actionUnavailable, message: "Querying the indexer isn't available in this build yet. Nothing was run.")
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     if viewModel.isDemo { DemoBadge() }

@@ -42,6 +42,8 @@ class OnChainSubscriptionsViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isCancelling: Bool = false
     @Published var isSubscribing: Bool = false
+    @Published var actionUnavailable: Bool = false
+    @Published var actionUnavailableMessage: String = ""
     @Published var isDemo: Bool = false
 
     private static let dateFormatter: DateFormatter = {
@@ -101,34 +103,17 @@ class OnChainSubscriptionsViewModel: ObservableObject {
     }
 
     func cancel(subscription: SubItem) async {
-        isCancelling = true
-        do {
-            try await Task.sleep(for: .seconds(1))
-            subscriptions.removeAll { $0.id == subscription.id }
-            isCancelling = false
-        } catch {
-            isCancelling = false
-        }
+        // Honest failure: no subscription-cancel path is wired. Never remove the
+        // row as if it were cancelled on-chain — say so instead.
+        actionUnavailableMessage = "Cancelling a subscription isn't available in this build yet. Nothing was cancelled."
+        actionUnavailable = true
     }
 
     func subscribe(to offering: OfferingItem, tier: TierItem) async {
-        isSubscribing = true
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            let sub = SubItem(
-                service: offering.name,
-                tier: tier.name,
-                price: tier.price,
-                token: "USDC",
-                nextBillingDate: "May 13, 2026",
-                status: "Active"
-            )
-            subscriptions.append(sub)
-            isSubscribing = false
-            selectedTab = "My Subscriptions"
-        } catch {
-            isSubscribing = false
-        }
+        // Honest failure: no subscribe path is wired. Never fabricate an active
+        // subscription as if payment went through — tell the truth instead.
+        actionUnavailableMessage = "Subscribing isn't available in this build yet. Nothing was charged and no subscription was created."
+        actionUnavailable = true
     }
 
     static let sampleSubscriptions: [SubItem] = [
@@ -188,6 +173,7 @@ struct OnChainSubscriptionsView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Subscriptions")
             .navigationBarTitleDisplayMode(.large)
+            .honestActionAlert($viewModel.actionUnavailable, message: viewModel.actionUnavailableMessage)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     if viewModel.isDemo { DemoBadge() }

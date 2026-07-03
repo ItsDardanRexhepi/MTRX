@@ -32,6 +32,7 @@ class LoyaltyViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isClaiming: Bool = false
+    @Published var actionUnavailable: Bool = false
     @Published var selectedSegment: String = "Earn"
     @Published var isDemo: Bool = false
 
@@ -90,41 +91,13 @@ class LoyaltyViewModel: ObservableObject {
     }
 
     func claimCashback(_ item: CashbackItem) async {
-        isClaiming = true
-        do {
-            try await Task.sleep(for: .seconds(1))
-            if let idx = cashback.firstIndex(where: { $0.id == item.id }) {
-                cashback[idx] = CashbackItem(
-                    source: item.source,
-                    amount: item.amount,
-                    token: item.token,
-                    earnedAt: item.earnedAt,
-                    claimed: true
-                )
-            }
-            isClaiming = false
-        } catch {
-            isClaiming = false
-        }
+        // Honest failure: no cashback-claim path is wired (the gateway exposes
+        // no claim route). Never fabricate a 'Claimed' state — say so instead.
+        actionUnavailable = true
     }
 
     func claimAllCashback() async {
-        isClaiming = true
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            cashback = cashback.map { item in
-                CashbackItem(
-                    source: item.source,
-                    amount: item.amount,
-                    token: item.token,
-                    earnedAt: item.earnedAt,
-                    claimed: true
-                )
-            }
-            isClaiming = false
-        } catch {
-            isClaiming = false
-        }
+        actionUnavailable = true
     }
 
     static let samplePrograms: [ProgramItem] = [
@@ -165,6 +138,7 @@ struct LoyaltyView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Loyalty")
             .navigationBarTitleDisplayMode(.large)
+            .honestActionAlert($viewModel.actionUnavailable, message: "Claiming cashback isn't available in this build yet. Nothing was claimed.")
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     if viewModel.isDemo { DemoBadge() }

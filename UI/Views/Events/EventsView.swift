@@ -31,6 +31,8 @@ class EventsViewModel: ObservableObject {
     @Published var tickets: [TicketItem] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var actionUnavailable: Bool = false
+    @Published var actionUnavailableMessage: String = ""
     @Published var showCreate: Bool = false
     /// True while showing bundled demo data (backend gateway not configured, or a
     /// live fetch failed). Drives the demo badge; flips to false on live data.
@@ -81,11 +83,10 @@ class EventsViewModel: ObservableObject {
     }
 
     func buyTicket(for event: EventItem) async {
-        do {
-            try await Task.sleep(for: .seconds(1))
-            let ticket = TicketItem(eventTitle: event.title, eventDate: event.date, used: false)
-            tickets.append(ticket)
-        } catch { }
+        // Honest failure: no ticket-purchase path is wired. Never fabricate a
+        // ticket as if it were bought — tell the truth instead.
+        actionUnavailableMessage = "Buying a ticket isn't available in this build yet. Nothing was purchased."
+        actionUnavailable = true
     }
 
     // MARK: - Ticket check-in (QR)
@@ -113,22 +114,11 @@ class EventsViewModel: ObservableObject {
 
     func createEvent() async {
         guard !newTitle.isEmpty else { return }
-        do {
-            try await Task.sleep(for: .seconds(1))
-            let event = EventItem(
-                title: newTitle,
-                date: newDate.isEmpty ? "TBD" : newDate,
-                location: newLocation.isEmpty ? "Virtual" : newLocation,
-                ticketPrice: newPrice.isEmpty ? "Free" : newPrice,
-                remaining: 100
-            )
-            events.insert(event, at: 0)
-            newTitle = ""
-            newDate = ""
-            newLocation = ""
-            newPrice = ""
-            showCreate = false
-        } catch { }
+        // Honest failure: no event-creation path is wired. Never insert a
+        // fabricated event as if it were published — say so instead.
+        actionUnavailableMessage = "Creating an event isn't available in this build yet. Nothing was published."
+        actionUnavailable = true
+        showCreate = false
     }
 
     static let sampleEvents: [EventItem] = [
@@ -166,6 +156,7 @@ struct EventsView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Events")
             .navigationBarTitleDisplayMode(.large)
+            .honestActionAlert($viewModel.actionUnavailable, message: viewModel.actionUnavailableMessage)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     if viewModel.isDemo { DemoBadge() }

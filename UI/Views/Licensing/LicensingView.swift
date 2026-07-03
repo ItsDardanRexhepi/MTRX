@@ -26,6 +26,8 @@ final class LicensingViewModel: ObservableObject {
     @Published var registerFee: String = "0.1"
     @Published var isRegistering: Bool = false
     @Published var registerSuccess: Bool = false
+    @Published var actionUnavailable: Bool = false
+    @Published var actionUnavailableMessage: String = ""
 
     // Issue License
     @Published var licenseRecipient: String = ""
@@ -62,26 +64,11 @@ final class LicensingViewModel: ObservableObject {
             errorMessage = "IP name is required."
             return
         }
-        isRegistering = true
+        // Honest failure: no on-chain IP-registration path is wired. Never
+        // insert a fabricated asset as if it were registered on-chain.
         errorMessage = nil
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self else { return }
-            let asset = LicensingIPAsset(
-                name: self.registerName,
-                description: self.registerDescription,
-                type: self.registerType,
-                owner: "You",
-                registeredDate: Date(),
-                licenseCount: 0,
-                registrationFee: Double(self.registerFee) ?? 0.1
-            )
-            self.myIP.insert(asset, at: 0)
-            self.isEmpty = false
-            self.isRegistering = false
-            self.registerSuccess = true
-            self.resetRegisterForm()
-        }
+        actionUnavailableMessage = "Registering IP on-chain isn't available in this build yet. Nothing was registered."
+        actionUnavailable = true
     }
 
     // MARK: - Issue License
@@ -96,17 +83,11 @@ final class LicensingViewModel: ObservableObject {
             errorMessage = "Recipient is required."
             return
         }
-        isIssuingLicense = true
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            guard let self else { return }
-            if let ip = self.selectedIPForLicense, let index = self.myIP.firstIndex(where: { $0.id == ip.id }) {
-                self.myIP[index].licenseCount += 1
-            }
-            self.isIssuingLicense = false
-            self.showIssueLicenseSheet = false
-            self.resetLicenseForm()
-        }
+        // Honest failure: no license-issuance path is wired. Never bump the
+        // license count as if a license were issued on-chain.
+        showIssueLicenseSheet = false
+        actionUnavailableMessage = "Issuing a license isn't available in this build yet. Nothing was issued."
+        actionUnavailable = true
     }
 
     private func resetRegisterForm() {
@@ -229,11 +210,7 @@ struct LicensingView: View {
             .navigationTitle("Licensing")
             .navigationBarTitleDisplayMode(.large)
             .onAppear { viewModel.loadData() }
-            .alert("IP Registered", isPresented: $viewModel.registerSuccess) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Your intellectual property has been registered on-chain.")
-            }
+            .honestActionAlert($viewModel.actionUnavailable, message: viewModel.actionUnavailableMessage)
             .sheet(isPresented: $viewModel.showIssueLicenseSheet) {
                 issueLicenseSheet
             }

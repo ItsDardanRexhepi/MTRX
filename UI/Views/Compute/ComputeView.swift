@@ -39,6 +39,7 @@ class ComputeViewModel: ObservableObject {
     @Published var jobType: String = "Inference"
     @Published var selectedProvider: ProviderItem?
     @Published var isSubmitting: Bool = false
+    @Published var actionUnavailable: Bool = false
     @Published var isDemo: Bool = false
 
     private static let dateFormatter: DateFormatter = {
@@ -95,24 +96,11 @@ class ComputeViewModel: ObservableObject {
     }
 
     func submitJob() async {
-        guard let provider = selectedProvider else { return }
-        isSubmitting = true
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            let job = JobItem(
-                type: jobType,
-                status: "Queued",
-                provider: provider.name,
-                cost: provider.pricePerHour,
-                submittedAt: "Just now"
-            )
-            jobs.insert(job, at: 0)
-            isSubmitting = false
-            showSubmit = false
-            selectedProvider = nil
-        } catch {
-            isSubmitting = false
-        }
+        guard selectedProvider != nil else { return }
+        // Honest failure: no compute-job submission path is wired. Never insert
+        // a fabricated 'Queued' job as if it were accepted — say so instead.
+        actionUnavailable = true
+        showSubmit = false
     }
 
     static let sampleProviders: [ProviderItem] = [
@@ -150,6 +138,7 @@ struct ComputeView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Compute")
             .navigationBarTitleDisplayMode(.large)
+            .honestActionAlert($viewModel.actionUnavailable, message: "Submitting a compute job isn't available in this build yet. Nothing was submitted.")
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     if viewModel.isDemo { DemoBadge() }

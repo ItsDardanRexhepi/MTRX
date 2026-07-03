@@ -25,6 +25,7 @@ class OraclesViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isDemo: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     private static let relativeFormatter: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter(); f.unitsStyle = .short; return f
@@ -76,20 +77,9 @@ class OraclesViewModel: ObservableObject {
     }
 
     func toggleSubscription(for feed: FeedItem) async {
-        do {
-            try await Task.sleep(for: .milliseconds(400))
-            if let idx = feeds.firstIndex(where: { $0.id == feed.id }) {
-                let updated = FeedItem(
-                    name: feed.name,
-                    pair: feed.pair,
-                    currentValue: feed.currentValue,
-                    lastUpdated: feed.lastUpdated,
-                    isSubscribed: !feed.isSubscribed
-                )
-                feeds[idx] = updated
-                subscribedFeeds = feeds.filter(\.isSubscribed)
-            }
-        } catch { }
+        // Honest failure: no feed-subscription path is wired. Never flip the
+        // subscribed state as if it took effect — tell the truth instead.
+        actionUnavailable = true
     }
 
     static let sampleFeeds: [FeedItem] = [
@@ -125,6 +115,7 @@ struct OraclesView: View {
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Oracles")
             .navigationBarTitleDisplayMode(.large)
+            .honestActionAlert($viewModel.actionUnavailable, message: "Subscribing to a data feed isn't available in this build yet. Nothing was changed.")
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     if viewModel.isDemo { DemoBadge() }
