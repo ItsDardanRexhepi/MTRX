@@ -972,18 +972,11 @@ enum MtrxHaptics {
 /// backend gateway is configured and the view flips to live service data.
 struct DemoBadge: View {
     var label: String = "Demo data"
+    // The demo-data badge is intentionally not shown. The demo-vs-live data
+    // logic (the `isDemo` flags) is unchanged — only the visible badge is
+    // suppressed, at every call site, by rendering nothing here.
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "testtube.2")
-                .font(.system(size: 10, weight: .semibold))
-            Text(label)
-                .font(.system(size: 11, weight: .semibold))
-        }
-        .foregroundStyle(.orange)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(Capsule().fill(Color.orange.opacity(0.15)))
-        .accessibilityLabel("\(label) — not live")
+        EmptyView()
     }
 }
 
