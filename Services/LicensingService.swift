@@ -35,6 +35,7 @@ struct LicenseTerms: Codable {
 }
 
 struct IPRegistrationParams: Codable {
+    let owner: String
     let name: String
     let description: String
     let type: String
@@ -52,17 +53,17 @@ final class LicensingService {
     private init() {}
 
     func getUserIP(address: String) async throws -> [SvcIPAsset] {
-        try await api.get(path: "/licensing/ip", queryItems: [
+        try await api.get(path: "/api/v1/licensing/ip", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func registerIP(params: IPRegistrationParams) async throws -> SvcIPAsset {
-        try await api.post(path: "/licensing/ip", body: params)
+        try await api.post(path: "/api/v1/licensing/ip", body: params)
     }
 
     func getLicenses(address: String) async throws -> [IPLicense] {
-        try await api.get(path: "/licensing/licenses", queryItems: [
+        try await api.get(path: "/api/v1/licensing/licenses", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
@@ -74,7 +75,7 @@ final class LicensingService {
             let terms: LicenseTerms
         }
         let body = IssueBody(ipId: ipId, recipient: recipient, terms: terms)
-        return try await api.post(path: "/licensing/licenses", body: body)
+        return try await api.post(path: "/api/v1/licensing/licenses", body: body)
     }
 
     func purchaseLicense(ipId: String, terms: LicenseTerms) async throws -> IPLicense {
@@ -83,10 +84,10 @@ final class LicensingService {
             let terms: LicenseTerms
         }
         let body = PurchaseBody(ipId: ipId, terms: terms)
-        return try await api.post(path: "/licensing/licenses/purchase", body: body)
+        return try await api.post(path: "/api/v1/licensing/licenses/purchase", body: body)
     }
 
     func getIPMarketplace() async throws -> [SvcIPAsset] {
-        try await api.get(path: "/licensing/marketplace")
+        try await api.get(path: "/api/v1/licensing/marketplace")
     }
 }

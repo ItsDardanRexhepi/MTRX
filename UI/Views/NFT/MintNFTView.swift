@@ -76,12 +76,39 @@ class MintNFTViewModel: ObservableObject {
 
     func mint() async {
         guard canMint else { return }
-        // Honest failure: there is no real mint (no contract call / signing) yet, so
-        // this must NOT show "NFT Minted". Surfaces an honest unavailable message and
-        // leaves mintComplete false. Wiring to the real mint path is Phase 2.
-        isMinting = false
-        mintComplete = false
-        errorMessage = "Minting isn't available in this build yet. Nothing was minted."
+        guard let imageData = selectedImage?.pngData() else {
+            errorMessage = "A valid image is required to mint."
+            return
+        }
+        // Live execution leg (P3): only when the backend is configured do we
+        // run the real mint. Success is gated on a real 200 result — never a
+        // fabricated "NFT Minted". With no backend this stays an honest no-op.
+        guard PendingCredentials.isBackendConfigured else {
+            isMinting = false
+            mintComplete = false
+            errorMessage = "Minting isn't available in this build yet. Nothing was minted."
+            return
+        }
+        isMinting = true
+        errorMessage = nil
+        do {
+            let metadata = SvcNFTMetadata(
+                name: name,
+                description: description,
+                attributes: validAttributes.map { SvcNFTAttribute(key: $0.key, value: $0.value) },
+                royaltyPercent: royaltyPercentage
+            )
+            // Real request path (POST /api/v1/nft/mint, gated server-side by the
+            // Morpheus seam). mintComplete flips true only on a real result.
+            _ = try await NFTService.shared.mintNFT(metadata: metadata, imageData: imageData)
+            isMinting = false
+            mintComplete = true
+        } catch {
+            // Honest failure — no fabricated success, no state left as if minted.
+            isMinting = false
+            mintComplete = false
+            errorMessage = "Minting couldn't be completed. Nothing was minted."
+        }
     }
 }
 
