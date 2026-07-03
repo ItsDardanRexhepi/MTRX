@@ -23,7 +23,6 @@ final class VerifiableCredentialViewModel: ObservableObject {
     @Published var issueClaims: [ClaimPair] = [ClaimPair()]
     @Published var issueExpiry: Date = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
     @Published var isIssuing: Bool = false
-    @Published var issueSuccess: Bool = false
 
     // Verify
     @Published var verifyInput: String = ""
@@ -33,6 +32,9 @@ final class VerifiableCredentialViewModel: ObservableObject {
     // Share
     @Published var showShareSheet: Bool = false
     @Published var sharePayload: String = ""
+
+    // Honest-failure alert
+    @Published var actionUnavailable: Bool = false
 
     // MARK: - Credential Types
 
@@ -81,27 +83,9 @@ final class VerifiableCredentialViewModel: ObservableObject {
             errorMessage = "Recipient address is required."
             return
         }
-        isIssuing = true
-        errorMessage = nil
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self else { return }
-            let newCred = CredentialUIModel(
-                id: UUID().uuidString,
-                issuer: "did:mtrx:self",
-                recipient: self.issueRecipient,
-                type: self.issueType,
-                claims: Dictionary(uniqueKeysWithValues: self.issueClaims.filter { !$0.key.isEmpty }.map { ($0.key, $0.value) }),
-                issuedDate: Date(),
-                expiryDate: self.issueExpiry,
-                status: .valid
-            )
-            self.credentials.insert(newCred, at: 0)
-            self.isEmpty = false
-            self.isIssuing = false
-            self.issueSuccess = true
-            self.resetIssueForm()
-        }
+        // Honest failure: no on-chain / backend credential-issuance path is wired.
+        isIssuing = false
+        actionUnavailable = true
     }
 
     // MARK: - Verify
@@ -111,22 +95,9 @@ final class VerifiableCredentialViewModel: ObservableObject {
             errorMessage = "Paste a credential to verify."
             return
         }
-        isVerifying = true
-        errorMessage = nil
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            guard let self else { return }
-            self.verificationResult = CredentialVerification(
-                isValid: true,
-                issuer: "did:mtrx:0x1a2b...9z",
-                subject: "did:mtrx:0xfe32...7d",
-                type: "Identity",
-                claims: ["name": "Verified User", "country": "US"],
-                issuedDate: Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date(),
-                expiryDate: Calendar.current.date(byAdding: .month, value: 9, to: Date()) ?? Date()
-            )
-            self.isVerifying = false
-        }
+        // Honest failure: no on-chain / backend credential-verification path is wired.
+        isVerifying = false
+        actionUnavailable = true
     }
 
     // MARK: - Share
@@ -244,11 +215,7 @@ struct VerifiableCredentialView: View {
                 }
             }
             .task { await viewModel.loadCredentials() }
-            .alert("Success", isPresented: $viewModel.issueSuccess) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Credential issued successfully.")
-            }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Credential issuance and verification aren't available in this build yet. Nothing was changed.")
             .sheet(isPresented: $viewModel.showShareSheet) {
                 ShareSheet(items: [viewModel.sharePayload])
             }

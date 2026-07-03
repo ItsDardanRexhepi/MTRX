@@ -29,6 +29,7 @@ class CreatorViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isLaunching: Bool = false
     @Published var isDemo: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     var totalRevenue: String {
         // CreatorService has no revenue endpoint; this figure is illustrative and
@@ -84,26 +85,9 @@ class CreatorViewModel: ObservableObject {
 
     func launchToken() async {
         guard canLaunch else { return }
-        isLaunching = true
-
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            let newToken = CreatorTokenItem(
-                name: launchName,
-                symbol: launchSymbol.uppercased(),
-                currentPrice: "$\(launchPrice)",
-                holders: 0,
-                volume24h: "$0.00"
-            )
-            tokens.insert(newToken, at: 0)
-            launchName = ""
-            launchSymbol = ""
-            launchPrice = ""
-            isLaunching = false
-            showLaunch = false
-        } catch {
-            isLaunching = false
-        }
+        // Honest failure: no backend/on-chain token-launch path is wired in this build.
+        isLaunching = false
+        actionUnavailable = true
     }
 
     static let sampleTokens: [CreatorTokenItem] = [
@@ -153,6 +137,7 @@ struct CreatorView: View {
             .sheet(isPresented: $viewModel.showLaunch) {
                 launchTokenSheet
             }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Launching a creator token isn't available in this build yet. Nothing was created.")
         }
     }
 

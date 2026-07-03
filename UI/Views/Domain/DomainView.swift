@@ -21,9 +21,9 @@ final class DomainViewModel: ObservableObject {
     @Published var selectedDuration: RegistrationDuration = .oneYear
     @Published var showRegisterSheet: Bool = false
     @Published var isRegistering: Bool = false
-    @Published var registrationComplete: Bool = false
     @Published var contentAppeared: Bool = false
     @Published var isDemo: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     // MARK: - Load
 
@@ -80,22 +80,10 @@ final class DomainViewModel: ObservableObject {
     }
 
     func register() async {
-        isRegistering = true
-        try? await Task.sleep(nanoseconds: 2_500_000_000)
-
-        if let result = searchResult {
-            let newDomain = ENSDomain(
-                name: result.name,
-                expiryDate: Calendar.current.date(byAdding: .year, value: selectedDuration.years, to: Date()) ?? Date(),
-                isPrimary: userDomains.isEmpty,
-                resolvedAddress: DemoArtifacts.address(seed: "ens|\(result.name)")
-            )
-            userDomains.insert(newDomain, at: 0)
-        }
-
+        // Honest failure: no ENS registrar / on-chain path is wired. Do not
+        // fabricate a registered domain or a success state — change nothing.
         isRegistering = false
-        registrationComplete = true
-        MtrxHaptics.success()
+        actionUnavailable = true
     }
 
     func setPrimary(_ domain: ENSDomain) {
@@ -131,7 +119,6 @@ enum RegistrationDuration: CaseIterable {
 // MARK: - Domain View
 
 struct DomainView: View {
-    @State private var renewedDomain: String?
     @StateObject private var viewModel = DomainViewModel()
 
     private let accent = Color(red: 0.0, green: 0.675, blue: 0.694)
@@ -151,14 +138,7 @@ struct DomainView: View {
                     domainContent
                 }
             }
-            .alert("Renewed", isPresented: .init(
-            get: { renewedDomain != nil },
-            set: { if !$0 { renewedDomain = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("\(renewedDomain ?? "") is extended for another year on-chain.")
-        }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Registering or renewing a domain isn't available in this build yet. Nothing was changed.")
         .navigationTitle("ENS Domains")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -275,7 +255,6 @@ struct DomainView: View {
 
                     Button {
                         viewModel.showRegisterSheet = true
-                        viewModel.registrationComplete = false
                         MtrxHaptics.impact(.medium)
                     } label: {
                         Label("Register", systemImage: Symbols.cart)
@@ -361,8 +340,8 @@ struct DomainView: View {
                         }
 
                         Button {
-                            MtrxHaptics.success()
-                            renewedDomain = domain.name
+                            // Honest failure: no ENS registrar path is wired to renew on-chain.
+                            viewModel.actionUnavailable = true
                         } label: {
                             Text("Renew")
                         }
@@ -383,11 +362,7 @@ struct DomainView: View {
                         viewModel.showRegisterSheet = false
                     }
 
-                    if viewModel.registrationComplete {
-                        registrationSuccessView
-                    } else {
-                        registrationFormView
-                    }
+                    registrationFormView
                 }
                 .padding(.bottom, Spacing.xxl)
             }
@@ -488,37 +463,6 @@ struct DomainView: View {
                 .padding(.horizontal, Spacing.contentPadding)
             }
         }
-    }
-
-    private var registrationSuccessView: some View {
-        VStack(spacing: Spacing.lg) {
-            Image(systemName: Symbols.complete)
-                .font(.system(size: 56, weight: .light))
-                .foregroundStyle(Color.statusSuccess)
-                .mtrxGlow(color: .statusSuccess)
-
-            VStack(spacing: Spacing.sm) {
-                Text("Registration Successful")
-                    .font(.mtrxTitle3)
-                    .foregroundStyle(Color.labelPrimary)
-                if let result = viewModel.searchResult {
-                    Text("\(result.name) is now yours!")
-                        .font(.mtrxBody)
-                        .foregroundStyle(Color.labelSecondary)
-                }
-            }
-
-            Button {
-                viewModel.showRegisterSheet = false
-                viewModel.searchResult = nil
-                viewModel.searchText = ""
-            } label: {
-                Text("Done")
-            }
-            .buttonStyle(MtrxButtonStyle(variant: .primary, size: .regular))
-        }
-        .mtrxFadeInFromBottom(isVisible: true)
-        .padding(.horizontal, Spacing.contentPadding)
     }
 }
 

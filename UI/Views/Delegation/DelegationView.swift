@@ -31,6 +31,7 @@ class DelegationViewModel: ObservableObject {
     @Published var delegateToken: String = "MTRX"
     @Published var delegateAmount: String = ""
     @Published var isDelegating: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     let availableTokens = ["MTRX", "veMTRX", "UNI", "AAVE"]
 
@@ -71,34 +72,14 @@ class DelegationViewModel: ObservableObject {
 
     func delegate() async {
         guard canDelegate else { return }
-        isDelegating = true
-
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            let newDelegation = DelegationItem(
-                delegator: "0x1234...abcd",
-                delegatee: delegateAddress,
-                token: delegateToken,
-                amount: "\(delegateAmount) \(delegateToken)",
-                since: "Just now"
-            )
-            delegatedTo.insert(newDelegation, at: 0)
-            delegateAddress = ""
-            delegateAmount = ""
-            isDelegating = false
-            showDelegate = false
-        } catch {
-            isDelegating = false
-        }
+        // Honest failure: no backend/on-chain delegation path is wired in this build.
+        isDelegating = false
+        actionUnavailable = true
     }
 
     func undelegate(_ item: DelegationItem) async {
-        do {
-            try await Task.sleep(for: .milliseconds(800))
-            delegatedTo.removeAll { $0.id == item.id }
-        } catch {
-            // Handle error silently
-        }
+        // Honest failure: no backend/on-chain undelegation path is wired in this build.
+        actionUnavailable = true
     }
 
     private func formatTokenAmount(_ amount: Double) -> String {
@@ -157,6 +138,7 @@ struct DelegationView: View {
             .sheet(isPresented: $viewModel.showDelegate) {
                 delegateSheet
             }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Delegation isn't available in this build yet. Nothing was changed.")
         }
     }
 

@@ -25,7 +25,7 @@ final class AccessControlViewModel: ObservableObject {
     @Published var grantRole: String = "Operator"
     @Published var grantExpiry: Date = Calendar.current.date(byAdding: .month, value: 6, to: Date()) ?? Date()
     @Published var isGranting: Bool = false
-    @Published var grantSuccess: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     // Revoke
     @Published var showRevokeConfirm: Bool = false
@@ -92,25 +92,8 @@ final class AccessControlViewModel: ObservableObject {
             errorMessage = "Contract and address are required."
             return
         }
-        isGranting = true
-        errorMessage = nil
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            guard let self else { return }
-            let newRole = ContractRole(
-                contractName: self.grantContract,
-                contractAddress: String(DemoArtifacts.address(seed: "role|\(self.grantContract)").prefix(10)) + "…",
-                role: self.grantRole,
-                grantedBy: "You",
-                grantedDate: Date(),
-                expiryDate: self.grantExpiry
-            )
-            self.roles.insert(newRole, at: 0)
-            self.isEmpty = false
-            self.isGranting = false
-            self.grantSuccess = true
-            self.resetGrantForm()
-        }
+        // Honest failure: no backend/on-chain path is wired to grant a contract role.
+        actionUnavailable = true
     }
 
     // MARK: - Revoke
@@ -250,11 +233,6 @@ struct AccessControlView: View {
                 }
             }
             .task { await viewModel.loadAccessControl() }
-            .alert("Role Granted", isPresented: $viewModel.grantSuccess) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Role has been granted successfully.")
-            }
             .alert("Revoke Role", isPresented: $viewModel.showRevokeConfirm) {
                 Button("Revoke", role: .destructive) { viewModel.executeRevoke() }
                 Button("Cancel", role: .cancel) { }
@@ -263,6 +241,7 @@ struct AccessControlView: View {
                     Text("Are you sure you want to revoke \(role.role) on \(role.contractName)?")
                 }
             }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Granting a contract role isn't available in this build yet. Nothing was changed.")
         }
     }
 

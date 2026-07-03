@@ -39,6 +39,7 @@ class AttestationViewModel: ObservableObject {
     @Published var createFieldKey: String = ""
     @Published var createFieldValue: String = ""
     @Published var isCreating: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     // Verify
     @Published var verifyUID: String = ""
@@ -83,28 +84,9 @@ class AttestationViewModel: ObservableObject {
 
     func createAttestation() async {
         guard canCreate else { return }
-        isCreating = true
-
-        do {
-            try await Task.sleep(for: .seconds(1))
-            let newAttestation = AttestationItem(
-                uid: String(DemoArtifacts.hash(seed: "attest|\(createSchema)|\(createRecipient)").prefix(18)),
-                schema: createSchema,
-                attester: "0x1234...abcd",
-                recipient: createRecipient,
-                timestamp: "Just now",
-                isRevoked: false
-            )
-            issued.insert(newAttestation, at: 0)
-            createSchema = ""
-            createRecipient = ""
-            createFieldKey = ""
-            createFieldValue = ""
-            isCreating = false
-            showCreate = false
-        } catch {
-            isCreating = false
-        }
+        // Honest failure: no on-chain attestation-issuance path is wired in this build.
+        isCreating = false
+        actionUnavailable = true
     }
 
     func verifyAttestation() async {
@@ -175,6 +157,7 @@ struct AttestationView: View {
             .sheet(isPresented: $viewModel.showCreate) {
                 createAttestationSheet
             }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Issuing an attestation isn't available in this build yet. Nothing was created.")
         }
     }
 
