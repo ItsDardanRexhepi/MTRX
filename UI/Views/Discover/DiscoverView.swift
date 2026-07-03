@@ -1050,35 +1050,150 @@ struct FundraiserCardView: View {
     }
 }
 
-// MARK: - Marketplace Listing Detail (Placeholder)
+// MARK: - Marketplace Listing Detail
 
+/// The detail screen for a marketplace listing. All figures come from the
+/// already-demo `MarketplaceListing.sampleData`, so the whole screen carries a
+/// DemoBadge — nothing here is presented as a live quote.
 struct MarketplaceListingDetail: View {
     let listing: MarketplaceListing
+    @State private var showBuyNote = false
+
+    private var isUp: Bool { listing.change24h >= 0 }
+    private var changeColor: Color { isUp ? Color.priceUp : Color.priceDown }
+    private var changeText: String {
+        String(format: "%@%.2f%%", isUp ? "+" : "", listing.change24h)
+    }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: Spacing.sectionGap) {
-                MtrxAvatar(
-                    symbol: listing.icon,
-                    color: listing.avatarColor,
-                    size: Spacing.Size.avatarXLarge
-                )
-                .padding(.top, Spacing.xl)
-
-                Text(listing.name)
-                    .font(.mtrxTitle1)
-
-                MtrxBadge(text: listing.category, style: .accent)
-
-                Text(listing.price)
-                    .font(.mtrxMonoMedium)
-                    .foregroundStyle(Color.accentPrimary)
+            VStack(spacing: Spacing.lg) {
+                header
+                statsCard
+                sparklineCard
+                aboutCard
+                buyButton
             }
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.top, Spacing.lg)
+            .padding(.bottom, Spacing.xxl)
             .frame(maxWidth: .infinity)
         }
         .background(MtrxGradientBackground(style: .primary))
         .navigationTitle(listing.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .principal) { DemoBadge() } }
+        .alert("Demo listing", isPresented: $showBuyNote) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("This is sample marketplace data. Checkout is not available in this build — nothing was purchased.")
+        }
+    }
+
+    private var header: some View {
+        VStack(spacing: Spacing.sm) {
+            MtrxAvatar(symbol: listing.icon, color: listing.avatarColor, size: Spacing.Size.avatarXLarge)
+            Text(listing.name).font(.mtrxTitle2).foregroundStyle(Color.labelPrimary)
+            MtrxBadge(text: listing.category, style: .accent)
+            HStack(spacing: Spacing.sm) {
+                Text(listing.price).font(.mtrxMonoMedium).foregroundStyle(Color.labelPrimary)
+                Text(changeText).font(.mtrxCaptionBold).foregroundStyle(changeColor)
+            }
+        }
+    }
+
+    private var statsCard: some View {
+        MtrxCard(style: .standard) {
+            HStack {
+                statCell("24h", changeText, changeColor)
+                Divider().frame(height: 34).overlay(Color.labelPrimary.opacity(0.08))
+                statCell("Volume", listing.volume, Color.labelPrimary)
+                Divider().frame(height: 34).overlay(Color.labelPrimary.opacity(0.08))
+                statCell("Category", listing.category, Color.labelPrimary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func statCell(_ label: String, _ value: String, _ color: Color) -> some View {
+        VStack(spacing: 4) {
+            Text(label).font(.mtrxCaption2).foregroundStyle(Color.labelTertiary)
+            Text(value).font(.mtrxCaptionBold).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// A deterministic demo price series (no randomness) shaped by the 24h
+    /// direction, drawn as a smooth area sparkline.
+    private var sparklineCard: some View {
+        MtrxCard(style: .standard) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("Price · 24h").font(.mtrxCaption1).foregroundStyle(Color.labelSecondary)
+                GeometryReader { geo in
+                    let pts = demoSeries
+                    let maxV = pts.max() ?? 1, minV = pts.min() ?? 0
+                    let range = max(maxV - minV, 0.0001)
+                    let stepX = geo.size.width / CGFloat(max(pts.count - 1, 1))
+                    let path = Path { p in
+                        for (i, v) in pts.enumerated() {
+                            let x = CGFloat(i) * stepX
+                            let y = geo.size.height * (1 - CGFloat((v - minV) / range))
+                            if i == 0 { p.move(to: CGPoint(x: x, y: y)) }
+                            else { p.addLine(to: CGPoint(x: x, y: y)) }
+                        }
+                    }
+                    ZStack {
+                        path.stroke(changeColor, style: StrokeStyle(lineWidth: 2, lineJoin: .round))
+                        path
+                            .strokedPath(StrokeStyle(lineWidth: 2))
+                            .fill(changeColor.opacity(0.001))
+                    }
+                }
+                .frame(height: 72)
+            }
+        }
+    }
+
+    private var demoSeries: [Double] {
+        // Base the shape on the listing name (stable) and slope on the 24h sign.
+        let seed = Double(abs(listing.name.hashValue % 97)) / 97.0
+        let slope = listing.change24h / 100.0
+        return (0..<24).map { i in
+            let t = Double(i) / 23.0
+            let wave = sin((t * 6.2) + seed * 6.2) * 0.18
+            return 1.0 + slope * t + wave * (0.4 + seed * 0.4)
+        }
+    }
+
+    private var aboutCard: some View {
+        MtrxCard(style: .standard) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("About").font(.mtrxHeadline).foregroundStyle(Color.labelPrimary)
+                Text(blurb)
+                    .font(.mtrxBody)
+                    .foregroundStyle(Color.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var blurb: String {
+        "\(listing.name) is a \(listing.category.lowercased()) listing on the MTRX marketplace. "
+        + "It last traded at \(listing.price) with \(listing.volume) in 24h volume. "
+        + "Full listing details, on-chain provenance, and checkout arrive when the marketplace backend is connected."
+    }
+
+    private var buyButton: some View {
+        Button { showBuyNote = true } label: {
+            Text("Buy · \(listing.price)")
+                .font(.mtrxHeadline)
+                .foregroundStyle(Color.backgroundPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Spacing.md)
+                .background(Color.accentPrimary, in: RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 

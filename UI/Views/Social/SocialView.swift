@@ -709,6 +709,9 @@ struct SocialView: View {
     // Twitter-style side drawer opened from the avatar.
     @ObservedObject private var drawer = SocialDrawerController.shared
     @State private var showTrinityChat = false
+    // Set while the stories rail is handling a horizontal swipe, so the tab
+    // pager below doesn't also fire and jump to the next sub-tab.
+    @State private var storiesSwiping = false
     @State private var showHistory = false
     @State private var showHelp = false
     @State private var showLists = false
@@ -810,11 +813,18 @@ struct SocialView: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 24)
                     .onEnded { value in
-                        // Let the Messages list own horizontal swipes (swipe-to-delete);
-                        // tab paging stays available on the other tabs.
-                        guard viewModel.selectedTab != .messaging else { return }
                         let w = value.translation.width
                         let h = value.translation.height
+                        // A swipe the stories rail was scrolling must never page
+                        // tabs. Consume + reset the flag every gesture so it can
+                        // never leak into a later, genuine tab swipe.
+                        let wasStoriesSwipe = storiesSwiping
+                        storiesSwiping = false
+                        if wasStoriesSwipe { return }
+                        // On Messages, LEFT swipes belong to the message rows
+                        // (swipe-to-delete); a RIGHT swipe still pages back to
+                        // Notifications, exactly like every other sub-tab.
+                        if viewModel.selectedTab == .messaging, w < 0 { return }
                         // Only act on a clearly horizontal swipe so vertical
                         // scrolling is never hijacked.
                         guard abs(w) > 70, abs(w) > abs(h) * 1.6 else { return }
@@ -1756,6 +1766,26 @@ struct SocialView: View {
                     socialHeader
                     tabSelector
                     StoriesRail()
+                        // Flag horizontal swipes on the stories rail so the tab
+                        // pager doesn't also fire and jump to Governance. Runs
+                        // simultaneously with the rail's own scroll, so the rail
+                        // still scrolls normally.
+                        .simultaneousGesture(
+                            DragGesture(minimumDistance: 10)
+                                .onChanged { v in
+                                    if abs(v.translation.width) > abs(v.translation.height) + 4 {
+                                        storiesSwiping = true
+                                        // Backstop: a short rail flick (10–24pt)
+                                        // never reaches the pager's onEnded, so
+                                        // clear the flag shortly after too — it
+                                        // can never stick true and swallow the
+                                        // next genuine tab swipe.
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                            storiesSwiping = false
+                                        }
+                                    }
+                                }
+                        )
                     filterChips
 
                     ForEach(Array(feedPosts.enumerated()), id: \.element.id) { index, post in
