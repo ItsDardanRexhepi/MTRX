@@ -88,16 +88,18 @@ class StablecoinViewModel: ObservableObject {
         isLoading = false
     }
 
+    /// Set when the user taps Convert: there is no real stablecoin-swap route
+    /// wired (the gateway exposes only balance + transfer), so we surface an
+    /// honest "not available" notice instead of clearing the field as if the
+    /// conversion succeeded. Never a fake success.
+    @Published var convertUnavailable: Bool = false
+
     func convert() async {
         guard !convertAmount.isEmpty else { return }
-        isConverting = true
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            isConverting = false
-            convertAmount = ""
-        } catch {
-            isConverting = false
-        }
+        // Honest failure: no on-chain / server swap path is wired for stablecoin
+        // conversion in this build. Do NOT sleep-and-clear (which reads as a
+        // silent success) — tell the truth and leave the amount untouched.
+        convertUnavailable = true
     }
 
     func swapDirection() {
@@ -148,6 +150,11 @@ struct StablecoinView: View {
                 ToolbarItem(placement: .principal) {
                     if viewModel.isDemo { DemoBadge() }
                 }
+            }
+            .alert("Not available", isPresented: $viewModel.convertUnavailable) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Stablecoin conversion isn't available in this build yet. Nothing was converted.")
             }
             .task { await viewModel.load() }
         }
