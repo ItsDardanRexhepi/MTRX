@@ -24,6 +24,7 @@ final class DomainViewModel: ObservableObject {
     @Published var registrationComplete: Bool = false
     @Published var contentAppeared: Bool = false
     @Published var isDemo: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     // MARK: - Load
 
@@ -80,22 +81,10 @@ final class DomainViewModel: ObservableObject {
     }
 
     func register() async {
-        isRegistering = true
-        try? await Task.sleep(nanoseconds: 2_500_000_000)
-
-        if let result = searchResult {
-            let newDomain = ENSDomain(
-                name: result.name,
-                expiryDate: Calendar.current.date(byAdding: .year, value: selectedDuration.years, to: Date()) ?? Date(),
-                isPrimary: userDomains.isEmpty,
-                resolvedAddress: DemoArtifacts.address(seed: "ens|\(result.name)")
-            )
-            userDomains.insert(newDomain, at: 0)
-        }
-
+        // Honest failure: no ENS registrar / on-chain path is wired. Do not
+        // fabricate a registered domain or a success state — change nothing.
         isRegistering = false
-        registrationComplete = true
-        MtrxHaptics.success()
+        actionUnavailable = true
     }
 
     func setPrimary(_ domain: ENSDomain) {
@@ -151,14 +140,7 @@ struct DomainView: View {
                     domainContent
                 }
             }
-            .alert("Renewed", isPresented: .init(
-            get: { renewedDomain != nil },
-            set: { if !$0 { renewedDomain = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("\(renewedDomain ?? "") is extended for another year on-chain.")
-        }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Registering or renewing a domain isn't available in this build yet. Nothing was changed.")
         .navigationTitle("ENS Domains")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -361,8 +343,8 @@ struct DomainView: View {
                         }
 
                         Button {
-                            MtrxHaptics.success()
-                            renewedDomain = domain.name
+                            // Honest failure: no ENS registrar path is wired to renew on-chain.
+                            viewModel.actionUnavailable = true
                         } label: {
                             Text("Renew")
                         }

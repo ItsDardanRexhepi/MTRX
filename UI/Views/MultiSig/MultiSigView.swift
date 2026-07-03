@@ -20,6 +20,7 @@ final class MultiSigViewModel: ObservableObject {
     @Published var showProposeTransaction: Bool = false
     @Published var contentAppeared: Bool = false
     @Published var isDemo: Bool = true
+    @Published var actionUnavailable: Bool = false
 
     // Create wallet form
     @Published var walletName: String = ""
@@ -73,57 +74,16 @@ final class MultiSigViewModel: ObservableObject {
 
     func createWallet() async {
         guard canCreateWallet else { return }
-        isCreating = true
-
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
-
-        let newWallet = MultiSigWallet(
-            name: walletName,
-            // Simulated address (no chain configured) — deterministic, not a real deploy.
-            address: DemoArtifacts.address(seed: "multisig|\(walletName)|\(validSigners.joined(separator: ","))"),
-            threshold: Int(threshold) ?? 2,
-            signers: validSigners,
-            balanceETH: 0,
-            balanceUSD: 0,
-            pendingTransactions: []
-        )
-        wallets.insert(newWallet, at: 0)
+        // Honest failure: no on-chain deploy path is wired for multi-sig wallet creation.
         isCreating = false
-        showCreateWallet = false
-        walletName = ""
-        signerAddresses = ["", "", ""]
-        threshold = "2"
-        MtrxHaptics.success()
+        actionUnavailable = true
     }
 
     func proposeTransaction() async {
-        guard canPropose, let wallet = selectedWallet else { return }
-        isProposing = true
-
-        try? await Task.sleep(nanoseconds: 1_500_000_000)
-
-        let newTx = PendingMultiSigTx(
-            description_: txDescription,
-            recipient: txRecipient,
-            amount: Double(txAmount) ?? 0,
-            token: txToken,
-            signaturesCollected: 1,
-            signaturesRequired: wallet.threshold,
-            proposedBy: "You",
-            proposedDate: Date()
-        )
-
-        if let index = wallets.firstIndex(where: { $0.id == wallet.id }) {
-            wallets[index].pendingTransactions.insert(newTx, at: 0)
-            selectedWallet = wallets[index]
-        }
-
+        guard canPropose, selectedWallet != nil else { return }
+        // Honest failure: no backend/on-chain path is wired to submit a multi-sig proposal.
         isProposing = false
-        showProposeTransaction = false
-        txDescription = ""
-        txRecipient = ""
-        txAmount = ""
-        MtrxHaptics.success()
+        actionUnavailable = true
     }
 
     func approveTransaction(_ tx: PendingMultiSigTx, in wallet: MultiSigWallet) {
@@ -209,6 +169,7 @@ struct MultiSigView: View {
             .sheet(isPresented: $viewModel.showProposeTransaction) {
                 proposeTransactionSheet
             }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Multi-sig actions aren't available in this build yet. Nothing was created or proposed.")
         }
         .task {
             await viewModel.load()

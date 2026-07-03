@@ -16,6 +16,7 @@ final class KYCViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isEmpty: Bool = false
     @Published var isDemo: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     /// Best-effort map from the backend's KYC type strings to this screen's
     /// VerificationType cases (the two enums don't line up 1:1).
@@ -103,26 +104,9 @@ final class KYCViewModel: ObservableObject {
     }
 
     func captureDocument() {
-        captureStep = .capturing
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            guard let self else { return }
-            self.captureStep = .processing
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-                guard let self else { return }
-                self.captureStep = .complete
-
-                let newBadge = KYCBadge(
-                    type: self.selectedVerificationType,
-                    status: .verified,
-                    verifiedDate: Date(),
-                    expiryDate: Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
-                )
-                self.badges.insert(newBadge, at: 0)
-                self.isEmpty = false
-            }
-        }
+        // Honest failure: no KYC provider / on-chain attestation path is wired.
+        // Do not fabricate a ".verified" badge as if a document were checked.
+        actionUnavailable = true
     }
 
     func dismissCapture() {
@@ -296,6 +280,7 @@ struct KYCView: View {
                 }
             }
             .task { await viewModel.loadBadges() }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Identity verification isn't available in this build yet. No document was verified.")
             .sheet(isPresented: $viewModel.isCapturing) {
                 captureFlowSheet
             }

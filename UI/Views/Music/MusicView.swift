@@ -37,6 +37,9 @@ final class MusicViewModel: ObservableObject {
     // Earnings
     @Published var isClaiming: Bool = false
 
+    // Honest failure
+    @Published var actionUnavailable: Bool = false
+
     // MARK: - Load
 
     func loadCatalog() {
@@ -64,27 +67,11 @@ final class MusicViewModel: ObservableObject {
             errorMessage = "Royalty splits must total 100%."
             return
         }
-        isUploading = true
         errorMessage = nil
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            guard let self else { return }
-            let track = MusicTrack(
-                title: self.uploadTitle,
-                artist: self.uploadArtist.isEmpty ? "You" : self.uploadArtist,
-                plays: 0,
-                pricePerPlay: Double(self.uploadPricePerPlay) ?? 0.001,
-                royaltySplits: self.collaborators.map { RoyaltySplit(name: $0.name.isEmpty ? "You" : $0.name, percentage: $0.splitPercent) },
-                earnings: 0,
-                duration: 210,
-                uploadDate: Date()
-            )
-            self.catalog.insert(track, at: 0)
-            self.myCatalog.insert(track, at: 0)
-            self.isUploading = false
-            self.uploadSuccess = true
-            self.resetUploadForm()
-        }
+        // Honest failure: no backend/on-chain path is wired to publish a track
+        // or register its royalty splits. Change no state; surface honestly.
+        isUploading = false
+        actionUnavailable = true
     }
 
     // MARK: - Player
@@ -120,14 +107,10 @@ final class MusicViewModel: ObservableObject {
     // MARK: - Claim
 
     func claimEarnings() {
-        isClaiming = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self else { return }
-            for index in self.myCatalog.indices {
-                self.myCatalog[index].earnings = 0
-            }
-            self.isClaiming = false
-        }
+        // Honest failure: no backend/on-chain path is wired to claim royalty
+        // earnings. Do not zero the demo earnings as if a payout occurred.
+        isClaiming = false
+        actionUnavailable = true
     }
 
     // MARK: - Collaborators
@@ -223,11 +206,7 @@ struct MusicView: View {
             .navigationTitle("Music")
             .navigationBarTitleDisplayMode(.large)
             .onAppear { viewModel.loadCatalog() }
-            .alert("Upload Complete", isPresented: $viewModel.uploadSuccess) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Your track has been uploaded to the decentralized catalog.")
-            }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Uploading tracks and claiming earnings aren't available in this build yet. Nothing was changed.")
             .sheet(isPresented: $viewModel.showDetail) {
                 if let track = viewModel.selectedTrack {
                     trackDetailSheet(track)

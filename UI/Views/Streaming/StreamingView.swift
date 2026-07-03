@@ -19,6 +19,7 @@ final class StreamingViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showCreateForm: Bool = false
     @Published var contentAppeared: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     // Create form
     @Published var recipient: String = ""
@@ -56,28 +57,9 @@ final class StreamingViewModel: ObservableObject {
 
     func createStream() async {
         guard canCreateStream else { return }
-        isCreating = true
-
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
-
-        let rate = Double(flowRateAmount) ?? 0
-        let months = Double(durationMonths) ?? 1
-        let newStream = PaymentStream(
-            counterparty: recipient,
-            tokenSymbol: tokenSymbol,
-            flowRatePerSecond: rate / flowRateUnit.seconds,
-            totalAmount: rate * months,
-            streamedAmount: 0,
-            status: .active,
-            startDate: Date(),
-            endDate: Calendar.current.date(byAdding: .month, value: Int(months), to: Date()) ?? Date(),
-            direction: .outgoing
-        )
-        outgoingStreams.insert(newStream, at: 0)
+        // Honest failure: no backend / on-chain path is wired to open a payment stream.
         isCreating = false
-        showCreateForm = false
-        resetForm()
-        MtrxHaptics.success()
+        actionUnavailable = true
     }
 
     func pauseStream(_ stream: PaymentStream) {
@@ -203,6 +185,7 @@ struct StreamingView: View {
             .sheet(isPresented: $viewModel.showCreateForm) {
                 createStreamSheet
             }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Creating a payment stream isn't available in this build yet. No stream was started.")
         }
         .task {
             await viewModel.load()

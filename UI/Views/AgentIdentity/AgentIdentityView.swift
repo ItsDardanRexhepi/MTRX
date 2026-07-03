@@ -36,6 +36,7 @@ class AgentIdentityViewModel: ObservableObject {
     @Published var isRegistering: Bool = false
     @Published var isRevoking: Bool = false
     @Published var isDemo: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short; return f
@@ -83,28 +84,18 @@ class AgentIdentityViewModel: ObservableObject {
 
     func registerCapability() async {
         guard !newCapability.isEmpty else { return }
-        isRegistering = true
-        do {
-            try await Task.sleep(for: .seconds(1))
-            agent?.capabilities.append(newCapability)
-            newCapability = ""
-            isRegistering = false
-        } catch {
-            isRegistering = false
-        }
+        // Honest failure: no agent-identity registry / on-chain path is wired.
+        // Do not append the capability as if it were registered.
+        isRegistering = false
+        actionUnavailable = true
     }
 
     func revokeAgent() async {
-        isRevoking = true
-        do {
-            try await Task.sleep(for: .seconds(2))
-            agent = nil
-            interactions = []
-            isRevoking = false
-            showRevokeConfirmation = false
-        } catch {
-            isRevoking = false
-        }
+        // Honest failure: no agent-identity registry path is wired to revoke.
+        // Do not clear the agent as if a revocation succeeded.
+        isRevoking = false
+        showRevokeConfirmation = false
+        actionUnavailable = true
     }
 
     static let sampleAgent = AgentProfileItem(
@@ -157,6 +148,7 @@ struct AgentIdentityView: View {
                 }
             }
             .task { await viewModel.load() }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Editing agent identity isn't available in this build yet. Nothing was changed.")
             .alert("Revoke Agent Identity", isPresented: $viewModel.showRevokeConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Revoke", role: .destructive) {

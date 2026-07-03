@@ -46,6 +46,7 @@ class TreasuryViewModel: ObservableObject {
     @Published var proposalRecipient: String = ""
     @Published var proposalDescription: String = ""
     @Published var isSubmitting: Bool = false
+    @Published var actionUnavailable: Bool = false
 
     var canSubmitProposal: Bool {
         !proposalToken.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -107,19 +108,10 @@ class TreasuryViewModel: ObservableObject {
 
     func submitProposal() async {
         guard canSubmitProposal else { return }
-        isSubmitting = true
-
-        do {
-            try await Task.sleep(for: .seconds(1.5))
-            proposalToken = ""
-            proposalAmount = ""
-            proposalRecipient = ""
-            proposalDescription = ""
-            isSubmitting = false
-            showProposal = false
-        } catch {
-            isSubmitting = false
-        }
+        // Honest failure: no governance/treasury backend path is wired to submit
+        // a proposal. Do not clear the form / dismiss the sheet as if it worked.
+        isSubmitting = false
+        actionUnavailable = true
     }
 
     static let sampleAssets: [TreasuryAssetItem] = [
@@ -166,6 +158,7 @@ struct TreasuryView: View {
                 }
             }
             .task { await viewModel.load() }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Submitting a treasury proposal isn't available in this build yet. Nothing was submitted.")
             .sheet(isPresented: $viewModel.showProposal) {
                 proposeSpendingSheet
             }

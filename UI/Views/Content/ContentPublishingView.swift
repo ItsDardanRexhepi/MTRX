@@ -31,6 +31,10 @@ final class ContentPublishingViewModel: ObservableObject {
     @Published var isPublishing: Bool = false
     @Published var publishedHash: String?
 
+    /// Drives the honest-failure alert when an action has no real backend /
+    /// on-chain path wired yet.
+    @Published var actionUnavailable: Bool = false
+
     // Tip
     @Published var showTipSheet: Bool = false
     @Published var tipAmount: String = "0.01"
@@ -148,19 +152,11 @@ final class ContentPublishingViewModel: ObservableObject {
     }
 
     func sendTip() {
-        guard let target = tipTarget, let amount = Double(tipAmount), amount > 0 else { return }
-        isTipping = true
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self else { return }
-            if let index = self.feedPosts.firstIndex(where: { $0.id == target.id }) {
-                self.feedPosts[index].tips += amount
-            }
-            self.isTipping = false
-            self.showTipSheet = false
-            self.tipTarget = nil
-            self.tipAmount = "0.01"
-        }
+        guard tipTarget != nil, let amount = Double(tipAmount), amount > 0 else { return }
+        // Honest failure: no on-chain tipping path is wired — do not fabricate a
+        // sent tip. Surface the unavailable alert and change no other state.
+        isTipping = false
+        actionUnavailable = true
     }
 
     // MARK: - Image Handling
@@ -256,6 +252,7 @@ struct ContentPublishingView: View {
             } message: {
                 Text("Content hash:\n\(viewModel.publishedHash ?? "")")
             }
+            .honestActionAlert($viewModel.actionUnavailable, message: "Tipping creators isn't available in this build yet. No funds were sent.")
         }
     }
 
