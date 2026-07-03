@@ -82,14 +82,15 @@ once the gateway is deployed) · **M6** (batch EAS attestation writes) ·
 
 ## Known-open items surfaced by adversarial verify (2026-07-02)
 
-- **DAO proposals live-read (M5 read side) — BLOCKED.** The gateway has no
-  proposals list route whose response shape matches the client's
-  `DAOProposalsResponse` (which needs number/proposer/votesFor/votesAgainst/
-  quorumRequired). `list_proposals` in the governance service returns a
-  different summary shape. Owed: a `GET /api/v1/dao/proposals` (or governance
-  proposals) route that emits the client shape, OR a client model change to the
-  service's shape. Until then `daoProposals()` decode-fails and the DAO tab
-  stays honest-demo. Vote *submission* is already correct.
+- **DAO proposals live-read (M5 read side) — ✅ RESOLVED (2026-07-03).** Added
+  `GET /api/v1/governance/daos/{daoId}/proposals` → `_call` →
+  `governance.list_proposals_detailed`, which emits exactly the client's
+  `Proposal` shape (proposal_id/title/description/status/votes_for/votes_against/
+  quorum/end_time, end_time ISO-8601). Client `GovernanceService.getProposals`
+  now uses that path via `getEnveloped`. Tally + quorum are extracted server-side
+  (voting-model knowledge stays on the server); unknown tallies are an honest
+  0.0. 2 gateway tests green. Independent of deploy — the DAO tab read side is
+  unblocked now.
 - **`sponsoredCallWithValue` (contract) — design decision owed.** Any
   `onlyAuthorized` agent can send arbitrary ETH to an arbitrary target; the
   `onlyOwner` `withdraw` guard is moot against a compromised/malicious agent

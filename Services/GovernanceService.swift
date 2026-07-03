@@ -99,7 +99,12 @@ final class GovernanceService {
     }
 
     func getProposals(daoId: String) async throws -> [Proposal] {
-        try await api.get(path: "/governance/daos/\(daoId)/proposals")
+        // DAO proposals live-read: the gateway route
+        // GET /api/v1/governance/daos/{daoId}/proposals emits exactly the
+        // Proposal shape (through governance.list_proposals_detailed). Response
+        // is enveloped ({status,data}) like the rest of /api/v1, so decode via
+        // getEnveloped — the previously-blocked read side is now unblocked.
+        try await api.getEnveloped(path: "/api/v1/governance/daos/\(daoId)/proposals")
     }
 
     func vote(proposalId: String, support: VoteSupport, reason: String?) async throws -> SvcTransactionResult {
