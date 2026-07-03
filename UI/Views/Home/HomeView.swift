@@ -96,6 +96,11 @@ struct HomeView: View {
                         .onTapGesture { askFocused = false }
                 }
             }
+            // Render the dashboard at the reference iPhone's proportions and
+            // scale it to THIS device, so the composition is identical on every
+            // iPhone — same layout, resized to fit, never clipped, never
+            // scrolling. On a Pro Max the scale is 1.0 (unchanged).
+            .fitToReferenceScreen()
             // A fixed surface: the keyboard must not squeeze the dashboard —
             // the ask-bar chat opens in its own overlay with real avoidance.
             .ignoresSafeArea(.keyboard)

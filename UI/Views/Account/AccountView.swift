@@ -116,46 +116,29 @@ struct AccountView: View {
 
     var body: some View {
         NavigationStack {
-            // Same responsive fill as Home: the scroll content stretches to at
-            // least the viewport height, and the flexible gap ABOVE Sign Out
-            // absorbs what a taller screen (17 Pro Max) adds — Sign Out settles
-            // near the dock instead of leaving a dead void beneath it. On
-            // smaller phones the spacer collapses and the page scrolls as before.
-            GeometryReader { viewport in
-            ScrollView {
-                VStack(spacing: Spacing.md) {
-                    profileCard
-                    portfolioSummary
-                    workspaceSection
-                    Spacer(minLength: 0)
-                    // Nudged ~0.25% below baseline; nothing else moves.
-                    signOutButton
-                        .offset(y: 2)
-                }
-                // viewport.size.height is already the dock-excluded safe region
-                // (the native tab bar consumes its own bottom inset), so filling
-                // to it less a comfortable gap lets the Spacer push Sign Out to
-                // just above the floating dock — never under it. On shorter
-                // phones the content exceeds this height, the Spacer collapses,
-                // and the page scrolls as before.
-                .frame(minHeight: max(0, viewport.size.height - Spacing.xl),
-                       alignment: .top)
-                .padding(.horizontal, Spacing.contentPadding)
-                .padding(.top, Spacing.sm)
-                // The floating dock reserves its own safe-area inset, so only a
-                // small breath is needed here — like Home, no dead space below.
-                .padding(.bottom, Spacing.md)
+            // A fixed, non-scrolling page: the flexible gap ABOVE Sign Out
+            // fills whatever height the screen has, so Sign Out settles just
+            // above the dock. The whole page is then laid out at the reference
+            // iPhone's proportions and scaled to THIS device (see Home), so
+            // Account looks identical on every iPhone — nothing clipped, nothing
+            // off-screen, and never a scroll.
+            VStack(spacing: Spacing.md) {
+                profileCard
+                portfolioSummary
+                workspaceSection
+                Spacer(minLength: 0)
+                // Nudged ~0.25% below baseline; nothing else moves.
+                signOutButton
+                    .offset(y: 2)
             }
-            // Only scrolls if the content genuinely overflows — so when it all
-            // fits, there is nothing to scroll to, exactly like the Home tab.
-            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.top, Spacing.sm)
+            .padding(.bottom, Spacing.md)
+            .fitToReferenceScreen()
             .background(MtrxGradientBackground(style: .primary))
             .navigationTitle("Account")
             .navigationBarTitleDisplayMode(.inline)
-            .refreshable {
-                MtrxHaptics.impact(.light)
-                try? await Task.sleep(for: .seconds(0.6))
-            }
             .alert("Sign Out", isPresented: $showSignOutAlert) {
                 Button("Cancel", role: .cancel) {}
                 Button("Sign Out", role: .destructive) {
@@ -213,7 +196,6 @@ struct AccountView: View {
                 case .alerts:
                     AlertsView()
                 }
-            }
             }
         }
         .sheet(isPresented: $showWorkspaceEditor) {

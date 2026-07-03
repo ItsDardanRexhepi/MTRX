@@ -165,6 +165,7 @@
 		37E4013FE0F44922648BB402 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18C2E922D672C92061B3217 /* Colors.swift */; };
 		AC27596D7AFF1A1D9947EBCB /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE73F1FBF4DC32B909AA3B4 /* Motion.swift */; };
 		B52AFE628D58CA714DC074B6 /* Spacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F5473CC0DB01A5AAAAC1D1 /* Spacing.swift */; };
+		B52AFE628D58CA714DC0DEF1 /* DeviceFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F5473CC0DB01A5AAAADEF1 /* DeviceFit.swift */; };
 		D90986063D8012124B4DAEEF /* Symbols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85252EB5381A6E0FD6EF7D4E /* Symbols.swift */; };
 		B39497329A957FAE51C87AC7 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C2E4B046BEC305963A67FF8 /* Typography.swift */; };
 		C46F551A9109FC95951D4B24 /* ContractNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = E452BDFB309AB3AC0E99A17C /* ContractNotification.swift */; };
@@ -557,6 +558,7 @@
 		E18C2E922D672C92061B3217 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Colors.swift"; sourceTree = "<group>"; };
 		0BE73F1FBF4DC32B909AA3B4 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Motion.swift"; sourceTree = "<group>"; };
 		45F5473CC0DB01A5AAAAC1D1 /* Spacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Spacing.swift"; sourceTree = "<group>"; };
+		45F5473CC0DB01A5AAAADEF1 /* DeviceFit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DeviceFit.swift"; sourceTree = "<group>"; };
 		85252EB5381A6E0FD6EF7D4E /* Symbols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Symbols.swift"; sourceTree = "<group>"; };
 		6C2E4B046BEC305963A67FF8 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Typography.swift"; sourceTree = "<group>"; };
 		E452BDFB309AB3AC0E99A17C /* ContractNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContractNotification.swift"; sourceTree = "<group>"; };
@@ -1643,6 +1645,7 @@
 				E18C2E922D672C92061B3217,
 				0BE73F1FBF4DC32B909AA3B4,
 				45F5473CC0DB01A5AAAAC1D1,
+				45F5473CC0DB01A5AAAADEF1,
 				85252EB5381A6E0FD6EF7D4E,
 				6C2E4B046BEC305963A67FF8,
 			);
@@ -2212,6 +2215,7 @@
 				37E4013FE0F44922648BB402 /* Colors.swift */,
 				AC27596D7AFF1A1D9947EBCB /* Motion.swift */,
 				B52AFE628D58CA714DC074B6 /* Spacing.swift */,
+				B52AFE628D58CA714DC0DEF1 /* DeviceFit.swift in Sources */,
 				D90986063D8012124B4DAEEF /* Symbols.swift */,
 				B39497329A957FAE51C87AC7 /* Typography.swift */,
 				C46F551A9109FC95951D4B24 /* ContractNotification.swift */,
