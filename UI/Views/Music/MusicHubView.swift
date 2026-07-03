@@ -174,15 +174,16 @@ private struct MusicAttributionFooter: View {
     }
 }
 
-/// The floating mini-player bubble above the tab bar on every tab — a carbon
-/// copy of Apple Music's own mini-player: a heavily-rounded dark glass pill
+/// The floating mini-player bubble above the tab bar on every tab — modelled
+/// on Apple Music's own mini-player: a short, heavily-rounded dark glass pill
 /// with the square artwork inset on the left, the title + artist filling the
-/// middle and fading out on the trailing edge (no hard ellipsis), and just two
-/// controls on the right — play/pause and skip-forward — exactly like the
-/// Music app. The whole bubble is one hit target: a tap anywhere that isn't a
-/// transport button opens the full player, and no touch on the bubble ever
-/// falls through to the content underneath; the transports carry full-height
-/// 44pt targets and act without leaving the tab.
+/// middle and fading out on the trailing edge (no hard ellipsis), and the
+/// transports grouped tight on the right. Per the product owner it carries
+/// three controls — back · play/pause · forward — spaced close together. The
+/// whole bubble is one hit target: a tap anywhere that isn't a transport
+/// button opens the full player, and no touch on the bubble ever falls through
+/// to the content underneath; each transport has its own tap target and acts
+/// without leaving the tab.
 struct MusicMiniPlayer: View {
     @State private var music = MusicKitManager.shared
     let onTap: () -> Void

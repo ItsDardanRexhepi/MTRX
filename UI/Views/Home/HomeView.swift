@@ -118,6 +118,11 @@ struct HomeView: View {
                     .onTapGesture { closeHomeChat() }
                     .zIndex(40)
                 homeChatPanel
+                    // Scale the chat panel by the SAME device factor as the
+                    // dashboard, so its top notch keeps landing right under the
+                    // (now scaled) ask bar on every iPhone — not just the
+                    // reference device.
+                    .fitToReferenceScreen()
                     // A contained scale-from-top + fade — GPU-cheap and
                     // perfectly smooth at 120Hz (no cross-view geometry to
                     // recompute every frame).

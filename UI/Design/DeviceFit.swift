@@ -7,12 +7,19 @@
 // smaller iPhone the very same composition simply wouldn't fit at the same
 // point sizes, so it would clip or start scrolling.
 //
-// `FitToReferenceScreen` removes that difference: it lays a screen out at the
-// proportions it has on the reference device, then uniformly scales the whole
-// thing to the actual device. Every iPhone therefore shows the IDENTICAL
-// layout — same spacing, same balance — just resized to its screen. On the
-// reference device the scale is exactly 1.0 (pixel-for-pixel unchanged); every
-// smaller iPhone shrinks to fit. It never scales UP past the reference.
+// `FitToReferenceScreen` removes that difference: it lays a screen out at a
+// canvas the size this area WOULD be on the reference device, then uniformly
+// scales the whole thing to the actual device. On the reference device the
+// scale is exactly 1.0 (pixel-for-pixel unchanged); every smaller iPhone
+// shrinks in lockstep to fit, with nothing clipped, nothing off-screen, and
+// never a scroll. It never scales UP past the reference.
+//
+// Because the scale is a single uniform factor, the composition is visually
+// the same on any iPhone that shares the reference's tall aspect ratio — i.e.
+// every Face-ID iPhone (all ~19.5:9). On the handful of legacy Home-button /
+// 16:9 phones (SE, older), the shorter-and-wider screen means the layout fills
+// proportionally a touch wider rather than pixel-identically — still one
+// screen, nothing clipped, nothing scrolling.
 
 import SwiftUI
 
