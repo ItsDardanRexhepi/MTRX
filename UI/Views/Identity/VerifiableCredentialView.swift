@@ -23,7 +23,6 @@ final class VerifiableCredentialViewModel: ObservableObject {
     @Published var issueClaims: [ClaimPair] = [ClaimPair()]
     @Published var issueExpiry: Date = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
     @Published var isIssuing: Bool = false
-    @Published var issueSuccess: Bool = false
 
     // Verify
     @Published var verifyInput: String = ""

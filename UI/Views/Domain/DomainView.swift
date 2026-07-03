@@ -21,7 +21,6 @@ final class DomainViewModel: ObservableObject {
     @Published var selectedDuration: RegistrationDuration = .oneYear
     @Published var showRegisterSheet: Bool = false
     @Published var isRegistering: Bool = false
-    @Published var registrationComplete: Bool = false
     @Published var contentAppeared: Bool = false
     @Published var isDemo: Bool = false
     @Published var actionUnavailable: Bool = false
@@ -120,7 +119,6 @@ enum RegistrationDuration: CaseIterable {
 // MARK: - Domain View
 
 struct DomainView: View {
-    @State private var renewedDomain: String?
     @StateObject private var viewModel = DomainViewModel()
 
     private let accent = Color(red: 0.0, green: 0.675, blue: 0.694)
@@ -257,7 +255,6 @@ struct DomainView: View {
 
                     Button {
                         viewModel.showRegisterSheet = true
-                        viewModel.registrationComplete = false
                         MtrxHaptics.impact(.medium)
                     } label: {
                         Label("Register", systemImage: Symbols.cart)
@@ -365,11 +362,7 @@ struct DomainView: View {
                         viewModel.showRegisterSheet = false
                     }
 
-                    if viewModel.registrationComplete {
-                        registrationSuccessView
-                    } else {
-                        registrationFormView
-                    }
+                    registrationFormView
                 }
                 .padding(.bottom, Spacing.xxl)
             }
@@ -470,37 +463,6 @@ struct DomainView: View {
                 .padding(.horizontal, Spacing.contentPadding)
             }
         }
-    }
-
-    private var registrationSuccessView: some View {
-        VStack(spacing: Spacing.lg) {
-            Image(systemName: Symbols.complete)
-                .font(.system(size: 56, weight: .light))
-                .foregroundStyle(Color.statusSuccess)
-                .mtrxGlow(color: .statusSuccess)
-
-            VStack(spacing: Spacing.sm) {
-                Text("Registration Successful")
-                    .font(.mtrxTitle3)
-                    .foregroundStyle(Color.labelPrimary)
-                if let result = viewModel.searchResult {
-                    Text("\(result.name) is now yours!")
-                        .font(.mtrxBody)
-                        .foregroundStyle(Color.labelSecondary)
-                }
-            }
-
-            Button {
-                viewModel.showRegisterSheet = false
-                viewModel.searchResult = nil
-                viewModel.searchText = ""
-            } label: {
-                Text("Done")
-            }
-            .buttonStyle(MtrxButtonStyle(variant: .primary, size: .regular))
-        }
-        .mtrxFadeInFromBottom(isVisible: true)
-        .padding(.horizontal, Spacing.contentPadding)
     }
 }
 

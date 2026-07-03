@@ -25,7 +25,6 @@ final class AccessControlViewModel: ObservableObject {
     @Published var grantRole: String = "Operator"
     @Published var grantExpiry: Date = Calendar.current.date(byAdding: .month, value: 6, to: Date()) ?? Date()
     @Published var isGranting: Bool = false
-    @Published var grantSuccess: Bool = false
     @Published var actionUnavailable: Bool = false
 
     // Revoke
@@ -234,11 +233,6 @@ struct AccessControlView: View {
                 }
             }
             .task { await viewModel.loadAccessControl() }
-            .alert("Role Granted", isPresented: $viewModel.grantSuccess) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Role has been granted successfully.")
-            }
             .alert("Revoke Role", isPresented: $viewModel.showRevokeConfirm) {
                 Button("Revoke", role: .destructive) { viewModel.executeRevoke() }
                 Button("Cancel", role: .cancel) { }

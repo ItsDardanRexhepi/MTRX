@@ -23,7 +23,6 @@ final class MusicViewModel: ObservableObject {
     @Published var uploadPricePerPlay: String = "0.001"
     @Published var collaborators: [Collaborator] = [Collaborator(name: "", splitPercent: 100)]
     @Published var isUploading: Bool = false
-    @Published var uploadSuccess: Bool = false
 
     // Player
     @Published var currentTrack: MusicTrack?
