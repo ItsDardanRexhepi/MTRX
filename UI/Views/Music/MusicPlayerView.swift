@@ -91,10 +91,12 @@ final class SystemVolume: ObservableObject {
 
     deinit {
         poll?.invalidate()
-        // Release our observer session cleanly. Deactivation is safe: the music
-        // plays on the system player's own session, not this one, so it keeps
-        // going untouched.
-        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        // Do NOT deactivate the session here. AVAudioSession is a process-wide
+        // singleton that MusicKit's player shares — deactivating it when the
+        // Now Playing sheet closes would pause the very music that should keep
+        // playing in the mini player. The mixing category we set is harmless to
+        // leave in place; the KVO observer tears itself down when this object
+        // is released.
     }
 
     /// The MPVolumeView's writable UISlider. On current iOS it is NOT a direct

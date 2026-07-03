@@ -1775,6 +1775,14 @@ struct SocialView: View {
                                 .onChanged { v in
                                     if abs(v.translation.width) > abs(v.translation.height) + 4 {
                                         storiesSwiping = true
+                                        // Backstop: a short rail flick (10–24pt)
+                                        // never reaches the pager's onEnded, so
+                                        // clear the flag shortly after too — it
+                                        // can never stick true and swallow the
+                                        // next genuine tab swipe.
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                            storiesSwiping = false
+                                        }
                                     }
                                 }
                         )

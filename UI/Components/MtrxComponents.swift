@@ -972,11 +972,27 @@ enum MtrxHaptics {
 /// backend gateway is configured and the view flips to live service data.
 struct DemoBadge: View {
     var label: String = "Demo data"
-    // The demo-data badge is intentionally not shown. The demo-vs-live data
-    // logic (the `isDemo` flags) is unchanged — only the visible badge is
-    // suppressed, at every call site, by rendering nothing here.
+    // DEBUG (dev / device) builds SHOW the badge, so demo data is clearly
+    // labelled while the screens are being worked on. RELEASE (Archive →
+    // TestFlight → App Store) builds render nothing — the shipped app stays
+    // visually clean, exactly as when the badge was removed for build 199. The
+    // demo-vs-live `isDemo` logic is unchanged either way.
     var body: some View {
+        #if DEBUG
+        HStack(spacing: 4) {
+            Image(systemName: "testtube.2")
+                .font(.system(size: 10, weight: .semibold))
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(.orange)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(Color.orange.opacity(0.15)))
+        .accessibilityLabel("\(label) — not live")
+        #else
         EmptyView()
+        #endif
     }
 }
 
