@@ -174,61 +174,86 @@ private struct MusicAttributionFooter: View {
     }
 }
 
-/// The floating oval mini-player bubble above the tab bar on every tab — the
-/// product owner's chosen shape (liquid-glass pill with side gutters, NOT the
-/// full-width Apple Music bar). The whole bubble is one hit target: a tap
-/// anywhere on it that isn't a transport button opens the full player, and no
-/// touch on the bubble ever falls through to the content underneath; the
-/// transport buttons carry full-height 44pt targets and act without leaving
-/// the tab.
+/// The floating mini-player bubble above the tab bar on every tab — modelled
+/// on Apple Music's own mini-player: a short, heavily-rounded dark glass pill
+/// with the square artwork inset on the left, the title + artist filling the
+/// middle and fading out on the trailing edge (no hard ellipsis), and the
+/// transports grouped tight on the right. Per the product owner it carries
+/// three controls — back · play/pause · forward — spaced close together. The
+/// whole bubble is one hit target: a tap anywhere that isn't a transport
+/// button opens the full player, and no touch on the bubble ever falls through
+/// to the content underneath; each transport has its own tap target and acts
+/// without leaving the tab.
 struct MusicMiniPlayer: View {
     @State private var music = MusicKitManager.shared
     let onTap: () -> Void
+
+    /// Fades the trailing edge of the title/artist instead of a hard cut, the
+    /// way Apple Music does. Short strings sit left of the fade and are
+    /// untouched; only text that reaches the edge dissolves.
+    private var edgeFade: LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: .black, location: 0),
+                .init(color: .black, location: 0.9),
+                .init(color: .clear, location: 1.0)
+            ],
+            startPoint: .leading, endPoint: .trailing
+        )
+    }
 
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: Spacing.sm) {
                 Group {
                     if let art = music.nowPlayingArtwork {
-                        ArtworkImage(art, width: 40, height: 40)
+                        ArtworkImage(art, width: 38, height: 38)
                     } else {
-                        RoundedRectangle(cornerRadius: 6).fill(Color.surfaceOverlay).frame(width: 40, height: 40)
+                        RoundedRectangle(cornerRadius: 7).fill(Color.surfaceOverlay).frame(width: 38, height: 38)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(music.nowPlayingTitle ?? "").font(.mtrxCaptionBold).foregroundStyle(Color.labelPrimary).lineLimit(1)
                     Text(music.nowPlayingArtist ?? "").font(.mtrxCaption2).foregroundStyle(Color.labelSecondary).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .mask(edgeFade)
 
-                Button { music.skipPrevious() } label: {
-                    Image(systemName: "backward.fill").font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Color.labelPrimary).accessibilityLabel("Previous")
-                        .frame(width: 38, height: 44).contentShape(Rectangle())
+                // Transports grouped tight: back · play/pause · forward. The
+                // inter-button spacing is roughly half of a normal control row
+                // so the three sit close, like the reference mini-player.
+                HStack(spacing: 0) {
+                    Button { music.skipPrevious() } label: {
+                        Image(systemName: "backward.fill").font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(Color.labelPrimary).accessibilityLabel("Previous")
+                            .frame(width: 32, height: 40).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Button { music.togglePlayPause() } label: {
+                        Image(systemName: music.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 19, weight: .medium)).foregroundStyle(Color.labelPrimary)
+                            .accessibilityLabel(music.isPlaying ? "Pause" : "Play")
+                            .frame(width: 34, height: 40).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Button { music.skipNext() } label: {
+                        Image(systemName: "forward.fill").font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(Color.labelPrimary).accessibilityLabel("Next")
+                            .frame(width: 32, height: 40).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                Button { music.togglePlayPause() } label: {
-                    Image(systemName: music.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 19, weight: .semibold)).foregroundStyle(Color.labelPrimary)
-                        .accessibilityLabel(music.isPlaying ? "Pause" : "Play")
-                        .frame(width: 40, height: 44).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                Button { music.skipNext() } label: {
-                    Image(systemName: "forward.fill").font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Color.labelPrimary).accessibilityLabel("Next")
-                        .frame(width: 38, height: 44).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
             }
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
+            .padding(.leading, Spacing.sm)
+            .padding(.trailing, Spacing.xs)
+            .padding(.vertical, 6)
             // The whole bubble is a single hit target — no dead spots between
             // the artwork, text, and transports that let taps fall through.
             .contentShape(Rectangle())
-            .mtrxLiquidGlass(in: RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
+            // Apple Music's heavily-rounded dark glass pill.
+            .mtrxLiquidGlass(in: RoundedRectangle(cornerRadius: Spacing.CornerRadius.xl, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityHint("Opens the full player")
