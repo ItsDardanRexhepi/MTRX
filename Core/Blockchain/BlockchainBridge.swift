@@ -428,9 +428,44 @@ final class BlockchainBridge {
             }
         }
 
-        // Sign the operation
+        // P5-2: gas-sponsorship splice. Request a verifying-paymaster signature
+        // and fold its `paymasterAndData` into the op BEFORE signing (the
+        // userOpHash covers keccak256(paymasterAndData)). Guarded by
+        // isGasSponsorshipConfigured; if sponsorship isn't configured or the
+        // server declines, the op is signed as-is and the sender pays its own
+        // gas — never a fabricated sponsorship.
+        var opToSign = estimatedOp
+        if PendingCredentials.isGasSponsorshipConfigured {
+            let validUntil = Int(Date().timeIntervalSince1970) + 3600
+            let hexD: (Data) -> String = { "0x" + $0.map { String(format: "%02x", $0) }.joined() }
+            let pmBody: [String: AnyCodableValue] = [
+                "sender": .string(estimatedOp.sender),
+                "nonce": .int(Int(estimatedOp.nonce)),
+                "init_code": .string(hexD(estimatedOp.initCode)),
+                "call_data": .string(hexD(estimatedOp.callData)),
+                "call_gas_limit": .int(Int(estimatedOp.callGasLimit)),
+                "verification_gas_limit": .int(Int(estimatedOp.verificationGasLimit)),
+                "pre_verification_gas": .int(Int(estimatedOp.preVerificationGas)),
+                "max_fee_per_gas": .int(Int(estimatedOp.maxFeePerGas)),
+                "max_priority_fee_per_gas": .int(Int(estimatedOp.maxPriorityFeePerGas)),
+                // Pin the chain explicitly so the digest the server signs is over
+                // the SAME chainId the client's op targets — never a fragile
+                // shared default (a divergence would silently invalidate the
+                // sponsorship on-chain at bundle time).
+                "chain_id": .int(Int(chainId)),
+                "valid_until": .int(validUntil),
+                "valid_after": .int(0),
+                "action_type": .string("transfer"),
+            ]
+            if let pmHex = await MTRXAPIClient.shared.requestPaymasterAndData(pmBody),
+               let pmData = Data(hexString: pmHex) {
+                opToSign = estimatedOp.withPaymasterAndData(pmData)
+            }
+        }
+
+        // Sign the (possibly sponsored) operation
         let signedOp = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<UserOperation, Error>) in
-            manager.signOperation(estimatedOp) { result in
+            manager.signOperation(opToSign) { result in
                 switch result {
                 case .success(let op): continuation.resume(returning: op)
                 case .failure(let err): continuation.resume(throwing: err)
