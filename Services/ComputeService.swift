@@ -34,8 +34,16 @@ final class ComputeService {
 
     private init() {}
 
+    // P2 missing-routes: the gateway exposes only the storage legs today
+    // (/api/v1/compute/store · /ipfs/pin · /arweave/store). The provider
+    // catalog + job lifecycle routes below aren't registered yet, though the
+    // privacy service already has a submit_compute_job method to back /jobs
+    // (see LOOP_P2_MISSING_ROUTES.md). Paths are namespaced correctly so they
+    // light up when P2 registers them; until then they 404 and the view falls
+    // back to demo data (no fabricated jobs).
+
     func getComputeProviders() async throws -> [ComputeProvider] {
-        try await api.get(path: "/compute/providers")
+        try await api.get(path: "/api/v1/compute/providers")
     }
 
     func submitJob(type: String, inputs: Data, providerId: String, budget: String) async throws -> ComputeJob {
@@ -51,21 +59,21 @@ final class ComputeService {
             providerId: providerId,
             budget: budget
         )
-        return try await api.post(path: "/compute/jobs", body: body)
+        return try await api.post(path: "/api/v1/compute/jobs", body: body)
     }
 
     func getUserJobs(address: String) async throws -> [ComputeJob] {
-        try await api.get(path: "/compute/jobs", queryItems: [
+        try await api.get(path: "/api/v1/compute/jobs", queryItems: [
             URLQueryItem(name: "address", value: address)
         ])
     }
 
     func getJobStatus(jobId: String) async throws -> ComputeJob {
-        try await api.get(path: "/compute/jobs/\(jobId)")
+        try await api.get(path: "/api/v1/compute/jobs/\(jobId)")
     }
 
     func downloadResult(jobId: String) async throws -> Data {
-        let result: [String: String] = try await api.get(path: "/compute/jobs/\(jobId)/result")
+        let result: [String: String] = try await api.get(path: "/api/v1/compute/jobs/\(jobId)/result")
         guard let base64 = result["data"],
               let data = Data(base64Encoded: base64) else {
             throw MTRXAPIError.decodingFailed("Failed to decode compute result data")
