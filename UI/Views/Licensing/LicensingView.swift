@@ -59,16 +59,54 @@ final class LicensingViewModel: ObservableObject {
 
     // MARK: - Register
 
-    func registerIP() {
+    func registerIP() async {
         guard !registerName.isEmpty else {
             errorMessage = "IP name is required."
             return
         }
-        // Honest failure: no on-chain IP-registration path is wired. Never
-        // insert a fabricated asset as if it were registered on-chain.
+        // Live execution leg (P3): register through the real gateway route
+        // (POST /api/v1/licensing/ip → ip_royalties.register_ip, gated by the
+        // Morpheus seam). With no backend configured this stays an honest no-op.
+        guard PendingCredentials.isBackendConfigured, let owner = MtrxSession.walletAddress else {
+            errorMessage = nil
+            actionUnavailableMessage = "Registering IP on-chain isn't available in this build yet. Nothing was registered."
+            actionUnavailable = true
+            return
+        }
+        isRegistering = true
         errorMessage = nil
-        actionUnavailableMessage = "Registering IP on-chain isn't available in this build yet. Nothing was registered."
-        actionUnavailable = true
+        do {
+            let params = IPRegistrationParams(
+                owner: owner,
+                name: registerName,
+                description: registerDescription,
+                type: registerType.rawValue,
+                evidenceHash: nil
+            )
+            // Success is gated on the REAL server record — never fabricated.
+            let asset = try await LicensingService.shared.registerIP(params: params)
+            myIP.insert(
+                LicensingIPAsset(
+                    name: asset.name,
+                    description: asset.description,
+                    type: registerType,
+                    owner: asset.owner,
+                    registeredDate: asset.registeredAt,
+                    licenseCount: asset.licenseCount,
+                    registrationFee: Double(registerFee) ?? 0
+                ),
+                at: 0
+            )
+            isEmpty = false
+            isRegistering = false
+            registerSuccess = true
+            resetRegisterForm()
+        } catch {
+            // Honest failure — nothing registered, no fabricated asset.
+            isRegistering = false
+            actionUnavailableMessage = "Registering IP couldn't be completed. Nothing was registered."
+            actionUnavailable = true
+        }
     }
 
     // MARK: - Issue License
@@ -78,16 +116,46 @@ final class LicensingViewModel: ObservableObject {
         showIssueLicenseSheet = true
     }
 
-    func issueLicense() {
-        guard !licenseRecipient.isEmpty, selectedIPForLicense != nil else {
+    func issueLicense() async {
+        guard !licenseRecipient.isEmpty, let ip = selectedIPForLicense else {
             errorMessage = "Recipient is required."
             return
         }
-        // Honest failure: no license-issuance path is wired. Never bump the
-        // license count as if a license were issued on-chain.
-        showIssueLicenseSheet = false
-        actionUnavailableMessage = "Issuing a license isn't available in this build yet. Nothing was issued."
-        actionUnavailable = true
+        // Live execution leg (P3): issue through the real gateway route
+        // (POST /api/v1/licensing/licenses → ip_royalties.license_ip). With no
+        // backend configured this stays an honest no-op.
+        guard PendingCredentials.isBackendConfigured else {
+            showIssueLicenseSheet = false
+            actionUnavailableMessage = "Issuing a license isn't available in this build yet. Nothing was issued."
+            actionUnavailable = true
+            return
+        }
+        isIssuingLicense = true
+        errorMessage = nil
+        do {
+            let terms = LicenseTerms(
+                scope: licenseScope.rawValue,
+                isExclusive: licenseScope == .exclusive,
+                durationDays: licenseDuration * 30,
+                price: Double(licensePrice) ?? 0,
+                commercialUse: licenseScope != .personal
+            )
+            // Success gated on a real result — only then reflect the issuance.
+            _ = try await LicensingService.shared.issueLicense(
+                ipId: ip.id.uuidString, recipient: licenseRecipient, terms: terms
+            )
+            if let idx = myIP.firstIndex(where: { $0.id == ip.id }) {
+                myIP[idx].licenseCount += 1
+            }
+            isIssuingLicense = false
+            showIssueLicenseSheet = false
+            licenseRecipient = ""
+        } catch {
+            // Honest failure — nothing issued, no fabricated license count bump.
+            isIssuingLicense = false
+            actionUnavailableMessage = "Issuing a license couldn't be completed. Nothing was issued."
+            actionUnavailable = true
+        }
     }
 
     private func resetRegisterForm() {
@@ -379,7 +447,7 @@ struct LicensingView: View {
 
             Section {
                 Button {
-                    viewModel.registerIP()
+                    Task { await viewModel.registerIP() }
                 } label: {
                     HStack {
                         Spacer()
@@ -503,7 +571,7 @@ struct LicensingView: View {
 
                 Section {
                     Button {
-                        viewModel.issueLicense()
+                        Task { await viewModel.issueLicense() }
                     } label: {
                         HStack {
                             Spacer()
