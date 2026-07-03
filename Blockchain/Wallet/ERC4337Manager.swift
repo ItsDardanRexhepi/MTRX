@@ -232,6 +232,26 @@ struct UserOperation: Codable {
 
         return Keccak256.hashHex(data: packed)
     }
+
+    /// Return a copy with server-signed `paymasterAndData` spliced in and the
+    /// signature cleared. ERC-4337: the userOpHash covers
+    /// keccak256(paymasterAndData), so gas sponsorship MUST be applied BEFORE
+    /// signing — the owner then signs the sponsored operation (P5-2).
+    func withPaymasterAndData(_ data: Data) -> UserOperation {
+        UserOperation(
+            sender: sender,
+            nonce: nonce,
+            initCode: initCode,
+            callData: callData,
+            callGasLimit: callGasLimit,
+            verificationGasLimit: verificationGasLimit,
+            preVerificationGas: preVerificationGas,
+            maxFeePerGas: maxFeePerGas,
+            maxPriorityFeePerGas: maxPriorityFeePerGas,
+            paymasterAndData: data,
+            signature: Data()
+        )
+    }
 }
 
 struct SmartAccountConfig {
