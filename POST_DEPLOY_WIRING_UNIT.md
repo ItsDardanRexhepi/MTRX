@@ -103,3 +103,50 @@ Byte-exact digest cross-test stays green; forge suites green; a testnet
 UserOp per flow (D2 gateway swap, D3 rotation, M6 batch attest) each verified
 by reading the resulting state/attestation back from chain — no
 submit-and-assume.
+
+---
+
+## Phase-6 additions — Universal Skeleton build-out (this run, 2026-07-03)
+
+Legs wired to real paths during Phases 1–5 of the loop build-out. All are
+honest-gated (`isBackendConfigured` / `isGasSponsorshipConfigured` / deployed
+addresses) and stay dormant until the deploy-wall keys below are filled — so the
+shipping app is unchanged.
+
+| Leg | Where | Fires when |
+|---|---|---|
+| **P5-2 gas-sponsorship splice** — `requestPaymasterAndData` → fold `paymasterAndData` into the op **before** signing | `Core/Blockchain/BlockchainBridge.swift` `sendTransaction`; `ERC4337Manager.withPaymasterAndData` | `isGasSponsorshipConfigured` (bundler + paymaster address + paymaster-sign endpoint) |
+| **P3 NFT mint** — real `POST /api/v1/nft/mint`, success gated on the server result | `UI/Views/NFT/MintNFTView.swift` | `isBackendConfigured` |
+| **P3 IP register / issue-license** — real `POST /api/v1/licensing/ip` · `/licenses` (paths corrected to `/api/v1`) | `UI/Views/Licensing/LicensingView.swift`, `Services/LicensingService.swift` | `isBackendConfigured` |
+| **P1-2 Oracle/Compute/Portfolio client paths** corrected to `/api/v1` | `Services/{Oracle,Compute,Portfolio}Service.swift` | `isBackendConfigured` (some routes are P2 501s → demo fallback) |
+
+Server-side legs that are **live now** (no deploy dependency): P1-1 gateway
+routing fixes, P2 route completion (42 legs; 5 WIRE, 37 honest-501), P4 ripple
+emission (`feed.ripple` on every executed non-privacy action), P5-1 governance
+vote identity binding.
+
+## THE DEPLOY WALL — config keys the owner must provide
+
+Paste these into `Config/PendingCredentials.swift` (and the gateway config)
+after deploying to Base Sepolia. Until then every dependent leg fails honestly.
+
+**Chain / ERC-4337 (unblocks sends, sponsorship, recovery):**
+`Network.rpcURL`, `Network.webSocketURL`, `Network.gatewayURL`,
+`AccountAbstraction.bundlerURL`, `AccountAbstraction.entryPointAddress`,
+`AccountAbstraction.accountFactoryAddress`,
+`AccountAbstraction.paymasterAddress`,
+`AccountAbstraction.paymasterSignatureEndpoint`,
+`Recovery.socialRecoveryModuleAddress`
+
+**Attestation / Oracle:** `Attestation.schemaUID`, `Oracle.ethUsdSource`
+
+**30 component contract addresses** (`Contracts.*`): contractConversion,
+deFiLending, nft, rwa, identity, dao, stablecoin, attestation, agentIdentity,
+agenticPayments, oracle, supplyChain, insurance, gaming, ip, staking, payments,
+securities, governance, dashboard, dex, fundraising, loyalty, marketplace, …
+
+**Payments (optional, App Store):** `Payments.applePayMerchantID`,
+`Payments.applePayProcessorChargeURL`
+
+**STOP.** No further chain-dependent wiring can be proven without these
+addresses. This is the sanctioned Phase-6 deploy wall.
