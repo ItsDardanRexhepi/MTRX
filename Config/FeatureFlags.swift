@@ -15,9 +15,26 @@ import SwiftUI
 
 enum FeatureFlags {
 
-    /// App Store MVP mode. When true, regulated financial features are
-    /// hidden from the UI and their screens render a neutral placeholder.
-    static let mvpMode = true
+    /// App Store MVP mode. When true, regulated financial features are hidden
+    /// from the UI and their screens render a neutral placeholder.
+    ///
+    /// DEBUG builds (Xcode run / device dev builds) unlock everything so the
+    /// full set of feature screens shows its honest DEMO data and can be worked
+    /// on. RELEASE builds (Archive → TestFlight → App Store) keep the gate on,
+    /// so the shipped, review-facing build stays compliant with guideline
+    /// 3.1.5(b) — no code change needed at ship time. Flip `releaseMVPMode` to
+    /// change the shipped behaviour.
+    static var mvpMode: Bool {
+        #if DEBUG
+        return false
+        #else
+        return releaseMVPMode
+        #endif
+    }
+
+    /// The gate value used by RELEASE (shipped) builds. Kept true until the
+    /// licensed-partner integrations exist.
+    static let releaseMVPMode = true
 
     /// Regulated financial features are shown only outside MVP mode.
     static var regulatedFeaturesEnabled: Bool { !mvpMode }

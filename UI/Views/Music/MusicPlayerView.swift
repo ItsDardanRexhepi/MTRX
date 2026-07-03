@@ -61,28 +61,41 @@ final class SystemVolume: ObservableObject {
         // writes the system volume through the in-hierarchy slider (see set()).
         mpView.clipsToBounds = true
         mpView.setVolumeThumbImage(UIImage(), for: .normal)
-        // NEVER activate the audio session here: NowPlayingView creates this
-        // object when the player opens, and setActive(true) mid-playback is an
-        // audio-focus grab that PAUSES the very music being played (the
-        // "tap the mini player and the song stops" bug). KVO on outputVolume
-        // delivers while our session is active (i.e. while we're the one
-        // playing); the poll below covers hardware-button presses the KVO
-        // misses, with zero session side effects — reading outputVolume never
-        // touches audio focus.
-        observation = AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.new]) { [weak self] _, change in
+        // Activate a MIXING session so `outputVolume` KVO delivers hardware
+        // volume-button presses into the UI LIVE — the key is `.mixWithOthers`:
+        // it coexists with the Apple Music player (which plays through the
+        // system music service, a separate session) instead of grabbing audio
+        // focus. Grabbing focus is what paused playback before; mixing never
+        // interrupts, ducks, or takes over Now Playing. We play no audio through
+        // this session — it exists only to observe the system volume. Without an
+        // active session, `outputVolume` KVO never fires, so the phone's buttons
+        // and our rocker would never sync.
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, options: [.mixWithOthers])
+        try? session.setActive(true)
+        level = session.outputVolume
+        observation = session.observe(\.outputVolume, options: [.new]) { [weak self] _, change in
             guard let self, let v = change.newValue else { return }
             DispatchQueue.main.async {
                 if Date() > self.ignoreEchoUntil { self.level = v }   // ignore our own writes
             }
         }
-        poll = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        // A fast backstop for the rare press the KVO coalesces away, so the
+        // rocker never lags the hardware by more than a blink.
+        poll = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
             guard let self else { return }
             let v = AVAudioSession.sharedInstance().outputVolume
-            if Date() > self.ignoreEchoUntil, abs(v - self.level) > 0.001 { self.level = v }
+            if Date() > self.ignoreEchoUntil, abs(v - self.level) > 0.0005 { self.level = v }
         }
     }
 
-    deinit { poll?.invalidate() }
+    deinit {
+        poll?.invalidate()
+        // Release our observer session cleanly. Deactivation is safe: the music
+        // plays on the system player's own session, not this one, so it keeps
+        // going untouched.
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+    }
 
     /// The MPVolumeView's writable UISlider. On current iOS it is NOT a direct
     /// subview (it sits a level or two down), so a flat `subviews` scan finds

@@ -17,6 +17,10 @@ final class ContentPublishingViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isEmpty: Bool = false
+    /// True while the Feed / My Content lists are showing bundled sample posts
+    /// rather than real published content — drives the DemoBadge so the demo
+    /// data is never mistaken for the user's own.
+    @Published var isDemo: Bool = false
 
     // Create Post
     @Published var postTitle: String = ""
@@ -53,8 +57,11 @@ final class ContentPublishingViewModel: ObservableObject {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
             guard let self else { return }
+            // No live content backend yet, so these are bundled sample posts —
+            // flag them as demo so the badge shows and nothing reads as real.
             self.feedPosts = ContentPost.sampleFeed
             self.myPosts = ContentPost.sampleMine
+            self.isDemo = true
             self.isEmpty = self.feedPosts.isEmpty
             self.isLoading = false
         }
@@ -228,6 +235,11 @@ struct ContentPublishingView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Content")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                if viewModel.isDemo {
+                    ToolbarItem(placement: .principal) { DemoBadge() }
+                }
+            }
             .onAppear { viewModel.loadContent() }
             .sheet(isPresented: $viewModel.showTipSheet) {
                 tipSheet
