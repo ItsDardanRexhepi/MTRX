@@ -97,6 +97,17 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build-for-testing | xcpretty
 
+      - name: Verify the widget extension is embedded
+        # Phase 6: the MTRXWidgets appex must build and embed in the host app,
+        # else the Home Screen widgets + Live Activity silently vanish.
+        run: |
+          set -e
+          app=$(find "${{ env.DERIVED_DATA }}/Build/Products" -name 'MTRX.app' | head -1)
+          test -n "$app" || { echo "MTRX.app not found in build products"; exit 1; }
+          appex="$app/PlugIns/MTRXWidgets.appex"
+          test -d "$appex" || { echo "FAIL: MTRXWidgets.appex not embedded"; exit 1; }
+          echo "OK: widget extension embedded at $appex"
+
       - name: Run unit tests
         env:
           MTRX_RUNTIME_URL: ${{ secrets.MTRX_RUNTIME_URL || 'http://localhost:8000' }}
