@@ -43,58 +43,62 @@ struct HomeView: View {
         ZStack {
             MtrxGradientBackground(style: .trinityGlow)
 
-            // Sized so the whole dashboard — greeting through Services —
-            // fits one screen above the dock. Even 20pt section rhythm.
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.sm) {
-                    greetingHeader
-                        .mtrxStaggeredAppearance(index: 0, isVisible: appeared)
+            // A fixed, non-scrolling dashboard: every section sits at its
+            // natural, safe-area-driven size, and the feed card is fit to a
+            // regular social post (Self.feedCardHeight) — taller content
+            // (polls, quoted reposts) fades out and opens in full on tap.
+            // Nothing scrolls and nothing slides under the floating dock: the
+            // native tab bar reserves its own bottom inset on every device.
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                greetingHeader
+                    .mtrxStaggeredAppearance(index: 0, isVisible: appeared)
 
-                    // While the ask bar is focused, the rest of the page
-                    // gently recedes so the bar is what you're working in —
-                    // but everything stays tappable underneath.
-                    Group {
-                        portfolioSnapshot
-                            .mtrxStaggeredAppearance(index: 1, isVisible: appeared)
+                // While the ask bar is focused, the rest of the page
+                // gently recedes so the bar is what you're working in —
+                // but everything stays tappable underneath.
+                Group {
+                    portfolioSnapshot
+                        .mtrxStaggeredAppearance(index: 1, isVisible: appeared)
 
-                        HomeMusicWidget { showMusicPlayer = true }
-                            .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
+                    HomeMusicWidget { showMusicPlayer = true }
+                        .mtrxStaggeredAppearance(index: 2, isVisible: appeared)
 
-                        quickActionsSection
-                            .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
+                    quickActionsSection
+                        .mtrxStaggeredAppearance(index: 3, isVisible: appeared)
 
-                        homeFeedSection
-                            .mtrxStaggeredAppearance(index: 4, isVisible: appeared)
-                    }
-                    .opacity(askFocused ? 0.42 : 1)
-                    .blur(radius: askFocused ? 1.5 : 0)
-                    .animation(.easeInOut(duration: 0.4), value: askFocused)
+                    homeFeedSection
+                        .mtrxStaggeredAppearance(index: 4, isVisible: appeared)
                 }
-                .padding(.horizontal, Spacing.contentPadding)
-                .padding(.top, Spacing.sm)
-                // The floating dock already reserves its own safe-area inset,
-                // so only a small breath is needed here — no dead space.
-                .padding(.bottom, Spacing.md)
-                // In edit mode, tapping empty space exits jiggle — no need
-                // to reach for Done.
-                .background {
-                    if editingActions {
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .onTapGesture { exitEditMode() }
-                    } else if askFocused {
-                        // Tap any empty (unclickable) area to leave the search
-                        // bar and drop the keyboard. Quick actions and the
-                        // portfolio stay tappable — their own taps are
-                        // consumed before reaching this catcher.
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .onTapGesture { askFocused = false }
-                    }
+                .opacity(askFocused ? 0.42 : 1)
+                .blur(radius: askFocused ? 1.5 : 0)
+                .animation(.easeInOut(duration: 0.4), value: askFocused)
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+            .padding(.top, Spacing.sm)
+            // The floating dock already reserves its own safe-area inset,
+            // so only a small breath is needed here — no dead space.
+            .padding(.bottom, Spacing.md)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // In edit mode, tapping empty space exits jiggle — no need
+            // to reach for Done.
+            .background {
+                if editingActions {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { exitEditMode() }
+                } else if askFocused {
+                    // Tap any empty (unclickable) area to leave the search
+                    // bar and drop the keyboard. Quick actions and the
+                    // portfolio stay tappable — their own taps are
+                    // consumed before reaching this catcher.
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { askFocused = false }
                 }
             }
-            // Any scroll drops the keyboard instantly — the easiest way out.
-            .scrollDismissesKeyboard(.immediately)
+            // A fixed surface: the keyboard must not squeeze the dashboard —
+            // the ask-bar chat opens in its own overlay with real avoidance.
+            .ignoresSafeArea(.keyboard)
 
             // The inline chat that grows from the search bar.
             if homeChatOpen {
@@ -1078,6 +1082,14 @@ struct HomeView: View {
         Array(socialFeed.posts.sorted { $0.timestamp > $1.timestamp }.prefix(5))
     }
 
+    /// The feed card is fit to a REGULAR social post — header, up to three
+    /// lines of text, proof badge, engagement row. Taller content (polls,
+    /// quoted reposts) clips behind the soft fade and opens in full on tap,
+    /// instead of the card ballooning to fit it (or a regular post sitting
+    /// in dead space sized for the tall ones). Content-driven, not tuned to
+    /// any one screen.
+    private static let feedCardHeight: CGFloat = 196
+
     private var homeFeedSection: some View {
         VStack(alignment: .leading, spacing: Spacing.ms) {
             HStack(alignment: .firstTextBaseline) {
@@ -1118,7 +1130,7 @@ struct HomeView: View {
                     }
                     .scrollTargetLayout()
                 }
-                .frame(height: 110)
+                .frame(height: Self.feedCardHeight)
                 .scrollTargetBehavior(.viewAligned)
                 .scrollPosition(id: $feedScrollIndex)
                 .onAppear {
@@ -1214,13 +1226,13 @@ struct HomeView: View {
             onOpen: { homeDetailPost = post },
             onAvatarTap: { homeProfileAuthor = post }
         )
-        .lineLimit(2)
+        .lineLimit(3)
         .padding(Spacing.ms)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        // A fixed height so the card can never balloon to its full content
-        // height; the clip keeps any longer content (polls, media) from
-        // bleeding out past the card's rounded edge.
-        .frame(height: 110, alignment: .topLeading)
+        // A fixed, normal-post height so the card can never balloon to tall
+        // content's full height; the clip keeps longer content (polls, quoted
+        // reposts, media) from bleeding out past the card's rounded edge.
+        .frame(height: Self.feedCardHeight, alignment: .topLeading)
         // Content taller than the card (polls, media) dissolves softly into
         // the card's bottom instead of being hard-cut mid-line at the edge.
         .mask(

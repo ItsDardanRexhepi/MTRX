@@ -60,6 +60,12 @@ final class SystemVolume: ObservableObject {
         // writes the system volume through the in-hierarchy slider (see set()).
         mpView.clipsToBounds = true
         mpView.setVolumeThumbImage(UIImage(), for: .normal)
+        // outputVolume KVO only delivers while the app's audio session is
+        // active — make sure it is, so hardware volume-button presses reflect
+        // into the UI slider even before our own playback engine activates it.
+        // (Already-active is a harmless no-op; failure just means the ticker
+        // below catches up on the next read.)
+        try? AVAudioSession.sharedInstance().setActive(true)
         observation = AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.new]) { [weak self] _, change in
             guard let self, let v = change.newValue else { return }
             DispatchQueue.main.async {
@@ -68,11 +74,29 @@ final class SystemVolume: ObservableObject {
         }
     }
 
+    /// The MPVolumeView's writable UISlider. On current iOS it is NOT a direct
+    /// subview (it sits a level or two down), so a flat `subviews` scan finds
+    /// nothing and the write silently no-ops — the exact "slider moves but the
+    /// phone's volume doesn't" bug. Search the whole subtree.
+    private func systemSlider(in view: UIView) -> UISlider? {
+        for sub in view.subviews {
+            if let slider = sub as? UISlider { return slider }
+            if let nested = systemSlider(in: sub) { return nested }
+        }
+        return nil
+    }
+
     func set(_ v: Float) {
         level = v
         ignoreEchoUntil = Date().addingTimeInterval(0.3)
-        if let slider = mpView.subviews.compactMap({ $0 as? UISlider }).first {
-            slider.value = v   // an in-hierarchy MPVolumeView slider drives the system volume
+        // Write on the next runloop tick: MPVolumeView ignores writes that land
+        // before its internal slider has attached to the system volume service.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let slider = self.systemSlider(in: self.mpView) else { return }
+            slider.value = v   // the in-hierarchy MPVolumeView slider drives the SYSTEM volume
+            // UISlider programmatic writes don't fire valueChanged; MPVolumeView
+            // listens for it to commit the system volume on some iOS versions.
+            slider.sendActions(for: .valueChanged)
         }
     }
 }

@@ -361,7 +361,11 @@ struct MainTabView: View {
                                     withAnimation(Motion.springSnappy) { miniAgent = nil }
                                 }
                             )
-                            .frame(height: 460)
+                            // Sized to the container, not a screen: geo already
+                            // shrinks with the keyboard, so the input bar stays
+                            // reachable on every iPhone — capped at the classic
+                            // 460pt so it never towers on tall screens.
+                            .frame(height: min(460, geo.size.height * 0.9))
                             .padding(.horizontal, 14)
                             .padding(.bottom, 10)
                         }
