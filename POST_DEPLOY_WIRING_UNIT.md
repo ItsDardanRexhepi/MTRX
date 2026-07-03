@@ -82,21 +82,25 @@ once the gateway is deployed) · **M6** (batch EAS attestation writes) ·
 
 ## Known-open items surfaced by adversarial verify (2026-07-02)
 
-- **DAO proposals live-read (M5 read side) — BLOCKED.** The gateway has no
-  proposals list route whose response shape matches the client's
-  `DAOProposalsResponse` (which needs number/proposer/votesFor/votesAgainst/
-  quorumRequired). `list_proposals` in the governance service returns a
-  different summary shape. Owed: a `GET /api/v1/dao/proposals` (or governance
-  proposals) route that emits the client shape, OR a client model change to the
-  service's shape. Until then `daoProposals()` decode-fails and the DAO tab
-  stays honest-demo. Vote *submission* is already correct.
-- **`sponsoredCallWithValue` (contract) — design decision owed.** Any
-  `onlyAuthorized` agent can send arbitrary ETH to an arbitrary target; the
-  `onlyOwner` `withdraw` guard is moot against a compromised/malicious agent
-  key. Not exploitable at rest (OBSERVE/testnet, no agents authorized) and now
-  `nonReentrant`, but before mainnet this needs a per-agent daily cap and/or a
-  target allowlist (mirror the server paymaster `policy.allowed_actions`). Left
-  as a policy decision, not silently changed.
+- **DAO proposals live-read (M5 read side) — ✅ RESOLVED (2026-07-03).** Added
+  `GET /api/v1/governance/daos/{daoId}/proposals` → `_call` →
+  `governance.list_proposals_detailed`, which emits exactly the client's
+  `Proposal` shape (proposal_id/title/description/status/votes_for/votes_against/
+  quorum/end_time, end_time ISO-8601). Client `GovernanceService.getProposals`
+  now uses that path via `getEnveloped`. Tally + quorum are extracted server-side
+  (voting-model knowledge stays on the server); unknown tallies are an honest
+  0.0. 2 gateway tests green. Independent of deploy — the DAO tab read side is
+  unblocked now.
+- **`sponsoredCallWithValue` (contract) — ✅ RESOLVED (2026-07-03).**
+  `OpenMatrixPaymaster` now constrains non-owner AGENT value-calls with a
+  per-agent daily cap (`agentDailyCap`, wei) AND an optional target allowlist
+  (`targetAllowlistEnabled` + `allowedTargets`), mirroring the server paymaster
+  `policy.allowed_actions`. Secure by default: the cap is 0, so a
+  compromised/authorized agent key **cannot move any value** until the owner
+  grants a daily allowance; the owner is unrestricted. 6 new forge tests
+  (blocked-by-default / within-cap / cumulative-cap / daily-reset / allowlist /
+  owner-unrestricted); full paymaster suite 21 green. Written + tested now;
+  ships with the Part-3 deploy.
 
 ## Proof plan at wiring time
 Byte-exact digest cross-test stays green; forge suites green; a testnet
