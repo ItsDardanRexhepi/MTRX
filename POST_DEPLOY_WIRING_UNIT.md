@@ -91,13 +91,16 @@ once the gateway is deployed) · **M6** (batch EAS attestation writes) ·
   (voting-model knowledge stays on the server); unknown tallies are an honest
   0.0. 2 gateway tests green. Independent of deploy — the DAO tab read side is
   unblocked now.
-- **`sponsoredCallWithValue` (contract) — design decision owed.** Any
-  `onlyAuthorized` agent can send arbitrary ETH to an arbitrary target; the
-  `onlyOwner` `withdraw` guard is moot against a compromised/malicious agent
-  key. Not exploitable at rest (OBSERVE/testnet, no agents authorized) and now
-  `nonReentrant`, but before mainnet this needs a per-agent daily cap and/or a
-  target allowlist (mirror the server paymaster `policy.allowed_actions`). Left
-  as a policy decision, not silently changed.
+- **`sponsoredCallWithValue` (contract) — ✅ RESOLVED (2026-07-03).**
+  `OpenMatrixPaymaster` now constrains non-owner AGENT value-calls with a
+  per-agent daily cap (`agentDailyCap`, wei) AND an optional target allowlist
+  (`targetAllowlistEnabled` + `allowedTargets`), mirroring the server paymaster
+  `policy.allowed_actions`. Secure by default: the cap is 0, so a
+  compromised/authorized agent key **cannot move any value** until the owner
+  grants a daily allowance; the owner is unrestricted. 6 new forge tests
+  (blocked-by-default / within-cap / cumulative-cap / daily-reset / allowlist /
+  owner-unrestricted); full paymaster suite 21 green. Written + tested now;
+  ships with the Part-3 deploy.
 
 ## Proof plan at wiring time
 Byte-exact digest cross-test stays green; forge suites green; a testnet
