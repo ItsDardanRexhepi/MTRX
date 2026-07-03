@@ -7,6 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		66DA63A40923432A9B3C8DEF /* MTRXWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FF9AB0BB2864DEC9A7E3D8A /* MTRXWidgetsBundle.swift */; };
+		020CD04BC448457E9429AC28 /* PortfolioWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8205FBB87B74C328432EBDEB /* PortfolioWidget.swift */; };
+		8AF83D916E334CE782373F72 /* PositionsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5908575B08029A598F60B914 /* PositionsWidget.swift */; };
+		4E2F708B66F949F88CC3FF4B /* ContractsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B0CA0EA68EE53B7203EAF4 /* ContractsWidget.swift */; };
+		6767CF6702ED4D94937D6E2B /* PaymentsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82104B947B91EE438CAD3D70 /* PaymentsWidget.swift */; };
+		9EA908145E5B4D0C98DC419E /* WidgetSharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A102 /* WidgetSharedStore.swift */; };
+		09CDD6AC30C94F67A98B6D38 /* ActivityKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65710DDDC6A253CA4C24302E /* ActivityKitManager.swift */; };
+		1B38066348AC48F9B3820785 /* LiveActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89A0DA0FED5777B153C7649 /* LiveActivityView.swift */; };
+		50CB2C796D9C48178A19D883 /* MTRXWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5D16BA5CAA734CD786FC8DC5 /* MTRXWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1E2AD0BAF912631988162D45 /* RealityComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78F828BB90E939801E4FF017 /* RealityComposer.swift */; };
 		5C55FA04897E065A775B260B /* RealityKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8DB961378FD02842E3DF70 /* RealityKitManager.swift */; };
 		41AE4CEFFD3B2A9B6C2B06FE /* PortfolioIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A26D9C5640C5F3F3DA4D35 /* PortfolioIntent.swift */; };
@@ -47,7 +56,6 @@
 		7ED8D23615FBC370D91ED249 /* WalletOrderTracking.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4B9C381A7AC83EA26411E3 /* WalletOrderTracking.swift */; };
 		813E019F265E3E112A1FE0EC /* ActivityKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65710DDDC6A253CA4C24302E /* ActivityKitManager.swift */; };
 		12BF1E650086B1FF11188B0E /* HapticsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC92048F77A3C3CEB77802FE /* HapticsManager.swift */; };
-		894785B387B090BA8003FAA1 /* LiveActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89A0DA0FED5777B153C7649 /* LiveActivityView.swift */; };
 		1DBB0DF18AE654B99FF81D10 /* NetworkExtensionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81F0544BF8AC223538F86833 /* NetworkExtensionManager.swift */; };
 		8F9B0E6F7E38918DE576B3AB /* SKAdNetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AFBD64DA9D3E4AFB11DEE63 /* SKAdNetworkManager.swift */; };
 		25B7D598E4146B4CFE8EABD8 /* ScreenTimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C014933BF5AF4D55D433F549 /* ScreenTimeManager.swift */; };
@@ -205,9 +213,6 @@
 		200F86D8B11FE493051BF482 /* AppClipFundraiser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 979FA1C77018F7545A664BF6 /* AppClipFundraiser.swift */; };
 		52787F62F1B81DB30A469E94 /* AppClipMarketplace.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F4B1CB5324C10E2D711B7B /* AppClipMarketplace.swift */; };
 		EB17F7CFBB2F03386F8D19A1 /* AppClipProperty.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24EB1884AA8E2AE2B2328C1E /* AppClipProperty.swift */; };
-		7326900AD4FC091EDC358DF2 /* ContractsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B0CA0EA68EE53B7203EAF4 /* ContractsWidget.swift */; };
-		4D1875846DCD1599B1D2EB05 /* PaymentsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82104B947B91EE438CAD3D70 /* PaymentsWidget.swift */; };
-		17CCFA7AE30F112B7DC0DCC0 /* PortfolioWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8205FBB87B74C328432EBDEB /* PortfolioWidget.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A101 /* WidgetSharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A102 /* WidgetSharedStore.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A301 /* MusicKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A302 /* MusicKitManager.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A401 /* MusicPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A402 /* MusicPlayerView.swift */; };
@@ -217,7 +222,6 @@
 		A1A1A1A1A1A1A1A1A1A1A5C1 /* MetricsCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A5C2 /* MetricsCollector.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A6B1 /* HomeCalendarCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A6B2 /* HomeCalendarCard.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A7B1 /* AppLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A7B2 /* AppLock.swift */; };
-		7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5908575B08029A598F60B914 /* PositionsWidget.swift */; };
 		E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8421C44BD0C6A17F16769739 /* Secrets.swift */; };
 		FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA7F1A65C0DE00000000001 /* FeatureFlags.swift */; };
 		C0DEF11E00000000000A0002 /* PendingCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEF11E00000000000A0001 /* PendingCredentials.swift */; };
@@ -347,6 +351,7 @@
 		D9640FDF5101B1173A0BAE6F /* SolitaireSeeds.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB2BC9E64116353B1E252BF /* SolitaireSeeds.swift */; };
 		DBA7E43CC0F35B954C6F8951 /* SolitaireRedoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E5D2F25F0366968E1AEAE /* SolitaireRedoStore.swift */; };
 		E253EB2793A240BB8EA69B30 /* IAPServerReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDA6924F651D4DD2A04CA75A /* IAPServerReporter.swift */; };
+		31FE6D26BCE74F498CA362DE /* RealtimeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDF7D08878147BDADB1F637 /* RealtimeClient.swift */; };
 		B7BAFE4692CF0F5CF311C4C8 /* GameLevelSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92292762229B8EF3C287DD55 /* GameLevelSelectView.swift */; };
 		A382D02CAD507B2C07B8C7CC /* GameProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04EAB0B59E854FA70A0FC56B /* GameProgressTests.swift */; };
 		116631B215936CEC9D4FAF83 /* GameLevelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DDBB32DBA73E1672DA98E3 /* GameLevelTests.swift */; };
@@ -376,6 +381,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2FF9AB0BB2864DEC9A7E3D8A /* MTRXWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MTRXWidgetsBundle.swift"; path = "WidgetsExtension/MTRXWidgetsBundle.swift"; sourceTree = SOURCE_ROOT; };
+		5D16BA5CAA734CD786FC8DC5 /* MTRXWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MTRXWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		78F828BB90E939801E4FF017 /* RealityComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RealityComposer.swift"; sourceTree = "<group>"; };
 		3E8DB961378FD02842E3DF70 /* RealityKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RealityKitManager.swift"; sourceTree = "<group>"; };
 		B5A26D9C5640C5F3F3DA4D35 /* PortfolioIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PortfolioIntent.swift"; sourceTree = "<group>"; };
@@ -724,6 +731,7 @@
 		ACB2BC9E64116353B1E252BF /* SolitaireSeeds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SolitaireSeeds.swift"; path = "Core/Gaming/SolitaireSeeds.swift"; sourceTree = SOURCE_ROOT; };
 		D81E5D2F25F0366968E1AEAE /* SolitaireRedoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SolitaireRedoStore.swift"; path = "Core/Gaming/SolitaireRedoStore.swift"; sourceTree = SOURCE_ROOT; };
 		EDA6924F651D4DD2A04CA75A /* IAPServerReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IAPServerReporter.swift"; path = "Core/Subscription/IAPServerReporter.swift"; sourceTree = SOURCE_ROOT; };
+		DEDF7D08878147BDADB1F637 /* RealtimeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RealtimeClient.swift"; path = "Core/Networking/RealtimeClient.swift"; sourceTree = SOURCE_ROOT; };
 		92292762229B8EF3C287DD55 /* GameLevelSelectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameLevelSelectView.swift"; path = "UI/Views/Gaming/GameLevelSelectView.swift"; sourceTree = SOURCE_ROOT; };
 		04EAB0B59E854FA70A0FC56B /* GameProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameProgressTests.swift"; path = "Tests/Unit/GameProgressTests.swift"; sourceTree = SOURCE_ROOT; };
 		91DDBB32DBA73E1672DA98E3 /* GameLevelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GameLevelTests.swift"; path = "Tests/Unit/GameLevelTests.swift"; sourceTree = SOURCE_ROOT; };
@@ -752,7 +760,28 @@
 		DFCDD086642D4A0858146C8B /* TrinitySiri.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TrinitySiri.swift"; path = "Apple/AppIntents/TrinitySiri.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		E9EBA5E586C14FB9B15C7E1B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				50CB2C796D9C48178A19D883 /* MTRXWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFrameworksBuildPhase section */
+		C2446A4BFA7D40C49C3D3855 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		29B2D46AA747A59804D46E1F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -794,6 +823,7 @@
 			isa = PBXGroup;
 			children = (
 				A97C29AD63741CF438998CE6 /* MTRX.app */,
+				5D16BA5CAA734CD786FC8DC5 /* MTRXWidgets.appex */,
 				FE57FACE0000000000000A02 /* MTRXTests.xctest */,
 			);
 			name = Products;
@@ -1720,6 +1750,7 @@
 		33AAEFAA16761EA17116A7F6 /* Widgets */ = {
 			isa = PBXGroup;
 			children = (
+				2FF9AB0BB2864DEC9A7E3D8A /* MTRXWidgetsBundle.swift */,
 				22B0CA0EA68EE53B7203EAF4,
 				82104B947B91EE438CAD3D70,
 				8205FBB87B74C328432EBDEB,
@@ -1750,6 +1781,22 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		F23C54871A034A3FB740BBF6 /* MTRXWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3DDC87EC18764534B45E1B4C /* Build configuration list for PBXNativeTarget "MTRXWidgets" */;
+			buildPhases = (
+				2D64DFB102D446938B2658D0 /* Sources */,
+				C2446A4BFA7D40C49C3D3855 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MTRXWidgets;
+			productName = MTRXWidgets;
+			productReference = 5D16BA5CAA734CD786FC8DC5 /* MTRXWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		131A2C91E218714B600E74BB /* MTRX */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 92CF0BDA3A7742D5453609D3;
@@ -1758,10 +1805,12 @@
 				E7209FB05162B7572F88D05E /* Sources */,
 				29B2D46AA747A59804D46E1F /* Frameworks */,
 				66F8606E9F0A136E2228EBCB /* Resources */,
+				E9EBA5E586C14FB9B15C7E1B /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				24DAA8F5C4974A589B00E908 /* PBXTargetDependency */,
 			);
 			name = MTRX;
 			productReference = A97C29AD63741CF438998CE6 /* MTRX.app */;
@@ -1804,6 +1853,7 @@
 			targets = (
 				131A2C91E218714B600E74BB /* MTRX */,
 				FE57FACE0000000000000A01 /* MTRXTests */,
+				F23C54871A034A3FB740BBF6 /* MTRXWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -1844,6 +1894,21 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		2D64DFB102D446938B2658D0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				66DA63A40923432A9B3C8DEF /* MTRXWidgetsBundle.swift in Sources */,
+				020CD04BC448457E9429AC28 /* PortfolioWidget.swift in Sources */,
+				8AF83D916E334CE782373F72 /* PositionsWidget.swift in Sources */,
+				4E2F708B66F949F88CC3FF4B /* ContractsWidget.swift in Sources */,
+				6767CF6702ED4D94937D6E2B /* PaymentsWidget.swift in Sources */,
+				9EA908145E5B4D0C98DC419E /* WidgetSharedStore.swift in Sources */,
+				09CDD6AC30C94F67A98B6D38 /* ActivityKitManager.swift in Sources */,
+				1B38066348AC48F9B3820785 /* LiveActivityView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E7209FB05162B7572F88D05E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1925,6 +1990,7 @@
 				D9640FDF5101B1173A0BAE6F /* SolitaireSeeds.swift in Sources */,
 				DBA7E43CC0F35B954C6F8951 /* SolitaireRedoStore.swift in Sources */,
 				E253EB2793A240BB8EA69B30 /* IAPServerReporter.swift in Sources */,
+				31FE6D26BCE74F498CA362DE /* RealtimeClient.swift in Sources */,
 				B7BAFE4692CF0F5CF311C4C8 /* GameLevelSelectView.swift in Sources */,
 				E89DA464BAA3574A5A5D44F3 /* LedgerBridge.swift in Sources */,
 				D72833AE066FB976BF316C47 /* HomeView.swift in Sources */,
@@ -1971,9 +2037,6 @@
 				D5391041EA7638C026739C26 /* StablecoinView.swift in Sources */,
 				17DFFD7ECA31C5029F40D1DA /* DeployContractView.swift in Sources */,
 				AA2752983A62B9F01A58D690 /* DemoDataProvider.swift in Sources */,
-				7326900AD4FC091EDC358DF2 /* ContractsWidget.swift in Sources */,
-				4D1875846DCD1599B1D2EB05 /* PaymentsWidget.swift in Sources */,
-				17CCFA7AE30F112B7DC0DCC0 /* PortfolioWidget.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A101 /* WidgetSharedStore.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A301 /* MusicKitManager.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A401 /* MusicPlayerView.swift in Sources */,
@@ -1983,7 +2046,6 @@
 				A1A1A1A1A1A1A1A1A1A1A5C1 /* MetricsCollector.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A6B1 /* HomeCalendarCard.swift in Sources */,
 				A1A1A1A1A1A1A1A1A1A1A7B1 /* AppLock.swift in Sources */,
-				7F468F5A6F234B029CB332F9 /* PositionsWidget.swift in Sources */,
 				E006DD8043AC1C74F41C3706 /* Secrets.swift in Sources */,
 				FEA7F1A65C0DE00000000002 /* FeatureFlags.swift in Sources */,
 				C0DEF11E00000000000A0002 /* PendingCredentials.swift in Sources */,
@@ -2048,7 +2110,6 @@
 				7ED8D23615FBC370D91ED249 /* WalletOrderTracking.swift */,
 				813E019F265E3E112A1FE0EC /* ActivityKitManager.swift */,
 				12BF1E650086B1FF11188B0E /* HapticsManager.swift */,
-				894785B387B090BA8003FAA1 /* LiveActivityView.swift */,
 				1DBB0DF18AE654B99FF81D10 /* NetworkExtensionManager.swift */,
 				8F9B0E6F7E38918DE576B3AB /* SKAdNetworkManager.swift */,
 				25B7D598E4146B4CFE8EABD8 /* ScreenTimeManager.swift */,
@@ -2208,6 +2269,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		24DAA8F5C4974A589B00E908 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F23C54871A034A3FB740BBF6 /* MTRXWidgets */;
+			targetProxy = 4C115E84C9EF427D8B93A25E /* PBXContainerItemProxy */;
+		};
 		FE57FACE0000000000000A09 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 131A2C91E218714B600E74BB /* MTRX */;
@@ -2216,6 +2282,13 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXContainerItemProxy section */
+		4C115E84C9EF427D8B93A25E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F23C54871A034A3FB740BBF6;
+			remoteInfo = MTRXWidgets;
+		};
 		FE57FACE0000000000000A08 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
@@ -2226,6 +2299,56 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin XCBuildConfiguration section */
+		D4586C1119FF477EB69760C1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = WidgetsExtension/WidgetsExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 197;
+				DEVELOPMENT_TEAM = Z8T732UGMV;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WidgetsExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.opnmatrx.mtrx.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		1267579A9B8A480BB335E649 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = WidgetsExtension/WidgetsExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 197;
+				DEVELOPMENT_TEAM = Z8T732UGMV;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WidgetsExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.opnmatrx.mtrx.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 		B74382A4D110BEFC1DEB55E4 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -2383,6 +2506,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		3DDC87EC18764534B45E1B4C /* Build configuration list for PBXNativeTarget "MTRXWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D4586C1119FF477EB69760C1 /* Debug */,
+				1267579A9B8A480BB335E649 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		FE57FACE0000000000000A05 /* Build configuration list for PBXNativeTarget "MTRXTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

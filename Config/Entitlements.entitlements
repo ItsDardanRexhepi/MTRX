@@ -2,51 +2,24 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>com.apple.developer.applesignin</key>
 	<array>
 		<string>Default</string>
 	</array>
-	<!-- iCloud Key-Value Store: genuinely used by WalletSync
-	     (NSUbiquitousKeyValueStore.default) to sync the smart-account address
-	     across the user's devices. The identifier uses the standard Xcode
-	     template (Team prefix + bundle id) — no custom container.
-	     REQUIRES the App ID to have iCloud (Key-Value storage) enabled in the
-	     Apple Developer portal; until then the wallet sync degrades to a
-	     graceful no-op (ubiquityIdentityToken is nil). -->
-	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
-	<string>$(TeamIdentifierPrefix)$(CFBundleIdentifier)</string>
-	<!-- WeatherKit: genuinely used by Trinity's getWeather tool
-	     (WeatherService.shared). REQUIRES the App ID to have the WeatherKit
-	     capability enabled in the Apple Developer portal; until then the tool
-	     fails honestly (it never invents conditions). Apple Weather attribution
-	     is shown in the agent chat wherever weather is surfaced. -->
-	<key>com.apple.developer.weatherkit</key>
-	<true/>
-	<!-- Game Center: GameKitManager authenticates the local player and posts
-	     leaderboard scores / achievements for the mini-games. REQUIRES the
-	     Game Center capability enabled on the App ID in the Apple Developer
-	     portal; the leaderboards/achievements are configured in App Store Connect. -->
-	<key>com.apple.developer.game-center</key>
-	<true/>
-	<!-- App Attest environment (P1-7). 'production' is required for TestFlight/
-	     App Store builds; without this key DCAppAttestService reports unsupported
-	     and AppAttestManager is inert even after the flags flip. The client flags
-	     (PendingCredentials.Security) remain OFF — this only makes the service
-	     *available*, it does not enable anything. -->
 	<key>com.apple.developer.devicecheck.appattest-environment</key>
 	<string>production</string>
-	<!-- App Groups (P1-7). Required by KeychainManager's kSecAttrAccessGroup
-	     (group.com.mtrx.shared) on every grouped keychain op; without it those
-	     calls fail with errSecMissingEntitlement (SecureEnclaveManager warns about
-	     exactly this). -->
+	<key>com.apple.developer.game-center</key>
+	<true/>
+	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
+	<string>$(TeamIdentifierPrefix)$(CFBundleIdentifier)</string>
+	<key>com.apple.developer.weatherkit</key>
+	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.com.mtrx.shared</string>
+		<string>group.com.opnmatrx.mtrx</string>
 	</array>
-	<!-- Push notifications (P1-7). AppDelegate calls registerForRemoteNotifications();
-	     without this the token callback never fires. Xcode/provisioning switches
-	     'development' -> 'production' at distribution. Server half in 0pnMatrx P1-6. -->
-	<key>aps-environment</key>
-	<string>development</string>
 </dict>
 </plist>
