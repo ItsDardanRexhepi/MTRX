@@ -174,8 +174,13 @@ private struct MusicAttributionFooter: View {
     }
 }
 
-/// The floating mini-player shown above the tab bar on every tab. Tap opens the
-/// full Now Playing screen; the transport buttons act without leaving the tab.
+/// The floating oval mini-player bubble above the tab bar on every tab — the
+/// product owner's chosen shape (liquid-glass pill with side gutters, NOT the
+/// full-width Apple Music bar). The whole bubble is one hit target: a tap
+/// anywhere on it that isn't a transport button opens the full player, and no
+/// touch on the bubble ever falls through to the content underneath; the
+/// transport buttons carry full-height 44pt targets and act without leaving
+/// the tab.
 struct MusicMiniPlayer: View {
     @State private var music = MusicKitManager.shared
     let onTap: () -> Void
@@ -196,25 +201,33 @@ struct MusicMiniPlayer: View {
                     Text(music.nowPlayingTitle ?? "").font(.mtrxCaptionBold).foregroundStyle(Color.labelPrimary).lineLimit(1)
                     Text(music.nowPlayingArtist ?? "").font(.mtrxCaption2).foregroundStyle(Color.labelSecondary).lineLimit(1)
                 }
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
+
                 Button { music.skipPrevious() } label: {
                     Image(systemName: "backward.fill").font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Color.labelPrimary).accessibilityLabel("Previous")
+                        .frame(width: 38, height: 44).contentShape(Rectangle())
                 }
-                .buttonStyle(.plain).padding(.trailing, Spacing.sm)
+                .buttonStyle(.plain)
                 Button { music.togglePlayPause() } label: {
                     Image(systemName: music.isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 19, weight: .semibold)).foregroundStyle(Color.labelPrimary)
                         .accessibilityLabel(music.isPlaying ? "Pause" : "Play")
+                        .frame(width: 40, height: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 Button { music.skipNext() } label: {
                     Image(systemName: "forward.fill").font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Color.labelPrimary).accessibilityLabel("Next")
+                        .frame(width: 38, height: 44).contentShape(Rectangle())
                 }
-                .buttonStyle(.plain).padding(.leading, Spacing.sm)
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, Spacing.md).padding(.vertical, Spacing.sm)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+            // The whole bubble is a single hit target — no dead spots between
+            // the artwork, text, and transports that let taps fall through.
+            .contentShape(Rectangle())
             .mtrxLiquidGlass(in: RoundedRectangle(cornerRadius: Spacing.CornerRadius.lg, style: .continuous))
         }
         .buttonStyle(.plain)

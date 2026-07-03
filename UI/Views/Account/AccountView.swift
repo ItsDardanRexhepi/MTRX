@@ -116,18 +116,30 @@ struct AccountView: View {
 
     var body: some View {
         NavigationStack {
+            // Same responsive fill as Home: the scroll content stretches to at
+            // least the viewport height, and the flexible gap ABOVE Sign Out
+            // absorbs what a taller screen (17 Pro Max) adds — Sign Out settles
+            // near the dock instead of leaving a dead void beneath it. On
+            // smaller phones the spacer collapses and the page scrolls as before.
+            GeometryReader { viewport in
             ScrollView {
-                // Content flows naturally from the top — Sign Out sits right
-                // beneath the workspace tiles, with no forced-fill gaps above
-                // or below it.
                 VStack(spacing: Spacing.md) {
                     profileCard
                     portfolioSummary
                     workspaceSection
+                    Spacer(minLength: 0)
                     // Nudged ~0.25% below baseline; nothing else moves.
                     signOutButton
                         .offset(y: 2)
                 }
+                // viewport.size.height is already the dock-excluded safe region
+                // (the native tab bar consumes its own bottom inset), so filling
+                // to it less a comfortable gap lets the Spacer push Sign Out to
+                // just above the floating dock — never under it. On shorter
+                // phones the content exceeds this height, the Spacer collapses,
+                // and the page scrolls as before.
+                .frame(minHeight: max(0, viewport.size.height - Spacing.xl),
+                       alignment: .top)
                 .padding(.horizontal, Spacing.contentPadding)
                 .padding(.top, Spacing.sm)
                 // The floating dock reserves its own safe-area inset, so only a
@@ -201,6 +213,7 @@ struct AccountView: View {
                 case .alerts:
                     AlertsView()
                 }
+            }
             }
         }
         .sheet(isPresented: $showWorkspaceEditor) {
