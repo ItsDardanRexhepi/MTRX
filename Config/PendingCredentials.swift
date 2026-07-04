@@ -56,7 +56,37 @@ enum PendingCredentials {
     /// show honest, clearly-labelled DEMO data until this is true; the moment it
     /// is filled they flip to live service data automatically — no code change.
     static var isBackendConfigured: Bool {
-        filled(Backend.gatewayURL) != nil
+        filled(effectiveGatewayURL) != nil
+    }
+
+    // MARK: - Runtime gateway override (developer / owner on-device testing)
+    //
+    // Lets the owner point Trinity's cloud brain at a locally-run 0pnMatrx
+    // gateway from the device (Settings → Trinity AI, DEBUG builds) without a
+    // rebuild — so REAL Anthropic reasoning can be exercised on a physical phone
+    // before the gateway is deployed. The Anthropic key NEVER ships in the app;
+    // it stays server-side in the gateway. Empty by default → honest until set.
+    private static let runtimeGatewayKey = "mtrx.debug.gatewayURL"
+    private static let forceCloudKey = "mtrx.debug.forceCloudReasoning"
+
+    /// A gateway base URL set at runtime on the device (overrides Backend.gatewayURL).
+    static var runtimeGatewayURL: String {
+        get { UserDefaults.standard.string(forKey: runtimeGatewayKey) ?? "" }
+        set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: runtimeGatewayKey) }
+    }
+
+    /// The gateway URL actually used: the runtime override when set, else the
+    /// compiled `Backend.gatewayURL`.
+    static var effectiveGatewayURL: String {
+        filled(runtimeGatewayURL) ?? Backend.gatewayURL
+    }
+
+    /// When true, Trinity routes free-form reasoning through the cloud gateway
+    /// (Anthropic) even when the on-device model is available — lets the owner
+    /// verify the cloud path on an Apple-Intelligence device. Off by default.
+    static var forceCloudReasoning: Bool {
+        get { UserDefaults.standard.bool(forKey: forceCloudKey) }
+        set { UserDefaults.standard.set(newValue, forKey: forceCloudKey) }
     }
 
     /// True once Apple Pay can take a REAL charge: a registered merchant id and

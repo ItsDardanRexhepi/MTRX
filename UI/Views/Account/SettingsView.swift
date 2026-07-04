@@ -19,6 +19,12 @@ struct SettingsView: View {
     @AppStorage("mtrx_haptics") private var hapticFeedback = true
     @AppStorage("com.mtrx.blackout") private var blackoutMode = false
 
+    // MARK: - Developer (Trinity cloud brain) — DEBUG only
+    #if DEBUG
+    @AppStorage("mtrx.debug.gatewayURL") private var devGatewayURL = ""
+    @AppStorage("mtrx.debug.forceCloudReasoning") private var devForceCloud = false
+    #endif
+
     // MARK: - Network
     @AppStorage("mtrx_chain") private var defaultChain = "Base"
     @AppStorage("mtrx_gas") private var gasStrategy = "Standard"
@@ -328,6 +334,23 @@ struct SettingsView: View {
                     value: expertiseLevel
                 )
             }
+
+            #if DEBUG
+            // Developer (Part 2): point Trinity's cloud brain at a locally-run
+            // 0pnMatrx gateway and (optionally) force reasoning through it, to
+            // verify REAL Anthropic responses on-device. The Anthropic key stays
+            // server-side in the gateway — never in the app.
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Cloud brain gateway (dev)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("http://192.168.x.x:18790", text: $devGatewayURL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+                    .keyboardType(.URL)
+            }
+            Toggle("Route reasoning through cloud", isOn: $devForceCloud)
+            #endif
         } header: {
             Text("Trinity AI")
         } footer: {

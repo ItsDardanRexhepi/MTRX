@@ -24,7 +24,7 @@ enum GatewayRealtimeURL {
     /// wss://…/ws derived from the https gateway URL. Nil when unconfigured.
     static var chatSocket: URL? {
         guard PendingCredentials.isBackendConfigured else { return nil }
-        var raw = PendingCredentials.Backend.gatewayURL
+        var raw = PendingCredentials.effectiveGatewayURL
         if raw.hasSuffix("/") { raw.removeLast() }
         raw = raw.replacingOccurrences(of: "https://", with: "wss://")
         raw = raw.replacingOccurrences(of: "http://", with: "ws://")
@@ -34,7 +34,7 @@ enum GatewayRealtimeURL {
     /// https://…/api/v1/events/stream filtered to the given event types.
     static func eventStream(types: [String]) -> URL? {
         guard PendingCredentials.isBackendConfigured else { return nil }
-        var raw = PendingCredentials.Backend.gatewayURL
+        var raw = PendingCredentials.effectiveGatewayURL
         if raw.hasSuffix("/") { raw.removeLast() }
         var components = URLComponents(string: raw + "/api/v1/events/stream")
         if !types.isEmpty {
