@@ -158,18 +158,18 @@ enum PendingCredentials {
         /// Format: 0x + 40 hex (checksummed).
         /// Where: ERC-4337 spec / your bundler's docs (e.g. v0.6
         /// 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789 — confirm with bundler).
-        static let entryPointAddress = ""
+        static let entryPointAddress = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
 
         /// The smart-account factory that CREATE2-deploys user wallets and
         /// is also used to compute the counterfactual address before deploy.
         /// Format: 0x + 40 hex.
         /// Where: the address you deployed your account factory to.
-        static let accountFactoryAddress = ""
+        static let accountFactoryAddress = "0x62a31367C97A5fB3E36839fbB64268F3De4fC943"
 
         /// The verifying-paymaster contract address that sponsors gas.
         /// Format: 0x + 40 hex.
         /// Where: the address you deployed your paymaster to.
-        static let paymasterAddress = ""
+        static let paymasterAddress = "0x0E393e90af2DAb65e60318F110270f045B125880"
 
         /// HTTPS endpoint of YOUR paymaster signing service. The app POSTs a
         /// UserOperation + validity window and the server returns the
@@ -201,7 +201,7 @@ enum PendingCredentials {
         /// paste the SAME UID the server carries in blockchain.schemas.primary
         /// — client and server must attest against the same schema. Empty
         /// fails closed (no attestation against a placeholder).
-        static let schemaUID = ""
+        static let schemaUID = "0x42e29fbfef86deaa4f27a5e364f818ee736badfbc40904bd261b508308372d0a"
     }
 
     // MARK: - Pricing
