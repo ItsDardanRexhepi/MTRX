@@ -56,7 +56,37 @@ enum PendingCredentials {
     /// show honest, clearly-labelled DEMO data until this is true; the moment it
     /// is filled they flip to live service data automatically — no code change.
     static var isBackendConfigured: Bool {
-        filled(Backend.gatewayURL) != nil
+        filled(effectiveGatewayURL) != nil
+    }
+
+    // MARK: - Runtime gateway override (developer / owner on-device testing)
+    //
+    // Lets the owner point Trinity's cloud brain at a locally-run 0pnMatrx
+    // gateway from the device (Settings → Trinity AI, DEBUG builds) without a
+    // rebuild — so REAL Anthropic reasoning can be exercised on a physical phone
+    // before the gateway is deployed. The Anthropic key NEVER ships in the app;
+    // it stays server-side in the gateway. Empty by default → honest until set.
+    private static let runtimeGatewayKey = "mtrx.debug.gatewayURL"
+    private static let forceCloudKey = "mtrx.debug.forceCloudReasoning"
+
+    /// A gateway base URL set at runtime on the device (overrides Backend.gatewayURL).
+    static var runtimeGatewayURL: String {
+        get { UserDefaults.standard.string(forKey: runtimeGatewayKey) ?? "" }
+        set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: runtimeGatewayKey) }
+    }
+
+    /// The gateway URL actually used: the runtime override when set, else the
+    /// compiled `Backend.gatewayURL`.
+    static var effectiveGatewayURL: String {
+        filled(runtimeGatewayURL) ?? Backend.gatewayURL
+    }
+
+    /// When true, Trinity routes free-form reasoning through the cloud gateway
+    /// (Anthropic) even when the on-device model is available — lets the owner
+    /// verify the cloud path on an Apple-Intelligence device. Off by default.
+    static var forceCloudReasoning: Bool {
+        get { UserDefaults.standard.bool(forKey: forceCloudKey) }
+        set { UserDefaults.standard.set(newValue, forKey: forceCloudKey) }
     }
 
     /// True once Apple Pay can take a REAL charge: a registered merchant id and
@@ -128,18 +158,18 @@ enum PendingCredentials {
         /// Format: 0x + 40 hex (checksummed).
         /// Where: ERC-4337 spec / your bundler's docs (e.g. v0.6
         /// 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789 — confirm with bundler).
-        static let entryPointAddress = ""
+        static let entryPointAddress = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
 
         /// The smart-account factory that CREATE2-deploys user wallets and
         /// is also used to compute the counterfactual address before deploy.
         /// Format: 0x + 40 hex.
         /// Where: the address you deployed your account factory to.
-        static let accountFactoryAddress = ""
+        static let accountFactoryAddress = "0x62a31367C97A5fB3E36839fbB64268F3De4fC943"
 
         /// The verifying-paymaster contract address that sponsors gas.
         /// Format: 0x + 40 hex.
         /// Where: the address you deployed your paymaster to.
-        static let paymasterAddress = ""
+        static let paymasterAddress = "0x0E393e90af2DAb65e60318F110270f045B125880"
 
         /// HTTPS endpoint of YOUR paymaster signing service. The app POSTs a
         /// UserOperation + validity window and the server returns the
@@ -171,7 +201,7 @@ enum PendingCredentials {
         /// paste the SAME UID the server carries in blockchain.schemas.primary
         /// — client and server must attest against the same schema. Empty
         /// fails closed (no attestation against a placeholder).
-        static let schemaUID = ""
+        static let schemaUID = "0x42e29fbfef86deaa4f27a5e364f818ee736badfbc40904bd261b508308372d0a"
     }
 
     // MARK: - Pricing
