@@ -2,6 +2,7 @@
 *.xcworkspace/
 *.xcodeproj/xcuserdata/
 DerivedData/
+build_device/
 *.ipa
 *.dSYM.zip
 *.dSYM
