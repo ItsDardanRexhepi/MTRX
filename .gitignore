@@ -3,6 +3,7 @@
 *.xcodeproj/xcuserdata/
 DerivedData/
 build_device/
+build_archive/
 *.ipa
 *.dSYM.zip
 *.dSYM
