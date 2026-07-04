@@ -656,7 +656,12 @@ final class MTRXAPIClient: @unchecked Sendable {
             self.session = session
         } else {
             let config = URLSessionConfiguration.default
-            config.timeoutIntervalForRequest = 30
+            // A long multi-part agent reply is generated non-streaming server-side and
+            // can take ~40s+ before the first byte returns; a 30s request timeout cut
+            // the REST fallback off before it could finish (the long-reply failure).
+            // 90s matches the chat WebSocket's silence budget so both paths tolerate a
+            // slow generation; the 120s resource cap still bounds a truly dead request.
+            config.timeoutIntervalForRequest = 90
             config.timeoutIntervalForResource = 120
             config.waitsForConnectivity = true
             config.httpAdditionalHeaders = [
@@ -776,7 +781,8 @@ final class MTRXAPIClient: @unchecked Sendable {
 
     private func execute<T: Decodable>(
         _ request: URLRequest,
-        attempt: Int = 0
+        attempt: Int = 0,
+        retryTimeouts: Bool = true
     ) async throws -> T {
         #if DEBUG
         logRequest(request)
@@ -790,10 +796,14 @@ final class MTRXAPIClient: @unchecked Sendable {
         } catch let error as URLError {
             switch error.code {
             case .timedOut:
-                if attempt < maxRetries {
+                // A caller can opt out of timeout-retries (retryTimeouts: false) to keep a
+                // bounded worst case. The chat path does this so a silently-dead gateway
+                // fails to an honest error in ~one request window instead of stacking
+                // maxRetries×90s on top of the 90s WS budget (a multi-minute hang).
+                if retryTimeouts && attempt < maxRetries {
                     let delay = retryDelay(attempt: attempt)
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    return try await execute(request, attempt: attempt + 1)
+                    return try await execute(request, attempt: attempt + 1, retryTimeouts: retryTimeouts)
                 }
                 throw MTRXAPIError.timeout
             case .cancelled:
@@ -839,14 +849,14 @@ final class MTRXAPIClient: @unchecked Sendable {
             if attempt < maxRetries {
                 let delay = retryAfter ?? retryDelay(attempt: attempt)
                 try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                return try await execute(request, attempt: attempt + 1)
+                return try await execute(request, attempt: attempt + 1, retryTimeouts: retryTimeouts)
             }
             throw MTRXAPIError.rateLimited(retryAfter: retryAfter)
         case 500...599:
             if attempt < maxRetries {
                 let delay = retryDelay(attempt: attempt)
                 try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                return try await execute(request, attempt: attempt + 1)
+                return try await execute(request, attempt: attempt + 1, retryTimeouts: retryTimeouts)
             }
             let body = String(data: data, encoding: .utf8) ?? "Internal server error"
             throw MTRXAPIError.serverError(body)
@@ -892,10 +902,11 @@ final class MTRXAPIClient: @unchecked Sendable {
     func post<Body: Encodable, T: Decodable>(
         path: String,
         body: Body,
-        authenticated: Bool = true
+        authenticated: Bool = true,
+        retryTimeouts: Bool = true
     ) async throws -> T {
         let request = try buildRequest(method: .post, path: path, body: body, authenticated: authenticated)
-        return try await execute(request)
+        return try await execute(request, retryTimeouts: retryTimeouts)
     }
 
     func put<Body: Encodable, T: Decodable>(
@@ -1085,8 +1096,11 @@ final class MTRXAPIClient: @unchecked Sendable {
             context: context.isEmpty ? nil : context,
             history: conversationHistory.isEmpty ? nil : conversationHistory
         )
+        // retryTimeouts:false keeps the chat fallback bounded — a silently-dead gateway
+        // fails to an honest error in one ~90s window rather than stacking 3 retries on
+        // top of the WS 90s budget (the multi-minute-hang defect the adversarial pass found).
         let result: BridgeResponse<BridgeChatData> = try await post(
-            path: "/bridge/v1/chat", body: body
+            path: "/bridge/v1/chat", body: body, retryTimeouts: false
         )
         guard let data = result.data else {
             throw MTRXAPIError.decodingFailed("No data in bridge response")

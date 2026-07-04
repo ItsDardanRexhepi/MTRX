@@ -45,6 +45,155 @@ struct AgentMessage: Identifiable, Codable {
     }
 }
 
+/// The never-vanish delivery state machine for one chat turn, extracted so the
+/// honest-failure invariant is unit-testable against the SAME code the app runs.
+///
+/// Invariant it enforces (verified in TurnMessageDeliveryTests):
+///  • A reply can be superseded or turned into an honest error, but it can NEVER be
+///    deleted-with-nothing-in-its-place — nothing silently vanishes, for ANY cause
+///    (timeout, cutoff, error, empty stream).
+///  • Whitespace-only text is treated as empty, so no blank bubble is ever shown.
+///  • The turn is bound to the conversation it started in: if the user switches chats
+///    or the idle timer resets the thread mid-flight, the reply is committed to its
+///    OWN conversation's stored record — never lost, never cross-posted.
+@MainActor
+final class TurnMessageDelivery {
+    static func isBlank(_ s: String) -> Bool {
+        s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private let agentName: String?
+    private let turnConversationID: UUID?
+    private let turnSessionID: String
+    private let store: ConversationStore
+    private let currentID: () -> UUID?
+    private let currentSessionID: () -> String
+    private let getMessages: () -> [AgentMessage]
+    private let setMessages: ([AgentMessage]) -> Void
+    private let setTyping: (Bool) -> Void
+
+    private var liveBubbleID: UUID?
+    /// Best partial text shown this turn (empty until the first non-blank token).
+    private(set) var shownPartial = ""
+
+    init(agentName: String?,
+         turnConversationID: UUID?,
+         turnSessionID: String,
+         store: ConversationStore,
+         currentID: @escaping () -> UUID?,
+         currentSessionID: @escaping () -> String,
+         getMessages: @escaping () -> [AgentMessage],
+         setMessages: @escaping ([AgentMessage]) -> Void,
+         setTyping: @escaping (Bool) -> Void) {
+        self.agentName = agentName
+        self.turnConversationID = turnConversationID
+        self.turnSessionID = turnSessionID
+        self.store = store
+        self.currentID = currentID
+        self.currentSessionID = currentSessionID
+        self.getMessages = getMessages
+        self.setMessages = setMessages
+        self.setTyping = setTyping
+    }
+
+    /// True while the turn's origin thread is still the visible one. Identity is the PAIR
+    /// (conversationID, gatewaySessionId): conversationID changes when a saved chat is
+    /// opened; gatewaySessionId changes on every new/switched chat — including EPHEMERAL
+    /// ones whose conversationID stays nil. Comparing both detects ANY switch, so an
+    /// in-flight reply never renders into or cross-posts to the wrong (e.g. new-agent) thread.
+    var stillCurrent: Bool {
+        currentID() == turnConversationID && currentSessionID() == turnSessionID
+    }
+
+    /// Persist the turn's live thread synchronously to its origin record so a completed
+    /// reply is durable immediately — it cannot be lost to the 300ms persistence debounce
+    /// if the user switches chats right after it lands. No-op for ephemeral (no record).
+    private func persistOrigin(_ msgs: [AgentMessage]) {
+        guard let convID = turnConversationID else { return }
+        store.update(id: convID, messages: msgs)
+    }
+
+    /// Commit into the ORIGIN conversation's saved record when the user navigated away.
+    /// For a standalone append (the cut-off note) `ensurePartial` first makes sure the
+    /// partial the note refers to is actually in the record — a fast swap can beat the
+    /// persistence debounce and leave the shown partial unsaved, stranding the note.
+    private func commitToOriginStore(_ msg: AgentMessage, replacingLive: Bool, ensurePartial: Bool = false) {
+        guard let convID = turnConversationID else { return }   // ephemeral: no record to persist to
+        var stored = store.conversation(id: convID)?.messages ?? []
+        if replacingLive, let id = liveBubbleID,
+           let sidx = stored.firstIndex(where: { $0.id == id }) {
+            stored[sidx] = msg
+        } else {
+            if ensurePartial, !shownPartial.isEmpty, stored.last?.text != shownPartial {
+                stored.append(AgentMessage(text: shownPartial, role: .agent, agentName: agentName))
+            }
+            stored.append(msg)
+        }
+        store.update(id: convID, messages: stored)
+    }
+
+    /// Upsert the single live bubble with a streamed partial. Blank text and swapped
+    /// threads are ignored (a partial never renders into the wrong conversation).
+    func showLive(_ raw: String) {
+        let t = AgentMessage.humanizedReply(raw)
+        guard !Self.isBlank(t) else { return }
+        shownPartial = t
+        guard stillCurrent else { return }
+        setTyping(false)
+        var msgs = getMessages()
+        if let id = liveBubbleID, let idx = msgs.firstIndex(where: { $0.id == id }) {
+            msgs[idx].text = t
+        } else {
+            let m = AgentMessage(text: t, role: .agent, agentName: agentName)
+            liveBubbleID = m.id
+            msgs.append(m)
+        }
+        setMessages(msgs)
+    }
+
+    /// Deliver the final answer (+ optional actions). Supersedes the live bubble in place
+    /// AND persists synchronously, or commits to the origin record if the user navigated
+    /// away. Never blank.
+    func finishLive(_ raw: String, actions: [SuggestedAction] = []) {
+        let t = AgentMessage.humanizedReply(raw)
+        guard !Self.isBlank(t) else { return }
+        let msg = AgentMessage(text: t, role: .agent, agentName: agentName, suggestedActions: actions)
+        if stillCurrent {
+            var msgs = getMessages()
+            if actions.isEmpty, let id = liveBubbleID,
+               let idx = msgs.firstIndex(where: { $0.id == id }) {
+                msgs[idx].text = t
+            } else {
+                if let id = liveBubbleID { msgs.removeAll { $0.id == id } }
+                msgs.append(msg)
+            }
+            setMessages(msgs)
+            persistOrigin(msgs)          // durable now — never depend on the debounce
+        } else {
+            commitToOriginStore(msg, replacingLive: true)
+        }
+        liveBubbleID = nil
+        setTyping(false)
+    }
+
+    /// Append a standalone assistant message (e.g. the honest cut-off note) beside
+    /// whatever is already there — live thread if current, else the origin record.
+    /// Preserves the referenced partial in the record either way.
+    func appendAssistant(_ raw: String) {
+        let t = AgentMessage.humanizedReply(raw)
+        guard !Self.isBlank(t) else { return }
+        let msg = AgentMessage(text: t, role: .agent, agentName: agentName)
+        if stillCurrent {
+            var msgs = getMessages()
+            msgs.append(msg)
+            setMessages(msgs)
+            persistOrigin(msgs)
+        } else {
+            commitToOriginStore(msg, replacingLive: false, ensurePartial: true)
+        }
+    }
+}
+
 /// ViewModel for the agent conversation interface.
 @MainActor
 final class AgentConversationViewModel: ObservableObject {
@@ -845,44 +994,46 @@ final class AgentConversationViewModel: ObservableObject {
             // On-device runs only when the router chose it; `.escalateToCloud` skips
             // straight to the gateway below, and any failure still falls through to the
             // honest no-reasoning-source message (never a scripted answer).
+            // The never-vanish delivery state machine for this turn (see TurnMessageDelivery).
+            // Bound to the conversation it started in, so a mid-flight chat switch / idle
+            // reset commits the reply to its OWN thread instead of losing or cross-posting
+            // it. Whitespace-only text is treated as empty (no blank bubble). Every failure
+            // path below routes through delivery.finishLive / .appendAssistant, so a reply
+            // can be superseded or turned into an honest error but can NEVER silently vanish.
+            let delivery = TurnMessageDelivery(
+                agentName: agentName,
+                turnConversationID: conversationID,
+                turnSessionID: gatewaySessionId,
+                store: store,
+                currentID: { [weak self] in self?.conversationID },
+                currentSessionID: { [weak self] in self?.gatewaySessionId ?? "" },
+                getMessages: { [weak self] in self?.messages ?? [] },
+                setMessages: { [weak self] in self?.messages = $0 },
+                setTyping: { [weak self] in self?.isTyping = $0 }
+            )
+
             if !intercepted && langProfile.tier1Supported && reasoningRoute == .onDevice {
-                // Stream the on-device reply into a single live bubble so the
-                // agent starts answering the instant the first token lands,
-                // instead of after the whole reply is generated.
-                let streamMsg = AgentMessage(text: "", role: .agent, agentName: agentName)
-                let streamID = streamMsg.id
-                var didStream = false
+                // Stream the on-device reply into the live bubble so the agent starts
+                // answering the instant the first token lands.
                 let onDevice = await inference.generateOnDeviceStreaming(
                     prompt: text,
                     context: contextLine,
                     persona: persona,
-                    onPartial: { [weak self] partial in
-                        guard let self, !partial.isEmpty else { return }
-                        if !didStream {
-                            didStream = true
-                            self.isTyping = false
-                            self.messages.append(streamMsg)
-                        }
-                        if let idx = self.messages.firstIndex(where: { $0.id == streamID }) {
-                            // Streamed text bypasses AgentMessage.init, so sanitize here
-                            // too (drop em dashes) to keep model replies reading natural.
-                            self.messages[idx].text = AgentMessage.humanizedReply(partial)
-                        }
+                    onPartial: { partial in
+                        guard !partial.isEmpty else { return }
+                        delivery.showLive(partial)
                     }
                 )
                 if let onDevice {
-                    if didStream, let idx = messages.firstIndex(where: { $0.id == streamID }) {
-                        messages[idx].text = AgentMessage.humanizedReply(onDevice)
-                    } else {
-                        messages.append(AgentMessage(text: onDevice, role: .agent, agentName: agentName))
-                    }
+                    delivery.finishLive(onDevice)
                     speakIfEnabled(onDevice)
-                    isTyping = false
                     return
                 }
-                // On-device unavailable/failed → drop any partial bubble and
-                // fall through to the gateway.
-                if didStream { messages.removeAll { $0.id == streamID } }
+                // On-device failed — possibly AFTER streaming a partial (a long answer
+                // that exceeded the small model's budget, then threw). Do NOT delete the
+                // partial: keep it on screen and show the typing indicator while we
+                // escalate to the gateway, which supersedes it with the complete answer.
+                if !delivery.shownPartial.isEmpty { isTyping = true }
             }
 
             // Part 3 — the router's decision is binding on the CLOUD too. Privacy mode
@@ -895,9 +1046,8 @@ final class AgentConversationViewModel: ObservableObject {
                     isEnglish: langProfile.isEnglish,
                     languageName: langProfile.displayName
                 )
-                messages.append(AgentMessage(text: honest, role: .agent, agentName: agentName))
+                delivery.finishLive(honest)
                 speakIfEnabled(honest)
-                isTyping = false
                 return
             }
 
@@ -907,59 +1057,38 @@ final class AgentConversationViewModel: ObservableObject {
             // in a language we don't yet support for this user. The real extended cloud service is
             // wired in V3/V4, behind this same ExtendedLanguageGate.
             if !langProfile.tier1Supported && !langProfile.isEnglish && !ExtendedLanguageGate.isEnabled {
-                messages.append(AgentMessage(
-                    text: ExtendedLanguageGate.offerMessage(for: langProfile.displayName),
-                    role: .agent,
-                    agentName: agentName
-                ))
-                isTyping = false
+                delivery.finishLive(ExtendedLanguageGate.offerMessage(for: langProfile.displayName))
                 return
             }
 
-            // 2 — Gateway (when Apple Intelligence isn't available)
+            // 2 — Gateway (when Apple Intelligence isn't available / didn't answer)
             let gatewayContext = temporal + "\n" + conversationContext + (langProfile.mirrorInstruction.isEmpty ? "" : "\n" + langProfile.mirrorInstruction)
 
-            // 2a — WS streaming (Phase 6): render the reply token-by-token in a
-            // live bubble, exactly like the on-device path above. Any stream
-            // failure falls through to the REST path — a partial stream is
-            // discarded, never presented as a finished reply.
+            // 2a — WS streaming (Phase 6): render the reply into the SAME live bubble.
+            // A stream failure keeps whatever is shown and falls through to REST — a
+            // partial is superseded by the finished reply, never deleted.
             if PendingCredentials.isBackendConfigured {
-                let streamMsg = AgentMessage(text: "", role: .agent, agentName: agentName)
-                let streamID = streamMsg.id
-                var didStream = false
                 do {
                     let final = try await GatewayChatStream.stream(
                         message: text,
                         agent: agentName.lowercased(),
                         sessionId: gatewaySessionId,
                         context: gatewayContext,
-                        onToken: { [weak self] partial in
-                            guard let self, !partial.isEmpty else { return }
-                            if !didStream {
-                                didStream = true
-                                self.isTyping = false
-                                self.messages.append(streamMsg)
-                            }
-                            if let idx = self.messages.firstIndex(where: { $0.id == streamID }) {
-                                self.messages[idx].text = AgentMessage.humanizedReply(partial)
-                            }
+                        onToken: { partial in
+                            guard !partial.isEmpty else { return }
+                            delivery.showLive(partial)
                         }
                     )
-                    if !final.isEmpty {
-                        if didStream, let idx = messages.firstIndex(where: { $0.id == streamID }) {
-                            messages[idx].text = AgentMessage.humanizedReply(final)
-                        } else {
-                            messages.append(AgentMessage(text: final, role: .agent, agentName: agentName))
-                        }
+                    if !TurnMessageDelivery.isBlank(final) {
+                        delivery.finishLive(final)
                         speakIfEnabled(final)
-                        isTyping = false
                         return
                     }
-                    // Empty final — treat as a failed stream, use REST.
-                    if didStream { messages.removeAll { $0.id == streamID } }
+                    // Empty/whitespace final — treat as a failed stream; keep any shown text, use REST.
+                    if !delivery.shownPartial.isEmpty { isTyping = true }
                 } catch {
-                    // Honest degradation: drop any partial bubble, log, REST answers.
-                    if didStream { messages.removeAll { $0.id == streamID } }
+                    // Honest degradation: keep any shown text, log, let REST answer.
+                    if !delivery.shownPartial.isEmpty { isTyping = true }
                     print("GatewayChatStream: falling back to REST — \(error)")
                 }
             }
@@ -971,31 +1100,41 @@ final class AgentConversationViewModel: ObservableObject {
                     context: gatewayContext,
                     conversationHistory: buildHistoryPayload()
                 )
-
-                messages.append(AgentMessage(
-                    text: apiResponse.text,
-                    role: .agent,
-                    agentName: agentName,
-                    suggestedActions: (apiResponse.suggestedActions ?? []).map { SuggestedAction(title: $0.label, description: $0.label, action: $0.action) }
-                ))
-                speakIfEnabled(apiResponse.text)
-                isTyping = false
+                let restText = apiResponse.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                // An empty 200 is a failed reply, not a blank bubble — route it to the
+                // honest ending below instead of showing nothing.
+                guard !restText.isEmpty else {
+                    throw MTRXAPIError.decodingFailed("empty agent response")
+                }
+                let actions = (apiResponse.suggestedActions ?? []).map {
+                    SuggestedAction(title: $0.label, description: $0.label, action: $0.action)
+                }
+                delivery.finishLive(restText, actions: actions)
+                speakIfEnabled(restText)
             } catch {
-                // Honest failure — Part 1 (Option A), honest-failure law absolute.
-                // Trinity's reasoning comes ONLY from a real source: the on-device
-                // model (Apple Intelligence) tried above, then the cloud brain
-                // (gateway) tried above. When NEITHER is reachable she says so
-                // plainly. She NEVER serves a scripted/templated response dressed
-                // up as reasoning — scripted-answer-as-fake-reasoning is exactly the
-                // fake-success this program eliminates everywhere else.
+                // Honest failure — honest-failure law absolute. On-device tried, the
+                // cloud brain tried; when NEITHER delivered she says so plainly, never a
+                // scripted answer dressed up as reasoning. Crucially: if a partial WAS
+                // shown, it is PRESERVED (a cut-off answer beats a vanished one) and an
+                // honest note is appended — a message can never silently disappear.
                 isOffline = true
-                let honest = Self.noReasoningSourceMessage(
-                    isEnglish: langProfile.isEnglish,
-                    languageName: langProfile.displayName
-                )
-                messages.append(AgentMessage(text: honest, role: .agent, agentName: agentName))
-                speakIfEnabled(honest)
                 isTyping = false
+                if !delivery.shownPartial.isEmpty {
+                    // A partial WAS shown — it is already committed (the live bubble if this
+                    // is still the visible thread, or the origin conversation's saved record
+                    // if the user navigated away). Keep it and add an honest cut-off note
+                    // beside it. The partial is never deleted; nothing ever vanishes.
+                    let note = Self.cutOffNote(isEnglish: langProfile.isEnglish)
+                    delivery.appendAssistant(note)
+                    speakIfEnabled(note)
+                } else {
+                    let honest = Self.noReasoningSourceMessage(
+                        isEnglish: langProfile.isEnglish,
+                        languageName: langProfile.displayName
+                    )
+                    delivery.finishLive(honest)
+                    speakIfEnabled(honest)
+                }
             }
         }
     }
@@ -1610,6 +1749,16 @@ final class AgentConversationViewModel: ObservableObject {
             return "I can reason with you in \(languageName) once I'm connected \u{2014} I just couldn't reach my reasoning right now. Give me a moment and ask again."
         }
         return "I need to connect to reason about that \u{2014} I couldn't reach my on-device model or the cloud just now, so I won't guess at it. Give me a moment and ask me again."
+    }
+
+    /// Honest note appended when a reply was cut off mid-stream but the partial is
+    /// PRESERVED on screen (never vanished). A cut-off answer plus this note is
+    /// always better than a message that silently disappears.
+    static func cutOffNote(isEnglish: Bool) -> String {
+        if !isEnglish {
+            return "\u{26A0}\u{FE0F} That reply got cut off before I could finish \u{2014} the connection dropped mid-answer. Ask me again and I'll pick it back up."
+        }
+        return "\u{26A0}\u{FE0F} That reply got cut off before I could finish \u{2014} my connection dropped mid-answer. Ask again and I'll complete it."
     }
 
     // MARK: - Morpheus Trigger Checks

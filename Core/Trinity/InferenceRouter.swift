@@ -934,6 +934,28 @@ struct ReasoningRouter {
         "logic puzzle", "riddle", "multi-step",
     ]
 
+    /// Signals the ANSWER will be long / multi-part even when the PROMPT is short —
+    /// e.g. a terse "explain these 7 things: …" or a numbered list of asks. The small
+    /// on-device model reliably STARTS these and then throws mid-generation once it
+    /// exceeds its output budget (the vanishing-long-reply bug), so they belong on the
+    /// cloud when it's reachable. Phrase-based and enumeration-based; ordinary short
+    /// chat / opinion / one-shot how-to stays local.
+    static let answerLikelyLongMarkers: [String] = [
+        "list ", "walk me through", "rundown", "break down", "each of", "for each",
+        "all seven", "all of the following", "and finally", "give me a full",
+        // Enumeration forms only — parenthesised/closing-paren numerals. Bare "1." / "2."
+        // are deliberately excluded: they substring-match decimals, prices, versions and
+        // times ("3.5%", "iOS 26.1", "at 2.") and would over-escalate ordinary chat.
+        "1)", "2)", "3)", "(1)", "(2)", "(3)",
+    ]
+
+    /// A prompt asks for several distinct answers when it carries multiple question
+    /// marks — another "short prompt, long answer" tell that plain length misses.
+    static func looksMultiPart(_ prompt: String) -> Bool {
+        prompt.filter { $0 == "?" }.count >= 3
+            || answerLikelyLongMarkers.contains { prompt.lowercased().contains($0) }
+    }
+
     func route(prompt: String,
                onDeviceAvailable: Bool,
                cloudReachable: Bool,
@@ -947,6 +969,7 @@ struct ReasoningRouter {
         let lower = prompt.lowercased()
         let exceedsLocal = forceCloud
             || prompt.count > localCharBudget
+            || Self.looksMultiPart(prompt)
             || Self.deepReasoningMarkers.contains { lower.contains($0) }
             || Self.correctnessSensitiveMarkers.contains { lower.contains($0) }
         if exceedsLocal {

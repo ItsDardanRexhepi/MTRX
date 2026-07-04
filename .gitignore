@@ -4,6 +4,7 @@
 DerivedData/
 build_device/
 build_archive/
+build_sim/
 *.ipa
 *.dSYM.zip
 *.dSYM
