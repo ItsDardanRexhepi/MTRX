@@ -2309,7 +2309,7 @@
 				CODE_SIGN_ENTITLEMENTS = WidgetsExtension/WidgetsExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 197;
+				CURRENT_PROJECT_VERSION = 200;
 				DEVELOPMENT_TEAM = Z8T732UGMV;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WidgetsExtension/Info.plist;
@@ -2334,7 +2334,7 @@
 				CODE_SIGN_ENTITLEMENTS = WidgetsExtension/WidgetsExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 197;
+				CURRENT_PROJECT_VERSION = 200;
 				DEVELOPMENT_TEAM = Z8T732UGMV;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WidgetsExtension/Info.plist;
