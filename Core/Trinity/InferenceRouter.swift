@@ -892,7 +892,11 @@ struct FoundationModelsReasoningProvider: OfflineReasoningProvider {
 ///          for large context the small on-device model handles poorly), OR
 ///        • the prompt carries a deep/multi-step/expert signal
 ///          (`deepReasoningMarkers`, e.g. "step by step", "prove", "in depth",
-///          "write an essay", "research").
+///          "write an essay", "research"), OR
+///        • the prompt is CORRECTNESS-SENSITIVE (`correctnessSensitiveMarkers`,
+///          e.g. "calculate", "how many", "which is bigger", "what year", "when
+///          did") — often SHORT, but where the small on-device model is unreliable
+///          and a wrong answer is costly, so it escalates rather than guessing.
 ///   3. Otherwise → `.onDevice` if available (the default), else `.escalateToCloud`
 ///      if the cloud is reachable, else `.honestlyUnavailable`.
 ///
@@ -913,6 +917,23 @@ struct ReasoningRouter {
         "write an essay", "write a report", "long-form", "research",
     ]
 
+    /// Correctness-sensitive markers: questions where a WRONG answer is costly and
+    /// the small on-device model is unreliable — multi-step math, comparisons,
+    /// precise facts, logic. These are often SHORT (so length alone misses them),
+    /// which is why they get their own trigger. Escalated to the cloud when reachable.
+    /// Kept phrase-based and narrow so ordinary conversation / opinion / creative /
+    /// light how-to stays local. Heuristic by necessity: Apple's on-device API
+    /// exposes no reliable confidence signal, so the router errs toward the cloud for
+    /// correctness-sensitive content WHEN a cloud is available, and best-efforts
+    /// locally when it isn't (better than nothing, and never a fabricated answer).
+    static let correctnessSensitiveMarkers: [String] = [
+        "calculate", "how many", "how much", "what percent", "percent of",
+        "solve for", "solve this", "equation", "which is bigger", "which is larger",
+        "which is faster", "which is more", "what year", "when did", "who invented",
+        "how far is", "how long does", "how long until", "reason through",
+        "logic puzzle", "riddle", "multi-step",
+    ]
+
     func route(prompt: String,
                onDeviceAvailable: Bool,
                cloudReachable: Bool,
@@ -927,6 +948,7 @@ struct ReasoningRouter {
         let exceedsLocal = forceCloud
             || prompt.count > localCharBudget
             || Self.deepReasoningMarkers.contains { lower.contains($0) }
+            || Self.correctnessSensitiveMarkers.contains { lower.contains($0) }
         if exceedsLocal {
             if cloudReachable { return .escalateToCloud }
             if onDeviceAvailable { return .onDevice }       // best-effort beats nothing
