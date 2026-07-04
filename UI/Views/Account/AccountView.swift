@@ -894,10 +894,12 @@ struct QuickActionCard: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
-                // A compact, fixed tile — not greedy — so the workspace grid
-                // doesn't stretch the page past the screen and force a scroll.
+                // A taller fixed tile — sized so the 2×2 workspace grid fills the
+                // space down toward Sign Out instead of leaving a dead gap. Still a
+                // fixed height (not greedy): the flexible Spacer above Sign Out absorbs
+                // any residual and fitToReferenceScreen keeps the page from scrolling.
                 .frame(maxWidth: .infinity)
-                .frame(height: 78)
+                .frame(height: 122)
             }
         }
         .buttonStyle(.plain)
