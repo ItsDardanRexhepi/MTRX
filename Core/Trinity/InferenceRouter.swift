@@ -834,3 +834,115 @@ final class InferenceRouter {
         isOffline = !isConnected
     }
 }
+
+// MARK: - Local-first reasoning router (Part 3)
+//
+// Trinity reasons ON-DEVICE by default and escalates to the cloud (Anthropic via
+// the gateway) ONLY when a request genuinely exceeds on-device capability. Apple
+// Foundation Models is strong at conversation, everyday Q&A, short reasoning, and
+// tool-calls — fully offline; it is weaker on long / multi-step / expert-depth /
+// large-context requests, which escalate. Escalation never happens in privacy mode.
+
+/// Where a reasoning request should be handled.
+enum ReasoningRoute: Equatable {
+    /// Apple Foundation Models handles it locally (the default).
+    case onDevice
+    /// Escalate to the cloud gateway (Anthropic) — the task exceeds local capability.
+    case escalateToCloud
+    /// No reasoning source reachable — Trinity fails honestly (never scripted).
+    case honestlyUnavailable
+}
+
+/// The on-device reasoning seam. Abstracts Apple Foundation Models so the router
+/// depends on a protocol, not the concrete engine. (This is the OfflineReasoning-
+/// Provider the local-first architecture calls for; the on-device path was
+/// previously only the concrete `FoundationModelsEngine`.)
+protocol OfflineReasoningProvider {
+    /// True when on-device reasoning can run right now (iOS 26+ Apple Intelligence).
+    var isAvailable: Bool { get }
+    /// Reason fully on-device, streaming partials; nil if unavailable or it failed.
+    func reason(prompt: String, context: String?,
+                onPartial: @escaping @MainActor (String) -> Void) async -> String?
+}
+
+/// Foundation Models implementation of the on-device seam (wraps `InferenceRouter`).
+struct FoundationModelsReasoningProvider: OfflineReasoningProvider {
+    let router: InferenceRouter
+    var persona: InferenceRouter.Persona = .trinity
+    var isAvailable: Bool { router.isOnDeviceAvailable }
+    func reason(prompt: String, context: String?,
+                onPartial: @escaping @MainActor (String) -> Void) async -> String? {
+        await router.generateOnDeviceStreaming(prompt: prompt, context: context,
+                                               persona: persona, onPartial: onPartial)
+    }
+}
+
+/// Decides, per request, whether Trinity reasons on-device or escalates to the
+/// cloud. LOCAL-FIRST: on-device is the default; the cloud is used ONLY when the
+/// request exceeds on-device capability.
+///
+/// EXACT DECISION CRITERIA (evaluated in this order):
+///   1. Privacy mode ON  → never leave the device: `.onDevice` if available, else
+///      `.honestlyUnavailable`. The cloud is never used in privacy mode.
+///   2. Request EXCEEDS local capability → `.escalateToCloud` when the cloud is
+///      reachable (else best-effort `.onDevice`, else `.honestlyUnavailable`).
+///      "Exceeds local" is true when ANY of:
+///        • the caller forces the cloud (developer toggle), OR
+///        • the prompt is long — more than `localCharBudget` characters (a proxy
+///          for large context the small on-device model handles poorly), OR
+///        • the prompt carries a deep/multi-step/expert signal
+///          (`deepReasoningMarkers`, e.g. "step by step", "prove", "in depth",
+///          "write an essay", "research").
+///   3. Otherwise → `.onDevice` if available (the default), else `.escalateToCloud`
+///      if the cloud is reachable, else `.honestlyUnavailable`.
+///
+/// Deterministic app actions ("open X", "post Y", "set theme") are handled upstream
+/// by the app-intent handlers BEFORE reasoning is routed, so they never reach this
+/// router. Network-needing actions produced while offline are queued for replay via
+/// the offline intent queue — that is execution, separate from reasoning routing.
+struct ReasoningRouter {
+    /// Above this many characters a prompt is treated as large-context the small
+    /// on-device model handles poorly → escalate (outside privacy mode). ~600 chars
+    /// ≈ a few dense paragraphs; on-device excels below this.
+    var localCharBudget = 600
+
+    /// Signals a request wants deep / multi-step / expert / long-form reasoning.
+    static let deepReasoningMarkers: [String] = [
+        "step by step", "step-by-step", "prove", "derive", "in depth", "in-depth",
+        "comprehensive", "thorough", "analyze in detail", "explain in detail",
+        "write an essay", "write a report", "long-form", "research",
+    ]
+
+    func route(prompt: String,
+               onDeviceAvailable: Bool,
+               cloudReachable: Bool,
+               privacyMode: Bool,
+               forceCloud: Bool) -> ReasoningRoute {
+        // 1 — Privacy mode never leaves the device.
+        if privacyMode {
+            return onDeviceAvailable ? .onDevice : .honestlyUnavailable
+        }
+        // 2 — Does the request exceed on-device capability?
+        let lower = prompt.lowercased()
+        let exceedsLocal = forceCloud
+            || prompt.count > localCharBudget
+            || Self.deepReasoningMarkers.contains { lower.contains($0) }
+        if exceedsLocal {
+            if cloudReachable { return .escalateToCloud }
+            if onDeviceAvailable { return .onDevice }       // best-effort beats nothing
+            return .honestlyUnavailable
+        }
+        // 3 — Default: local-first.
+        if onDeviceAvailable { return .onDevice }
+        if cloudReachable { return .escalateToCloud }
+        return .honestlyUnavailable
+    }
+}
+
+extension InferenceRouter {
+    /// The on-device reasoning seam for a persona (Part 3). App Intents and the
+    /// chat path reason through this instead of touching the engine directly.
+    func offlineProvider(persona: Persona = .trinity) -> OfflineReasoningProvider {
+        FoundationModelsReasoningProvider(router: self, persona: persona)
+    }
+}

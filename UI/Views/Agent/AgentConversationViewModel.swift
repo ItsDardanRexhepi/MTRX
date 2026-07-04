@@ -825,12 +825,27 @@ final class AgentConversationViewModel: ObservableObject {
                 case .neo: return .neo
                 }
             }()
+            // Part 3 — local-first routing decision (exact criteria documented on
+            // ReasoningRouter). On-device by default; escalate to the cloud ONLY when
+            // the task exceeds on-device capability (long / multi-step / expert /
+            // large-context / forced). This replaces the implicit "try on-device then
+            // fall to gateway" with an explicit, documented local-first decision.
+            let reasoningRoute = ReasoningRouter().route(
+                prompt: text,
+                onDeviceAvailable: inference.isOnDeviceAvailable,
+                cloudReachable: PendingCredentials.isBackendConfigured,
+                privacyMode: inference.isPrivacyModeEnabled,
+                forceCloud: PendingCredentials.forceCloudReasoning
+            )
             // V1 — Tier-1 routing: the on-device Apple model runs only for languages it
             // handles well (langProfile.tier1Supported). A non-Tier-1 language skips it and
             // goes straight to the broader gateway, so we never garble output by nudging the
             // on-device model toward a language it can't speak. (Tier-2 extended coverage for
             // languages outside on-device is gated to Enterprise + opt-in in V2.)
-            if !intercepted && langProfile.tier1Supported && !PendingCredentials.forceCloudReasoning {
+            // On-device runs only when the router chose it; `.escalateToCloud` skips
+            // straight to the gateway below, and any failure still falls through to the
+            // honest no-reasoning-source message (never a scripted answer).
+            if !intercepted && langProfile.tier1Supported && reasoningRoute == .onDevice {
                 // Stream the on-device reply into a single live bubble so the
                 // agent starts answering the instant the first token lands,
                 // instead of after the whole reply is generated.
@@ -868,6 +883,22 @@ final class AgentConversationViewModel: ObservableObject {
                 // On-device unavailable/failed → drop any partial bubble and
                 // fall through to the gateway.
                 if didStream { messages.removeAll { $0.id == streamID } }
+            }
+
+            // Part 3 — the router's decision is binding on the CLOUD too. Privacy mode
+            // and a no-source route (.honestlyUnavailable) must NEVER touch the gateway:
+            // if on-device didn't answer, fail honestly rather than sending data
+            // off-device. (.escalateToCloud, and a non-privacy .onDevice miss, fall
+            // through to the gateway below.)
+            if inference.isPrivacyModeEnabled || reasoningRoute == .honestlyUnavailable {
+                let honest = Self.noReasoningSourceMessage(
+                    isEnglish: langProfile.isEnglish,
+                    languageName: langProfile.displayName
+                )
+                messages.append(AgentMessage(text: honest, role: .agent, agentName: agentName))
+                speakIfEnabled(honest)
+                isTyping = false
+                return
             }
 
             // V2 — Tier-2 gate: a language outside on-device Tier-1 coverage is Extended Language
