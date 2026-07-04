@@ -20,10 +20,12 @@ struct SettingsView: View {
     @AppStorage("com.mtrx.blackout") private var blackoutMode = false
 
     // MARK: - Developer (Trinity cloud brain) — DEBUG only
-    #if DEBUG
-    @AppStorage("mtrx.debug.gatewayURL") private var devGatewayURL = ""
-    @AppStorage("mtrx.debug.forceCloudReasoning") private var devForceCloud = false
-    #endif
+    // Cloud Trinity controls (shipped, not dev-only): a gateway URL + a force-cloud
+    // toggle. These write the exact keys PendingCredentials reads
+    // (runtimeGatewayURL / forceCloudReasoning), so setting them here powers the real
+    // cloud reasoning path. The Anthropic key stays server-side in the gateway.
+    @AppStorage("mtrx.debug.gatewayURL") private var cloudGatewayURL = ""
+    @AppStorage("mtrx.debug.forceCloudReasoning") private var forceCloudReasoning = false
 
     // MARK: - Network
     @AppStorage("mtrx_chain") private var defaultChain = "Base"
@@ -335,26 +337,28 @@ struct SettingsView: View {
                 )
             }
 
-            #if DEBUG
-            // Developer (Part 2): point Trinity's cloud brain at a locally-run
-            // 0pnMatrx gateway and (optionally) force reasoning through it, to
-            // verify REAL Anthropic responses on-device. The Anthropic key stays
-            // server-side in the gateway — never in the app.
+            // Cloud Trinity: point Trinity's cloud brain at your running 0pnMatrx
+            // gateway and (optionally) force reasoning through it. Setting a URL makes
+            // the cloud reasoning path reachable (isBackendConfigured); the Anthropic
+            // key stays server-side in the gateway — never in the app.
             VStack(alignment: .leading, spacing: 6) {
-                Text("Cloud brain gateway (dev)")
+                Text("Cloud brain gateway")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField("http://192.168.x.x:18790", text: $devGatewayURL)
+                TextField("https://your-gateway:18790", text: $cloudGatewayURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
                     .keyboardType(.URL)
+                    .foregroundStyle(Color.labelPrimary)
+                    .onChange(of: cloudGatewayURL) { _, _ in triggerHaptic() }
             }
-            Toggle("Route reasoning through cloud", isOn: $devForceCloud)
-            #endif
+            Toggle("Route reasoning through cloud", isOn: $forceCloudReasoning)
+                .tint(Color.accentPrimary)
+                .onChange(of: forceCloudReasoning) { _, _ in triggerHaptic() }
         } header: {
             Text("Trinity AI")
         } footer: {
-            Text("Configure how Trinity communicates with you. Proactive alerts notify you of important on-chain events.")
+            Text("Configure how Trinity communicates with you. Set a cloud brain gateway to route her reasoning through your hosted 0pnMatrx server (the Anthropic key stays on the server); turn on \u{201C}Route reasoning through cloud\u{201D} to always use it. Proactive alerts notify you of important on-chain events.")
         }
     }
 
