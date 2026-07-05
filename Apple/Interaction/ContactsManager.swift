@@ -69,8 +69,9 @@ final class ContactsManager: ObservableObject {
             }
         }
 
-        Task { @MainActor in mtrxContacts = contacts }
-        return contacts
+        let resolved = contacts
+        Task { @MainActor in mtrxContacts = resolved }
+        return resolved
     }
 
     // MARK: - Search
