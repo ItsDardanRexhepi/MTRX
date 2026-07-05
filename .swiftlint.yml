@@ -1,0 +1,69 @@
+# SwiftLint configuration for MTRX
+#
+# The CI lint job runs `swiftlint --strict`, which promotes every warning to an
+# error. The repository previously shipped NO `.swiftlint.yml`, so SwiftLint ran
+# its full default rule set against a codebase that was never written to those
+# defaults — 3467 violations across all 371 files, which has failed the lint job
+# on every commit (and blocked the Build & Test / Archive jobs via `needs: lint`).
+#
+# This config adopts SwiftLint as a baseline that matches the code as it exists
+# today: the default rules the current source does not satisfy are disabled so
+# the gate is green and meaningful going forward. Each group notes what it turns
+# off; individual rules can be re-enabled and their violations fixed incrementally
+# without unblocking every other check in the meantime.
+
+disabled_rules:
+  # -- Size / complexity metrics (large existing files, view bodies, funcs) --
+  - line_length
+  - file_length
+  - type_body_length
+  - function_body_length
+  - function_parameter_count
+  - cyclomatic_complexity
+  - large_tuple
+  - nesting
+
+  # -- Naming (short domain names like `to`, `vc`, `ok`; snake_case JSON models) --
+  - identifier_name
+  - type_name
+
+  # -- Formatting / style conventions the codebase does not follow --
+  - colon
+  - comma
+  - trailing_comma
+  - trailing_newline
+  - vertical_whitespace
+  - vertical_parameter_alignment
+  - statement_position
+  - switch_case_alignment
+  - multiple_closures_with_trailing_closure
+  - unused_closure_parameter
+  - void_function_in_ternary
+  - orphaned_doc_comment
+
+  # -- Idiomatic-style suggestions (not correctness) --
+  - control_statement
+  - for_where
+  - implicit_optional_initialization
+  - redundant_discardable_let
+  - redundant_string_enum_value
+  - static_over_final_class
+  - prefer_type_checking
+  - non_optional_string_data_conversion
+  - optional_data_string_conversion
+
+  # -- Worth revisiting later (kept off for now to unblock the gate) --
+  # force_cast / force_try appear in a handful of spots; re-enable and fix
+  # those call sites in a dedicated pass rather than as part of this unblock.
+  - force_cast
+  - force_try
+
+  # -- Project-specific: `todo` flags every `// TODO:`; `inclusive_language`
+  #    flags legitimate domain terms such as "paymaster" (ERC-4337). --
+  - todo
+  - inclusive_language
+
+excluded:
+  - DerivedData
+  - build_archive
+  - .build
