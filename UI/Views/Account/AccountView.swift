@@ -1318,9 +1318,19 @@ struct MtrxSafariView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }
 
+// `@retroactive` is a Swift 6 (Xcode 16+) attribute; CI builds with Xcode 15.4
+// (Swift 5.10) where it is an unknown-attribute error. Gate on the compiler so
+// the retroactive-conformance warning stays suppressed on Xcode 16+ while the
+// declaration still compiles on 15.4.
+#if compiler(>=6.0)
 extension URL: @retroactive Identifiable {
     public var id: String { absoluteString }
 }
+#else
+extension URL: Identifiable {
+    public var id: String { absoluteString }
+}
+#endif
 
 // MARK: - Preview
 

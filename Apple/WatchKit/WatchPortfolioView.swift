@@ -86,4 +86,10 @@ final class WatchPortfolioViewModel: ObservableObject {
 }
 
 import WatchConnectivity
+// `@retroactive` requires Swift 6 (Xcode 16+); CI builds with Xcode 15.4
+// (Swift 5.10), where it is an unknown-attribute error. Gate on the compiler.
+#if compiler(>=6.0)
 extension WCSession: @unchecked @retroactive Sendable {}
+#else
+extension WCSession: @unchecked Sendable {}
+#endif
