@@ -82,17 +82,29 @@ final class TrinitySiriSession {
     /// One-shot reachability check; NWPathMonitor reports the current
     /// path immediately on start.
     static func isOnline() async -> Bool {
-        await withCheckedContinuation { continuation in
-            let monitor = NWPathMonitor()
-            let lock = NSLock()
-            var resumed = false
-            monitor.pathUpdateHandler = { path in
+        // One-shot latch shared with the @Sendable pathUpdateHandler. A plain
+        // local `var` can't be captured/mutated by a @Sendable closure (hard
+        // error under the CI toolchain), so the flag lives behind a lock in an
+        // @unchecked Sendable box.
+        final class OneShot: @unchecked Sendable {
+            private let lock = NSLock()
+            private var fired = false
+            func runOnce(_ body: () -> Void) {
                 lock.lock()
                 defer { lock.unlock() }
-                guard !resumed else { return }
-                resumed = true
-                continuation.resume(returning: path.status == .satisfied)
-                monitor.cancel()
+                guard !fired else { return }
+                fired = true
+                body()
+            }
+        }
+        return await withCheckedContinuation { continuation in
+            let monitor = NWPathMonitor()
+            let gate = OneShot()
+            monitor.pathUpdateHandler = { path in
+                gate.runOnce {
+                    continuation.resume(returning: path.status == .satisfied)
+                    monitor.cancel()
+                }
             }
             monitor.start(queue: DispatchQueue(label: "com.mtrx.trinity.netcheck"))
         }

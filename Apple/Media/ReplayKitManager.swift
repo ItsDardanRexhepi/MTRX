@@ -192,7 +192,7 @@ final class ReplayKitManager {
     private func startTicker() {
         ticker?.invalidate()
         ticker = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self, let started = self.startedAt else { return }
                 self.elapsed = Date().timeIntervalSince(started)
             }

@@ -64,7 +64,7 @@ final class WatchPortfolioViewModel: ObservableObject {
         }
         guard WCSession.default.isReachable else { return }
         WCSession.default.sendMessage(["request": "portfolio"], replyHandler: { [weak self] reply in
-            Task { @MainActor in self?.updateFrom(reply) }
+            Task { @MainActor [weak self] in self?.updateFrom(reply) }
         }, errorHandler: nil)
     }
 

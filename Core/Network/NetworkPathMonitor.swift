@@ -46,10 +46,16 @@ final class NetworkPathMonitor: ObservableObject {
             // Compute everything off the main thread; publish on main.
             let satisfied = path.status == .satisfied
             let constrained = path.isConstrained          // Low Data Mode
+            // `NWPath.isUltraConstrained` is an iOS 26+ symbol that does not
+            // exist in the CI SDK (Xcode 15.4 / iOS 17), so referencing it fails
+            // to compile even behind a runtime #available check. Compile it only
+            // when the SDK actually declares it; otherwise treat as not-ultra.
             var ultra = false
+            #if compiler(>=6.2)
             if #available(iOS 26.0, *) {
                 ultra = path.isUltraConstrained            // carrier ultra-constrained
             }
+            #endif
             Task { @MainActor [weak self] in
                 self?.apply(satisfied: satisfied, constrained: constrained, ultra: ultra)
             }

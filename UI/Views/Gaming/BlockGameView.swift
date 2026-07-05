@@ -174,7 +174,7 @@ final class BlockEngine: ObservableObject {
     private func restartTimer() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: gravity, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
+            Task { @MainActor [weak self] in self?.tick() }
         }
     }
 
