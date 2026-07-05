@@ -34,7 +34,7 @@ concurrency:
 env:
   SCHEME: MTRX
   PROJECT: MTRX.xcodeproj
-  DESTINATION: "platform=iOS Simulator,name=iPhone 15,OS=latest"
+  DESTINATION: "platform=iOS Simulator,name=iPhone 17,OS=latest"
   DERIVED_DATA: ${{ github.workspace }}/DerivedData
 
 jobs:
@@ -58,7 +58,11 @@ jobs:
   # -------------------------------------------------------------------- build
   build:
     name: Build & Test
-    runs-on: macos-14
+    # macos-26 ships the Xcode 26 / iOS 26 SDK the app is written against
+    # (Liquid Glass `glassEffect`, `NWPath.isUltraConstrained`, FoundationModels,
+    # `@retroactive`, and modern SwiftUI @MainActor isolation). macos-14
+    # (Xcode 15.4 / iOS 17 SDK) is too old to compile those symbols.
+    runs-on: macos-26
     needs: lint
     steps:
       - uses: actions/checkout@v4
@@ -147,7 +151,8 @@ jobs:
   # ------------------------------------------------------------------ archive
   archive:
     name: Archive & TestFlight
-    runs-on: macos-14
+    # Match the build job's toolchain (Xcode 26 / iOS 26 SDK).
+    runs-on: macos-26
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
