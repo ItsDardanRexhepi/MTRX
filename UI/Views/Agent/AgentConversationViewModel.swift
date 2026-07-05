@@ -1039,9 +1039,14 @@ final class AgentConversationViewModel: ObservableObject {
             // Part 3 — the router's decision is binding on the CLOUD too. Privacy mode
             // and a no-source route (.honestlyUnavailable) must NEVER touch the gateway:
             // if on-device didn't answer, fail honestly rather than sending data
-            // off-device. (.escalateToCloud, and a non-privacy .onDevice miss, fall
-            // through to the gateway below.)
-            if inference.isPrivacyModeEnabled || reasoningRoute == .honestlyUnavailable {
+            // off-device. The ONE exception is an explicit "Route reasoning through
+            // cloud" opt-in (forceCloudReasoning) — the router already encodes that
+            // precedence (privacy + forceCloud + reachable → .escalateToCloud), so we
+            // mirror it here instead of re-blocking a route the router deliberately chose.
+            // (.escalateToCloud, and a non-privacy .onDevice miss, fall through to the
+            // gateway below.)
+            let privacyBlocksCloud = inference.isPrivacyModeEnabled && !PendingCredentials.forceCloudReasoning
+            if privacyBlocksCloud || reasoningRoute == .honestlyUnavailable {
                 let honest = Self.noReasoningSourceMessage(
                     isEnglish: langProfile.isEnglish,
                     languageName: langProfile.displayName
