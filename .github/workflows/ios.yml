@@ -97,8 +97,9 @@ jobs:
             -derivedDataPath "${{ env.DERIVED_DATA }}" \
             -configuration Debug \
             -enableCodeCoverage YES \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES \
             build-for-testing | xcpretty
 
       - name: Verify the widget extension is embedded
@@ -123,8 +124,9 @@ jobs:
             -destination "${{ env.DESTINATION }}" \
             -derivedDataPath "${{ env.DERIVED_DATA }}" \
             -enableCodeCoverage YES \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES \
             test-without-building | xcpretty --report junit
 
       - name: Upload test results
