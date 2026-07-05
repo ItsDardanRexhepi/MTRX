@@ -215,7 +215,7 @@ final class IPManager: ObservableObject {
         asset.totalRoyaltiesEarned += royaltyAmount
         assetStore[assetId] = asset
 
-        await MainActor.run {
+        await MainActor.run { [asset] in
             royalties.append(event)
             if let idx = assets.firstIndex(where: { $0.id == assetId }) {
                 assets[idx] = asset
@@ -287,7 +287,7 @@ final class IPManager: ObservableObject {
         }
         asset.status = .revoked
         assetStore[assetId] = asset
-        await MainActor.run {
+        await MainActor.run { [asset] in
             if let idx = assets.firstIndex(where: { $0.id == assetId }) {
                 assets[idx] = asset
             }

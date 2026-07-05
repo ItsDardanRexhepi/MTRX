@@ -133,7 +133,7 @@ final class PrivacyManager: ObservableObject {
         }
 
         profileStore[owner] = profile
-        await MainActor.run { privacyProfile = profile }
+        await MainActor.run { [profile] in privacyProfile = profile }
     }
 
     // MARK: - Shielded Transactions
@@ -147,7 +147,7 @@ final class PrivacyManager: ObservableObject {
             profile.shieldedAddress = generateShieldedAddress()
         }
         profileStore[owner] = profile
-        await MainActor.run {
+        await MainActor.run { [profile] in
             privacyProfile = profile
             isShieldingEnabled = true
         }

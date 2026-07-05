@@ -141,7 +141,7 @@ final class SupplyChainManager: ObservableObject {
         shipment.status = status
         shipmentStore[shipmentId] = shipment
         delegate?.supplyChain(self, didUpdateShipment: shipment)
-        await MainActor.run {
+        await MainActor.run { [shipment] in
             if let idx = activeShipments.firstIndex(where: { $0.id == shipmentId }) {
                 activeShipments[idx] = shipment
             }
