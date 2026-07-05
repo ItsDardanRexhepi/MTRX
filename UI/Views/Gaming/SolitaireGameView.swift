@@ -140,7 +140,7 @@ final class SolitaireEngine: ObservableObject {
     private func startTimer() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self, !self.won else { return }
                 self.seconds += 1
             }

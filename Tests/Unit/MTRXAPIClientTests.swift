@@ -41,19 +41,40 @@ final class MTRXAPIClientTests: XCTestCase {
 
     // MARK: - baseURL & Init
 
-    func test_init_defaultsToProductionGateway_whenEnvNotSet() {
-        // If MTRX_RUNTIME_URL is unset the fallback is the production gateway
-        // (https://api.openmatrix-ai.com — see MTRXAPIClient). Run this check
-        // only when the env var is absent to avoid flaking in CI that pins it.
+    func test_init_unconfigured_hasEmptyBaseURL_forHonestFastFail() {
+        // With no override, no runtime gateway set, and no env var, the client has
+        // NO base URL. buildRequest then fails fast with .backendNotConfigured
+        // instead of spending the request budget against a placeholder host that
+        // the app isn't actually pointed at.
+        UserDefaults.standard.removeObject(forKey: "mtrx.debug.gatewayURL")
         if ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"] == nil {
             let client = MTRXAPIClient()
-            XCTAssertEqual(client.baseURL, "https://api.openmatrix-ai.com")
+            XCTAssertEqual(client.baseURL, "")
         }
     }
 
     func test_init_overrideBaseURL_winsOverEnvironment() {
         let client = MTRXAPIClient(baseURL: "https://runtime.example.com")
         XCTAssertEqual(client.baseURL, "https://runtime.example.com")
+    }
+
+    func test_baseURL_tracksRuntimeGatewayChange_withoutReinit() {
+        // Regression guard for the Cloud Trinity bug: the shared client used to
+        // snapshot baseURL once at init, so a gateway set later in Settings never
+        // took effect until relaunch. baseURL is now resolved live, so a runtime
+        // change is reflected by the SAME instance immediately.
+        UserDefaults.standard.removeObject(forKey: "mtrx.debug.gatewayURL")
+        defer { UserDefaults.standard.removeObject(forKey: "mtrx.debug.gatewayURL") }
+
+        guard ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"] == nil else { return }
+        let client = MTRXAPIClient()
+        XCTAssertEqual(client.baseURL, "")
+
+        PendingCredentials.runtimeGatewayURL = "https://set-at-runtime.example.com"
+        XCTAssertEqual(
+            client.baseURL, "https://set-at-runtime.example.com",
+            "baseURL must reflect a gateway set at runtime without re-creating the client"
+        )
     }
 
     // MARK: - Health (happy path)

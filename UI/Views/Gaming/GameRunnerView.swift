@@ -379,7 +379,7 @@ final class GameEngine: ObservableObject {
         let interval = max(0.8, 1.4 - Double(level) * 0.12)
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tickTargets(spawnEvery: interval) }
+            Task { @MainActor [weak self] in self?.tickTargets(spawnEvery: interval) }
         }
     }
 
@@ -429,7 +429,7 @@ final class GameEngine: ObservableObject {
         let delay = Double.random(in: 1.0...2.6)
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self, self.phase == .playing else { return }
                 self.reflexArmed = true
                 self.reflexWindowOpen = true
@@ -474,7 +474,7 @@ final class GameEngine: ObservableObject {
         var step = 0
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.62, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 if step < self.sequence.count {
                     self.litPad = self.sequence[step]

@@ -266,7 +266,7 @@ final class MusicKitManager {
         endObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.previewEnded() }
+            Task { @MainActor [weak self] in self?.previewEnded() }
         }
         p.play()
         isPreviewPlayback = true
@@ -409,7 +409,7 @@ final class MusicKitManager {
     private func startTicker() {
         stopTicker()
         ticker = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
+            Task { @MainActor [weak self] in self?.tick() }
         }
     }
     private func stopTicker() { ticker?.invalidate(); ticker = nil }

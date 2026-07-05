@@ -187,7 +187,7 @@ final class SubscriptionsManager: ObservableObject {
         sub.cancelledAt = Date()
         subscriptionStore[subscriptionId] = sub
 
-        await MainActor.run {
+        await MainActor.run { [sub] in
             if let idx = activeSubscriptions.firstIndex(where: { $0.id == subscriptionId }) {
                 activeSubscriptions[idx] = sub
             }

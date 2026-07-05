@@ -961,8 +961,14 @@ struct ReasoningRouter {
                cloudReachable: Bool,
                privacyMode: Bool,
                forceCloud: Bool) -> ReasoningRoute {
-        // 1 — Privacy mode never leaves the device.
+        // 1 — Privacy mode keeps everything on-device, UNLESS the user has
+        // explicitly turned on "Route reasoning through cloud" (forceCloud) — a
+        // deliberate, non-default opt-in that says "always use the cloud brain."
+        // That explicit choice is honored only when the cloud is actually
+        // reachable; otherwise privacy mode still wins and we stay on-device (or
+        // fail honestly). Without forceCloud, privacy mode never leaves the device.
         if privacyMode {
+            if forceCloud && cloudReachable { return .escalateToCloud }
             return onDeviceAvailable ? .onDevice : .honestlyUnavailable
         }
         // 2 — Does the request exceed on-device capability?

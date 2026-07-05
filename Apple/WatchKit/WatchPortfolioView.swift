@@ -64,7 +64,7 @@ final class WatchPortfolioViewModel: ObservableObject {
         }
         guard WCSession.default.isReachable else { return }
         WCSession.default.sendMessage(["request": "portfolio"], replyHandler: { [weak self] reply in
-            Task { @MainActor in self?.updateFrom(reply) }
+            Task { @MainActor [weak self] in self?.updateFrom(reply) }
         }, errorHandler: nil)
     }
 
@@ -86,4 +86,10 @@ final class WatchPortfolioViewModel: ObservableObject {
 }
 
 import WatchConnectivity
+// `@retroactive` requires Swift 6 (Xcode 16+); CI builds with Xcode 15.4
+// (Swift 5.10), where it is an unknown-attribute error. Gate on the compiler.
+#if compiler(>=6.0)
 extension WCSession: @unchecked @retroactive Sendable {}
+#else
+extension WCSession: @unchecked Sendable {}
+#endif

@@ -37,7 +37,7 @@ final class HeartbeatWatchdog: ObservableObject {
         if stored == 0 { persist() }
         // Light minute-resolution ticker for the countdown UI.
         ticker = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
+            Task { @MainActor [weak self] in self?.refresh() }
         }
     }
 

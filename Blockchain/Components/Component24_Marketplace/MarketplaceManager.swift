@@ -145,7 +145,7 @@ final class MarketplaceManager: ObservableObject {
         }
 
         listingStore[listing.id] = listing
-        await MainActor.run { listings.append(listing) }
+        await MainActor.run { [listing] in listings.append(listing) }
         delegate?.marketplace(self, listingCreated: listing)
         return listing
     }
@@ -299,7 +299,7 @@ final class MarketplaceManager: ObservableObject {
             await updateListingInPublished(listing)
         }
 
-        await MainActor.run {
+        await MainActor.run { [appeal] in
             if let idx = appeals.firstIndex(where: { $0.id == appealId }) {
                 appeals[idx] = appeal
             }

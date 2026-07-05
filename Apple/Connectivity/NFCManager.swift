@@ -116,9 +116,10 @@ extension NFCManager: NFCTagReaderSessionDelegate {
         guard let tag = tags.first else { return }
 
         session.connect(to: tag) { [weak self] error in
+            guard let self else { return }
             if let error = error {
-                self?.scanContinuation?.resume(throwing: NFCError.connectionFailed(error.localizedDescription))
-                self?.scanContinuation = nil
+                self.scanContinuation?.resume(throwing: NFCError.connectionFailed(error.localizedDescription))
+                self.scanContinuation = nil
                 return
             }
 
@@ -131,12 +132,12 @@ extension NFCManager: NFCTagReaderSessionDelegate {
             )
 
             Task { @MainActor in
-                self?.lastScannedPayload = payload
-                self?.isScanning = false
+                self.lastScannedPayload = payload
+                self.isScanning = false
             }
 
-            self?.scanContinuation?.resume(returning: payload)
-            self?.scanContinuation = nil
+            self.scanContinuation?.resume(returning: payload)
+            self.scanContinuation = nil
             session.invalidate(errorMessage: "")
         }
     }

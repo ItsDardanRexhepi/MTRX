@@ -63,7 +63,7 @@ final class ContactsImportViewModel: ObservableObject {
         // .notDetermined — prompt the system permission dialog.
         isLoading = true
         CNContactStore().requestAccess(for: .contacts) { [weak self] granted, _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.status = CNContactStore.authorizationStatus(for: .contacts)
                 if granted { self.fetch() } else { self.isLoading = false }

@@ -66,7 +66,7 @@ final class GameKitManager {
         guard authState == .unknown || authState == .unavailable else { return }
         authState = .authenticating
         GKLocalPlayer.local.authenticateHandler = { [weak self] viewController, _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 if let viewController {
                     Self.present(viewController)

@@ -32,6 +32,12 @@ extension View {
     @ViewBuilder
     func mtrxLiquidGlass<S: Shape>(in shape: S) -> some View {
         Group {
+            // `glassEffect` is an iOS 26 (Liquid Glass) API absent from the CI
+            // SDK (Xcode 15.4 / iOS 17); a runtime #available check does not make
+            // the symbol exist at compile time, so the real-glass branch is only
+            // compiled when the SDK declares it. Older SDKs use the material
+            // fallback (the same one iOS < 26 gets at runtime).
+            #if compiler(>=6.2)
             if #available(iOS 26.0, *) {
                 // Clip first: glassEffect draws glass within the shape but
                 // leaves the view's own backgrounds rectangular — unclipped
@@ -44,6 +50,11 @@ extension View {
                     .background(.ultraThinMaterial)
                     .clipShape(shape)
             }
+            #else
+            self
+                .background(.ultraThinMaterial)
+                .clipShape(shape)
+            #endif
         }
         // A light-reactive rim on every glass surface, app-wide: the top-left
         // edge catches light brightest, a quieter glint along the bottom-

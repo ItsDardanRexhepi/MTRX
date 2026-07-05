@@ -26,6 +26,10 @@ enum MTRXAPIError: LocalizedError, Equatable {
     case serverError(String)
     case timeout
     case cancelled
+    /// No backend gateway is configured (no runtime gateway URL, no env
+    /// override). Fail fast and honestly instead of spending the request
+    /// budget against a placeholder host that isn't hosted.
+    case backendNotConfigured
     case unknown(String)
 
     var errorDescription: String? {
@@ -63,6 +67,8 @@ enum MTRXAPIError: LocalizedError, Equatable {
             return "Request timed out."
         case .cancelled:
             return "Request was cancelled."
+        case .backendNotConfigured:
+            return "No backend is configured. Set a gateway URL to connect."
         case .unknown(let detail):
             return "Unknown error: \(detail)"
         }
@@ -610,7 +616,23 @@ final class MTRXAPIClient: @unchecked Sendable {
 
     // MARK: - Configuration
 
-    let baseURL: String
+    /// Explicit base-URL override (tests / custom callers). When `nil`, the base
+    /// URL is resolved FRESH on every request from `PendingCredentials` (below),
+    /// so a gateway set at runtime (Settings → Cloud Trinity) takes effect
+    /// immediately — no relaunch, and no stale value frozen into this singleton.
+    private let baseURLOverride: String?
+
+    /// The gateway base URL used for every request, resolved live each time it
+    /// is read. An empty string means "no backend configured" — `buildRequest`
+    /// then fails fast with `.backendNotConfigured` rather than hitting a
+    /// placeholder host that the app is not actually pointed at.
+    var baseURL: String {
+        baseURLOverride
+            ?? PendingCredentials.filled(PendingCredentials.effectiveGatewayURL)
+            ?? ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"]
+            ?? ""
+    }
+
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
@@ -643,10 +665,9 @@ final class MTRXAPIClient: @unchecked Sendable {
     // MARK: - Init
 
     init(baseURL: String? = nil, session: URLSession? = nil) {
-        self.baseURL = baseURL
-            ?? PendingCredentials.filled(PendingCredentials.effectiveGatewayURL)
-            ?? ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"]
-            ?? "https://api.openmatrix-ai.com"
+        // Store only the explicit override; the effective `baseURL` is computed
+        // live per request so runtime gateway changes are picked up immediately.
+        self.baseURLOverride = baseURL
 
         if let session {
             // Tests (and any caller that wants to stub transport) can inject
@@ -743,7 +764,11 @@ final class MTRXAPIClient: @unchecked Sendable {
         authenticated: Bool = true,
         headers: [String: String]? = nil
     ) throws -> URLRequest {
-        guard var components = URLComponents(string: baseURL + path) else {
+        let base = baseURL
+        guard !base.isEmpty else {
+            throw MTRXAPIError.backendNotConfigured
+        }
+        guard var components = URLComponents(string: base + path) else {
             throw MTRXAPIError.invalidURL(path)
         }
         if let queryItems, !queryItems.isEmpty {

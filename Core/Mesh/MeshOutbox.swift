@@ -81,7 +81,7 @@ final class MeshOutbox: ObservableObject {
     private func startDrivingIfNeeded() {
         guard driveTimer == nil else { return }
         driveTimer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
+            Task { @MainActor [weak self] in self?.tick() }
         }
     }
 

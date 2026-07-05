@@ -236,7 +236,7 @@ final class DisputeManager: ObservableObject {
         dispute.status = .resolved
         disputeStore[disputeId] = dispute
 
-        await MainActor.run {
+        await MainActor.run { [dispute] in
             activeDisputes.removeAll { $0.id == disputeId }
             resolvedDisputes.append(dispute)
         }
