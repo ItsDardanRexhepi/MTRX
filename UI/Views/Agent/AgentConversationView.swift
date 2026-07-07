@@ -561,6 +561,11 @@ struct AgentConversationView: View {
         idleTimer?.invalidate()
         idleTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: false) { _ in
             Task { @MainActor in
+                // A turn in flight is NOT idle — a long silent cloud wait (the
+                // gateway generates non-streaming, ~40s+ before the first byte)
+                // must not archive the chat out from under the arriving reply.
+                // Re-arm and check again instead of resetting.
+                guard !viewModel.isTurnInFlight else { resetIdleTimer(); return }
                 guard viewModel.messages.contains(where: { $0.role == .user }) else { return }
                 let agent = viewModel.activeAgent
                 viewModel.startNewConversation(agent: agent)

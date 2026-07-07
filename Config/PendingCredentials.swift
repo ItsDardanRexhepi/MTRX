@@ -52,11 +52,17 @@ enum PendingCredentials {
             && filled(AccountAbstraction.paymasterSignatureEndpoint) != nil
     }
 
-    /// True once the off-chain backend gateway is configured. Feature screens
-    /// show honest, clearly-labelled DEMO data until this is true; the moment it
-    /// is filled they flip to live service data automatically — no code change.
+    /// True once the off-chain backend gateway is configured with a URL that can
+    /// actually carry a request (http/https scheme + a host). A garbage or
+    /// half-typed entry must NOT count: it would disable on-device answers (the
+    /// router believes cloud is reachable) while both network paths fail.
     static var isBackendConfigured: Bool {
-        filled(effectiveGatewayURL) != nil
+        guard let raw = filled(effectiveGatewayURL),
+              let url = URL(string: raw),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = url.host, !host.isEmpty else { return false }
+        return true
     }
 
     // MARK: - Runtime gateway override (developer / owner on-device testing)
@@ -76,9 +82,18 @@ enum PendingCredentials {
     }
 
     /// The gateway URL actually used: the runtime override when set, else the
-    /// compiled `Backend.gatewayURL`.
+    /// compiled `Backend.gatewayURL` — NORMALIZED once here, the single choke
+    /// point every consumer reads (WS chatSocket, SSE, REST baseURL), so the
+    /// paths can never diverge on formatting:
+    ///  • trailing slashes stripped (REST concatenates baseURL+path; "…/​" made
+    ///    "//bridge/v1/chat" → 404 on REST while WS worked),
+    ///  • a scheme-less entry ("192.168.1.68:18790") gets "http://" so a typed
+    ///    LAN address works instead of half-configuring everything.
     static var effectiveGatewayURL: String {
-        filled(runtimeGatewayURL) ?? Backend.gatewayURL
+        guard var raw = filled(runtimeGatewayURL) ?? filled(Backend.gatewayURL) else { return "" }
+        while raw.hasSuffix("/") { raw.removeLast() }
+        if !raw.contains("://") { raw = "http://" + raw }
+        return raw
     }
 
     /// When true, Trinity routes free-form reasoning through the cloud gateway

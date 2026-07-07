@@ -200,6 +200,12 @@ final class AgentConversationViewModel: ObservableObject {
     @Published var messages: [AgentMessage] = []
     @Published var inputText = ""
     @Published var isTyping = false
+    /// True for the WHOLE send turn (streaming AND the silent gateway/REST waits).
+    /// The 120s idle-archive must gate on THIS, not isTyping — isTyping flips false
+    /// on the first streamed token, so a long silent cloud wait after a partial
+    /// looked "idle" and the reset diverted the arriving reply into an archived
+    /// chat (delivered to its record, but never rendered on screen).
+    @Published private(set) var isTurnInFlight = false
     /// Set when the agent has navigated the app — the chat slides away.
     @Published var dismissRequested = false
     @Published var activeAgent: AgentAccessControl.ActiveAgent = .trinity
@@ -946,6 +952,10 @@ final class AgentConversationViewModel: ObservableObject {
         let langProfile = NaturalLanguageProcessor.shared.languageProfile(for: text)
 
         Task {
+            // The whole turn — streaming and the silent cloud waits — counts as
+            // activity; the idle-archive timer checks this flag before resetting.
+            isTurnInFlight = true
+            defer { isTurnInFlight = false }
             // 1 — On-device Apple Intelligence (instant, private, offline).
             // The session keeps its own conversation context across turns.
             // Every turn carries the local date/time; live wallet data is
@@ -1080,6 +1090,7 @@ final class AgentConversationViewModel: ObservableObject {
                         }
                     )
                     if !TurnMessageDelivery.isBlank(final) {
+                        isOffline = false    // a live cloud reply un-latches the offline banner
                         delivery.finishLive(final)
                         speakIfEnabled(final)
                         return
@@ -1109,6 +1120,7 @@ final class AgentConversationViewModel: ObservableObject {
                 let actions = (apiResponse.suggestedActions ?? []).map {
                     SuggestedAction(title: $0.label, description: $0.label, action: $0.action)
                 }
+                isOffline = false    // a live cloud reply un-latches the offline banner
                 delivery.finishLive(restText, actions: actions)
                 speakIfEnabled(restText)
             } catch {
