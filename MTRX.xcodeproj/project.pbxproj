@@ -230,6 +230,7 @@
 		7A1B0C0D0E0F1020304050B1 /* BridgeSmokeTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F1020304050B2 /* BridgeSmokeTest.swift */; };
 		7A1B0C0D0E0F1020304050B3 /* InferenceRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F1020304050B4 /* InferenceRouterTests.swift */; };
 		7A1B0C0D0E0F1020304050D3 /* ReasoningRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F1020304050D4 /* ReasoningRouterTests.swift */; };
+		D0E22B0000000000000000A1 /* GatewayURLResolutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E22B0000000000000000A2 /* GatewayURLResolutionTests.swift */; };
 		D0E11A0000000000000000A1 /* TurnMessageDeliveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E11A0000000000000000A2 /* TurnMessageDeliveryTests.swift */; };
 		7A1B0C0D0E0F1020304050B5 /* MTRXAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F1020304050B6 /* MTRXAPIClientTests.swift */; };
 		7A1B0C0D0E0F1020304050B7 /* MTRXPackagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1B0C0D0E0F1020304050B8 /* MTRXPackagerTests.swift */; };
@@ -546,6 +547,7 @@
 		7A1B0C0D0E0F1020304050B2 /* BridgeSmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "BridgeSmokeTest.swift"; path = "Tests/Unit/BridgeSmokeTest.swift"; sourceTree = SOURCE_ROOT; };
 		7A1B0C0D0E0F1020304050B4 /* InferenceRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "InferenceRouterTests.swift"; path = "Tests/Unit/InferenceRouterTests.swift"; sourceTree = SOURCE_ROOT; };
 		7A1B0C0D0E0F1020304050D4 /* ReasoningRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ReasoningRouterTests.swift"; path = "Tests/Unit/ReasoningRouterTests.swift"; sourceTree = SOURCE_ROOT; };
+		D0E22B0000000000000000A2 /* GatewayURLResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GatewayURLResolutionTests.swift"; path = "Tests/Unit/GatewayURLResolutionTests.swift"; sourceTree = SOURCE_ROOT; };
 		D0E11A0000000000000000A2 /* TurnMessageDeliveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "TurnMessageDeliveryTests.swift"; path = "Tests/Unit/TurnMessageDeliveryTests.swift"; sourceTree = SOURCE_ROOT; };
 		7A1B0C0D0E0F1020304050B6 /* MTRXAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MTRXAPIClientTests.swift"; path = "Tests/Unit/MTRXAPIClientTests.swift"; sourceTree = SOURCE_ROOT; };
 		7A1B0C0D0E0F1020304050B8 /* MTRXPackagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MTRXPackagerTests.swift"; path = "Tests/Unit/MTRXPackagerTests.swift"; sourceTree = SOURCE_ROOT; };
@@ -2269,6 +2271,7 @@
 				7A1B0C0D0E0F1020304050B1 /* BridgeSmokeTest.swift in Sources */,
 				7A1B0C0D0E0F1020304050B3 /* InferenceRouterTests.swift in Sources */,
 				7A1B0C0D0E0F1020304050D3 /* ReasoningRouterTests.swift in Sources */,
+				D0E22B0000000000000000A1 /* GatewayURLResolutionTests.swift in Sources */,
 				D0E11A0000000000000000A1 /* TurnMessageDeliveryTests.swift in Sources */,
 				7A1B0C0D0E0F1020304050B5 /* MTRXAPIClientTests.swift in Sources */,
 				7A1B0C0D0E0F1020304050B7 /* MTRXPackagerTests.swift in Sources */,
