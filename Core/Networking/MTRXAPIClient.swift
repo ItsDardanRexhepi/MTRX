@@ -610,7 +610,21 @@ final class MTRXAPIClient: @unchecked Sendable {
 
     // MARK: - Configuration
 
-    let baseURL: String
+    /// An explicit base URL injected for tests (MockURLProtocol). When nil, `baseURL`
+    /// resolves the CURRENT gateway at call time — see below.
+    private let injectedBaseURL: String?
+
+    /// Resolved FRESH on every request: injected override -> the runtime gateway URL set
+    /// in Settings (Cloud Trinity) -> env -> the hosted default. Reading it fresh is what
+    /// makes the REST path honor a gateway URL entered AFTER launch (the singleton used to
+    /// freeze this at init, so a runtime-set gateway never reached REST — the WS path
+    /// already reads fresh, so they diverged and the REST fallback hit the wrong host).
+    var baseURL: String {
+        injectedBaseURL
+            ?? PendingCredentials.filled(PendingCredentials.effectiveGatewayURL)
+            ?? ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"]
+            ?? "https://api.openmatrix-ai.com"
+    }
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
@@ -643,10 +657,7 @@ final class MTRXAPIClient: @unchecked Sendable {
     // MARK: - Init
 
     init(baseURL: String? = nil, session: URLSession? = nil) {
-        self.baseURL = baseURL
-            ?? PendingCredentials.filled(PendingCredentials.effectiveGatewayURL)
-            ?? ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"]
-            ?? "https://api.openmatrix-ai.com"
+        self.injectedBaseURL = baseURL
 
         if let session {
             // Tests (and any caller that wants to stub transport) can inject
