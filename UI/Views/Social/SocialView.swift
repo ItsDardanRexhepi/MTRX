@@ -310,6 +310,11 @@ final class SocialViewModel: ObservableObject {
     @Published var selectedTab: SocialTab = .feed
     @Published var selectedFilter: FeedFilter = .all
     @Published var posts: [SocialPostDisplay] = []
+
+    /// Server-side ranking mode for the current feed tab. "For You" (.all) asks
+    /// the platform for its transparent weighted ranking; "Latest" (.following)
+    /// asks for the chronological feed. The server ranks; the client renders.
+    var feedMode: String { selectedFilter == .following ? "latest" : "for_you" }
     @Published var proposals: [SocialGovernanceProposal] = []
     @Published var pastProposals: [SocialGovernanceProposal] = []
     @Published var threads: [MessageThread] = []
@@ -385,7 +390,7 @@ final class SocialViewModel: ObservableObject {
     /// sample posts if the backend isn't reachable, so the feed never blanks.
     @MainActor
     func loadLiveFeed() async {
-        guard let live = try? await MTRXAPIClient.shared.feed(), !live.posts.isEmpty else { return }
+        guard let live = try? await MTRXAPIClient.shared.feed(mode: feedMode), !live.posts.isEmpty else { return }
         // First successful live load proves the gateway is real — attach the
         // push stream so new posts arrive without polling (no-op if running).
         feedStream.start()
@@ -421,7 +426,10 @@ final class SocialViewModel: ObservableObject {
         case .verified:
             result = posts.filter { $0.isVerified }
         case .following:
-            result = posts.filter { ["@elena.eth", "@ravi_dao", "@sofia.base"].contains($0.handle) }
+            // "Latest" tab — honest chronological order (newest first). When the
+            // live gateway is reachable the server already returns this order for
+            // mode=latest; this keeps the demo-fallback path honest too.
+            result = posts.sorted { $0.timestamp > $1.timestamp }
         case .trending:
             result = posts.sorted { ($0.likeCount + $0.repostCount) > ($1.likeCount + $1.repostCount) }
         }
@@ -1835,7 +1843,7 @@ struct SocialView: View {
     private var filterChips: some View {
         HStack(spacing: 0) {
             timelineTab("For You", filter: .all)
-            timelineTab("Following", filter: .following)
+            timelineTab("Latest", filter: .following)
         }
         .overlay(alignment: .bottom) {
             MtrxDivider()
@@ -1848,6 +1856,8 @@ struct SocialView: View {
                 viewModel.selectedFilter = filter
             }
             MtrxHaptics.selection()
+            // Switching For You ↔ Latest re-queries the server in the new mode.
+            Task { await viewModel.loadLiveFeed() }
         } label: {
             VStack(spacing: 11) {
                 Text(title)

@@ -1693,9 +1693,15 @@ final class MTRXAPIClient: @unchecked Sendable {
     /// Typed social feed — decodes into `FeedResponse`. Used by the Social tab
     /// and the Home feed window. A shape mismatch with the live gateway throws
     /// and the caller falls back to demo — never an invented feed.
-    func feed() async throws -> FeedResponse {
+    ///
+    /// `mode` selects the server-side ranking: "for_you" (transparent weighted
+    /// ranking) or "latest" (chronological). The server ranks; the client renders.
+    func feed(mode: String = "for_you") async throws -> FeedResponse {
         let wallet = await walletPathIdentity()
-        return try await getEnveloped(path: "/api/v1/social/feed/\(wallet)")
+        return try await getEnveloped(
+            path: "/api/v1/social/feed/\(wallet)",
+            queryItems: [URLQueryItem(name: "mode", value: mode)]
+        )
     }
 
     /// Typed governance proposals.
