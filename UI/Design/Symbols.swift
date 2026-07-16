@@ -13,7 +13,8 @@ enum Symbols {
 
     static let home = "message.fill"
     static let discover = "safari"
-    static let build = "hammer"
+    static let build = "hammer"          // still used for the Marketplace "equipment" category
+    static let create = "square.and.pencil"  // the "Create" tab (was hammer/"Build")
     static let social = "globe"
     static let account = "person.crop.circle"
 

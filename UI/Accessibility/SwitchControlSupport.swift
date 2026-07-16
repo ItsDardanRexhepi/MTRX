@@ -5,7 +5,7 @@ import SwiftUI
 struct SwitchControlSupport {
     /// Define scan groups for Switch Control navigation on main tabs
     static func mainTabAccessibilityElements() -> [String] {
-        ["Home tab", "Build tab", "Discover tab", "Social tab", "Account tab"]
+        ["Home tab", "Create tab", "Discover tab", "Social tab", "Account tab"]
     }
 }
 

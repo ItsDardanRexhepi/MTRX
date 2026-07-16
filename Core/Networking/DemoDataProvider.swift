@@ -116,7 +116,7 @@ enum DemoDataProvider {
 
         // Contract
         if lowered.contains("contract") || lowered.contains("deploy") {
-            return "I can help you deploy smart contracts from our template library:\n\n\u{2022} **Escrow** \u{2014} Trustless payments\n\u{2022} **Token** \u{2014} ERC-20 token creation\n\u{2022} **NFT Collection** \u{2014} ERC-721 minting\n\u{2022} **DAO** \u{2014} Governance framework\n\u{2022} **Vesting** \u{2014} Token unlock schedules\n\nHead to the Build tab to get started."
+            return "I can help you deploy smart contracts from our template library:\n\n\u{2022} **Escrow** \u{2014} Trustless payments\n\u{2022} **Token** \u{2014} ERC-20 token creation\n\u{2022} **NFT Collection** \u{2014} ERC-721 minting\n\u{2022} **DAO** \u{2014} Governance framework\n\u{2022} **Vesting** \u{2014} Token unlock schedules\n\nHead to the Create tab to get started."
         }
 
         // Default

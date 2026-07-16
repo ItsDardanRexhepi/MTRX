@@ -233,6 +233,7 @@ struct DiscoverView: View {
     @State private var selectedFeaturedItem: FeaturedItem?
     @State private var pushedCategory: DiscoverCategory?
     @State private var pushedDeFi: DeFiSubDestination?
+    @State private var pushedRealEstate = false
     @State private var showFilters = false
     @State private var showDiscoverMenu = false
     @State private var showTrendingAll = false
@@ -281,6 +282,9 @@ struct DiscoverView: View {
             }
             .navigationDestination(item: $pushedDeFi) { destination in
                 defiDestination(for: destination)
+            }
+            .navigationDestination(isPresented: $pushedRealEstate) {
+                RealEstateView()
             }
         }
         .task {
@@ -335,8 +339,13 @@ struct DiscoverView: View {
                 exploreDeFiSection
                     .mtrxStaggeredAppearance(index: 2, isVisible: viewModel.contentAppeared)
 
+                if FeatureFlags.isVisible(DiscoverCategory.realWorld) {
+                    realWorldAssetsSection
+                        .mtrxStaggeredAppearance(index: 3, isVisible: viewModel.contentAppeared)
+                }
+
                 trendingSection
-                    .mtrxStaggeredAppearance(index: 3, isVisible: viewModel.contentAppeared)
+                    .mtrxStaggeredAppearance(index: 4, isVisible: viewModel.contentAppeared)
 
                 // Bottom padding for tab bar
                 Spacer().frame(height: Spacing.xxl)
@@ -481,6 +490,29 @@ struct DiscoverView: View {
                 }
                 exploreRow(systemName: "checkmark.seal.fill", title: "Governance", subtitle: "Vote on active proposals", color: .purple) {
                     pushedDeFi = .governance
+                }
+            }
+            .padding(.horizontal, Spacing.contentPadding)
+        }
+    }
+
+    // MARK: - Real World Assets Section
+    //
+    // The home for tokenized real-world assets — real estate first, extensible
+    // to future RWA types. Mirrors the Explore DeFi treatment exactly. Gated by
+    // FeatureFlags.isVisible(.realWorld) like the other regulated surfaces; the
+    // destination itself is honestly gated (coming-soon when the backend flag
+    // is off, live when it's on).
+    private var realWorldAssetsSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.sectionHeaderBottom) {
+            MtrxSectionHeader(title: "Real World Assets")
+                .padding(.horizontal, Spacing.contentPadding)
+
+            VStack(spacing: Spacing.sm) {
+                exploreRow(systemName: Symbols.property, title: "Real Estate",
+                           subtitle: "Buy a home in one tap — every document verified",
+                           color: .accentPrimary) {
+                    pushedRealEstate = true
                 }
             }
             .padding(.horizontal, Spacing.contentPadding)

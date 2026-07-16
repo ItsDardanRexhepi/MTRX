@@ -622,7 +622,7 @@ final class SocialViewModel: ObservableObject {
         MtrxHaptics.success()
     }
 
-    /// Share something built in the Build tab to the social feed so others
+    /// Share something built in the Create tab to the social feed so others
     /// can discover it.
     func postBuild(title: String, kind: String, address: String?, displayName rawName: String) {
         let displayName = rawName.isEmpty ? "You" : rawName

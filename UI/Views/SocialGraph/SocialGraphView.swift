@@ -316,6 +316,7 @@ struct SocialGraphView: View {
         case "swap": return Symbols.swap
         case "vote": return Symbols.vote
         case "post": return Symbols.post
+        case "property_purchase", "tokenize_asset": return Symbols.property
         default: return Symbols.globe
         }
     }
@@ -327,6 +328,7 @@ struct SocialGraphView: View {
         case "swap": return .statusSuccess
         case "vote": return .accentTertiary
         case "post": return .trinityPrimary
+        case "property_purchase", "tokenize_asset": return .accentPrimary
         default: return .labelSecondary
         }
     }

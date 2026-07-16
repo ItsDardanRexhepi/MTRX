@@ -160,7 +160,9 @@ struct AccountView: View {
             .sheet(item: $presentedDestination) { destination in
                 switch destination {
                 case .wallet:
-                    AccountWalletView()
+                    // A sheet doesn't inherit the presenter's NavigationStack —
+                    // wrap so links inside the wallet (e.g. My properties) push.
+                    NavigationStack { AccountWalletView() }
                 case .staking:
                     StakingView()
                 case .governance:

@@ -92,7 +92,7 @@ final class TransactionFlowTests: XCTestCase {
     }
 
     func testCreateContract_FullFlow() {
-        app.tabBars.buttons["Build"].tap()
+        app.tabBars.buttons["Create"].tap()
         app.buttons["newContract"].tap()
 
         // Select template

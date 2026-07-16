@@ -885,7 +885,7 @@ final class AgentConversationViewModel: ObservableObject {
 
         let tabs: [(Int, String, [String])] = [
             (3, "Social", ["social", "feed", "my posts", "stories", "messages"]),
-            (1, "Build", ["build", "contract"]),
+            (1, "Create", ["create", "build", "contract"]),
             (4, "Account", ["account", "wallet", "settings", "subscription"]),
             (0, "Discover", ["discover", "trending"]),
             (2, "Home", ["home", "dashboard"])
@@ -1524,7 +1524,7 @@ final class AgentConversationViewModel: ObservableObject {
             Happy to — here's the short version of what I can do for you:
 
             • **Money** — check your balance and portfolio, send, swap or stake crypto, and send plain cash like "send $50 to mom."
-            • **Contracts** — deploy and manage smart contracts over in the Build tab.
+            • **Contracts** — deploy and manage smart contracts over in the Create tab.
             • **Social** — post to your feed and update your bio, handle, or theme.
             • **Get around** — open any tab or service for you; just say "open my wallet" or "take me to Discover."
             • **Look things up** — live crypto prices, weather, and anything on the web.

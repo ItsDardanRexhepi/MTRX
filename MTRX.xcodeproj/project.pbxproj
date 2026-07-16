@@ -263,6 +263,8 @@
 		BF7D32F17C28143D1160EDFF /* MusicView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A44DB9030BAA0B02DE5B48C7 /* MusicView.swift */; };
 		9A2CB3D7A63FBCC0BB7FE9F4 /* GamingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE50B337EF04E0612619EBE9 /* GamingView.swift */; };
 		0DE94F56C5BFBAD2D3E2DE52 /* RWAView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C421C6109EDCAFB17416FA56 /* RWAView.swift */; };
+		E7A163F2162CC8E29161E7A3 /* RealEstatePurchaseFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A81B566BC30B23DA38BE500 /* RealEstatePurchaseFlow.swift */; };
+		976E3AA4A4D0C878288AFF25 /* RealEstateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF8BE4B94E99A3E4DDF51A89 /* RealEstateView.swift */; };
 		81999EF54415FB428E6AA732 /* AccessControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB389A31B36421E74ADD3775 /* AccessControlView.swift */; };
 		A89C75CEAB97D202EF832CB8 /* ReputationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF8A758E8F64FE5E9374B38A /* ReputationView.swift */; };
 		EC8A7EAEE7B3593F600B7891 /* KYCView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB13347AC08CF26C4324FCF9 /* KYCView.swift */; };
@@ -316,6 +318,7 @@
 		C3D8CEFE0F0BEFAE62F48D5B /* OracleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E7DDC7CD7D41281624E244 /* OracleService.swift */; };
 		4A6E6FE80216B1E32A07A6C0 /* PortfolioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73C47EE557C213A0BB1011E /* PortfolioService.swift */; };
 		488B5E270F502AE5D67F63DF /* RWAService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA65F9ED9FD392608622CECB /* RWAService.swift */; };
+		B9E4B76A306034FEB65918BC /* RealEstateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 138F2A3D536FC554B7BAC917 /* RealEstateService.swift */; };
 		998543D9714FDFF7A962554E /* ReputationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470B67F4E3EA2FD2BBC2927D /* ReputationService.swift */; };
 		EE029600F05F06F3CD201B3E /* LoyaltyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98F3DDBF274BFDD1B4BAB234 /* LoyaltyService.swift */; };
 		2BFC20F66EDA0B419CD7183A /* MessagingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F1FA3A9701DE51F8B22115 /* MessagingService.swift */; };
@@ -647,6 +650,8 @@
 		A44DB9030BAA0B02DE5B48C7 /* MusicView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MusicView.swift"; path = "UI/Views/Music/MusicView.swift"; sourceTree = SOURCE_ROOT; };
 		AE50B337EF04E0612619EBE9 /* GamingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GamingView.swift"; path = "UI/Views/Gaming/GamingView.swift"; sourceTree = SOURCE_ROOT; };
 		C421C6109EDCAFB17416FA56 /* RWAView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RWAView.swift"; path = "UI/Views/RWA/RWAView.swift"; sourceTree = SOURCE_ROOT; };
+		8A81B566BC30B23DA38BE500 /* RealEstatePurchaseFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RealEstatePurchaseFlow.swift"; path = "UI/Views/RealEstate/RealEstatePurchaseFlow.swift"; sourceTree = SOURCE_ROOT; };
+		AF8BE4B94E99A3E4DDF51A89 /* RealEstateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RealEstateView.swift"; path = "UI/Views/RealEstate/RealEstateView.swift"; sourceTree = SOURCE_ROOT; };
 		BB389A31B36421E74ADD3775 /* AccessControlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "AccessControlView.swift"; path = "UI/Views/Identity/AccessControlView.swift"; sourceTree = SOURCE_ROOT; };
 		CF8A758E8F64FE5E9374B38A /* ReputationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ReputationView.swift"; path = "UI/Views/Identity/ReputationView.swift"; sourceTree = SOURCE_ROOT; };
 		FB13347AC08CF26C4324FCF9 /* KYCView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "KYCView.swift"; path = "UI/Views/Identity/KYCView.swift"; sourceTree = SOURCE_ROOT; };
@@ -700,6 +705,7 @@
 		59E7DDC7CD7D41281624E244 /* OracleService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OracleService.swift"; path = "Services/OracleService.swift"; sourceTree = SOURCE_ROOT; };
 		B73C47EE557C213A0BB1011E /* PortfolioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PortfolioService.swift"; path = "Services/PortfolioService.swift"; sourceTree = SOURCE_ROOT; };
 		AA65F9ED9FD392608622CECB /* RWAService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RWAService.swift"; path = "Services/RWAService.swift"; sourceTree = SOURCE_ROOT; };
+		138F2A3D536FC554B7BAC917 /* RealEstateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RealEstateService.swift"; path = "Services/RealEstateService.swift"; sourceTree = SOURCE_ROOT; };
 		470B67F4E3EA2FD2BBC2927D /* ReputationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ReputationService.swift"; path = "Services/ReputationService.swift"; sourceTree = SOURCE_ROOT; };
 		98F3DDBF274BFDD1B4BAB234 /* LoyaltyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LoyaltyService.swift"; path = "Services/LoyaltyService.swift"; sourceTree = SOURCE_ROOT; };
 		C6F1FA3A9701DE51F8B22115 /* MessagingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MessagingService.swift"; path = "Services/MessagingService.swift"; sourceTree = SOURCE_ROOT; };
@@ -1960,6 +1966,7 @@
 				C3D8CEFE0F0BEFAE62F48D5B /* OracleService.swift in Sources */,
 				4A6E6FE80216B1E32A07A6C0 /* PortfolioService.swift in Sources */,
 				488B5E270F502AE5D67F63DF /* RWAService.swift in Sources */,
+				B9E4B76A306034FEB65918BC /* RealEstateService.swift in Sources */,
 				998543D9714FDFF7A962554E /* ReputationService.swift in Sources */,
 				EE029600F05F06F3CD201B3E /* LoyaltyService.swift in Sources */,
 				2BFC20F66EDA0B419CD7183A /* MessagingService.swift in Sources */,
@@ -2010,6 +2017,8 @@
 				BF7D32F17C28143D1160EDFF /* MusicView.swift in Sources */,
 				9A2CB3D7A63FBCC0BB7FE9F4 /* GamingView.swift in Sources */,
 				0DE94F56C5BFBAD2D3E2DE52 /* RWAView.swift in Sources */,
+				E7A163F2162CC8E29161E7A3 /* RealEstatePurchaseFlow.swift in Sources */,
+				976E3AA4A4D0C878288AFF25 /* RealEstateView.swift in Sources */,
 				81999EF54415FB428E6AA732 /* AccessControlView.swift in Sources */,
 				A89C75CEAB97D202EF832CB8 /* ReputationView.swift in Sources */,
 				EC8A7EAEE7B3593F600B7891 /* KYCView.swift in Sources */,

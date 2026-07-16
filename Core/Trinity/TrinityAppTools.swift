@@ -77,20 +77,22 @@ struct TrinityMusicControlTool: Tool {
 struct TrinityNavigateTool: Tool {
     let name = "openTab"
     let description = """
-    Open one of the app's five tabs for the user: discover (marketplace & DeFi), \
-    build (smart contracts), home (dashboard), social (feed, posts, messages), \
-    account (wallet & settings). Call when they ask to go to, open, or show one.
+    Open one of the app's five tabs for the user: discover (marketplace, DeFi & \
+    real-world assets), create (smart contracts), home (dashboard), social \
+    (feed, posts, messages), account (wallet & settings). Call when they ask to \
+    go to, open, or show one.
     """
     @Generable
     struct Arguments {
-        @Guide(description: "One of: discover, build, home, social, account")
+        @Guide(description: "One of: discover, create, home, social, account")
         var tab: String
     }
     @MainActor
     func call(arguments: Arguments) async throws -> String {
-        let map = ["discover": 0, "build": 1, "home": 2, "social": 3, "account": 4]
+        // "build" kept as a legacy alias for the renamed Create tab (index 1).
+        let map = ["discover": 0, "create": 1, "build": 1, "home": 2, "social": 3, "account": 4]
         guard let index = map[arguments.tab.lowercased()] else {
-            return "I can open Discover, Build, Home, Social, or Account. Which one?"
+            return "I can open Discover, Create, Home, Social, or Account. Which one?"
         }
         // Keep Trinity docked as the floating orb after she navigates, and switch the
         // tab after a short beat so her confirmation reply streams in first, then the
@@ -99,7 +101,8 @@ struct TrinityNavigateTool: Tool {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
             NotificationCenter.default.post(name: .mtrxSwitchTab, object: nil, userInfo: ["index": index])
         }
-        return "Opened the \(arguments.tab.capitalized) tab."
+        let canonical = ["Discover", "Create", "Home", "Social", "Account"][index]
+        return "Opened the \(canonical) tab."
     }
 }
 
@@ -224,7 +227,7 @@ struct TrinityDeployTool: Tool {
     }
     func call(arguments: Arguments) async throws -> String {
         if PendingCredentials.isChainConfigured {
-            return "Tell the user deployment runs through the Build tab's guided flow so they can review gas and confirm — I won't deploy silently. Offer to open Build."
+            return "Tell the user deployment runs through the Create tab's guided flow so they can review gas and confirm — I won't deploy silently. Offer to open Create."
         }
         return """
         Tell the user honestly: I can't deploy a contract yet — the on-chain \

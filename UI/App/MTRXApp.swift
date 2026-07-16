@@ -216,9 +216,9 @@ struct MainTabView: View {
 
             BuildView()
                 .tabItem {
-                    Label("Build", systemImage: Symbols.build)
+                    Label("Create", systemImage: Symbols.create)
                 }
-                .tag(AppTab.build)
+                .tag(AppTab.create)
 
             HomeView()
                 .tabItem {
@@ -702,7 +702,7 @@ enum NavigationDestination: Hashable {
 
 enum AppTab: Int, CaseIterable {
     case discover
-    case build
+    case create   // the "Create" tab (formerly "Build"); raw value 1 unchanged — routing is index-based
     case home
     case social
     case account

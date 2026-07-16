@@ -218,10 +218,10 @@ struct BuildView: View {
                     fabButton
                 }
             }
-            .navigationTitle("Build")
+            .navigationTitle("Create")
             .navigationBarTitleDisplayMode(.inline)
             .onReceive(NotificationCenter.default.publisher(for: .mtrxPopToRoot)) { note in
-                // Re-tapping the Build dock tab returns to Templates.
+                // Re-tapping the Create dock tab returns to Templates.
                 if note.userInfo?["index"] as? Int == 1 {
                     withAnimation(Motion.springSnappy) { viewModel.selectedSegment = .templates }
                 }

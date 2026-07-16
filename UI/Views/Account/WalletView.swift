@@ -641,6 +641,33 @@ struct AccountWalletView: View {
 
     private var nftGallery: some View {
         Group {
+            // Property deeds (ERC-721) live alongside other collectibles. The
+            // backend exposes no per-owner deed query yet, so we surface the
+            // user's real in-app property escrows/purchases here rather than
+            // fabricate deed tiles — a live on-chain balanceOf / deeds endpoint
+            // is the future path.
+            if FeatureFlags.isVisible(DiscoverCategory.realWorld) {
+                NavigationLink {
+                    MyPropertiesView()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: Symbols.property)
+                            .foregroundStyle(Color.accentPrimary).frame(width: 24)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("My properties").font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color.labelPrimary)
+                            Text("Deeds & escrow status").font(.caption2)
+                                .foregroundStyle(Color.labelSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: Symbols.forward).font(.system(size: 12))
+                            .foregroundStyle(Color.labelTertiary)
+                    }
+                    .padding(.horizontal).padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+            }
+
             if viewModel.nfts.isEmpty {
                 emptySection(icon: Symbols.nft, title: "No NFTs", subtitle: "Your NFTs will appear here.")
             } else {
