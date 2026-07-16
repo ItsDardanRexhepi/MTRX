@@ -2037,7 +2037,7 @@ final class MTRXAPIClient: @unchecked Sendable {
     func bridgeCreateSession(deviceId: String = "") async throws -> BridgeSessionData {
         let body: [String: String] = [
             "device_id": deviceId,
-            "app_version": "1.0.0",
+            "app_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
         ]
         let result: BridgeResponse<BridgeSessionData> = try await post(
             path: "/bridge/v1/session/create", body: body

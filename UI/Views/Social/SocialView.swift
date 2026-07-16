@@ -390,10 +390,17 @@ final class SocialViewModel: ObservableObject {
     /// sample posts if the backend isn't reachable, so the feed never blanks.
     @MainActor
     func loadLiveFeed() async {
-        guard let live = try? await MTRXAPIClient.shared.feed(mode: feedMode), !live.posts.isEmpty else { return }
-        // First successful live load proves the gateway is real — attach the
-        // push stream so new posts arrive without polling (no-op if running).
+        let requestedMode = feedMode
+        guard let live = try? await MTRXAPIClient.shared.feed(mode: requestedMode), !live.posts.isEmpty else { return }
+        // ANY successful live load proves the gateway is real — attach the push
+        // stream so new posts arrive without polling (no-op if running), even if
+        // this particular response turns out to be for a stale tab below.
         feedStream.start()
+        // Stale-response guard: if the user switched tabs while this request was
+        // in flight, its posts belong to the OTHER mode (different set, not just
+        // order) — drop it and let the tab switch's own re-query win
+        // (last-tap wins, not last-response).
+        guard requestedMode == feedMode else { return }
         posts = live.posts.map { p in
             SocialPostDisplay(
                 id: p.id,

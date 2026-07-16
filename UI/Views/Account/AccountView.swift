@@ -13,8 +13,8 @@ import SafariServices
 /// row, Settings → About row, and the About sheet) — all read straight from the
 /// bundle so they can't drift or go stale on a build bump. (They used to be
 /// hardcoded — Account read "2.4.0", Settings read "2.4.0", the sheet read
-/// "1.0.0 (build 6)"; the bundle truth is 1.0.0 (187).) Internal, not private,
-/// so SettingsView shares the same source.
+/// "1.0.0 (build 6)", while the bundle truth at the time was 1.0.0 (187).)
+/// Internal, not private, so SettingsView shares the same source.
 enum AppVersionInfo {
     private static var info: [String: Any] { Bundle.main.infoDictionary ?? [:] }
     static var short: String { info["CFBundleShortVersionString"] as? String ?? "—" }

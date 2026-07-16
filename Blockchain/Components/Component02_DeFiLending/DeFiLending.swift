@@ -63,9 +63,10 @@ enum DeFiLendingError: Error, LocalizedError {
     case networkError(underlying: Error)
     case displayOnly
     /// Read path can't run: neither the pool contract address
-    /// (PendingCredentials.Components.deFiLending) nor the backend gateway
-    /// (PendingCredentials.Backend.gatewayURL) is configured, or the RPC URL is
-    /// blank. We return this rather than fabricating pool numbers.
+    /// (PendingCredentials.Components.deFiLending) nor a gateway URL
+    /// (PendingCredentials.effectiveGatewayURL — compiled default or the
+    /// Settings runtime override) is configured, or the RPC URL is blank.
+    /// We return this rather than fabricating pool numbers.
     case notConfigured
     /// On-chain/gateway response was malformed or undecodable.
     case invalidResponse
@@ -80,7 +81,7 @@ enum DeFiLendingError: Error, LocalizedError {
         case .priceOracleError: return "Failed to fetch price from oracle."
         case .networkError(let e): return "Network error: \(e.localizedDescription)"
         case .displayOnly: return "Lending is display-only in this build — execute it yourself in self-custody on the protocol's own interface."
-        case .notConfigured: return "Lending pool data unavailable — set PendingCredentials.Components.deFiLending (+ Network.rpcURL) or PendingCredentials.Backend.gatewayURL."
+        case .notConfigured: return "Lending pool data unavailable — set PendingCredentials.Components.deFiLending (+ Network.rpcURL) or configure a gateway URL (Settings → Trinity AI, or the compiled Backend.gatewayURL)."
         case .invalidResponse: return "Lending pool data could not be decoded."
         }
     }
@@ -114,7 +115,10 @@ final class DeFiLending {
     private let poolContract: String?
     /// Optional off-chain gateway base URL. When set it is preferred over the
     /// raw eth_call read path (server pre-decodes pool data). Resolved the same
-    /// way as MTRXAPIClient: PendingCredentials → MTRX_RUNTIME_URL env.
+    /// way as MTRXAPIClient — effectiveGatewayURL (runtime override wins over
+    /// the compiled default, normalized once) → MTRX_RUNTIME_URL env — but
+    /// captured at init, so a mid-session Settings change applies to instances
+    /// created after it.
     private let gatewayURL: String?
     /// Assets the read path queries when no explicit list is given. The pool
     /// contract is asked for each via `getPool(address)` (see fetchPools).
@@ -138,7 +142,7 @@ final class DeFiLending {
     init(erc4337Manager: ERC4337Manager,
          network: BaseNetwork? = nil,
          poolContract: String? = PendingCredentials.filled(PendingCredentials.Components.deFiLending),
-         gatewayURL: String? = PendingCredentials.filled(PendingCredentials.Backend.gatewayURL)
+         gatewayURL: String? = PendingCredentials.filled(PendingCredentials.effectiveGatewayURL)
             ?? ProcessInfo.processInfo.environment["MTRX_RUNTIME_URL"],
          readableAssets: [String] = ["USDC", "ETH", "DAI"]) {
         self.erc4337Manager = erc4337Manager
@@ -155,9 +159,9 @@ final class DeFiLending {
     /// the mutating methods below stay display-only/refusing.
     ///
     /// Source preference (no fabrication, ever):
-    ///   1. Backend gateway, if `Backend.gatewayURL` is set (server pre-decodes
-    ///      pool data into JSON) — preferred because it can return all pools in
-    ///      one round-trip.
+    ///   1. Backend gateway, if a gateway URL is configured (compiled default or
+    ///      the Settings runtime override; server pre-decodes pool data into
+    ///      JSON) — preferred because it can return all pools in one round-trip.
     ///   2. Otherwise the pool contract via `eth_call` (one read per asset),
     ///      which needs both the pool contract address AND `Network.rpcURL`.
     ///   3. If neither is configured, fail with `.notConfigured` — never a

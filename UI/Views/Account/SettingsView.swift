@@ -19,7 +19,7 @@ struct SettingsView: View {
     @AppStorage("mtrx_haptics") private var hapticFeedback = true
     @AppStorage("com.mtrx.blackout") private var blackoutMode = false
 
-    // MARK: - Developer (Trinity cloud brain) — DEBUG only
+    // MARK: - Trinity cloud brain (ships in Release)
     // Cloud Trinity controls (shipped, not dev-only): a gateway URL + a force-cloud
     // toggle. These write the exact keys PendingCredentials reads
     // (runtimeGatewayURL / forceCloudReasoning), so setting them here powers the real
@@ -345,7 +345,7 @@ struct SettingsView: View {
                 Text("Cloud brain gateway")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField("https://your-gateway:18790", text: $cloudGatewayURL)
+                TextField("https://gateway.openmatrix-ai.com or 192.168.x.x:18790", text: $cloudGatewayURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
                     .keyboardType(.URL)
@@ -486,7 +486,7 @@ struct SettingsView: View {
                     SettingsIcon(symbol: Symbols.info, color: .labelSecondary)
                 }
                 Spacer()
-                Text("1.0.0 (Build 1)")
+                Text(AppVersionInfo.shortWithBuild)
                     .font(.mtrxFootnote)
                     .foregroundStyle(Color.labelSecondary)
             }

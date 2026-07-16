@@ -53,6 +53,6 @@ Not used (leave off): CloudKit containers, HealthKit, Associated Domains, App Cl
 
 Webhook URL: `https://<your-gateway-host>/api/v1/iap/asn`
 (with the hosted gateway: `https://gateway.openmatrix-ai.com/api/v1/iap/asn`).
-Route registered at `0pnMatrx/gateway/server.py:2056`; requires server config
+Route registered in `0pnMatrx/gateway/server.py` (`add_post("/api/v1/iap/asn", …)`); requires server config
 `iap.bundle_id` = `com.opnmatrx.mtrx` or IAP verify/ASN fail closed with 503.
 Client verify endpoint (not typed into ASC): `/api/v1/iap/verify`.

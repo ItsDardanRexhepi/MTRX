@@ -65,13 +65,14 @@ enum PendingCredentials {
         return true
     }
 
-    // MARK: - Runtime gateway override (developer / owner on-device testing)
+    // MARK: - Runtime gateway override (per-device, ships in Release)
     //
-    // Lets the owner point Trinity's cloud brain at a locally-run 0pnMatrx
-    // gateway from the device (Settings → Trinity AI, DEBUG builds) without a
-    // rebuild — so REAL Anthropic reasoning can be exercised on a physical phone
-    // before the gateway is deployed. The Anthropic key NEVER ships in the app;
-    // it stays server-side in the gateway. Empty by default → honest until set.
+    // Lets any device point Trinity's cloud brain at a 0pnMatrx gateway from
+    // Settings → Trinity AI (all builds since 200.1.1) without a rebuild — a
+    // tester types the hosted URL or a LAN address and gets REAL Anthropic
+    // reasoning. Wins over the compiled Backend.gatewayURL. The Anthropic key
+    // NEVER ships in the app; it stays server-side in the gateway. Empty by
+    // default → honest until set.
     private static let runtimeGatewayKey = "mtrx.debug.gatewayURL"
     private static let forceCloudKey = "mtrx.debug.forceCloudReasoning"
 
