@@ -406,6 +406,10 @@ final class BlockchainBridge {
     // MARK: - Core Transaction Methods
 
     /// Send a token/ETH transaction to an address.
+    ///
+    /// `amount` is wei as UInt64 — fine for ordinary transfers, but it caps out
+    /// at ~18.4 ETH. For property-sized settlements use the `valueWei:` overload,
+    /// which carries the value as a decimal string across the full uint256 range.
     func sendTransaction(to: String, amount: UInt64, data: Data = Data()) async throws -> TransactionResult {
         try assertTestnetSigning()   // testnet-only: fail closed before any build/sign
         guard let manager = erc4337Manager else { throw BlockchainBridgeError.walletNotConnected }
@@ -417,7 +421,35 @@ final class BlockchainBridge {
         case .success(let op): operation = op
         case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: err.localizedDescription)
         }
+        return try await finalizeAndSubmit(operation, to: to, amountLabel: String(amount), manager: manager)
+    }
 
+    /// Full-range settlement: `valueWei` is the amount as a decimal wei string,
+    /// so a realistically-priced home (hundreds/thousands of ETH — far above the
+    /// UInt64 ceiling) builds and signs a valid UserOperation. Honest failure is
+    /// preserved: a genuinely invalid or >uint256 value throws
+    /// `.transactionFailed` (via `.valueTooLarge`) and nothing is signed or sent.
+    func sendTransaction(to: String, valueWei: String, data: Data = Data()) async throws -> TransactionResult {
+        try assertTestnetSigning()   // testnet-only: fail closed before any build/sign
+        guard let manager = erc4337Manager else { throw BlockchainBridgeError.walletNotConnected }
+
+        let opResult = manager.buildUserOperation(to: to, valueWei: valueWei, data: data)
+        let operation: UserOperation
+        switch opResult {
+        case .success(let op): operation = op
+        case .failure(let err): throw BlockchainBridgeError.transactionFailed(reason: err.localizedDescription)
+        }
+        return try await finalizeAndSubmit(operation, to: to, amountLabel: valueWei, manager: manager)
+    }
+
+    /// Shared post-build pipeline for both value paths: estimate gas → optional
+    /// verifying-paymaster splice → sign → submit → track → notify. Value-agnostic
+    /// (the amount only rides along as `amountLabel` for the backend notify), so
+    /// the UInt64 and full-range senders are byte-identical from here on.
+    private func finalizeAndSubmit(_ operation: UserOperation,
+                                   to: String,
+                                   amountLabel: String,
+                                   manager: ERC4337Manager) async throws -> TransactionResult {
         // Estimate gas via bundler
         let estimatedOp = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<UserOperation, Error>) in
             manager.estimateGas(for: operation) { result in
@@ -489,7 +521,7 @@ final class BlockchainBridge {
         try await postToAPI(endpoint: "blockchain/transaction", body: [
             "operationHash": opHash,
             "to": to,
-            "amount": String(amount),
+            "amount": amountLabel,
             "chainId": String(chainId)
         ])
 

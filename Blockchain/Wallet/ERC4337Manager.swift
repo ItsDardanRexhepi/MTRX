@@ -131,6 +131,42 @@ enum ABIEncoder {
         return padded
     }
 
+    /// Encode an arbitrary-magnitude wei amount (decimal string) as a 32-byte
+    /// big-endian uint256 — the full EVM range, not just UInt64. This is what
+    /// lets a realistically-priced property (hundreds/thousands of ETH, i.e.
+    /// values far above UInt64.max wei) settle on-chain. Pure + dependency-free:
+    /// repeated "buffer = buffer*10 + digit" with carry, rejecting only a value
+    /// that genuinely overflows 256 bits or isn't a non-negative integer.
+    /// Returns nil (honest failure) for empty/negative/non-numeric/>2^256-1.
+    static func encodeUInt256(decimalWei: String) -> Data? {
+        // ASCII-whitespace-only trim: Foundation's .whitespacesAndNewlines also
+        // classifies invisible format characters (e.g. U+200B zero-width space)
+        // as whitespace, which would let a decorated value string slip through.
+        // Anything beyond plain ASCII spacing must reach the per-digit guard
+        // below and reject.
+        let s = decimalWei.trimmingCharacters(in: CharacterSet(charactersIn: " \t\r\n"))
+        guard !s.isEmpty else { return nil }
+        var bytes = [UInt8](repeating: 0, count: 32)   // big-endian, MSB first
+        for ch in s {
+            // ASCII 0-9 only, tested per character right where the digit is
+            // extracted (never a force-unwrap). asciiValue is nil for any
+            // multi-scalar grapheme (e.g. a digit + combining mark), so signs,
+            // decimals, unicode numerics, and decorated digits all reject
+            // honestly with nil instead of trapping.
+            guard let ascii = ch.asciiValue, ascii >= 48, ascii <= 57 else { return nil }
+            var carry = Int(ascii - 48)
+            var i = 31
+            while i >= 0 {
+                let v = Int(bytes[i]) * 10 + carry
+                bytes[i] = UInt8(v & 0xFF)
+                carry = v >> 8
+                i -= 1
+            }
+            if carry != 0 { return nil }   // spilled past 256 bits → overflow
+        }
+        return Data(bytes)
+    }
+
     /// Encode raw bytes with length prefix and padding.
     static func encodeBytes(_ data: Data) -> Data {
         let lengthWord = encodeUInt256(UInt64(data.count))
@@ -273,6 +309,10 @@ enum ERC4337Error: Error, LocalizedError {
     case networkError(underlying: Error)
     /// Testnet-only lock: refused to sign against a non-permitted chain (e.g. mainnet).
     case signingChainNotPermitted(chainId: UInt64)
+    /// The requested value (wei) is not a valid non-negative integer or exceeds the
+    /// uint256 range the EVM can hold. Honest-failure for genuine overflow only —
+    /// realistic property prices (hundreds/thousands of ETH) are far below this.
+    case valueTooLarge(String)
     /// The signer itself reported an HONEST reason the signature wasn't produced (P3.5) — e.g. a
     /// declined/failed biometric ("authentication required — nothing was signed") or a refused
     /// weak/ungated key. Carries that reason through to the UI verbatim instead of collapsing it
@@ -294,6 +334,7 @@ enum ERC4337Error: Error, LocalizedError {
             return "Testnet-only build — signing is restricted to Base Sepolia "
                 + "(\(BaseNetworkConfig.permittedSigningChainID)); chain \(id) is not permitted. Nothing was signed."
         case .signingFailed(let reason): return reason
+        case .valueTooLarge(let v): return "Amount \(v) is not a valid on-chain value. Nothing was sent."
         }
     }
 }
@@ -516,6 +557,31 @@ final class ERC4337Manager {
     func buildUserOperation(to target: String, value: UInt64, data: Data) -> Result<UserOperation, ERC4337Error> {
         guard let sender = accountAddress else { return .failure(.accountNotDeployed) }
         let callData = encodeExecuteCalldata(to: target, value: value, data: data)
+        let operation = UserOperation(
+            sender: sender,
+            nonce: currentNonce,
+            initCode: isAccountDeployed ? Data() : buildInitCode(),
+            callData: callData,
+            callGasLimit: 200_000,
+            verificationGasLimit: 150_000,
+            preVerificationGas: 50_000,
+            maxFeePerGas: 1_000_000,
+            maxPriorityFeePerGas: 1_000_000,
+            paymasterAndData: Data(),
+            signature: Data()
+        )
+        return .success(operation)
+    }
+
+    /// Full-range variant of buildUserOperation: value is a decimal wei string,
+    /// so a realistically-priced property (hundreds/thousands of ETH) builds a
+    /// valid UserOperation instead of hitting the UInt64 ceiling. Fails honestly
+    /// with .valueTooLarge only when the amount isn't a valid uint256.
+    func buildUserOperation(to target: String, valueWei: String, data: Data) -> Result<UserOperation, ERC4337Error> {
+        guard let sender = accountAddress else { return .failure(.accountNotDeployed) }
+        guard let callData = encodeExecuteCalldata(to: target, valueWei: valueWei, data: data) else {
+            return .failure(.valueTooLarge(valueWei))
+        }
         let operation = UserOperation(
             sender: sender,
             nonce: currentNonce,
@@ -839,6 +905,21 @@ final class ERC4337Manager {
         // bytes data (length-prefixed + padded)
         encoded.append(ABIEncoder.encodeBytes(data))
 
+        return encoded
+    }
+
+    /// Full-range variant of encodeExecuteCalldata: takes the value as a decimal
+    /// wei string so property-sized amounts (far above UInt64.max wei) encode
+    /// correctly. Returns nil (honest failure) only when the value genuinely
+    /// isn't a valid uint256 — the caller surfaces .valueTooLarge, never a fake.
+    private func encodeExecuteCalldata(to: String, valueWei: String, data: Data) -> Data? {
+        guard let valueWord = ABIEncoder.encodeUInt256(decimalWei: valueWei) else { return nil }
+        var encoded = Data()
+        encoded.append(ABIEncoder.functionSelector("execute(address,uint256,bytes)"))
+        encoded.append(ABIEncoder.encodeAddress(to))
+        encoded.append(valueWord)                       // 32-byte big-endian, full range
+        encoded.append(ABIEncoder.encodeOffset(96))
+        encoded.append(ABIEncoder.encodeBytes(data))
         return encoded
     }
 

@@ -439,10 +439,11 @@ final class PurchaseViewModel: ObservableObject {
             stage = .refused("Your on-chain wallet isn't connected for settlement yet. The escrow is recorded; complete it once your wallet is set up.")
             return
         }
-        guard let value = UInt64(settlement.valueWei) else {
-            stage = .refused("This property's price exceeds the current one-tap signing limit. Flagged — no funds moved.")
-            return
-        }
+        // The price rides through as a decimal wei string across the full
+        // uint256 range — a realistically-priced home (hundreds/thousands of
+        // ETH) settles instead of hitting the old ~18.4-ETH UInt64 ceiling.
+        // Genuine overflow (a value past uint256) still fails honestly below,
+        // surfaced by the signing path — no funds are ever touched on failure.
         guard let data = hexToData(settlement.data) else {
             stage = .refused("The settlement data couldn't be prepared. Nothing happened."); return
         }
@@ -451,7 +452,7 @@ final class PurchaseViewModel: ObservableObject {
         let hash: String
         do {
             let result = try await BlockchainBridge.shared.sendTransaction(
-                to: settlement.to, amount: value, data: data)
+                to: settlement.to, valueWei: settlement.valueWei, data: data)
             hash = result.transactionHash
             guard hash.hasPrefix("0x"), hash.count > 2 else {
                 stage = .refused("The network didn't return a valid transaction. Check your wallet before retrying."); return

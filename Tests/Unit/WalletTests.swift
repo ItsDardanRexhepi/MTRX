@@ -844,4 +844,156 @@ final class WalletTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - Full-range value encoding (property-sized settlements)
+    //
+    // The one-tap settlement value used to be UInt64, capping any purchase at
+    // ~18.4 ETH in wei — no realistically-priced home could execute. The value
+    // now rides through as a decimal wei string encoded across the full uint256
+    // range. These tests prove a realistic home price (hundreds/thousands of
+    // ETH, well past the old ceiling) encodes and builds correctly, that the
+    // boundary is exact, and that genuine overflow / garbage still fails
+    // honestly (nil / .valueTooLarge — never a fabricated or truncated value).
+
+    private func hexWord(_ s: String) -> String? {
+        ABIEncoder.encodeUInt256(decimalWei: s).map { "0x" + $0.map { String(format: "%02x", $0) }.joined() }
+    }
+
+    func testEncodeUInt256_decimalWei_knownVectors() {
+        XCTAssertEqual(hexWord("0"), "0x" + String(repeating: "0", count: 64))
+        XCTAssertEqual(hexWord("1"), "0x" + String(repeating: "0", count: 63) + "1")
+        // 1 ETH = 10^18 wei → 0x…0de0b6b3a7640000 (matches the indexer vector).
+        XCTAssertEqual(hexWord("1000000000000000000"),
+                       "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000")
+        // UInt64.max — the old ceiling — still encodes and is only 8 low bytes.
+        XCTAssertEqual(hexWord(String(UInt64.max)),
+                       "0x000000000000000000000000000000000000000000000000ffffffffffffffff")
+        // 2^256 - 1 is the largest valid uint256 → all ones.
+        XCTAssertEqual(hexWord("115792089237316195423570985008687907853269984665640564039457584007913129639935"),
+                       "0x" + String(repeating: "f", count: 64))
+        // Leading zeros normalize; width is always exactly 32 bytes.
+        XCTAssertEqual(ABIEncoder.encodeUInt256(decimalWei: "007"), ABIEncoder.encodeUInt256(UInt64(7)))
+        XCTAssertEqual(ABIEncoder.encodeUInt256(decimalWei: "42")?.count, 32)
+    }
+
+    func testEncodeUInt256_decimalWei_matchesUInt64PathWithinRange() {
+        // Within UInt64 the new string path must be byte-identical to the old one.
+        for v: UInt64 in [0, 1, 255, 256, 1_000_000, 1_000_000_000_000_000_000, UInt64.max] {
+            XCTAssertEqual(ABIEncoder.encodeUInt256(decimalWei: String(v)),
+                           ABIEncoder.encodeUInt256(v),
+                           "string path must equal the UInt64 path for \(v)")
+        }
+    }
+
+    func testEncodeUInt256_decimalWei_overflowAndGarbageFailHonestly() {
+        let twoPow256 = "115792089237316195423570985008687907853269984665640564039457584007913129639936"
+        XCTAssertNil(ABIEncoder.encodeUInt256(decimalWei: twoPow256), "2^256 must overflow to nil")
+        XCTAssertNil(ABIEncoder.encodeUInt256(decimalWei: twoPow256 + "00"), "far past 2^256 must be nil")
+        // Signs, decimals, hex, whitespace-embedded, non-ASCII digits, letters — all rejected.
+        for bad in ["", "   ", "-1", "12.5", "0xABC", "12a3", "1 000", "abc", "+5", "１２３", "１"] {
+            XCTAssertNil(ABIEncoder.encodeUInt256(decimalWei: bad), "non-integer \"\(bad)\" must be nil")
+        }
+    }
+
+    func testEncodeUInt256_decimalWei_combiningMarkGraphemesRejectNotCrash() {
+        // Adversarial-pass regression: an ASCII digit + combining mark forms a
+        // single multi-scalar grapheme that a Character range check ("0"..."9")
+        // wrongly admits, but whose asciiValue is nil. The encoder must return
+        // an honest nil for these — never trap on a force-unwrap.
+        XCTAssertNil(ABIEncoder.encodeUInt256(decimalWei: "7\u{0301}"),
+                     "digit + combining acute must reject with nil, not crash")
+        XCTAssertNil(ABIEncoder.encodeUInt256(decimalWei: "200000000000000000000\u{0301}"),
+                     "a realistic price decorated with a combining mark must reject with nil, not crash")
+        XCTAssertNil(ABIEncoder.encodeUInt256(decimalWei: "1\u{0300}2"),
+                     "a combining mark mid-string must reject with nil, not crash")
+        // Zero-width space is NOT trimmable whitespace here (ASCII-only trim):
+        // an invisible format character anywhere must reject, never pass.
+        XCTAssertNil(ABIEncoder.encodeUInt256(decimalWei: "\u{200B}12"),
+                     "leading zero-width space must reject with nil")
+        XCTAssertNil(ABIEncoder.encodeUInt256(decimalWei: "12\u{200B}"),
+                     "trailing zero-width space must reject with nil")
+        // Plain ASCII spacing still trims fine.
+        XCTAssertEqual(ABIEncoder.encodeUInt256(decimalWei: " 12 \n"),
+                       ABIEncoder.encodeUInt256(UInt64(12)))
+    }
+
+    @MainActor
+    func testBuildUserOperation_valueWei_combiningMarkRefusedHonestly() {
+        // The same malformed value through the full build path must surface as
+        // .valueTooLarge (honest refusal), never a process crash.
+        let mgr = Self.dummyERC4337()
+        mgr.setAccountAddress("0x3333333333333333333333333333333333333333")
+        let result = mgr.buildUserOperation(to: "0x2222222222222222222222222222222222222222",
+                                            valueWei: "200000000000000000000\u{0301}", data: Data())
+        guard case .failure(.valueTooLarge) = result else {
+            return XCTFail("a combining-mark value must refuse with .valueTooLarge, got \(result)")
+        }
+    }
+
+    func testEncodeUInt256_decimalWei_realisticPricesRoundTrip() {
+        // Cross-check against the already-tested on-chain word decoder. Each is a
+        // realistically-priced home far above the old UInt64 wei cap.
+        for priceWei in ["133000000000000000000",   // ~133 ETH  (~$400k @ ~$3k/ETH)
+                         "200000000000000000000",   // ~200 ETH  (~$600k)
+                         "667000000000000000000"] {  // ~667 ETH  (~$2M)
+            XCTAssertNil(UInt64(priceWei), "precondition: \(priceWei) overflows UInt64 wei (the old cap)")
+            let word = ABIEncoder.encodeUInt256(decimalWei: priceWei)
+            let hex = "0x" + (word ?? Data()).map { String(format: "%02x", $0) }.joined()
+            XCTAssertEqual(TransactionIndexer.decimalString(fromHexWord: hex), priceWei,
+                           "\(priceWei) wei must round-trip exactly through the value word")
+        }
+    }
+
+    @MainActor
+    func testBuildUserOperation_valueWei_realisticHomeBuildsValidOp() {
+        // The full build path: a $600k-equivalent home (200 ETH) must produce a
+        // valid UserOperation whose calldata carries the exact price.
+        let priceWei = "200000000000000000000"
+        XCTAssertNil(UInt64(priceWei), "precondition: exceeds the old UInt64 cap")
+
+        let mgr = Self.dummyERC4337()
+        mgr.setAccountAddress("0x3333333333333333333333333333333333333333")
+        let result = mgr.buildUserOperation(to: "0x2222222222222222222222222222222222222222",
+                                            valueWei: priceWei, data: Data([0xde, 0xad, 0xbe, 0xef]))
+        guard case .success(let op) = result else {
+            return XCTFail("a realistic property price must build a valid UserOperation, got \(result)")
+        }
+        // execute(address,uint256,bytes): selector(4) + address(32) + value(32) + …
+        let bytes = [UInt8](op.callData)
+        XCTAssertGreaterThanOrEqual(bytes.count, 68)
+        let valueWord = Array(bytes[36..<68])
+        let hex = "0x" + valueWord.map { String(format: "%02x", $0) }.joined()
+        XCTAssertEqual(TransactionIndexer.decimalString(fromHexWord: hex), priceWei,
+                       "the value encoded into calldata must equal the property price exactly")
+    }
+
+    @MainActor
+    func testBuildUserOperation_valueWei_overflowRefusedNothingBuilt() {
+        let mgr = Self.dummyERC4337()
+        mgr.setAccountAddress("0x3333333333333333333333333333333333333333")
+        let twoPow256 = "115792089237316195423570985008687907853269984665640564039457584007913129639936"
+        let result = mgr.buildUserOperation(to: "0x2222222222222222222222222222222222222222",
+                                            valueWei: twoPow256, data: Data())
+        guard case .failure(let err) = result else {
+            return XCTFail("a value past uint256 must fail honestly, not build")
+        }
+        guard case .valueTooLarge = err else {
+            return XCTFail("overflow must surface as .valueTooLarge, got \(err)")
+        }
+    }
+
+    @MainActor
+    func testBuildUserOperation_valueWei_boundaryMaxUint256Builds() {
+        // 2^256 - 1 is a valid (if unrealistic) uint256 and must build, not refuse.
+        let mgr = Self.dummyERC4337()
+        mgr.setAccountAddress("0x3333333333333333333333333333333333333333")
+        let maxU256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+        let result = mgr.buildUserOperation(to: "0x2222222222222222222222222222222222222222",
+                                            valueWei: maxU256, data: Data())
+        guard case .success(let op) = result else {
+            return XCTFail("2^256 - 1 is a valid uint256 and must build, got \(result)")
+        }
+        let valueWord = Array([UInt8](op.callData)[36..<68])
+        XCTAssertTrue(valueWord.allSatisfy { $0 == 0xff }, "max uint256 value word must be all ones")
+    }
 }
